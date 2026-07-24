@@ -19,9 +19,9 @@ function ok(name, cond){ if(cond){pass++; console.log("  ✓ "+name);} else {fai
   const { filterTools, TOOLS, CATS } = ctx.module.exports;
 
   console.log("Pure-function tests:");
-  ok("TOOLS has 19 items", TOOLS.length === 19);
+  ok("TOOLS has 24 items", TOOLS.length === 24);
   ok("CATS starts with 全部", CATS[0] === "全部");
-  ok("filter empty query returns all", filterTools(TOOLS,"","").length === 19);
+  ok("filter empty query returns all", filterTools(TOOLS,"","").length === 24);
   ok("filter by name 'json' matches JsonForge", filterTools(TOOLS,"json","全部").some(t=>t.id==="JsonForge"));
   ok("filter by tag 'svg' matches Graphite/Chartify", filterTools(TOOLS,"svg","全部").length >= 2);
   ok("filter by category 可视化 -> 2", filterTools(TOOLS,"","可视化").length === 2);
@@ -44,9 +44,9 @@ else (async function functionalTests(){
 
   console.log("\nFunctional (jsdom) tests:");
   const cards = doc.querySelectorAll("#grid .card");
-  ok("renders 19 tool cards", cards.length === 19);
+  ok("renders 24 tool cards", cards.length === 24);
   ok("card icons render as inline svg", !!doc.querySelector("#grid .card-ico svg"));
-  ok("exactly 3 新 badges (MockForge/CSSKit/SVGForge)", doc.querySelectorAll("#grid .badge").length === 3);
+  ok("exactly 5 新 badges (ColorForge/PassForge/IconForge/CronForge/BaseForge)", doc.querySelectorAll("#grid .badge").length === 5);
   ok("stats row has 4 stats", doc.querySelectorAll("#statsRow .stat").length === 4);
   ok("filter chips rendered (全部 + cats)", doc.querySelectorAll("#filters .chip").length >= 2);
   ok("FAQ has 5 details", doc.querySelectorAll("#faq details").length === 5);
@@ -57,7 +57,7 @@ else (async function functionalTests(){
   const search = doc.querySelector("#search");
   search.value = "json";
   search.dispatchEvent(new window.Event("input", {bubbles:true}));
-  ok("search 'json' narrows grid (<19 & >=1)", (()=>{const n=doc.querySelectorAll("#grid .card").length; return n>=1 && n<19;})());
+  ok("search 'json' narrows grid (<24 & >=1)", (()=>{const n=doc.querySelectorAll("#grid .card").length; return n>=1 && n<24;})());
 
   // category chip
   search.value=""; search.dispatchEvent(new window.Event("input",{bubbles:true}));
