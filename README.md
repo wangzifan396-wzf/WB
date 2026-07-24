@@ -1,3 +1,19 @@
+<p align="center">
+  <a href="https://wangzifan396-wzf.github.io/WB/"><img src="https://img.shields.io/github/stars/wangzifan396-wzf/WB?style=flat-square&color=5E6AD2" alt="Stars"></a>
+  <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
+  <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
+  <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
+  <img src="https://img.shields.io/badge/built%20with-HTML5%20%2B%20Vanilla%20JS-5E6AD2?style=flat-square" alt="HTML5">
+  <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
+  <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
+</p>
+
+<p align="center">
+  <a href="https://wangzifan396-wzf.github.io/WB/"><strong>🌐 在线试用 Live Demo</strong></a>
+</p>
+
+---
+
 # AI 发展趋势 · 2025–2026
 
 一份关于 AI 发展趋势的单文件可视化网站（可交互 HTML）。
