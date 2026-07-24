@@ -19,9 +19,9 @@ function ok(name, cond){ if(cond){pass++; console.log("  ✓ "+name);} else {fai
   const { filterTools, TOOLS, CATS } = ctx.module.exports;
 
   console.log("Pure-function tests:");
-  ok("TOOLS has 13 items", TOOLS.length === 13);
+  ok("TOOLS has 16 items", TOOLS.length === 16);
   ok("CATS starts with 全部", CATS[0] === "全部");
-  ok("filter empty query returns all", filterTools(TOOLS,"","").length === 13);
+  ok("filter empty query returns all", filterTools(TOOLS,"","").length === 16);
   ok("filter by name 'json' matches JsonForge", filterTools(TOOLS,"json","全部").some(t=>t.id==="JsonForge"));
   ok("filter by tag 'svg' matches Graphite/Chartify", filterTools(TOOLS,"svg","全部").length >= 2);
   ok("filter by category 可视化 -> 2", filterTools(TOOLS,"","可视化").length === 2);
@@ -44,9 +44,9 @@ else (async function functionalTests(){
 
   console.log("\nFunctional (jsdom) tests:");
   const cards = doc.querySelectorAll("#grid .card");
-  ok("renders 13 tool cards", cards.length === 13);
+  ok("renders 16 tool cards", cards.length === 16);
   ok("card icons render as inline svg", !!doc.querySelector("#grid .card-ico svg"));
-  ok("exactly 2 新 badges (HashKit/JsonForge)", doc.querySelectorAll("#grid .badge").length === 2);
+  ok("exactly 3 新 badges (RESTKit/DataForge/MarkForge)", doc.querySelectorAll("#grid .badge").length === 3);
   ok("stats row has 4 stats", doc.querySelectorAll("#statsRow .stat").length === 4);
   ok("filter chips rendered (全部 + cats)", doc.querySelectorAll("#filters .chip").length >= 2);
   ok("FAQ has 5 details", doc.querySelectorAll("#faq details").length === 5);
@@ -57,7 +57,7 @@ else (async function functionalTests(){
   const search = doc.querySelector("#search");
   search.value = "json";
   search.dispatchEvent(new window.Event("input", {bubbles:true}));
-  ok("search 'json' narrows grid (<=13 & >=1)", (()=>{const n=doc.querySelectorAll("#grid .card").length; return n>=1 && n<13;})());
+  ok("search 'json' narrows grid (<16 & >=1)", (()=>{const n=doc.querySelectorAll("#grid .card").length; return n>=1 && n<16;})());
 
   // category chip
   search.value=""; search.dispatchEvent(new window.Event("input",{bubbles:true}));
