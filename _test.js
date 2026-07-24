@@ -45,6 +45,8 @@ else (async function functionalTests(){
   console.log("\nFunctional (jsdom) tests:");
   const cards = doc.querySelectorAll("#grid .card");
   ok("renders 13 tool cards", cards.length === 13);
+  ok("card icons render as inline svg", !!doc.querySelector("#grid .card-ico svg"));
+  ok("exactly 2 新 badges (HashKit/JsonForge)", doc.querySelectorAll("#grid .badge").length === 2);
   ok("stats row has 4 stats", doc.querySelectorAll("#statsRow .stat").length === 4);
   ok("filter chips rendered (全部 + cats)", doc.querySelectorAll("#filters .chip").length >= 2);
   ok("FAQ has 5 details", doc.querySelectorAll("#faq details").length === 5);
