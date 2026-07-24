@@ -4,146 +4,249 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>nano-tools · 单文件零依赖工具集</title>
-<meta name="description" content="A collection of single-file, zero-dependency, offline-first developer tools. 单文件、零依赖、本地优先的开发者工具矩阵。">
+<meta name="description" content="一个标签页，收纳你全部的开发者工具。14 个单文件、零依赖、本地优先的开源工具，下载即用，数据永不离机。">
 <style>
   :root{
-    --bg:#08090A; --surface:#101113; --surface2:#1C1D1F; --border:#26282B;
-    --text:#F7F8F8; --text2:#9CA0A8; --text3:#6B6F76;
-    --accent:#5E6AD2; --accent2:#8B93E8; --accent-soft:rgba(94,106,210,.14);
-    --green:#2EA043; --amber:#E0A030; --pink:#E06AA0; --cyan:#3AB7C7; --red:#E5484D;
-    --radius:14px; --shadow:0 8px 30px rgba(0,0,0,.4);
-    --maxw:1160px;
+    /* —— 锁定设计系统：Linear 冷峻暗色 —— */
+    --bg:#0A0A0B;
+    --surface:#141417;
+    --surface-2:#1A1B1E;
+    --border:rgba(255,255,255,0.08);
+    --border-strong:rgba(255,255,255,0.14);
+    --text:#FFFFFF;
+    --text-2:#A1A1AA;   /* zinc-400 */
+    --text-3:#71717A;   /* zinc-500 */
+    --accent:#5E6AD2;   /* Linear indigo */
+    --accent-2:#7C84E8;
+    --accent-soft:rgba(94,106,210,0.12);
+    --green:#10B981;
+    --amber:#F5A623;
+    --radius:10px;
+    --radius-lg:14px;
+    --maxw:1180px;
+    --ease:cubic-bezier(.2,.7,.3,1);
   }
   html[data-theme="light"]{
-    --bg:#FBFBFC; --surface:#FFFFFF; --surface2:#F4F5F7; --border:#E6E8EB;
-    --text:#0D0E10; --text2:#5B616B; --text3:#8A9099;
-    --accent:#5E6AD2; --accent2:#4550C0; --accent-soft:rgba(94,106,210,.10);
-    --shadow:0 6px 24px rgba(20,22,40,.08);
+    --bg:#FBFBFC;
+    --surface:#FFFFFF;
+    --surface-2:#F4F5F7;
+    --border:rgba(0,0,0,0.08);
+    --border-strong:rgba(0,0,0,0.14);
+    --text:#18181B;
+    --text-2:#52525B;
+    --text-3:#8A8F98;
+    --accent:#5E6AD2;
+    --accent-2:#4A52C0;
+    --accent-soft:rgba(94,106,210,0.10);
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
   body{
     background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
     line-height:1.6; -webkit-font-smoothing:antialiased; overflow-x:hidden;
-    transition:background .4s ease,color .4s ease;
+    transition:background .35s ease,color .35s ease;
+    font-feature-settings:"tnum" 1,"cv01" 1;
   }
   a{color:inherit;text-decoration:none}
   .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  ::selection{background:var(--accent-soft);color:var(--text)}
 
-  /* backdrop */
-  .aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-  .aurora::before,.aurora::after{
-    content:"";position:absolute;width:60vw;height:60vw;border-radius:50%;filter:blur(90px);opacity:.5;
-    will-change:transform;
-  }
-  .aurora::before{background:radial-gradient(circle,#5E6AD2,transparent 60%);top:-20vw;left:-10vw;animation:float1 22s ease-in-out infinite}
-  .aurora::after{background:radial-gradient(circle,#E06AA0,transparent 60%);top:10vw;right:-15vw;animation:float2 26s ease-in-out infinite}
-  html[data-theme="light"] .aurora::before{opacity:.22}
-  html[data-theme="light"] .aurora::after{opacity:.16}
-  @keyframes float1{0%,100%{transform:translate(0,0)}50%{transform:translate(6vw,4vw)}}
-  @keyframes float2{0%,100%{transform:translate(0,0)}50%{transform:translate(-5vw,3vw)}}
-  .dots{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
-    background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:26px 26px;
-    mask-image:radial-gradient(circle at 50% 30%,#000 0%,transparent 75%);
-    -webkit-mask-image:radial-gradient(circle at 50% 30%,#000 0%,transparent 75%);}
+  /* —— 背景：极淡网格 + 顶部微弱光晕（克制，非 AI 渐变球） —— */
+  .bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(circle at 50% 0%,#000 0%,transparent 70%);
+    mask-image:radial-gradient(circle at 50% 0%,#000 0%,transparent 70%);
+    opacity:.5;}
+  .bg-glow{position:fixed;top:-240px;left:50%;transform:translateX(-50%);z-index:0;pointer-events:none;
+    width:900px;height:520px;border-radius:50%;
+    background:radial-gradient(circle,rgba(94,106,210,0.10),transparent 65%);}
 
-  /* nav */
+  /* —— 导航 —— */
   nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
-    background:color-mix(in srgb,var(--bg) 72%,transparent);
+    background:color-mix(in srgb,var(--bg) 74%,transparent);
     border-bottom:1px solid var(--border);}
   .nav-in{display:flex;align-items:center;justify-content:space-between;height:60px}
-  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.02em}
-  .brand .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--pink));
-    display:grid;place-items:center;color:#fff;font-size:16px;font-weight:800;box-shadow:0 4px 14px var(--accent-soft)}
-  .nav-actions{display:flex;align-items:center;gap:8px}
-  .btn{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 15px;border-radius:10px;
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:-.02em}
+  .brand .mark{width:28px;height:28px;border-radius:8px;background:var(--accent);
+    display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;
+    box-shadow:0 4px 14px rgba(94,106,210,.35)}
+  .nav-links{display:flex;gap:28px}
+  .nav-links a{font-size:14px;color:var(--text-2);font-weight:500;transition:color .18s ease}
+  .nav-links a:hover{color:var(--text)}
+  .nav-actions{display:flex;align-items:center;gap:9px}
+  .btn{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 15px;border-radius:9px;
     border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13.5px;font-weight:600;
-    cursor:pointer;transition:transform .18s ease,background .2s ease,border-color .2s ease;white-space:nowrap}
+    cursor:pointer;white-space:nowrap;transition:transform .18s ease,background .2s ease,border-color .2s ease,box-shadow .2s ease}
   .btn:hover{transform:translateY(-1px);border-color:var(--accent)}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-  .btn.primary:hover{background:var(--accent2)}
+  .btn.primary:hover{background:var(--accent-2);box-shadow:0 6px 20px rgba(94,106,210,.35)}
   .icon-btn{width:38px;height:38px;padding:0;justify-content:center;font-size:16px}
 
-  /* hero */
-  header.hero{position:relative;z-index:1;text-align:center;padding:80px 0 48px}
-  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;
-    border:1px solid var(--border);background:var(--surface);font-size:12.5px;color:var(--text2);margin-bottom:24px}
-  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 25%,transparent)}
-  h1.title{font-size:clamp(38px,6vw,64px);font-weight:800;letter-spacing:-.04em;line-height:1.05;margin-bottom:20px}
-  h1.title .grad{background:linear-gradient(120deg,var(--accent2),var(--pink) 60%,var(--cyan));
-    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  .subtitle{font-size:clamp(15px,2vw,19px);color:var(--text2);max-width:600px;margin:0 auto 34px}
-  .hero-cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  /* —— Hero（非对称分栏，左文右图） —— */
+  header.hero{position:relative;z-index:1;padding:84px 0 40px}
+  .hero-grid{display:grid;grid-template-columns:1.05fr 0.95fr;gap:56px;align-items:center}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border-radius:999px;
+    border:1px solid var(--border);background:var(--surface);font-size:12.5px;color:var(--text-2);
+    font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.01em;margin-bottom:22px}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 0 3px rgba(16,185,129,.22)}
+  h1.title{font-size:clamp(34px,4.6vw,52px);font-weight:800;letter-spacing:-.04em;line-height:1.08;margin-bottom:20px}
+  h1.title .hl{color:var(--accent)}
+  .subtitle{font-size:clamp(15px,1.6vw,17px);color:var(--text-2);max-width:520px;margin-bottom:30px}
+  .hero-cta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:26px}
+  .hero-meta{display:flex;gap:22px;flex-wrap:wrap;font-size:13px;color:var(--text-3)}
+  .hero-meta b{color:var(--text);font-weight:700}
 
-  /* stats */
-  .stats{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:48px}
-  .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-    padding:18px 26px;min-width:130px;transition:transform .2s ease,border-color .2s ease}
-  .stat:hover{transform:translateY(-3px);border-color:var(--accent)}
-  .stat .num{font-size:30px;font-weight:800;letter-spacing:-.03em;
-    background:linear-gradient(120deg,var(--accent2),var(--pink));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  .stat .lab{font-size:12.5px;color:var(--text2);margin-top:4px}
+  /* Hero 右侧：浏览器预览 mockup（纯 CSS，离线安全） */
+  .mock{background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg);
+    overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.45);transform:perspective(1200px) rotateY(-7deg) rotateX(2deg);
+    transition:transform .5s var(--ease)}
+  .mock:hover{transform:perspective(1200px) rotateY(0) rotateX(0)}
+  .mock-bar{display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+  .mock-bar i{width:11px;height:11px;border-radius:50%;background:#3A3B3F;display:inline-block}
+  .mock-bar i:nth-child(1){background:#FF5F57}.mock-bar i:nth-child(2){background:#FEBC2E}.mock-bar i:nth-child(3){background:#28C840}
+  .mock-url{flex:1;margin-left:10px;height:24px;border-radius:6px;background:var(--bg);
+    border:1px solid var(--border);display:flex;align-items:center;padding:0 10px;
+    font-size:11.5px;color:var(--text-3);font-family:ui-monospace,monospace;overflow:hidden;white-space:nowrap}
+  .mock-body{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px}
+  .mock-card{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .mock-card .m-ico{width:24px;height:24px;border-radius:6px;background:var(--surface-2);display:grid;place-items:center;font-size:13px}
+  .mock-card .m-t{font-size:11px;font-weight:700;color:var(--text)}
+  .mock-card .m-l{height:5px;border-radius:3px;background:var(--border)}
+  .mock-card .m-l.s{width:60%}
 
-  /* controls */
-  .controls{position:relative;z-index:1;display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:56px 0 26px}
+  /* —— 章节通用 —— */
+  section{position:relative;z-index:1;padding:74px 0}
+  .sec-head{max-width:620px;margin-bottom:40px}
+  .label{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:12px}
+  h2.sec-title{font-size:clamp(26px,3.2vw,34px);font-weight:800;letter-spacing:-.03em;line-height:1.18}
+  .sec-desc{color:var(--text-2);font-size:15.5px;margin-top:12px}
+
+  /* —— 三大卖点 —— */
+  .why-grid{display:grid;grid-template-columns:0.85fr 1.15fr;gap:56px;align-items:center}
+  .steps{display:flex;flex-direction:column;gap:14px}
+  .step{display:flex;gap:16px;align-items:center;background:var(--surface);border:1px solid var(--border);
+    border-radius:12px;padding:18px 20px;transition:border-color .2s ease,transform .2s var(--ease)}
+  .step:hover{border-color:var(--border-strong);transform:translateX(3px)}
+  .step .num{flex:none;width:42px;height:42px;border-radius:10px;display:grid;place-items:center;
+    font-weight:800;font-size:17px;color:#fff}
+  .step .num.a{background:var(--accent)}.step .num.b{background:var(--green)}.step .num.c{background:var(--amber)}
+  .step h3{font-size:16px;font-weight:700;letter-spacing:-.01em}
+  .step p{font-size:13.5px;color:var(--text-2);margin-top:2px}
+
+  /* —— 工具区 —— */
+  .controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:26px}
   .search{flex:1;min-width:220px;position:relative}
-  .search input{width:100%;height:46px;padding:0 16px 0 44px;border-radius:12px;border:1px solid var(--border);
-    background:var(--surface);color:var(--text);font-size:14.5px;outline:none;transition:border-color .2s ease}
+  .search input{width:100%;height:46px;padding:0 16px 0 44px;border-radius:11px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text);font-size:14.5px;outline:none;transition:border-color .2s ease,box-shadow .2s ease}
   .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-  .search .si{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:16px}
+  .search .si{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:16px}
   .filters{display:flex;gap:8px;flex-wrap:wrap}
   .chip{padding:9px 15px;border-radius:999px;border:1px solid var(--border);background:var(--surface);
-    color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:all .18s ease;white-space:nowrap}
+    color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;transition:all .18s ease;white-space:nowrap}
   .chip:hover{border-color:var(--accent);color:var(--text)}
   .chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
 
-  /* grid */
-  .grid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;padding-bottom:40px}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;
     display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden;
-    transition:transform .22s cubic-bezier(.2,.7,.3,1),border-color .22s ease,box-shadow .22s ease;
-    opacity:0;transform:translateY(14px);animation:cardIn .5s forwards}
+    transition:transform .22s var(--ease),border-color .22s ease,box-shadow .22s ease;
+    opacity:0;transform:translateY(14px);animation:cardIn .5s var(--ease) forwards}
   @keyframes cardIn{to{opacity:1;transform:translateY(0)}}
-  .card::before{content:"";position:absolute;inset:0;background:radial-gradient(400px circle at var(--mx,50%) var(--my,0%),var(--accent-soft),transparent 40%);
+  .card::before{content:"";position:absolute;inset:0;
+    background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),var(--accent-soft),transparent 42%);
     opacity:0;transition:opacity .3s ease;pointer-events:none}
-  .card:hover{transform:translateY(-5px);border-color:var(--accent);box-shadow:var(--shadow)}
+  .card:hover{transform:translateY(-5px);border-color:var(--border-strong);box-shadow:0 18px 40px rgba(0,0,0,.4)}
   .card:hover::before{opacity:1}
   .card-top{display:flex;align-items:flex-start;gap:14px}
-  .card-ico{width:48px;height:48px;border-radius:12px;flex:none;display:grid;place-items:center;font-size:24px;
-    background:var(--surface2);border:1px solid var(--border)}
+  .card-ico{width:46px;height:46px;border-radius:11px;flex:none;display:grid;place-items:center;font-size:22px;
+    background:var(--surface-2);border:1px solid var(--border)}
   .card-h{flex:1;min-width:0}
-  .card-h h3{font-size:17px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
-  .card-h .cat{font-size:11.5px;color:var(--text3);margin-top:2px}
-  .card p{font-size:13.5px;color:var(--text2);line-height:1.55;flex:1}
+  .card-h h3{font-size:16.5px;font-weight:700;letter-spacing:-.02em}
+  .card-h .cat{font-size:11.5px;color:var(--text-3);margin-top:3px}
+  .card p{font-size:13.5px;color:var(--text-2);line-height:1.55;flex:1}
   .tags{display:flex;gap:6px;flex-wrap:wrap}
-  .tag{font-size:11px;padding:3px 9px;border-radius:6px;background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
+  .tag{font-size:11px;padding:3px 9px;border-radius:6px;background:var(--surface-2);color:var(--text-3);border:1px solid var(--border)}
   .card-actions{display:flex;gap:9px;margin-top:2px}
   .card-actions .btn{height:36px;font-size:13px;flex:1;justify-content:center}
-  .no-result{grid-column:1/-1;text-align:center;padding:60px 0;color:var(--text3)}
+  .no-result{grid-column:1/-1;text-align:center;padding:60px 0;color:var(--text-3)}
 
-  /* footer */
-  footer{position:relative;z-index:1;border-top:1px solid var(--border);margin-top:40px;padding:40px 0;text-align:center;color:var(--text3);font-size:13px}
-  footer a{color:var(--text2);border-bottom:1px dashed var(--border)}
-  footer a:hover{color:var(--accent)}
+  /* —— 数据背书 —— */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:8px}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px 22px;
+    transition:transform .2s var(--ease),border-color .2s ease}
+  .stat:hover{transform:translateY(-3px);border-color:var(--accent)}
+  .stat .num{font-size:34px;font-weight:800;letter-spacing:-.03em;color:var(--text);font-variant-numeric:tabular-nums}
+  .stat .lab{font-size:13px;color:var(--text-2);margin-top:6px}
+
+  /* —— FAQ —— */
+  .faq{display:flex;flex-direction:column;gap:10px;max-width:760px}
+  details{border:1px solid var(--border);border-radius:11px;background:var(--surface);overflow:hidden;
+    transition:border-color .2s ease}
+  details[open]{border-color:var(--border-strong)}
+  details summary{list-style:none;cursor:pointer;padding:17px 20px;font-weight:600;font-size:15px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px}
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:"+";font-size:20px;color:var(--text-3);font-weight:400;transition:transform .25s ease}
+  details[open] summary::after{transform:rotate(45deg)}
+  details .ans{padding:0 20px 18px;color:var(--text-2);font-size:14px;line-height:1.65}
+
+  /* —— 结尾 CTA —— */
+  .cta-band{position:relative;z-index:1;margin:10px auto 0;max-width:var(--maxw);
+    background:linear-gradient(180deg,var(--surface),var(--bg));
+    border:1px solid var(--border-strong);border-radius:18px;padding:54px 40px;text-align:center;overflow:hidden}
+  .cta-band::before{content:"";position:absolute;inset:0;
+    background:radial-gradient(600px circle at 50% -20%,rgba(94,106,210,.18),transparent 60%);pointer-events:none}
+  .cta-band h2{position:relative;font-size:clamp(24px,3vw,32px);font-weight:800;letter-spacing:-.03em;margin-bottom:12px}
+  .cta-band p{position:relative;color:var(--text-2);margin-bottom:24px}
+  .cta-band .hero-cta{position:relative;justify-content:center}
+
+  /* —— 页脚 —— */
+  footer{position:relative;z-index:1;border-top:1px solid var(--border);margin-top:80px;padding:38px 0;text-align:center;color:var(--text-3);font-size:13px}
   .foot-links{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+  footer a{color:var(--text-2);border-bottom:1px dashed var(--border)}
+  footer a:hover{color:var(--accent)}
 
-  @media(max-width:640px){
-    header.hero{padding:52px 0 32px}
-    .stat{min-width:calc(50% - 7px);padding:14px}
+  /* reveal */
+  .reveal{opacity:0;transform:translateY(18px);transition:opacity .6s var(--ease),transform .6s var(--ease)}
+  .reveal.in{opacity:1;transform:none}
+
+  @media(max-width:920px){
+    .hero-grid,.why-grid{grid-template-columns:1fr;gap:36px}
+    .mock{transform:none;max-width:520px;margin:0 auto}
+    .stats{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(max-width:560px){
+    header.hero{padding:54px 0 24px}
+    .nav-links{display:none}
+    .stats{grid-template-columns:repeat(2,1fr)}
     .grid{grid-template-columns:1fr}
+    section{padding:54px 0}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important;scroll-behavior:auto}
+    .reveal{opacity:1;transform:none}
   }
 </style>
 </head>
 <body>
-<div class="aurora"></div>
-<div class="dots"></div>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
 
 <nav>
   <div class="wrap nav-in">
     <a class="brand" href="#top">
-      <span class="logo">n</span><span>nano-tools</span>
+      <span class="mark">n</span><span>nano-tools</span>
     </a>
+    <div class="nav-links">
+      <a href="#features">特性</a>
+      <a href="#tools">工具</a>
+      <a href="#stats">数据</a>
+      <a href="#faq">问答</a>
+    </div>
     <div class="nav-actions">
       <a class="btn" href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">
         <span>★</span><span>GitHub</span>
@@ -154,34 +257,130 @@
 </nav>
 
 <header class="hero" id="top">
-  <div class="wrap">
-    <span class="pill"><span class="dot"></span>全部开源 · MIT License · 持续更新</span>
-    <h1 class="title">一套<span class="grad">单文件</span>开发者工具<br>零依赖 · 本地优先 · 即开即用</h1>
-    <p class="subtitle">每个工具都是一个 <code>index.html</code>——无需安装、无需构建、无需联网。下载即用，数据永远留在你的浏览器里。</p>
-    <div class="hero-cta">
-      <a class="btn primary" href="#tools">浏览工具 ↓</a>
-      <a class="btn" href="trends.html">AI 发展趋势 →</a>
+  <div class="wrap hero-grid">
+    <div class="hero-left">
+      <span class="eyebrow"><span class="dot"></span>开源 · 零依赖 · 单文件</span>
+      <h1 class="title">一个标签页，<br>收纳你<span class="hl">全部的开发者工具</span></h1>
+      <p class="subtitle">14 个单文件、离线优先的开源工具，覆盖编码、转换、可视化与 AI。下载即用，数据永远留在你的浏览器里。</p>
+      <div class="hero-cta">
+        <a class="btn primary" href="#tools">浏览工具 ↓</a>
+        <a class="btn" href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">在 GitHub 查看</a>
+      </div>
+      <div class="hero-meta">
+        <span><b>14</b> 开源仓库</span>
+        <span><b>0</b> 外部依赖</span>
+        <span><b>100%</b> 本地运行</span>
+      </div>
     </div>
-    <div class="stats" id="stats"></div>
+    <div class="hero-right">
+      <div class="mock" aria-hidden="true">
+        <div class="mock-bar">
+          <i></i><i></i><i></i>
+          <span class="mock-url">nano-tools · wangzifan396-wzf.github.io</span>
+        </div>
+        <div class="mock-body">
+          <div class="mock-card"><div class="m-ico">⚡</div><div class="m-t">RegexLab</div><div class="m-l"></div><div class="m-l s"></div></div>
+          <div class="mock-card"><div class="m-ico">◈</div><div class="m-t">Graphite</div><div class="m-l"></div><div class="m-l s"></div></div>
+          <div class="mock-card"><div class="m-ico">{}</div><div class="m-t">JsonForge</div><div class="m-l"></div><div class="m-l s"></div></div>
+          <div class="mock-card"><div class="m-ico">🗜</div><div class="m-t">SnapCompress</div><div class="m-l"></div><div class="m-l s"></div></div>
+          <div class="mock-card"><div class="m-ico">◑</div><div class="m-t">PalettePro</div><div class="m-l"></div><div class="m-l s"></div></div>
+          <div class="mock-card"><div class="m-ico">#</div><div class="m-t">HashKit</div><div class="m-l"></div><div class="m-l s"></div></div>
+        </div>
+      </div>
+    </div>
   </div>
 </header>
 
-<main class="wrap" id="tools">
-  <div class="controls">
-    <div class="search">
-      <span class="si">⌕</span>
-      <input type="text" id="search" placeholder="搜索工具… 试试 regex / json / 颜色 / 压缩" autocomplete="off">
+<section id="features">
+  <div class="wrap why-grid reveal">
+    <div class="why-left">
+      <span class="label">为什么选择</span>
+      <h2 class="sec-title">告别工具链地狱，<br>回归开发本身</h2>
+      <p class="sec-desc">不再为小任务安装笨重软件、注册账号或上传数据。每个工具都是一个独立的 <code>index.html</code>——双击即开，关掉即走。</p>
     </div>
-    <div class="filters" id="filters"></div>
+    <div class="steps">
+      <div class="step"><div class="num a">1</div><div><h3>打开即用</h3><p>无需安装、无需构建、无登录。下载或克隆，浏览器直接打开就能干活。</p></div></div>
+      <div class="step"><div class="num b">2</div><div><h3>本地优先</h3><p>所有计算都在你的浏览器本地完成，文件不上传、数据不出机，隐私天然安全。</p></div></div>
+      <div class="step"><div class="num c">3</div><div><h3>单文件可携</h3><p>每个工具只有一个 HTML 文件，零依赖、可随便复制分享，U 盘里也能跑。</p></div></div>
+    </div>
   </div>
-  <div class="grid" id="grid"></div>
-</main>
+</section>
+
+<section id="tools">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="label">工具矩阵</span>
+      <h2 class="sec-title">13 款精心打磨的开发者工具</h2>
+      <p class="sec-desc">搜索或按分类筛选，点击「在线试用」立即体验，或前往源码仓库查看实现。</p>
+    </div>
+    <div class="controls reveal">
+      <div class="search">
+        <span class="si">⌕</span>
+        <input type="text" id="search" placeholder="搜索工具… 试试 regex / json / 颜色 / 压缩 / 图表" autocomplete="off">
+      </div>
+      <div class="filters" id="filters"></div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+</section>
+
+<section id="stats">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="label">数据背书</span>
+      <h2 class="sec-title">用数字说话</h2>
+    </div>
+    <div class="stats reveal" id="statsRow"></div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="label">常见问答</span>
+      <h2 class="sec-title">你可能想问</h2>
+    </div>
+    <div class="faq reveal">
+      <details open>
+        <summary>真的完全零依赖、可离线使用吗？</summary>
+        <div class="ans">是的。每个工具都是自包含的单文件 HTML，内联了全部 CSS 与 JavaScript，不引用任何外部字体、脚本或网络接口。断网、双击文件即可运行。</div>
+      </details>
+      <details>
+        <summary>我的数据会被上传吗？</summary>
+        <div class="ans">不会。所有处理（文本解析、图片压缩、token 估算、图谱布局等）都在浏览器本地完成，没有任何网络请求，文件与内容不会离开你的设备。</div>
+      </details>
+      <details>
+        <summary>这些工具是怎么开源的？</summary>
+        <div class="ans">全部以 MIT 许可证发布在 GitHub（wangzifan396-wzf 名下），每个工具独立仓库并启用 GitHub Pages 在线 demo。你可以免费使用、修改、再分发。</div>
+      </details>
+      <details>
+        <summary>我想贡献一个新工具，怎么做？</summary>
+        <div class="ans">欢迎在任意仓库提交 Issue 或 Pull Request。如果你有想法但还没写代码，也可以先开 Issue 讨论；设计目标是保持「单文件、零依赖、本地优先」。</div>
+      </details>
+      <details>
+        <summary>移动端能用吗？</summary>
+        <div class="ans">可以。门户与大部分工具都做了响应式适配，手机浏览器打开同样可用；少数依赖拖拽或精确指针交互的功能在触屏上体验会略有折损。</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="cta-band reveal">
+    <h2>把你下一个小工具，交给 nano-tools</h2>
+    <p>14 个仓库、13 款工具，全部开源、零依赖、本地优先。</p>
+    <div class="hero-cta">
+      <a class="btn primary" href="#tools">开始浏览</a>
+      <a class="btn" href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">★ Star on GitHub</a>
+    </div>
+  </div>
+</div>
 
 <footer>
   <div class="wrap">
     <div class="foot-links">
       <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub Profile</a>
-      <a href="trends.html">AI 趋势</a>
+      <a href="trends.html">AI 发展趋势</a>
       <a href="#tools">全部工具</a>
     </div>
     <div>Built with HTML5 + Vanilla JS · Zero dependency · <span id="year"></span> · Crafted with care</div>
@@ -197,7 +396,7 @@
 
   // 工具数据 —— 单一数据源
   var TOOLS = [
-    {id:"RegexLab", name:"RegexLab", icon:"⚡", cat:"文本处理", color:"#E0A030",
+    {id:"RegexLab", name:"RegexLab", icon:"⚡", cat:"文本处理",
      desc:"正则表达式实时测试器：匹配高亮、捕获组、替换预览、14 组常用正则库与速查表。",
      tags:["regex","testing","cheatsheet"]},
     {id:"CronText", name:"CronText", icon:"⏰", cat:"开发辅助",
@@ -230,12 +429,12 @@
     {id:"PalettePro", name:"PalettePro", icon:"◑", cat:"设计工具",
      desc:"颜色 / 配色工作台：WCAG 对比度检测、和谐配色生成、渐变构造、取色板管理。",
      tags:["color","wcag","palette"]},
-    {id:"HashKit", name:"HashKit", icon:"#", cat:"编码加密", color:"#3AB7C7",
+    {id:"HashKit", name:"HashKit", icon:"#", cat:"编码加密",
      desc:"编码与哈希工具箱：Base64/URL/HTML 编解码、SHA 哈希、JWT 解码、UUID 与密码生成。",
-     tags:["encode","hash","jwt"], soon:false},
-    {id:"JsonForge", name:"JsonForge", icon:"{}", cat:"文本处理", color:"#2EA043",
+     tags:["encode","hash","jwt"]},
+    {id:"JsonForge", name:"JsonForge", icon:"{}", cat:"文本处理",
      desc:"JSON 工作台：格式化 / 压缩 / 校验、转 TypeScript 类型、JSONPath 查询、树形浏览。",
-     tags:["json","typescript","jsonpath"], soon:false}
+     tags:["json","typescript","jsonpath"]}
   ];
 
   var CATS = ["全部"];
@@ -258,7 +457,7 @@
   }
 
   function renderStats(){
-    var el = $("#stats"); if(!el) return;
+    var el = $("#statsRow"); if(!el) return;
     var cats = {};
     TOOLS.forEach(function(t){cats[t.cat]=1;});
     var data = [
@@ -291,7 +490,7 @@
       var src = repo + t.id;
       var icoStyle = t.color ? ' style="color:'+t.color+'"' : '';
       return ''+
-      '<article class="card" style="animation-delay:'+(i*45)+'ms">'+
+      '<article class="card" style="animation-delay:'+(i*42)+'ms">'+
         '<div class="card-top">'+
           '<div class="card-ico"'+icoStyle+'>'+esc(t.icon)+'</div>'+
           '<div class="card-h"><h3>'+esc(t.name)+'</h3><div class="cat">'+esc(t.cat)+'</div></div>'+
@@ -344,6 +543,16 @@
     var saved="dark";
     try{saved = localStorage.getItem("nano-theme")||"dark";}catch(e){}
     applyTheme(saved);
+
+    // 滚动揭示
+    if("IntersectionObserver" in window){
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); } });
+      },{threshold:0.12});
+      Array.prototype.forEach.call(document.querySelectorAll(".reveal"),function(n){io.observe(n);});
+    } else {
+      Array.prototype.forEach.call(document.querySelectorAll(".reveal"),function(n){n.classList.add("in");});
+    }
   }
 
   // 测试导出

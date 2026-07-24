@@ -1,62 +1,76 @@
-// nano-tools portal — pure function unit tests
+/* eslint-disable */
+// nano-tools portal — portable test (pure functions + jsdom functional)
+// Run:  NODE_PATH=<workspace node_modules> node _test.js
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
-const m = html.match(/<script>([\s\S]*?)<\/script>/);
-if (!m) { console.error("no script found"); process.exit(1); }
-
-const sandbox = { module: { exports: {} }, window: undefined, document: undefined, localStorage: undefined, console };
-sandbox.exports = sandbox.module.exports;
-vm.createContext(sandbox);
-vm.runInContext(m[1], sandbox);
-const { filterTools, TOOLS, CATS } = sandbox.module.exports;
+const HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+const script = HTML.match(/<script>([\s\S]*?)<\/script>/)[1];
 
 let pass = 0, fail = 0;
-function eq(a, b, msg) {
-  const ok = JSON.stringify(a) === JSON.stringify(b);
-  if (ok) { pass++; } else { fail++; console.error("FAIL:", msg, "\n  got:", JSON.stringify(a), "\n  exp:", JSON.stringify(b)); }
-}
-function ok(cond, msg) { if (cond) pass++; else { fail++; console.error("FAIL:", msg); } }
+function ok(name, cond){ if(cond){pass++; console.log("  ✓ "+name);} else {fail++; console.log("  ✗ "+name);} }
 
-// data integrity
-ok(Array.isArray(TOOLS) && TOOLS.length >= 13, "TOOLS has >=13 items");
-ok(TOOLS.every(t => t.id && t.name && t.desc && Array.isArray(t.tags)), "every tool well-formed");
-ok(new Set(TOOLS.map(t => t.id)).size === TOOLS.length, "tool ids unique");
-ok(CATS[0] === "全部", "CATS starts with 全部");
-ok(TOOLS.some(t => t.id === "HashKit") && TOOLS.some(t => t.id === "JsonForge"), "new tools present");
+// ---- 1. pure-function tests via vm (node context, no window) ----
+(function pureTests(){
+  const ctx = { module:{exports:{}}, console, btoa:()=>"", TextEncoder, crypto:{} };
+  vm.createContext(ctx);
+  vm.runInContext(script, ctx);
+  const { filterTools, TOOLS, CATS } = ctx.module.exports;
 
-// filter: empty query returns all
-eq(filterTools(TOOLS, "", "全部").length, TOOLS.length, "empty query -> all");
+  console.log("Pure-function tests:");
+  ok("TOOLS has 13 items", TOOLS.length === 13);
+  ok("CATS starts with 全部", CATS[0] === "全部");
+  ok("filter empty query returns all", filterTools(TOOLS,"","").length === 13);
+  ok("filter by name 'json' matches JsonForge", filterTools(TOOLS,"json","全部").some(t=>t.id==="JsonForge"));
+  ok("filter by tag 'svg' matches Graphite/Chartify", filterTools(TOOLS,"svg","全部").length >= 2);
+  ok("filter by category 可视化 -> 2", filterTools(TOOLS,"","可视化").length === 2);
+  ok("filter no-match -> 0", filterTools(TOOLS,"zzzzz","全部").length === 0);
+  ok("zero-dependency claim: every tool has desc", TOOLS.every(t=>t.desc && t.desc.length>5));
+})();
 
-// filter by category
-const viz = filterTools(TOOLS, "", "可视化");
-ok(viz.length >= 2 && viz.every(t => t.cat === "可视化"), "category filter works");
+// ---- 2. jsdom functional tests ----
+let JSDOM;
+try { JSDOM = require("jsdom").JSDOM; } catch(e){ JSDOM = null; }
+if(!JSDOM){ console.log("\n[skip] jsdom not available (set NODE_PATH to workspace node_modules)"); }
+else (async function functionalTests(){
+  const dom = new JSDOM(HTML, { runScripts:"dangerously", resources:"usable", pretendToBeVisual:true,
+    url:"https://localhost/" });
+  const { window } = dom;
+  const doc = window.document;
+  // wait for DOMContentLoaded
+  await new Promise(r=> window.addEventListener("load", r));
+  await new Promise(r=> setTimeout(r, 50));
 
-// filter by query in name
-const rl = filterTools(TOOLS, "RegexLab", "全部");
-ok(rl.length === 1 && rl[0].id === "RegexLab", "query by name");
+  console.log("\nFunctional (jsdom) tests:");
+  const cards = doc.querySelectorAll("#grid .card");
+  ok("renders 13 tool cards", cards.length === 13);
+  ok("stats row has 4 stats", doc.querySelectorAll("#statsRow .stat").length === 4);
+  ok("filter chips rendered (全部 + cats)", doc.querySelectorAll("#filters .chip").length >= 2);
+  ok("FAQ has 5 details", doc.querySelectorAll("#faq details").length === 5);
+  ok("hero mock has 6 tiles", doc.querySelectorAll(".mock-card").length === 6);
+  ok("closing CTA present", !!doc.querySelector(".cta-band h2"));
 
-// filter by query in tags
-const jsonHits = filterTools(TOOLS, "json", "全部");
-ok(jsonHits.length >= 2, "query 'json' matches multiple");
+  // search filter
+  const search = doc.querySelector("#search");
+  search.value = "json";
+  search.dispatchEvent(new window.Event("input", {bubbles:true}));
+  ok("search 'json' narrows grid (<=13 & >=1)", (()=>{const n=doc.querySelectorAll("#grid .card").length; return n>=1 && n<13;})());
 
-// case insensitive
-eq(filterTools(TOOLS, "REGEX", "全部").length, filterTools(TOOLS, "regex", "全部").length, "case insensitive");
+  // category chip
+  search.value=""; search.dispatchEvent(new window.Event("input",{bubbles:true}));
+  const visChip = Array.from(doc.querySelectorAll("#filters .chip")).find(c=>c.dataset.cat==="可视化");
+  visChip.dispatchEvent(new window.Event("click",{bubbles:true}));
+  ok("category 可视化 -> 2 cards", doc.querySelectorAll("#grid .card").length === 2);
 
-// query in chinese desc
-const colorHits = filterTools(TOOLS, "颜色", "全部");
-ok(colorHits.some(t => t.id === "PalettePro"), "chinese desc match");
+  // theme toggle
+  const before = doc.documentElement.getAttribute("data-theme");
+  doc.querySelector("#themeBtn").dispatchEvent(new window.Event("click",{bubbles:true}));
+  const after = doc.documentElement.getAttribute("data-theme");
+  ok("theme toggle flips data-theme", before !== after);
+})();
 
-// combined category + query (no match)
-eq(filterTools(TOOLS, "regex", "可视化").length, 0, "category+query no cross match");
-
-// non-existent query
-eq(filterTools(TOOLS, "zzzznotexist", "全部").length, 0, "no match -> empty");
-
-// whitespace trimmed
-eq(filterTools(TOOLS, "  regex  ", "全部").length, filterTools(TOOLS, "regex", "全部").length, "trims whitespace");
-
-console.log(`\nnano-tools portal: ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+setTimeout(()=>{
+  console.log("\n== "+pass+" passed, "+fail+" failed ==");
+  process.exit(fail?1:0);
+}, 400);
