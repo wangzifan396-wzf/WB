@@ -6,7 +6,11 @@ const path = require("path");
 const vm = require("vm");
 
 const HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
-const script = HTML.match(/<script>([\s\S]*?)<\/script>/)[1];
+// 抓取“主脚本”（含 var TOOLS）——PWA 的 sw 注册脚本可能排在更前，不能只取第一个 <script>
+const script = (function(){
+  const blocks = [...HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
+  return blocks.find(b=>/var\s+TOOLS\s*=/.test(b)) || blocks[0];
+})();
 
 let pass = 0, fail = 0;
 function ok(name, cond){ if(cond){pass++; console.log("  ✓ "+name);} else {fail++; console.log("  ✗ "+name);} }
