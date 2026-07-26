@@ -18,9 +18,7 @@
 
 **一套单文件、零依赖、本地优先的开发者工具矩阵**的总入口。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
-> 本仓库首页 `index.html` 是聚合门户站（工具卡片墙 + 搜索 + 分类 + 主题切换）；原「AI 发展趋势」页保留为 [`trends.html`](trends.html)。
-
-## 🧰 工具矩阵（44 款单文件工具）
+## 🧰 工具矩阵（45 款单文件工具）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -68,6 +66,7 @@
 | [AudioForge](https://wangzifan396-wzf.github.io/AudioForge/) | 媒体工具 | 离线音频编辑器：加载音频、波形预览、裁剪、增益、淡入淡出、归一化、反转，导出 WAV，零上传。 |
 | [A11yForge](https://wangzifan396-wzf.github.io/A11yForge/) | 开发工具 | 离线无障碍工具箱：WCAG 对比度检查、合规取色、色盲模拟、HTML/ARIA 审计，零上传。 |
 | [JwtForge](https://wangzifan396-wzf.github.io/JwtForge/) | 编码加密 | 离线 JWT / Token 解码器：拆分 header、payload、signature，可读化 exp/nbf/iat，不校验签名。 |
+| [PromptForge](https://wangzifan396-wzf.github.io/PromptForge/) | AI 效率 | 本地优先 AI Prompt 工作台：变量模板、实时预览、BYOK 直连大模型、Token 与成本估算、本地历史，密钥永不离机。 |
 
 
 ## ✨ 门户特性
@@ -75,7 +74,7 @@
 - **工具卡片墙**：图标 + 简介 + 标签 + 在线试用 / 源码双入口
 - **实时搜索**：按名称、描述、标签、分类模糊匹配
 - **分类过滤**：一键筛选文本处理 / 可视化 / AI 工具等
-- **实时统计**：工具总数（44）、分类数、依赖数（永远是 0）
+- **实时统计**：工具总数（45）、分类数、依赖数（永远是 0）
 - **明暗主题**：偏好持久化于 `localStorage`
 - **卡片鼠标高光** + 极光点阵背景，动效仅用 `transform` / `opacity`
 
