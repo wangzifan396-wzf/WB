@@ -18,7 +18,7 @@
 
 **一套单文件、零依赖、本地优先的开发者工具矩阵**的总入口。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
-## 🧰 工具矩阵（48 款单文件工具）
+## 🧰 工具矩阵（51 款单文件工具）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -70,3 +70,6 @@
 | [PDFForge](https://wangzifan396-wzf.github.io/PDFForge/) | 图像与媒体 | 本地优先 PDF 工具箱：合并、拆分、旋转、重排、优化重存，文件永不上传。 |
 | [TableForge](https://wangzifan396-wzf.github.io/TableForge/) | 数据工具 | 离线表格工作台：粘贴 CSV/TSV/JSON 即解析，单元格编辑、增删行列、排序、筛选、分组聚合，导出 Markdown/HTML/JSON/CSV/TSV。 |
 | [CVForge](https://wangzifan396-wzf.github.io/CVForge/) | 效率工具 | 离线简历 / CV 工作台：结构化表单 + 实时预览，三种模板，一键打印导出 PDF，JSON 导入导出，数据留本地。 |
+| [KanbanForge](https://wangzifan396-wzf.github.io/KanbanForge/) | 效率工具 | 离线看板：多列拖拽卡片，优先级 / 标签 / 搜索筛选，导出 Markdown / JSON，数据永不离机。 |
+| [InvoiceForge](https://wangzifan396-wzf.github.io/InvoiceForge/) | 效率工具 | 离线发票 / 报价单生成器：行项目自动计税、人民币大写金额、A4 实时预览、一键打印导出 PDF。 |
+| [TimeForge](https://wangzifan396-wzf.github.io/TimeForge/) | 实用计算 | 时间工具箱：Unix 时间戳 ⇄ 日期互转（自动识别秒/毫秒），6 时区对照，日期差与人性化时长计算。 |
