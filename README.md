@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-102-5E6AD2?style=flat-square" alt="102 Tools">
+  <img src="https://img.shields.io/badge/tools-103-5E6AD2?style=flat-square" alt="103 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**102 款单文件、零依赖、本地优先的开发者工具**的总入口（104 个仓库 · 52 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**103 款单文件、零依赖、本地优先的开发者工具**的总入口（105 个仓库 · 53 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（102 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（103 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -131,6 +131,7 @@
 | [LuhnForge](https://wangzifan396-wzf.github.io/LuhnForge/) ⭐ | 开发辅助 | 离线 Luhn 校验：银行卡号模 10 校验、卡组织识别（Visa/银联等）、校验位补全。 |
 | [DiagramForge](https://wangzifan396-wzf.github.io/DiagramForge/) ⭐ | 可视化 | 离线流程图编辑器：节点+连线结构化绘图，4 种形状、拖拽连线、撤销重做、自动布局，导出 SVG/JSON。 |
 | [CodeForge](https://wangzifan396-wzf.github.io/CodeForge/) ⭐ | 开发辅助 | 离线前端游乐场：HTML/CSS/JS 三栏编辑 + 沙箱 iframe 实时预览 + 控制台捕获，可导出独立 HTML。 |
+| [PixelForge](https://wangzifan396-wzf.github.io/PixelForge/) ⭐ | 图像工具 | 离线像素画 / 精灵图编辑器：画笔、橡皮、填充、取色、直线、矩形、X 轴镜像、网格缩放、24 色调色板、动画帧+洋葱皮+FPS 预览，导出 PNG@Nx 与雪碧图，localStorage 多项目管理。 |
 | [nano-workbench](https://wangzifan396-wzf.github.io/nano-workbench/) | 聚合器 | 全矩阵聚合工作台：一个页面装下全部工具，模糊搜索、iframe 内嵌打开。 |
 
 ## 快速使用
@@ -142,7 +143,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 102 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 103 工具测试。
 
 ## License
 
