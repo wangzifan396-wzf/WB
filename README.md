@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-104-5E6AD2?style=flat-square" alt="104 Tools">
+  <img src="https://img.shields.io/badge/tools-138-5E6AD2?style=flat-square" alt="138 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**104 款单文件、零依赖、本地优先的开发者工具**的总入口（106 个仓库 · 54 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**138 款单文件、零依赖、本地优先的开发者工具**的总入口（140 个仓库 · 90 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（104 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（138 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -51,7 +51,27 @@
 | [ColorForge](https://wangzifan396-wzf.github.io/ColorForge/) | 设计工具 | 颜色工作台：HEX/RGB/HSL 互转、和谐配色生成、WCAG 对比度检测与实时预览。 |
 | [PassForge](https://wangzifan396-wzf.github.io/PassForge/) | 编码加密 | 密码 / 口令生成器：字符集与长度可调、Diceware 助记短语、熵值与强度评估。 |
 | [IconForge](https://wangzifan396-wzf.github.io/IconForge/) | 设计工具 | 线性图标工作台：17 款描边图标、可调描边色/粗细/尺寸/填充，一键复制或下载 SVG。 |
-| [CronForge](https://wangzifan396-wzf.github.io/CronForge/) | 开发辅助 | Crontab 可视化：表达式解析成人话、预测未来 5 次运行、24 小时 + 7 天时刻表。 |
+| [CronForge](https://wangzifan396-wzf.github.io/CronForge/) ⭐ | 开发辅助 | Crontab 可视化：表达式解析成人话、预测未来 5 次运行、24 小时 + 7 天时刻表。 |
+| [SnowflakeForge](https://wangzifan396-wzf.github.io/SnowflakeForge/) ⭐ | 开发辅助 | Snowflake ID 工作台：BigInt 按 41 位时间戳 + 10 位机器 + 12 位序列拆解与合成，自定义 epoch 与数据中心位。 |
+| [PunyForge](https://wangzifan396-wzf.github.io/PunyForge/) ⭐ | 编码加密 | Punycode/IDN 转换：RFC 3492 编解码，中文等 Unicode 域名 ↔ xn-- ASCII 互转，逐标签处理。 |
+| [ChangelogForge](https://wangzifan396-wzf.github.io/ChangelogForge/) ⭐ | 开发辅助 | Conventional Commits 解析：提交信息分组生成 CHANGELOG，breaking/feat/fix 自动推断下一个 SemVer 版本。 |
+| [ULIDForge](https://wangzifan396-wzf.github.io/ULIDForge/) ⭐ | 编码加密 | ULID 生成与解码：Crockford Base32，48 位毫秒时间戳 + 80 位随机，可排序、可校验、可反解时间。 |
+| [PasswordForge](https://wangzifan396-wzf.github.io/PasswordForge/) ⭐ | 安全工具 | 安全口令生成器：可配字符集、避开易混字符（Il1O0o）、每类至少含一个，实时熵估计。 |
+| [NumeralForge](https://wangzifan396-wzf.github.io/NumeralForge/) ⭐ | 实用计算 | 数字转英文单词与人民币大写金额，支持负数与小数。 |
+| [SparkForge](https://wangzifan396-wzf.github.io/SparkForge/) ⭐ | 可视化 | 数据序列一键生成 SVG 迷你折线图与柱状图，纯函数返回 SVG 字符串。 |
+| [FigletForge](https://wangzifan396-wzf.github.io/FigletForge/) ⭐ | 文本处理 | 文本转 ASCII 方块艺术字，内置字体、可自定义填充字符与间距。 |
+| [HtmlEntityForge](https://wangzifan396-wzf.github.io/HtmlEntityForge/) ⭐ | 编码加密 | HTML 实体编解码：命名/十进制/十六进制，XSS 安全转义。 |
+| [UtmForge](https://wangzifan396-wzf.github.io/UtmForge/) ⭐ | 开发辅助 | UTM 参数构建、解析与校验，增长营销溯源。 |
+| [InterestForge](https://wangzifan396-wzf.github.io/InterestForge/) ⭐ | 实用计算 | 复利终值与等额本息贷款摊销表计算。 |
+| [MailForge](https://wangzifan396-wzf.github.io/MailForge/) ⭐ | 文本处理 | 邮箱语法校验、解析与角色识别。 |
+| [HashForge](https://wangzifan396-wzf.github.io/HashForge/) ⭐ | 编码加密 | 哈希摘要校验器：纯 JS SHA-256/SHA-1/MD5，软件完整性校验。 |
+| [BackoffForge](https://wangzifan396-wzf.github.io/BackoffForge/) ⭐ | 开发辅助 | 指数退避与抖动计算器：full/equal/decorrelated 策略，API 重试韧性。 |
+| [UnitForge](https://wangzifan396-wzf.github.io/UnitForge/) ⭐ | 实用计算 | 通用单位换算：长度/质量/温度/速度/数据/面积/体积/时间/能量/压强。 |
+| [ReadForge](https://wangzifan396-wzf.github.io/ReadForge/) ⭐ | 文本处理 | 文本可读性评分：Flesch Reading Ease 与 Flesch-Kincaid 年级，写作质量。 |
+| [RateForge](https://wangzifan396-wzf.github.io/RateForge/) ⭐ | 开发辅助 | 限流算法模拟器：令牌桶与漏桶，refill/consume 纯函数推演，API 韧性设计。 |
+| [BloomForge](https://wangzifan396-wzf.github.io/BloomForge/) ⭐ | 数据结构 | 布隆过滤器实验室：FNV-1a 双重哈希，误判率公式推演，海量去重利器。 |
+| [HashRingForge](https://wangzifan396-wzf.github.io/HashRingForge/) ⭐ | 开发辅助 | 一致性哈希环：虚拟节点、增删节点迁移推演，分布式分片可视化。 |
+| [LzwForge](https://wangzifan396-wzf.github.io/LzwForge/) ⭐ | 编码加密 | LZW 压缩实验室：字典压缩/解压全程可视，压缩率实时对比。 |
 | [BaseForge](https://wangzifan396-wzf.github.io/BaseForge/) | 实用计算 | 进制转换增强版：大整数（BigInt）、小数部分、自定义字符表（base62/58）、2–36 进制。 |
 | [DrawForge](https://wangzifan396-wzf.github.io/DrawForge/) ⭐ | 可视化 | 离线白板：手绘风画笔、矩形、椭圆、箭头、文本，自由平移缩放，一键导出 PNG/SVG，自动本地保存。 |
 | [GraphForge](https://wangzifan396-wzf.github.io/GraphForge/) ⭐ | 可视化 | 离线 Mermaid 图表编辑器：写 DSL 实时预览，一键导出 SVG/PNG，零依赖、数据永不离机。 |
@@ -72,7 +92,7 @@
 | [ImageForge](https://wangzifan396-wzf.github.io/ImageForge/) ⭐ | 设计工具 | 离线图片编辑器：裁剪、缩放、旋转翻转、亮度 / 对比度 / 饱和度 / 色相 / 模糊调整、滤镜，导出 PNG/JPEG/WebP，零上传。 |
 | [AudioForge](https://wangzifan396-wzf.github.io/AudioForge/) ⭐ | 媒体工具 | 离线音频编辑器：加载音频、波形预览、裁剪、增益、淡入淡出、归一化、反转，导出 WAV，零上传。 |
 | [A11yForge](https://wangzifan396-wzf.github.io/A11yForge/) ⭐ | 开发工具 | 离线无障碍工具箱：WCAG 对比度检查、合规取色、色盲模拟、HTML/ARIA 审计，零上传。 |
-| [JwtForge](https://wangzifan396-wzf.github.io/JwtForge/) | 编码加密 | 离线 JWT / Token 解码器：拆分 header、payload、signature，可读化 exp/nbf/iat，不校验签名。 |
+| [JwtForge](https://wangzifan396-wzf.github.io/JwtForge/) ⭐ | 编码加密 | 离线 JWT / Token 解码器：拆分 header、payload、signature，可读化 exp/nbf/iat，不校验签名。 |
 | [PromptForge](https://wangzifan396-wzf.github.io/PromptForge/) ⭐ | AI 效率 | 本地优先 AI Prompt 工作台：变量模板、实时预览、BYOK 直连大模型、Token 与成本估算、本地历史，密钥永不离机。 |
 | [PDFForge](https://wangzifan396-wzf.github.io/PDFForge/) ⭐ | 图像与媒体 | 本地优先 PDF 工具箱：合并、拆分、旋转、重排、优化重存，文件永不上传。 |
 | [TableForge](https://wangzifan396-wzf.github.io/TableForge/) ⭐ | 数据工具 | 离线表格工作台：粘贴 CSV/TSV/JSON 即解析，单元格编辑、增删行列、排序、筛选、分组聚合，导出 Markdown/HTML/JSON/CSV/TSV。 |
@@ -133,6 +153,20 @@
 | [CodeForge](https://wangzifan396-wzf.github.io/CodeForge/) ⭐ | 开发辅助 | 离线前端游乐场：HTML/CSS/JS 三栏编辑 + 沙箱 iframe 实时预览 + 控制台捕获，可导出独立 HTML。 |
 | [PixelForge](https://wangzifan396-wzf.github.io/PixelForge/) ⭐ | 图像工具 | 离线像素画 / 精灵图编辑器：画笔、橡皮、填充、取色、直线、矩形、X 轴镜像、网格缩放、24 色调色板、动画帧+洋葱皮+FPS 预览，导出 PNG@Nx 与雪碧图，localStorage 多项目管理。 |
 | [GIFForge](https://wangzifan396-wzf.github.io/GIFForge/) ⭐ | 图像工具 | 离线 GIF 动画制作器：拖入图片或雪碧图切片成帧，拖拽排帧、逐帧延时、循环与抖动控制，纯 JS GIF89a 编码器（LZW+中位切分量化）本地导出。 |
+| [MeshForge](https://wangzifan396-wzf.github.io/MeshForge/) ⭐ | 图像工具 | 离线 3D 模型查看器：拖入 OBJ / STL（二进制/ASCII 自动识别），WebGL 轨道渲染，着色/线框/点云三模式，坐标轴+网格+AABB 自动取景，PNG 快照导出。 |
+| [RegexForge](https://wangzifan396-wzf.github.io/RegexForge/) ⭐ | 开发辅助 | 离线正则测试与可视化：实时匹配高亮、捕获组与命名组、铁路图结构、速查表，一键导出匹配 JSON。 |
+| [WhiteboardForge](https://wangzifan396-wzf.github.io/WhiteboardForge/) ⭐ | 设计创意 | 离线无限画布白板：矩形/椭圆/线/箭头/自由笔/文字/便签，平移缩放、撤销重做、本地自动保存，导出 PNG 与 SVG。 |
+| [SchemaForge](https://wangzifan396-wzf.github.io/SchemaForge/) ⭐ | 开发辅助 | 离线数据库建模 / ER 图设计器：可视化建表、外键关联，导出 MySQL / PostgreSQL / SQLite 多方言 SQL DDL 与 Mermaid。 |
+| [ChartForge](https://wangzifan396-wzf.github.io/ChartForge/) ⭐ | 数据工具 | 离线数据图表生成器：粘贴 CSV / JSON / TSV，生成柱状 / 折线 / 饼 / 环形 / 散点 / 面积图，Canvas 渲染并导出 PNG 与 SVG。 |
+| [BeautifyForge](https://wangzifan396-wzf.github.io/BeautifyForge/) ⭐ | 开发辅助 | 离线代码美化与压缩：JavaScript / CSS / HTML / JSON 格式化与精简，字符串 / 注释 / 正则感知的 tokenizer，支持自动识别语言与实时字符统计。 |
+| [SheetForge](https://wangzifan396-wzf.github.io/SheetForge/) ⭐ | 数据工具 | 离线迷你电子表格：A1 引用、区域、SUM / AVG / IF / ROUND 等公式引擎，依赖图重算与环检测，CSV 导入导出，零依赖。 |
+| [TypingForge](https://wangzifan396-wzf.github.io/TypingForge/) ⭐ | 效率工具 | 离线打字速度测试：WPM / CPM / 准确率 / 稳定性，逐字符实时高亮，15/30/60 秒模式，可复现词表与本地最佳记录。 |
+| [DateForge](https://wangzifan396-wzf.github.io/DateForge/) ⭐ | 效率工具 | 离线日期计算器：日期间隔（年月日精确拆分）、加减推算、ISO 周 / 年积日 / 工作日、年龄与下次生日，纯整数序列算法无时区陷阱。 |
+| [SemverForge](https://wangzifan396-wzf.github.io/SemverForge/) ⭐ | 开发辅助 | 离线 SemVer 2.0.0 工具箱：版本解析校验、优先级比较排序、范围匹配（^ ~ x.* || 连字符）、bump 七种递增策略与版本差异判定。 |
+| [HabitForge](https://wangzifan396-wzf.github.io/HabitForge/) ⭐ | 效率工具 | 离线习惯追踪器：每日打卡、当前 / 最长连击、近 30 天完成率、半年热力图，数据只存本地，支持 JSON 导入导出。 |
+| [JsonPathForge](https://wangzifan396-wzf.github.io/JsonPathForge/) ⭐ | 数据工具 | 离线 JSONPath 查询器：自研解析器支持 $ . .. [*] [n] [切片] [?(@.x op v)] 过滤与正则匹配，实时高亮命中、输出规范化路径。 |
+| [NginxForge](https://wangzifan396-wzf.github.io/NginxForge/) ⭐ | 开发辅助 | 离线 Nginx 配置生成器：静态 / SPA / 反向代理 / 负载均衡四预设，HTTPS / HTTP2 / gzip / 安全头 / WebSocket / 限流一键生成，先校验后产出。 |
+| [ColorBlindForge](https://wangzifan396-wzf.github.io/ColorBlindForge/) ⭐ | 设计工具 | 离线色觉障碍模拟器：Machado 三型 + 全色盲模拟，sRGB↔Lab 转换、WCAG 对比度与 ΔE 审计，调色板无障碍检查。 |
 | [nano-workbench](https://wangzifan396-wzf.github.io/nano-workbench/) | 聚合器 | 全矩阵聚合工作台：一个页面装下全部工具，模糊搜索、iframe 内嵌打开。 |
 
 ## 快速使用
@@ -144,7 +178,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 104 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 138 工具测试。
 
 ## License
 
