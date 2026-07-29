@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-188-5E6AD2?style=flat-square" alt="188 Tools">
+  <img src="https://img.shields.io/badge/tools-198-5E6AD2?style=flat-square" alt="198 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**188 款单文件、零依赖、本地优先的开发者工具**的总入口（190 个仓库 · 140 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**198 款单文件、零依赖、本地优先的开发者工具**的总入口（200 个仓库 · 150 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（188 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（198 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -102,6 +102,16 @@
 | [FenwickForge](https://wangzifan396-wzf.github.io/FenwickForge/) ⭐ | 数据结构 | 树状数组：前缀和 / 区间和 / 单点更新 / 树上二分，O(log n)。 |
 | [XxhashForge](https://wangzifan396-wzf.github.io/XxhashForge/) ⭐ | 编码加密 | xxHash32 快速哈希：官方向量验证，种子可调，非加密校验。 |
 | [LinearForge](https://wangzifan396-wzf.github.io/LinearForge/) ⭐ | 实用计算 | 一元线性回归：最小二乘拟合、R²、残差与 RMSE、预测。 |
+| [AstarForge](https://wangzifan396-wzf.github.io/AstarForge/) ⭐ | 数据结构 | A* 网格寻路：曼哈顿启发式 + 路径回溯 + 扩展节点统计。 |
+| [SegmentForge](https://wangzifan396-wzf.github.io/SegmentForge/) ⭐ | 数据结构 | 线段树区间和/最值查询 + 懒标记区间加，O(log n)。 |
+| [AvlForge](https://wangzifan396-wzf.github.io/AvlForge/) ⭐ | 数据结构 | AVL 自平衡树：LL/RR/LR/RL 四旋转 + 平衡校验 + ASCII 树形。 |
+| [RabinForge](https://wangzifan396-wzf.github.io/RabinForge/) ⭐ | 数据结构 | Rabin-Karp 滚动哈希搜索：多模式 + 重叠命中 + 假阳性复核。 |
+| [IntervalForge](https://wangzifan396-wzf.github.io/IntervalForge/) ⭐ | 实用计算 | 区间合并/交集/最大不重叠调度/最少会议室，扫描线 + 贪心。 |
+| [CombForge](https://wangzifan396-wzf.github.io/CombForge/) ⭐ | 实用计算 | BigInt 组合数学：nCr/nPr/阶乘/卡特兰数/帕斯卡三角，大数精确。 |
+| [EloForge](https://wangzifan396-wzf.github.io/EloForge/) ⭐ | 实用计算 | Elo 等级分：期望胜率 + K 因子单局更新 + 批量对局推演。 |
+| [Base85Forge](https://wangzifan396-wzf.github.io/Base85Forge/) ⭐ | 编码加密 | Ascii85 + Z85 编解码：z 压缩、尾组截断、RFC 向量校验。 |
+| [SoundexForge](https://wangzifan396-wzf.github.io/SoundexForge/) ⭐ | 文本处理 | Soundex + Metaphone 语音编码：人名纠错与同音异拼分组。 |
+| [StateForge](https://wangzifan396-wzf.github.io/StateForge/) ⭐ | 开发辅助 | 有限状态机：定义/事件推演/可达性/死状态检测。 |
 | [MurmurForge](https://wangzifan396-wzf.github.io/MurmurForge/) ⭐ | 编码加密 | MurmurHash3 x86_32 哈希：UTF-8 输入、自定义种子、分桶路由。 |
 | [Base32Forge](https://wangzifan396-wzf.github.io/Base32Forge/) ⭐ | 编码加密 | Base32 编解码：RFC4648 / Base32Hex / Crockford / z-base-32 四变体。 |
 | [VarintForge](https://wangzifan396-wzf.github.io/VarintForge/) ⭐ | 编码加密 | protobuf varint + ZigZag 变长整数编解码，hex 字节流互转。 |
@@ -228,7 +238,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 188 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 198 工具测试。
 
 ## License
 
