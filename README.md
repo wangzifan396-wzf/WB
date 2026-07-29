@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-208-5E6AD2?style=flat-square" alt="208 Tools">
+  <img src="https://img.shields.io/badge/tools-218-5E6AD2?style=flat-square" alt="218 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**208 款单文件、零依赖、本地优先的开发者工具**的总入口（210 个仓库 · 160 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**218 款单文件、零依赖、本地优先的开发者工具**的总入口（220 个仓库 · 170 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（208 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（218 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -120,6 +120,16 @@
 | [MazeForge](https://wangzifan396-wzf.github.io/MazeForge/) ⭐ | 数据结构 | 迷宫生成与求解：递归回溯完美迷宫 + BFS 最短路。 |
 | [NqueenForge](https://wangzifan396-wzf.github.io/NqueenForge/) ⭐ | 数据结构 | N 皇后：回溯求解 + 全部计数 + 独立校验器。 |
 | [StegForge](https://wangzifan396-wzf.github.io/StegForge/) ⭐ | 编码加密 | 零宽隐写：把秘密消息藏进不可见字符，检测/提取/防篡改。 |
+| [TuringForge](https://wangzifan396-wzf.github.io/TuringForge/) ⭐ | 可视化 | 图灵机：用 DSL 定义纸带/状态/转移，单步或连续推演，可视化磁带与读写头。 |
+| [LsystemForge](https://wangzifan396-wzf.github.io/LsystemForge/) ⭐ | 可视化 | L 系统分形：内置 Koch / 龙曲线 / Plants / Sierpinski，可调迭代次数生成 SVG。 |
+| [SudokuForge](https://wangzifan396-wzf.github.io/SudokuForge/) ⭐ | 数据结构 | 数独：随机生成保证唯一解的题目，回溯求解，实时校验冲突。 |
+| [GomokuForge](https://wangzifan396-wzf.github.io/GomokuForge/) ⭐ | 数据结构 | 五子棋：15×15 棋盘，启发式 AI 先攻后守，自动判定五连胜负。 |
+| [NoiseForge](https://wangzifan396-wzf.github.io/NoiseForge/) ⭐ | 实用计算 | Perlin 噪声：生成 2D 噪声场，灰度或地形色带渲染，可调缩放与种子，离线可用。 |
+| [BezierForge](https://wangzifan396-wzf.github.io/BezierForge/) ⭐ | 设计工具 | 贝塞尔曲线：可视化编辑三次贝塞尔控制点，实时预览曲线，导出 SVG path。 |
+| [JsonGraphForge](https://wangzifan396-wzf.github.io/JsonGraphForge/) ⭐ | 可视化 | JSON 图谱：把 JSON 结构渲染为节点-连线树图，直观看清嵌套与键关系。 |
+| [RegexRailForge](https://wangzifan396-wzf.github.io/RegexRailForge/) ⭐ | 开发辅助 | 正则铁路图：把正则解析为铁路图，直观看到拼接/选择/量词的语法结构。 |
+| [TetrisForge](https://wangzifan396-wzf.github.io/TetrisForge/) ⭐ | 数据结构 | 俄罗斯方块：纯逻辑内核（碰撞/旋转/消行）+ Canvas 游戏，方向键操作。 |
+| [SnakeForge](https://wangzifan396-wzf.github.io/SnakeForge/) ⭐ | 数据结构 | 贪吃蛇：纯逻辑内核（移动/进食/墙撞/自撞）+ Canvas 游戏，方向键操作。 |
 | [FractalForge](https://wangzifan396-wzf.github.io/FractalForge/) ⭐ | 实用计算 | 分形生成：Mandelbrot 点阵 / Koch 曲线 / Sierpinski 三角。 |
 | [StateForge](https://wangzifan396-wzf.github.io/StateForge/) ⭐ | 开发辅助 | 有限状态机：定义/事件推演/可达性/死状态检测。 |
 | [MurmurForge](https://wangzifan396-wzf.github.io/MurmurForge/) ⭐ | 编码加密 | MurmurHash3 x86_32 哈希：UTF-8 输入、自定义种子、分桶路由。 |
@@ -248,7 +258,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 208 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 218 工具测试。
 
 ## License
 
