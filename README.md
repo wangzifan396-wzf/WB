@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-198-5E6AD2?style=flat-square" alt="198 Tools">
+  <img src="https://img.shields.io/badge/tools-208-5E6AD2?style=flat-square" alt="208 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**198 款单文件、零依赖、本地优先的开发者工具**的总入口（200 个仓库 · 150 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**208 款单文件、零依赖、本地优先的开发者工具**的总入口（210 个仓库 · 160 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（198 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（208 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -111,6 +111,16 @@
 | [EloForge](https://wangzifan396-wzf.github.io/EloForge/) ⭐ | 实用计算 | Elo 等级分：期望胜率 + K 因子单局更新 + 批量对局推演。 |
 | [Base85Forge](https://wangzifan396-wzf.github.io/Base85Forge/) ⭐ | 编码加密 | Ascii85 + Z85 编解码：z 压缩、尾组截断、RFC 向量校验。 |
 | [SoundexForge](https://wangzifan396-wzf.github.io/SoundexForge/) ⭐ | 文本处理 | Soundex + Metaphone 语音编码：人名纠错与同音异拼分组。 |
+| [MindMapForge](https://wangzifan396-wzf.github.io/MindMapForge/) ⭐ | 可视化 | 思维导图：缩进大纲一键生成 SVG 导图，按层级着色。 |
+| [WordCloudForge](https://wangzifan396-wzf.github.io/WordCloudForge/) ⭐ | 可视化 | 词云生成：中英分词 + 螺旋布局 + AABB 碰撞，高频大字。 |
+| [SequenceForge](https://wangzifan396-wzf.github.io/SequenceForge/) ⭐ | 可视化 | 时序图：轻量 DSL 生成泳道时序图，箭头/自环/虚线回包。 |
+| [GanttForge](https://wangzifan396-wzf.github.io/GanttForge/) ⭐ | 可视化 | 甘特图：任务/工期/进度可视化，重叠检测 + 加权进度。 |
+| [LifeForge](https://wangzifan396-wzf.github.io/LifeForge/) ⭐ | 可视化 | 生命游戏：B3/S23 元胞自动机，环面边界 + 经典模式识别。 |
+| [SortForge](https://wangzifan396-wzf.github.io/SortForge/) ⭐ | 数据结构 | 排序可视化：冒泡/插排/选排/快排/归并，比较次数 + 帧快照。 |
+| [MazeForge](https://wangzifan396-wzf.github.io/MazeForge/) ⭐ | 数据结构 | 迷宫生成与求解：递归回溯完美迷宫 + BFS 最短路。 |
+| [NqueenForge](https://wangzifan396-wzf.github.io/NqueenForge/) ⭐ | 数据结构 | N 皇后：回溯求解 + 全部计数 + 独立校验器。 |
+| [StegForge](https://wangzifan396-wzf.github.io/StegForge/) ⭐ | 编码加密 | 零宽隐写：把秘密消息藏进不可见字符，检测/提取/防篡改。 |
+| [FractalForge](https://wangzifan396-wzf.github.io/FractalForge/) ⭐ | 实用计算 | 分形生成：Mandelbrot 点阵 / Koch 曲线 / Sierpinski 三角。 |
 | [StateForge](https://wangzifan396-wzf.github.io/StateForge/) ⭐ | 开发辅助 | 有限状态机：定义/事件推演/可达性/死状态检测。 |
 | [MurmurForge](https://wangzifan396-wzf.github.io/MurmurForge/) ⭐ | 编码加密 | MurmurHash3 x86_32 哈希：UTF-8 输入、自定义种子、分桶路由。 |
 | [Base32Forge](https://wangzifan396-wzf.github.io/Base32Forge/) ⭐ | 编码加密 | Base32 编解码：RFC4648 / Base32Hex / Crockford / z-base-32 四变体。 |
@@ -238,7 +248,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 198 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 208 工具测试。
 
 ## License
 
