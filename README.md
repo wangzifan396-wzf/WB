@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-178-5E6AD2?style=flat-square" alt="178 Tools">
+  <img src="https://img.shields.io/badge/tools-188-5E6AD2?style=flat-square" alt="188 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**178 款单文件、零依赖、本地优先的开发者工具**的总入口（180 个仓库 · 130 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**188 款单文件、零依赖、本地优先的开发者工具**的总入口（190 个仓库 · 140 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（178 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（188 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -102,6 +102,16 @@
 | [FenwickForge](https://wangzifan396-wzf.github.io/FenwickForge/) ⭐ | 数据结构 | 树状数组：前缀和 / 区间和 / 单点更新 / 树上二分，O(log n)。 |
 | [XxhashForge](https://wangzifan396-wzf.github.io/XxhashForge/) ⭐ | 编码加密 | xxHash32 快速哈希：官方向量验证，种子可调，非加密校验。 |
 | [LinearForge](https://wangzifan396-wzf.github.io/LinearForge/) ⭐ | 实用计算 | 一元线性回归：最小二乘拟合、R²、残差与 RMSE、预测。 |
+| [MurmurForge](https://wangzifan396-wzf.github.io/MurmurForge/) ⭐ | 编码加密 | MurmurHash3 x86_32 哈希：UTF-8 输入、自定义种子、分桶路由。 |
+| [Base32Forge](https://wangzifan396-wzf.github.io/Base32Forge/) ⭐ | 编码加密 | Base32 编解码：RFC4648 / Base32Hex / Crockford / z-base-32 四变体。 |
+| [VarintForge](https://wangzifan396-wzf.github.io/VarintForge/) ⭐ | 编码加密 | protobuf varint + ZigZag 变长整数编解码，hex 字节流互转。 |
+| [GeohashForge](https://wangzifan396-wzf.github.io/GeohashForge/) ⭐ | 实用计算 | Geohash 编解码 + 8 邻居 + 包围盒，地理索引经典网格。 |
+| [BenchForge](https://wangzifan396-wzf.github.io/BenchForge/) ⭐ | 开发辅助 | 基准统计：mean/median/MAD/P95 + 离群点检测 + A/B 速度比。 |
+| [DistForge](https://wangzifan396-wzf.github.io/DistForge/) ⭐ | 文本处理 | 字符串距离六合一：Levenshtein/Damerau/Hamming/Jaro-Winkler/Dice。 |
+| [MinhashForge](https://wangzifan396-wzf.github.io/MinhashForge/) ⭐ | 数据结构 | MinHash 签名 + Jaccard 估计：文档去重的核心草图。 |
+| [SimhashForge](https://wangzifan396-wzf.github.io/SimhashForge/) ⭐ | 数据结构 | SimHash 64 位指纹 + 海明距离，近重复文本检测。 |
+| [BktreeForge](https://wangzifan396-wzf.github.io/BktreeForge/) ⭐ | 数据结构 | BK 树容错查找：编辑距离三角不等式剪枝，拼写纠错索引。 |
+| [SkipForge](https://wangzifan396-wzf.github.io/SkipForge/) ⭐ | 数据结构 | 跳表：种子化分层可复现，O(log n) 查找/插入/区间（Redis zset 内核）。 |
 | [HuffmanForge](https://wangzifan396-wzf.github.io/HuffmanForge/) ⭐ | 编码加密 | 霍夫曼熵编码压缩器：基于字符频率的最优前缀码，无损还原。 |
 | [CrcForge](https://wangzifan396-wzf.github.io/CrcForge/) ⭐ | 编码加密 | CRC 校验和：CRC-32 与 CRC-16/CCITT 数据完整性校验。 |
 | [Base58Forge](https://wangzifan396-wzf.github.io/Base58Forge/) ⭐ | 编码加密 | Base58 编解码器：Bitcoin 字母表，紧凑防误读字节编码。 |
@@ -218,7 +228,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 178 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 188 工具测试。
 
 ## License
 
