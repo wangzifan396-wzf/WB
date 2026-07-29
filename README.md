@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-138-5E6AD2?style=flat-square" alt="138 Tools">
+  <img src="https://img.shields.io/badge/tools-168-5E6AD2?style=flat-square" alt="168 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**138 款单文件、零依赖、本地优先的开发者工具**的总入口（140 个仓库 · 90 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**168 款单文件、零依赖、本地优先的开发者工具**的总入口（170 个仓库 · 120 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（138 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（168 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -72,6 +72,36 @@
 | [BloomForge](https://wangzifan396-wzf.github.io/BloomForge/) ⭐ | 数据结构 | 布隆过滤器实验室：FNV-1a 双重哈希，误判率公式推演，海量去重利器。 |
 | [HashRingForge](https://wangzifan396-wzf.github.io/HashRingForge/) ⭐ | 开发辅助 | 一致性哈希环：虚拟节点、增删节点迁移推演，分布式分片可视化。 |
 | [LzwForge](https://wangzifan396-wzf.github.io/LzwForge/) ⭐ | 编码加密 | LZW 压缩实验室：字典压缩/解压全程可视，压缩率实时对比。 |
+| [VectorForge](https://wangzifan396-wzf.github.io/VectorForge/) ⭐ | 实用计算 | 向量相似度计算器：余弦/欧氏/曼哈顿/点积 + Top-K 检索，RAG 向量度量。 |
+| [TopoForge](https://wangzifan396-wzf.github.io/TopoForge/) ⭐ | 开发辅助 | 拓扑排序 / DAG 编排器：Kahn 算法 + 并行批次分层 + 环检测。 |
+| [FuzzyForge](https://wangzifan396-wzf.github.io/FuzzyForge/) ⭐ | 开发辅助 | 模糊匹配打分器：fzf 风格子序列匹配 + 边界加分 + 结果排序。 |
+| [PivotForge](https://wangzifan396-wzf.github.io/PivotForge/) ⭐ | 数据工具 | 交叉表透视器：CSV 明细转行列交叉表，sum/count/avg/min/max + 总计。 |
+| [MarkdownForge](https://wangzifan396-wzf.github.io/MarkdownForge/) ⭐ | 文本处理 | Markdown 转 HTML 编译器：标题/列表/代码块/引用/链接，转义防注入。 |
+| [PercentileForge](https://wangzifan396-wzf.github.io/PercentileForge/) ⭐ | 实用计算 | 延迟分位数分析器：p50/p90/p95/p99 插值 + 标准差 + ASCII 直方图。 |
+| [HmacForge](https://wangzifan396-wzf.github.io/HmacForge/) ⭐ | 编码加密 | HMAC-SHA256 签名器：RFC 4231 向量验证，API 签名 / Webhook 校验。 |
+| [MerkleForge](https://wangzifan396-wzf.github.io/MerkleForge/) ⭐ | 数据结构 | 默克尔树构建与证明器：SHA-256 树 + 包含性证明 + 校验。 |
+| [GeoForge](https://wangzifan396-wzf.github.io/GeoForge/) ⭐ | 实用计算 | 地理距离计算器：Haversine 大圆距离 + 方位角 + 目的地 + 包围盒。 |
+| [CuckooForge](https://wangzifan396-wzf.github.io/CuckooForge/) ⭐ | 数据结构 | 布谷鸟过滤器：可删除的概率型成员判定，指纹 + 双桶 + 踢出重放。 |
+| [TokenForge](https://wangzifan396-wzf.github.io/TokenForge/) ⭐ | 实用计算 | LLM Token 估算与成本计算器：确定性子词分词 + 多模型单价表。 |
+| [SecretForge](https://wangzifan396-wzf.github.io/SecretForge/) ⭐ | 编码加密 | 密钥/凭据扫描器：正则模式 + 香农熵检测，定位代码中的高危泄露。 |
+| [HllForge](https://wangzifan396-wzf.github.io/HllForge/) ⭐ | 数据结构 | HyperLogLog 基数估计：用极少内存估算大规模去重计数（至多高估）。 |
+| [SketchForge](https://wangzifan396-wzf.github.io/SketchForge/) ⭐ | 数据结构 | Count-Min Sketch 频次草图：流式频率估计，至多高估。 |
+| [TrieForge](https://wangzifan396-wzf.github.io/TrieForge/) ⭐ | 数据结构 | 前缀树 Trie：自动补全、词表检索、前缀计数，零依赖纯函数。 |
+| [LruForge](https://wangzifan396-wzf.github.io/LruForge/) ⭐ | 数据结构 | LRU 缓存：容量受限的 Least-Recently-Used 淘汰，Map 实现 O(1)。 |
+| [UnionForge](https://wangzifan396-wzf.github.io/UnionForge/) ⭐ | 数据结构 | 并查集 Disjoint Set：连通分量、动态连通性、Kruskal 最小生成树。 |
+| [BitsetForge](https://wangzifan396-wzf.github.io/BitsetForge/) ⭐ | 数据结构 | 位集合 Bitset：紧凑位运算、集合交并差、成员判定与位计数。 |
+| [BreakerForge](https://wangzifan396-wzf.github.io/BreakerForge/) ⭐ | 开发辅助 | 熔断器 Circuit Breaker：closed/open/half-open 状态机，保护下游服务。 |
+| [ArgForge](https://wangzifan396-wzf.github.io/ArgForge/) ⭐ | 开发辅助 | 命令行参数解析器：flags/options/positionals，类型推断与默认值。 |
+| [HuffmanForge](https://wangzifan396-wzf.github.io/HuffmanForge/) ⭐ | 编码加密 | 霍夫曼熵编码压缩器：基于字符频率的最优前缀码，无损还原。 |
+| [CrcForge](https://wangzifan396-wzf.github.io/CrcForge/) ⭐ | 编码加密 | CRC 校验和：CRC-32 与 CRC-16/CCITT 数据完整性校验。 |
+| [Base58Forge](https://wangzifan396-wzf.github.io/Base58Forge/) ⭐ | 编码加密 | Base58 编解码器：Bitcoin 字母表，紧凑防误读字节编码。 |
+| [MatrixForge](https://wangzifan396-wzf.github.io/MatrixForge/) ⭐ | 实用计算 | 线性代数：矩阵加法 / 乘法 / 转置 / 行列式 / 逆矩阵。 |
+| [TomlForge](https://wangzifan396-wzf.github.io/TomlForge/) ⭐ | 数据工具 | TOML 解析器：字符串/数值/数组/表/数组表，零依赖解析。 |
+| [HeapForge](https://wangzifan396-wzf.github.io/HeapForge/) ⭐ | 数据结构 | 二叉堆：最小/最大堆，可持久化插入与弹出，堆排序。 |
+| [DijkstraForge](https://wangzifan396-wzf.github.io/DijkstraForge/) ⭐ | 数据结构 | Dijkstra 最短路径：非负权重图单源最短路与路径还原。 |
+| [AhoForge](https://wangzifan396-wzf.github.io/AhoForge/) ⭐ | 数据结构 | Aho-Corasick 多模式匹配：一次扫描命中多串（含重叠）。 |
+| [QsForge](https://wangzifan396-wzf.github.io/QsForge/) ⭐ | 开发辅助 | URL 查询串：解析 / 序列化，重复键转数组，解码空格。 |
+| [IniForge](https://wangzifan396-wzf.github.io/IniForge/) ⭐ | 数据工具 | INI 配置解析：section/键值/注释，与序列化互逆。 |
 | [BaseForge](https://wangzifan396-wzf.github.io/BaseForge/) | 实用计算 | 进制转换增强版：大整数（BigInt）、小数部分、自定义字符表（base62/58）、2–36 进制。 |
 | [DrawForge](https://wangzifan396-wzf.github.io/DrawForge/) ⭐ | 可视化 | 离线白板：手绘风画笔、矩形、椭圆、箭头、文本，自由平移缩放，一键导出 PNG/SVG，自动本地保存。 |
 | [GraphForge](https://wangzifan396-wzf.github.io/GraphForge/) ⭐ | 可视化 | 离线 Mermaid 图表编辑器：写 DSL 实时预览，一键导出 SVG/PNG，零依赖、数据永不离机。 |
@@ -178,7 +208,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 138 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 168 工具测试。
 
 ## License
 
