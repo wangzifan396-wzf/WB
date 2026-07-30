@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-268-5E6AD2?style=flat-square" alt="268 Tools">
+  <img src="https://img.shields.io/badge/tools-278-5E6AD2?style=flat-square" alt="278 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**268 款单文件、零依赖、本地优先的开发者工具**的总入口（270 个仓库 · 220 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**278 款单文件、零依赖、本地优先的开发者工具**的总入口（280 个仓库 · 230 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（268 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（278 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -176,6 +176,16 @@
 | [CountdownForge](https://wangzifan396-wzf.github.io/CountdownForge/) ⭐ | 实用计算 | 多倒计时：添加多个目标时刻，实时显示剩余天/时/分/秒，本地保存，离线可用。 |
 | [RecipeForge](https://wangzifan396-wzf.github.io/RecipeForge/) ⭐ | 效率工具 | 食谱管理：录入配料一键按份量缩放，本地保存多个食谱，离线可用。 |
 | [ExpenseForge](https://wangzifan396-wzf.github.io/ExpenseForge/) ⭐ | 效率工具 | 记账与预算：录入收支、按分类与月份汇总，本地保存，离线可用。 |
+| [TimestampForge](https://wangzifan396-wzf.github.io/TimestampForge/) ⭐ | 实用计算 | Unix 时间戳 ↔ 日期转换：秒 / 毫秒互转、UTC 与本地时间、星期计算，离线可用。 |
+| [PassgenForge](https://wangzifan396-wzf.github.io/PassgenForge/) ⭐ | 安全工具 | 安全密码生成器：自定义长度与字符集、实时熵估算、浏览器本地随机，离线可用。 |
+| [AgeForge](https://wangzifan396-wzf.github.io/AgeForge/) ⭐ | 实用计算 | 年龄与日期差计算：精确到岁 / 月 / 天与合计天数，离线可用。 |
+| [MacForge](https://wangzifan396-wzf.github.io/MacForge/) ⭐ | 网络 | MAC 地址工具：随机生成 / 校验 / 规范化、单播多播与本地判定、OUI 厂商查询，离线可用。 |
+| [NanoidForge](https://wangzifan396-wzf.github.io/NanoidForge/) ⭐ | 开发辅助 | 短 ID 与 UUID 生成器：URL 安全 / 十六进制 / 去歧义字符集、UUID v4，离线可用。 |
+| [SitemapForge](https://wangzifan396-wzf.github.io/SitemapForge/) ⭐ | 开发辅助 | sitemap.xml 生成器：URL 列表一键生成标准站点地图，支持更新频率 / 优先级 / 日期，离线可用。 |
+| [WordCountForge](https://wangzifan396-wzf.github.io/WordCountForge/) ⭐ | 文本处理 | 文本字数统计：字符 / 词 / 行 / 句 / 段与预计阅读时间，中英混排，离线可用。 |
+| [SqlFmtForge](https://wangzifan396-wzf.github.io/SqlFmtForge/) ⭐ | 开发辅助 | SQL 格式化：关键字大写、主要子句换行、保留字符串字面量，离线可用。 |
+| [CalorieForge](https://wangzifan396-wzf.github.io/CalorieForge/) ⭐ | 效率工具 | 卡路里与营养记账：记录饮食热量与蛋白 / 碳水 / 脂肪，本机保存，离线可用。 |
+| [StopwatchForge](https://wangzifan396-wzf.github.io/StopwatchForge/) ⭐ | 实用计算 | 秒表与计圈计时：毫秒精度、暂停 / 继续、圈速最佳最差统计，离线可用。 |
 | [MetronomeForge](https://wangzifan396-wzf.github.io/MetronomeForge/) ⭐ | 实用计算 | 节拍器：可调 BPM 与拍号，支持重音与前瞻调度内核，Tap 测速，辅助练习节奏，离线可用。 |
 | [PaletteForge](https://wangzifan396-wzf.github.io/PaletteForge/) ⭐ | 设计工具 | 配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。 |
 | [ChordForge](https://wangzifan396-wzf.github.io/ChordForge/) ⭐ | 实用计算 | 和弦与音阶：和弦识别、音阶构建、音名解析与异名同音归一。 |
@@ -308,7 +318,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 268 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 278 工具测试。
 
 ## License
 
