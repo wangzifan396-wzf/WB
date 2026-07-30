@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-238-5E6AD2?style=flat-square" alt="238 Tools">
+  <img src="https://img.shields.io/badge/tools-248-5E6AD2?style=flat-square" alt="248 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**238 款单文件、零依赖、本地优先的开发者工具**的总入口（240 个仓库 · 190 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**248 款单文件、零依赖、本地优先的开发者工具**的总入口（250 个仓库 · 200 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（238 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（248 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -147,6 +147,16 @@
 | [MinesweeperForge](https://wangzifan396-wzf.github.io/MinesweeperForge/) ⭐ | 可视化 | 扫雷：种子化布雷 + Flood-fill 翻开 + 旗标，自动判定胜负，经典逻辑游戏，离线可用。 |
 | [2048Forge](https://wangzifan396-wzf.github.io/2048Forge/) ⭐ | 可视化 | 2048：方向键合并相同数字，棋盘满且无可合并即失败。纯逻辑内核可断言，含随机种子复现，离线可用。 |
 | [SokobanForge](https://wangzifan396-wzf.github.io/SokobanForge/) ⭐ | 可视化 | 推箱子：把箱子全部推到目标点。纯逻辑内核可断言移动/推动/胜利，内置多关卡，方向键操作，离线可用。 |
+| [ImgConvertForge](https://wangzifan396-wzf.github.io/ImgConvertForge/) ⭐ | 图像工具 | 图片格式转换：浏览器内将 PNG/JPEG/WebP 互转，可调质量与最大边长，Canvas 实时预览并下载，零上传、离线可用。 |
+| [SigForge](https://wangzifan396-wzf.github.io/SigForge/) ⭐ | 开发辅助 | 邮件签名生成器：可视化配置头像、姓名、职位、联系方式与社媒链接，输出兼容 Outlook 的 HTML 签名，一键复制，离线可用。 |
+| [ClipForge](https://wangzifan396-wzf.github.io/ClipForge/) ⭐ | 开发辅助 | CSS clip-path 编辑器：内置多边形/箭头/星形/六边形/气泡预设，可增删顶点，实时预览并复制 CSS，离线可用。 |
+| [OgForge](https://wangzifan396-wzf.github.io/OgForge/) ⭐ | 设计工具 | OG 社交卡片生成器：可视化编辑标题/描述/配色，实时生成 1200×630 预览与 meta 标签，利于分享卡片，离线可用。 |
+| [BrailleForge](https://wangzifan396-wzf.github.io/BrailleForge/) ⭐ | 图像工具 | 盲文点阵生成器：将文字渲染为盲文 Unicode 点阵字符画，支持反相与画布尺寸调节，复古终端风格，离线可用。 |
+| [LangtonForge](https://wangzifan396-wzf.github.io/LangtonForge/) ⭐ | 可视化 | Langton's Ant 元胞自动机：支持多只蚂蚁在环面上推演，观察简单规则涌现的高速公路与混沌图案，实时步进，离线可用。 |
+| [JuliaForge](https://wangzifan396-wzf.github.io/JuliaForge/) ⭐ | 可视化 | Julia 集分形渲染器：可调复常数与配色，实时渲染经典分形图案，内置多组预设，离线可用。 |
+| [WordleForge](https://wangzifan396-wzf.github.io/WordleForge/) ⭐ | 可视化 | Wordle 猜词游戏：内置词库与种子复现，绿/黄/灰精确反馈，键盘状态联动，纯逻辑内核可断言，离线可用。 |
+| [ParticleForge](https://wangzifan396-wzf.github.io/ParticleForge/) ⭐ | 可视化 | 粒子系统模拟：支持喷泉/烟花/雪花等模式，基于种子的确定性运动，实时观察粒子积分轨迹，离线可用。 |
+| [MetronomeForge](https://wangzifan396-wzf.github.io/MetronomeForge/) ⭐ | 实用计算 | 节拍器：可调 BPM 与拍号，支持重音与前瞻调度内核，Tap 测速，辅助练习节奏，离线可用。 |
 | [PaletteForge](https://wangzifan396-wzf.github.io/PaletteForge/) ⭐ | 设计工具 | 配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。 |
 | [ChordForge](https://wangzifan396-wzf.github.io/ChordForge/) ⭐ | 实用计算 | 和弦与音阶：和弦识别、音阶构建、音名解析与异名同音归一。 |
 | [SnakeForge](https://wangzifan396-wzf.github.io/SnakeForge/) ⭐ | 数据结构 | 贪吃蛇：纯逻辑内核（移动/进食/墙撞/自撞）+ Canvas 游戏，方向键操作。 |
@@ -278,7 +288,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 238 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 248 工具测试。
 
 ## License
 
