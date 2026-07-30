@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-248-5E6AD2?style=flat-square" alt="248 Tools">
+  <img src="https://img.shields.io/badge/tools-258-5E6AD2?style=flat-square" alt="258 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**248 款单文件、零依赖、本地优先的开发者工具**的总入口（250 个仓库 · 200 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**258 款单文件、零依赖、本地优先的开发者工具**的总入口（260 个仓库 · 210 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（248 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（258 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -156,6 +156,16 @@
 | [JuliaForge](https://wangzifan396-wzf.github.io/JuliaForge/) ⭐ | 可视化 | Julia 集分形渲染器：可调复常数与配色，实时渲染经典分形图案，内置多组预设，离线可用。 |
 | [WordleForge](https://wangzifan396-wzf.github.io/WordleForge/) ⭐ | 可视化 | Wordle 猜词游戏：内置词库与种子复现，绿/黄/灰精确反馈，键盘状态联动，纯逻辑内核可断言，离线可用。 |
 | [ParticleForge](https://wangzifan396-wzf.github.io/ParticleForge/) ⭐ | 可视化 | 粒子系统模拟：支持喷泉/烟花/雪花等模式，基于种子的确定性运动，实时观察粒子积分轨迹，离线可用。 |
+| [ArchForge](https://wangzifan396-wzf.github.io/ArchForge/) ⭐ | 可视化 | 架构图即代码：用「web -> api」式 DSL 描述依赖，自动分层布局生成 SVG 架构图，支持环检测与 SVG 导出，离线可用。 |
+| [DagForge](https://wangzifan396-wzf.github.io/DagForge/) ⭐ | 数据结构 | DAG 工作流分析器：任务依赖 DSL 一键得到拓扑执行顺序、关键路径与总工期，自带环检测，离线可用。 |
+| [DocxForge](https://wangzifan396-wzf.github.io/DocxForge/) ⭐ | 实用计算 | 纯前端 Word 生成器：粘贴文本即可打包为标准 .docx（最小 OOXML + 无压缩 ZIP，自实现 CRC32），支持标题行，零依赖离线可用。 |
+| [XlsxForge](https://wangzifan396-wzf.github.io/XlsxForge/) ⭐ | 数据工具 | 纯前端 Excel 生成器：粘贴 CSV 即打包为标准 .xlsx（inline string + 数字类型自动识别，自实现 STORED ZIP），零依赖离线可用。 |
+| [PomodoroForge](https://wangzifan396-wzf.github.io/PomodoroForge/) ⭐ | 实用计算 | 番茄钟：纯函数状态机驱动（工作/短休/长休自动轮转，每 4 个番茄进长休），完成统计与进度环，离线可用。 |
+| [TraceForge](https://wangzifan396-wzf.github.io/TraceForge/) ⭐ | 可视化 | 链路追踪瀑布图：粘贴 span JSON（name/start/dur/parent），按层级缩进渲染耗时瀑布 SVG，自动找出最慢 span，离线可用。 |
+| [MarkovForge](https://wangzifan396-wzf.github.io/MarkovForge/) ⭐ | 文本处理 | 马尔可夫链文本生成器：从语料构建 N 阶转移表并采样生成新文本，支持中文逐字/英文逐词双模式与可注入随机源，离线可用。 |
+| [WfcForge](https://wangzifan396-wzf.github.io/WfcForge/) ⭐ | 可视化 | 波函数坍缩（WFC）地形生成器：海/滩/草/林/山邻接约束，最小熵坍缩 + 约束传播，种子可复现，SVG 网格渲染，离线可用。 |
+| [PlotForge](https://wangzifan396-wzf.github.io/PlotForge/) ⭐ | 可视化 | 函数绘图器：输入 sin(x)*x 等表达式即渲染 SVG 曲线，递归下降解析器支持 + - * / ^ 与常用函数，多曲线叠加，离线可用。 |
+| [TimelineForge](https://wangzifan396-wzf.github.io/TimelineForge/) ⭐ | 可视化 | 时间线生成器：「日期 | 标题 | 描述」一行一事件，自动排序后渲染左右交替时间线 SVG，支持年月日三种粒度，离线可用。 |
 | [MetronomeForge](https://wangzifan396-wzf.github.io/MetronomeForge/) ⭐ | 实用计算 | 节拍器：可调 BPM 与拍号，支持重音与前瞻调度内核，Tap 测速，辅助练习节奏，离线可用。 |
 | [PaletteForge](https://wangzifan396-wzf.github.io/PaletteForge/) ⭐ | 设计工具 | 配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。 |
 | [ChordForge](https://wangzifan396-wzf.github.io/ChordForge/) ⭐ | 实用计算 | 和弦与音阶：和弦识别、音阶构建、音名解析与异名同音归一。 |
@@ -288,7 +298,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 248 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 258 工具测试。
 
 ## License
 
