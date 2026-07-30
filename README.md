@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-218-5E6AD2?style=flat-square" alt="218 Tools">
+  <img src="https://img.shields.io/badge/tools-228-5E6AD2?style=flat-square" alt="228 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**218 款单文件、零依赖、本地优先的开发者工具**的总入口（220 个仓库 · 170 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**228 款单文件、零依赖、本地优先的开发者工具**的总入口（230 个仓库 · 180 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（218 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（228 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -129,6 +129,16 @@
 | [JsonGraphForge](https://wangzifan396-wzf.github.io/JsonGraphForge/) ⭐ | 可视化 | JSON 图谱：把 JSON 结构渲染为节点-连线树图，直观看清嵌套与键关系。 |
 | [RegexRailForge](https://wangzifan396-wzf.github.io/RegexRailForge/) ⭐ | 开发辅助 | 正则铁路图：把正则解析为铁路图，直观看到拼接/选择/量词的语法结构。 |
 | [TetrisForge](https://wangzifan396-wzf.github.io/TetrisForge/) ⭐ | 数据结构 | 俄罗斯方块：纯逻辑内核（碰撞/旋转/消行）+ Canvas 游戏，方向键操作。 |
+| [TokenizeForge](https://wangzifan396-wzf.github.io/TokenizeForge/) ⭐ | 可视化 | BPE 分词可视化：词频统计、相邻对计分、逐轮合并，把文本编码为子词 token。 |
+| [BoidsForge](https://wangzifan396-wzf.github.io/BoidsForge/) ⭐ | 可视化 | Boids 群体模拟：分离/对齐/聚合三力，环面世界，Canvas 实时推演 flocking。 |
+| [RaycastForge](https://wangzifan396-wzf.github.io/RaycastForge/) ⭐ | 可视化 | 光线投射：2.5D DDA 射线投射，网格迷宫第一人称投影，方向键漫游。 |
+| [PendulumForge](https://wangzifan396-wzf.github.io/PendulumForge/) ⭐ | 可视化 | 双摆混沌：RK4 积分求解，能量漂移检测，初值敏感性演示。 |
+| [QuadtreeForge](https://wangzifan396-wzf.github.io/QuadtreeForge/) ⭐ | 图像工具 | 四叉树图像近似：递归细分逼近细节，叶子统计与实时预览。 |
+| [TspForge](https://wangzifan396-wzf.github.io/TspForge/) ⭐ | 实用计算 | TSP 求解：最近邻播种 + 2-opt 精炼，巡游长度与迭代轨迹。 |
+| [KnapsackForge](https://wangzifan396-wzf.github.io/KnapsackForge/) ⭐ | 实用计算 | 0/1 背包：动态规划最优选择，贪心对照，回溯选取物品。 |
+| [DitherForge](https://wangzifan396-wzf.github.io/DitherForge/) ⭐ | 图像工具 | 图像抖动：有序 Bayer 与 Floyd-Steinberg 误差扩散，1-bit 输出。 |
+| [SpiroForge](https://wangzifan396-wzf.github.io/SpiroForge/) ⭐ | 可视化 | 万花尺：内/外旋轮线曲线，周期计算与 SVG 导出。 |
+| [ChordForge](https://wangzifan396-wzf.github.io/ChordForge/) ⭐ | 实用计算 | 和弦与音阶：和弦识别、音阶构建、音名解析与异名同音归一。 |
 | [SnakeForge](https://wangzifan396-wzf.github.io/SnakeForge/) ⭐ | 数据结构 | 贪吃蛇：纯逻辑内核（移动/进食/墙撞/自撞）+ Canvas 游戏，方向键操作。 |
 | [FractalForge](https://wangzifan396-wzf.github.io/FractalForge/) ⭐ | 实用计算 | 分形生成：Mandelbrot 点阵 / Koch 曲线 / Sierpinski 三角。 |
 | [StateForge](https://wangzifan396-wzf.github.io/StateForge/) ⭐ | 开发辅助 | 有限状态机：定义/事件推演/可达性/死状态检测。 |
@@ -258,7 +268,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 218 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 228 工具测试。
 
 ## License
 
