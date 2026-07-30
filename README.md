@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-228-5E6AD2?style=flat-square" alt="228 Tools">
+  <img src="https://img.shields.io/badge/tools-238-5E6AD2?style=flat-square" alt="238 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**228 款单文件、零依赖、本地优先的开发者工具**的总入口（230 个仓库 · 180 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**238 款单文件、零依赖、本地优先的开发者工具**的总入口（240 个仓库 · 190 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（228 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（238 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -138,6 +138,16 @@
 | [KnapsackForge](https://wangzifan396-wzf.github.io/KnapsackForge/) ⭐ | 实用计算 | 0/1 背包：动态规划最优选择，贪心对照，回溯选取物品。 |
 | [DitherForge](https://wangzifan396-wzf.github.io/DitherForge/) ⭐ | 图像工具 | 图像抖动：有序 Bayer 与 Floyd-Steinberg 误差扩散，1-bit 输出。 |
 | [SpiroForge](https://wangzifan396-wzf.github.io/SpiroForge/) ⭐ | 可视化 | 万花尺：内/外旋轮线曲线，周期计算与 SVG 导出。 |
+| [VoronoiForge](https://wangzifan396-wzf.github.io/VoronoiForge/) ⭐ | 设计工具 | Voronoi 图生成器：放置站点，实时计算平面每点的最近邻站点并着色，生成细胞状图案，可点击增点，离线可用。 |
+| [HarmonographForge](https://wangzifan396-wzf.github.io/HarmonographForge/) ⭐ | 可视化 | 谐振图（Harmonograph）：多摆正弦叠加生成优雅的衰减曲线图案，可调频率/相位/阻尼，离线可用。 |
+| [ClothForge](https://wangzifan396-wzf.github.io/ClothForge/) ⭐ | 可视化 | 布料模拟：Verlet 积分 + 距离约束，顶部钉住，重力下垂，可拖拽扰动，实时观察弹性形变，离线可用。 |
+| [WaveForge](https://wangzifan396-wzf.github.io/WaveForge/) ⭐ | 可视化 | 水波模拟：二维波动方程离散求解，点击激起波纹，阻尼控制扩散与衰减，实时观察干涉，离线可用。 |
+| [SandForge](https://wangzifan396-wzf.github.io/SandForge/) ⭐ | 图像工具 | 落沙模拟：元胞自动机，沙粒受重力下落/斜滑，遇墙堆积，可绘制沙与障碍物，实时观察堆积形态，离线可用。 |
+| [ReactionForge](https://wangzifan396-wzf.github.io/ReactionForge/) ⭐ | 可视化 | 反应扩散（Gray-Scott）：两种化学物质扩散与反应，自发涌现出斑点、条纹、迷宫等图灵斑图，可调参数探索，离线可用。 |
+| [MinesweeperForge](https://wangzifan396-wzf.github.io/MinesweeperForge/) ⭐ | 可视化 | 扫雷：种子化布雷 + Flood-fill 翻开 + 旗标，自动判定胜负，经典逻辑游戏，离线可用。 |
+| [2048Forge](https://wangzifan396-wzf.github.io/2048Forge/) ⭐ | 可视化 | 2048：方向键合并相同数字，棋盘满且无可合并即失败。纯逻辑内核可断言，含随机种子复现，离线可用。 |
+| [SokobanForge](https://wangzifan396-wzf.github.io/SokobanForge/) ⭐ | 可视化 | 推箱子：把箱子全部推到目标点。纯逻辑内核可断言移动/推动/胜利，内置多关卡，方向键操作，离线可用。 |
+| [PaletteForge](https://wangzifan396-wzf.github.io/PaletteForge/) ⭐ | 设计工具 | 配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。 |
 | [ChordForge](https://wangzifan396-wzf.github.io/ChordForge/) ⭐ | 实用计算 | 和弦与音阶：和弦识别、音阶构建、音名解析与异名同音归一。 |
 | [SnakeForge](https://wangzifan396-wzf.github.io/SnakeForge/) ⭐ | 数据结构 | 贪吃蛇：纯逻辑内核（移动/进食/墙撞/自撞）+ Canvas 游戏，方向键操作。 |
 | [FractalForge](https://wangzifan396-wzf.github.io/FractalForge/) ⭐ | 实用计算 | 分形生成：Mandelbrot 点阵 / Koch 曲线 / Sierpinski 三角。 |
@@ -268,7 +278,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 228 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 238 工具测试。
 
 ## License
 
