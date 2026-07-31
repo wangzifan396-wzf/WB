@@ -1,23 +1,40 @@
-// nano-tools PWA service worker — 仅缓存同源静态资源，跨域 API 请求不拦截
-const CACHE = 'nano-v1';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'og.svg'];
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {}));
-  self.skipWaiting();
+/* nano-tools service worker: offline-first, same-origin GET only.
+   注意：全矩阵托管在同一个 GitHub Pages origin，CacheStorage 按 origin 共享，
+   因此 activate 阶段只能淘汰「本工具命名空间」下的历史版本；若像单仓项目那样
+   caches.delete 掉所有非自身 key，会连带清空同域其他工具的离线缓存。 */
+var SCOPE = 'nano:wb';
+var CACHE = SCOPE + ':v2';
+var LEGACY = ['nano-v1', 'wb-v1'];
+var ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'og.svg'];
+
+self.addEventListener('install', function (e) {
+  e.waitUntil(caches.open(CACHE).then(function (c) {
+    return Promise.all(ASSETS.map(function (a) { return c.add(a).catch(function () {}); }));
+  }).then(function () { return self.skipWaiting(); }));
 });
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))));
-  self.clients.claim();
+
+self.addEventListener('activate', function (e) {
+  e.waitUntil(caches.keys().then(function (ks) {
+    return Promise.all(ks.map(function (k) {
+      var mine = k.indexOf(SCOPE + ':') === 0 && k !== CACHE;
+      var stale = LEGACY.indexOf(k) !== -1;
+      return (mine || stale) ? caches.delete(k) : null;
+    }));
+  }).then(function () { return self.clients.claim(); }));
 });
-self.addEventListener('fetch', e => {
+
+self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
-  const url = new URL(e.request.url);
-  if (url.origin !== self.location.origin) return; // 不拦截跨域（如 APIForge/ChatForge 的远程调用）
-  e.respondWith(caches.match(e.request).then(cached =>
-    cached || fetch(e.request).then(resp => {
-      const copy = resp.clone();
-      caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
-      return resp;
-    }).catch(() => caches.match('./'))
-  ));
+  var u;
+  try { u = new URL(e.request.url); } catch (err) { return; }
+  if (u.origin !== self.location.origin) return;
+  e.respondWith(caches.open(CACHE).then(function (c) {
+    return c.match(e.request).then(function (hit) {
+      if (hit) return hit;
+      return fetch(e.request).then(function (res) {
+        if (res && res.status === 200 && res.type === 'basic') { c.put(e.request, res.clone()); }
+        return res;
+      }).catch(function () { return c.match('./'); });
+    });
+  }));
 });
