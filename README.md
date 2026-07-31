@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-318-5E6AD2?style=flat-square" alt="318 Tools">
+  <img src="https://img.shields.io/badge/tools-328-5E6AD2?style=flat-square" alt="328 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**318 款单文件、零依赖、本地优先的开发者工具**的总入口（320 个仓库 · 270 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**328 款单文件、零依赖、本地优先的开发者工具**的总入口（330 个仓库 · 280 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（318 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（328 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -226,6 +226,16 @@
 | [SvgPathForge](https://wangzifan396-wzf.github.io/SvgPathForge/) ⭐ | 设计工具 | SVG path 工具箱：命令解析、相对↔绝对互转、包围盒计算与坐标数值简化取整，离线可用。 |
 | [JsonPointerForge](https://wangzifan396-wzf.github.io/JsonPointerForge/) ⭐ | 数据工具 | RFC 6901 JSON Pointer：按 /a/b/1 取值与赋值、~0/~1 转义处理，便于 JSON 补丁与定位，离线可用。 |
 | [AsciiTableForge](https://wangzifan396-wzf.github.io/AsciiTableForge/) ⭐ | 文本处理 | ASCII 表格生成器：Tab/逗号分隔行列数据渲染为带边框、列宽对齐的纯文本表格，离线可用。 |
+| [McpForge](https://wangzifan396-wzf.github.io/McpForge/) ⭐ | AI 工具 | MCP 服务器配置生成与体检：stdio/sse/http 传输识别、参数与环境变量解析、硬编码密钥审计，离线可用。 |
+| [RagForge](https://wangzifan396-wzf.github.io/RagForge/) ⭐ | AI 工具 | RAG 分块规划器：中英混排 token 估算、重叠切分与冗余率、上下文预算分配、Embedding 成本测算，离线可用。 |
+| [AgentSchemaForge](https://wangzifan396-wzf.github.io/AgentSchemaForge/) ⭐ | AI 工具 | Agent 工具调用 Schema 生成：OpenAI/Anthropic/MCP 三种风格互转、lint 检查与调用参数校验，离线可用。 |
+| [DnsForge](https://wangzifan396-wzf.github.io/DnsForge/) ⭐ | 网络 | DNS 记录校验与 zone 解析：A/AAAA/CNAME/MX/TXT/NS/SRV/CAA 逐条体检、TTL 换算与 CNAME 冲突检测，离线可用。 |
+| [HttpCacheForge](https://wangzifan396-wzf.github.io/HttpCacheForge/) ⭐ | 网络 | Cache-Control 策略生成：六种场景预设、max-age/s-maxage/SWR 新鲜度推演、响应头冲突体检与 ETag 生成，离线可用。 |
+| [TlsForge](https://wangzifan396-wzf.github.io/TlsForge/) ⭐ | 安全工具 | TLS 密码套件体检：前向保密/AEAD 判定与 A–F 评分、协议版本风险表、HSTS 生成与证书到期提醒，离线可用。 |
+| [CspForge](https://wangzifan396-wzf.github.io/CspForge/) ⭐ | 安全工具 | 内容安全策略生成与评分：strict/basic/lockdown 三档模板、nonce 生成、unsafe-inline 与通配符风险检测，离线可用。 |
+| [SriForge](https://wangzifan396-wzf.github.io/SriForge/) ⭐ | 安全工具 | 子资源完整性 SRI：纯前端 SHA-256 摘要（base64/hex）、integrity 解析校验、script/link 标签生成与跨域体检，离线可用。 |
+| [BlurhashForge](https://wangzifan396-wzf.github.io/BlurhashForge/) ⭐ | 图像工具 | BlurHash 编解码：base83 与 DCT 分量还原、Canvas 实时预览、渐变编码生成与 CSS 占位图导出，离线可用。 |
+| [NdjsonForge](https://wangzifan396-wzf.github.io/NdjsonForge/) ⭐ | 数据工具 | NDJSON/JSON Lines 处理：逐行校验与错误定位、嵌套字段画像、类型一致性体检、JSON 数组与 CSV 互转，离线可用。 |
 | [MetronomeForge](https://wangzifan396-wzf.github.io/MetronomeForge/) ⭐ | 实用计算 | 节拍器：可调 BPM 与拍号，支持重音与前瞻调度内核，Tap 测速，辅助练习节奏，离线可用。 |
 | [PaletteForge](https://wangzifan396-wzf.github.io/PaletteForge/) ⭐ | 设计工具 | 配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。 |
 | [ChordForge](https://wangzifan396-wzf.github.io/ChordForge/) ⭐ | 实用计算 | 和弦与音阶：和弦识别、音阶构建、音名解析与异名同音归一。 |
@@ -358,7 +368,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 318 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 328 工具测试。
 
 ## License
 
