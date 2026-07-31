@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-308-5E6AD2?style=flat-square" alt="308 Tools">
+  <img src="https://img.shields.io/badge/tools-318-5E6AD2?style=flat-square" alt="318 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集门户
 
-**308 款单文件、零依赖、本地优先的开发者工具**的总入口（310 个仓库 · 260 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
+**318 款单文件、零依赖、本地优先的开发者工具**的总入口（320 个仓库 · 270 款旗舰 ⭐）。每个工具都是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
 
@@ -25,7 +25,7 @@
 - **本地优先**：所有计算在你的浏览器内完成，数据永不上传。
 - **独立仓库**：每个工具一个仓库，可单独 fork / star / 魔改，互不牵连。
 
-## 🧰 工具矩阵（308 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（318 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 |------|------|------|
@@ -216,6 +216,16 @@
 | [CorsForge](https://wangzifan396-wzf.github.io/CorsForge/) ⭐ | 开发辅助 | CORS 配置校验：通配符/多来源/凭证组合风险检测、合规评级，离线可用。 |
 | [HttpHeadersForge](https://wangzifan396-wzf.github.io/HttpHeadersForge/) ⭐ | 安全工具 | HTTP 安全响应头审计：HSTS/CSP/COOP 等 8 项体检、评分分级、修复建议，离线可用。 |
 | [ColorContrastForge](https://wangzifan396-wzf.github.io/ColorContrastForge/) ⭐ | 设计工具 | WCAG 颜色对比度计算器：相对亮度、对比比率、AA/AAA 通过判定与实时预览，离线可用。 |
+| [PngForge](https://wangzifan396-wzf.github.io/PngForge/) ⭐ | 图像工具 | PNG 元数据解析：读取 IHDR 尺寸/色彩类型/位深/交错、调色板与 ICC 标记、tEXt 文本块，离线可用。 |
+| [EasingForge](https://wangzifan396-wzf.github.io/EasingForge/) ⭐ | 设计工具 | 缓动函数库：10 种经典曲线 + cubic-bezier 牛顿迭代求值，SVG 曲线可视化预览，离线可用。 |
+| [GridForge](https://wangzifan396-wzf.github.io/GridForge/) ⭐ | 设计工具 | CSS Grid 模板生成器：列/行/单位/间距实时生成 grid-template 与模板区域，带可视预览，离线可用。 |
+| [RateLimitForge](https://wangzifan396-wzf.github.io/RateLimitForge/) ⭐ | 开发辅助 | 限流算法可视化：令牌桶/漏桶/滑动窗口的可用量、剩余量与容量估算，附算法对比说明，离线可用。 |
+| [SqlExplainForge](https://wangzifan396-wzf.github.io/SqlExplainForge/) ⭐ | 开发辅助 | SQL 执行顺序解析：拆解 SELECT/FROM/JOIN/WHERE/GROUP/ORDER/LIMIT，按真实执行步骤还原，离线可用。 |
+| [LzStringForge](https://wangzifan396-wzf.github.io/LzStringForge/) ⭐ | 编码加密 | LZW 字符串压缩：纯 JS 文本压缩为 Base64、UTF-8 安全、压缩率统计与无损还原，离线可用。 |
+| [IcoForge](https://wangzifan396-wzf.github.io/IcoForge/) ⭐ | 图像工具 | PNG 转 ICO：校验 PNG 签名、读取尺寸并打包为 Windows .ico 容器供下载，纯前端离线生成。 |
+| [SvgPathForge](https://wangzifan396-wzf.github.io/SvgPathForge/) ⭐ | 设计工具 | SVG path 工具箱：命令解析、相对↔绝对互转、包围盒计算与坐标数值简化取整，离线可用。 |
+| [JsonPointerForge](https://wangzifan396-wzf.github.io/JsonPointerForge/) ⭐ | 数据工具 | RFC 6901 JSON Pointer：按 /a/b/1 取值与赋值、~0/~1 转义处理，便于 JSON 补丁与定位，离线可用。 |
+| [AsciiTableForge](https://wangzifan396-wzf.github.io/AsciiTableForge/) ⭐ | 文本处理 | ASCII 表格生成器：Tab/逗号分隔行列数据渲染为带边框、列宽对齐的纯文本表格，离线可用。 |
 | [MetronomeForge](https://wangzifan396-wzf.github.io/MetronomeForge/) ⭐ | 实用计算 | 节拍器：可调 BPM 与拍号，支持重音与前瞻调度内核，Tap 测速，辅助练习节奏，离线可用。 |
 | [PaletteForge](https://wangzifan396-wzf.github.io/PaletteForge/) ⭐ | 设计工具 | 配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。 |
 | [ChordForge](https://wangzifan396-wzf.github.io/ChordForge/) ⭐ | 实用计算 | 和弦与音阶：和弦识别、音阶构建、音名解析与异名同音归一。 |
@@ -348,7 +358,7 @@
 ## 质量保障
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟），CI 全绿。
-- 全矩阵回归：`run_matrix_tests.py` 一键跑 308 工具测试。
+- 全矩阵回归：`run_matrix_tests.py` 一键跑 318 工具测试。
 
 ## License
 
