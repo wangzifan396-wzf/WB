@@ -1,0 +1,34 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.kcLookup(13).key==='Enter' && P.kcLookup(13).code==='Enter','enter');
+ok(P.kcLookup(27).key==='Escape','escape');
+ok(P.kcLookup(65).code==='KeyA' && P.kcLookup(65).key==='a','letter A');
+ok(P.kcLookup(90).code==='KeyZ','letter Z');
+ok(P.kcLookup(48).code==='Digit0','digit 0');
+ok(P.kcLookup(97).code==='Numpad1','numpad 1');
+ok(P.kcLookup(112).key==='F1' && P.kcLookup(123).key==='F12','function keys');
+ok(P.kcLookup(32).code==='Space','space');
+ok(P.kcLookup(999).error!==null,'out of range');
+ok(P.kcLookup(200).key==='Unidentified','unknown code');
+ok(P.kcGroup(65)==='\u5b57\u6bcd' && P.kcGroup(49)==='\u6570\u5b57','group letter/digit');
+ok(P.kcGroup(114)==='\u529f\u80fd\u952e','group function');
+ok(P.kcGroup(38)==='\u65b9\u5411\u952e','group arrows');
+ok(P.kcGroup(16)==='\u4fee\u9970\u952e','group modifier');
+ok(P.kcGroup(8)==='\u63a7\u5236\u952e','group control');
+ok(P.kcLabel(' ')==='Space' && P.kcLabel('a')==='A','label');
+ok(P.kcLabel('Enter')==='Enter' && P.kcLabel(null)==='?','label edge');
+const ev={ key:'s', code:'KeyS', keyCode:83, ctrlKey:true, shiftKey:true, altKey:false, metaKey:false };
+const r=P.kcFromEvent(ev);
+ok(r.mods.join(',')==='Ctrl,Shift','mods order');
+ok(r.combo==='Ctrl + Shift + S','combo string');
+ok(P.kcFromEvent(null).error!==null,'null event');
+ok(P.kcToAccel(ev,false).accel==='Ctrl+Shift+S','accel win');
+ok(P.kcToAccel(ev,true).accel==='\u2303\u21e7S','accel mac');
+ok(P.kcFromEvent({key:' ',code:'Space',keyCode:32}).key==='Space','space key normalized');
+console.log('PASS '+n+' assertions');

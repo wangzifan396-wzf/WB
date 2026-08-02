@@ -1,0 +1,18 @@
+const { JSDOM } = require('C:/Users/53014/.workbuddy/binaries/node/workspace/node_modules/jsdom');
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true});
+const {window}=dom; const errs=[]; window.addEventListener('error',e=>errs.push(e.message||String(e.error)));
+setTimeout(()=>{ const doc=window.document; let pass=0,fail=0;
+  const ok=(n,c)=>c?pass++:(fail++,console.error('  FAIL: '+n));
+  ok('PunyForgePure exposed', typeof window.PunyForgePure==='object');
+  ok('enc btn', !!doc.getElementById('enc'));
+  doc.getElementById('label').value='München'; doc.getElementById('enc').click();
+  ok('encode output', doc.getElementById('out').textContent.indexOf('Mnchen-3ya')>=0);
+  doc.getElementById('label').value='xn--mnchen-3ya.de'; doc.getElementById('decd').click();
+  ok('domain decode output', doc.getElementById('out').textContent.indexOf('münchen')>=0);
+  ok('no js errors', errs.length===0);
+  if(errs.length) console.error('  js errors:',errs);
+  console.log('PunyForge smoke: '+pass+' passed, '+fail+' failed');
+  process.exit(fail?1:0);
+},500);

@@ -1,0 +1,35 @@
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/); if(!m){console.error('NO SCRIPT');process.exit(1);}
+const fn=new Function('module','exports','require',m[1]); fn(module,module.exports,require);
+const A=module.exports; let pass=0,fail=0;
+function ok(n,c){ if(c) pass++; else { fail++; console.error('  FAIL: '+n); } }
+const chromeWin='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+const r1=A.parseUA(chromeWin);
+ok('chrome browser', r1.browser==='Chrome');
+ok('chrome version', r1.browserVersion==='126.0.0.0');
+ok('chrome engine', r1.engine==='Blink');
+ok('win os', r1.os==='Windows' && r1.osVersion==='10/11');
+const r2=A.parseUA('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15');
+ok('safari browser', r2.browser==='Safari');
+ok('safari version', r2.browserVersion==='17.4');
+ok('macos', r2.os==='macOS' && r2.osVersion==='10.15.7');
+const r3=A.parseUA('Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0.0.0 Mobile/15E148 Safari/604.1');
+ok('crios', r3.browser==='Chrome (iOS)');
+ok('ios', r3.os==='iOS' && r3.osVersion==='17.4');
+ok('iphone device', r3.device==='手机');
+const r4=A.parseUA('Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0');
+ok('firefox', r4.browser==='Firefox' && r4.engine==='Gecko');
+ok('linux', r4.os==='Linux');
+const r5=A.parseUA('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36');
+ok('android', r5.os==='Android' && r5.osVersion==='14');
+ok('android mobile', r5.device==='手机');
+const r6=A.parseUA('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0');
+ok('edge before chrome', r6.browser==='Edge');
+const r7=A.parseUA('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
+ok('bot detect', r7.bot===true && r7.device==='爬虫');
+ok('empty throws', (function(){ try{ A.parseUA(''); return false; }catch(e){ return true; } })());
+ok('format has lines', A.formatUA(r1).split('\n').length>=4);
+ok('format browser line', A.formatUA(r1).indexOf('Chrome 126.0.0.0')>=0);
+console.log('UAForge _test: '+pass+' passed, '+fail+' failed');
+process.exit(fail?1:0);

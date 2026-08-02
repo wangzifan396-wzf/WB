@@ -1,0 +1,32 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+var w=P.hexToRgb('#ffffff');
+ok(w && w.r===255&&w.g===255&&w.b===255,'white parse');
+ok(P.hexToRgb('#fff') && P.hexToRgb('#fff').r===255,'shorthand parse');
+ok(P.hexToRgb('zzz')===null,'invalid hex null');
+ok(P.rgbToHex(255,0,0)==='#ff0000','rgb to hex');
+var comp=P.rotHue('#ff0000',180);
+ok(comp==='#00ffff','red complement cyan');
+var tri=P.palScheme('#ff0000','triadic');
+ok(tri.length===2 && tri[0]==='#00ff00' && tri[1]==='#0000ff','red triadic');
+var ana=P.palScheme('#ff0000','analogous');
+ok(ana.length===2,'analogous count');
+var mono=P.palScheme('#5E6AD2','monochrome');
+ok(mono.length===4,'monochrome count 4');
+ok(P.palScheme('#ff0000','complement').length===1,'complement single');
+ok(Math.abs(P.wcag('#ffffff','#000000')-21)<0.05,'white/black contrast ~21');
+ok(Math.abs(P.wcag('#ffffff','#ffffff')-1)<1e-9,'same color contrast 1');
+ok(P.wcag('#zzz','#000')===null,'invalid wcag null');
+var hsl=P.rgbToHsl(255,0,0);
+ok(Math.abs(hsl.h-0)<1 && Math.abs(hsl.s-100)<1 && Math.abs(hsl.l-50)<1,'red hsl');
+var rgb=P.hslToRgb(120,100,50);
+ok(rgb.g===255 && rgb.r===0 && rgb.b===0,'hsl green -> rgb');
+ok(P.rotHue('#00ff00',180)==='#ff00ff','green complement magenta (wrap)');
+ok(P.rotHue('#ff0000',360)==='#ff0000','360 rotation identity (primary)');
+console.log('PASS '+n+' assertions');

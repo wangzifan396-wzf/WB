@@ -1,0 +1,33 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.dxCrc32(P.dxUtf8(''))===0,'crc32 empty = 0');
+ok(P.dxCrc32(P.dxUtf8('123456789'))===0xCBF43926,'crc32 known vector');
+ok(P.dxUtf8('A').join(',')==='65','utf8 ascii');
+ok(P.dxUtf8('中').length===3,'utf8 cjk 3 bytes');
+ok(P.dxUtf8('\u00e9').join(',')==='195,169','utf8 2-byte');
+ok(P.dxXmlEsc('a<b&c>d')==='a&lt;b&amp;c&gt;d','xml escape');
+const xml=P.dxDocXml('# Title\nHello');
+ok(xml.indexOf('<w:document')>0,'doc xml root');
+ok(xml.indexOf('<w:b/>')>0,'heading bold');
+ok(xml.indexOf('Hello')>0,'paragraph text');
+ok(P.dxDocXml('').indexOf('<w:p/>')>0,'empty doc placeholder');
+const zip=P.dxZip([{name:'a.txt',data:P.dxUtf8('hi')}]);
+ok(zip[0]===0x50&&zip[1]===0x4B&&zip[2]===3&&zip[3]===4,'zip local header sig');
+const tail=Array.from(zip.slice(zip.length-22,zip.length-18));
+ok(tail.join(',')==='80,75,5,6','zip EOCD sig');
+ok(zip[zip.length-22+8]===1,'EOCD entry count 1');
+const bytes=P.dxBuild('# T\nbody');
+ok(bytes[0]===0x50&&bytes[1]===0x4B,'docx starts PK');
+const str=Buffer.from(bytes).toString('latin1');
+ok(str.indexOf('[Content_Types].xml')>0,'contains content types');
+ok(str.indexOf('word/document.xml')>0,'contains document part');
+ok(str.indexOf('officeDocument')>0,'contains rels');
+const cnt=(str.match(/PK\x01\x02/g)||[]).length;
+ok(cnt===3,'central dir 3 entries');
+console.log('PASS '+n+' assertions');

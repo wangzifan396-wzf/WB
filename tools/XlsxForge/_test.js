@@ -1,0 +1,33 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.xlColName(1)==='A','col 1 A');
+ok(P.xlColName(26)==='Z','col 26 Z');
+ok(P.xlColName(27)==='AA','col 27 AA');
+ok(P.xlColName(702)==='ZZ','col 702 ZZ');
+ok(P.xlColName(703)==='AAA','col 703 AAA');
+const rows=P.xlParseCsv('a,b\n1,2\n\n3, x ');
+ok(rows.length===3,'csv skip blank');
+ok(rows[2][1]==='x','csv trims cells');
+ok(P.xlIsNum('3.14')===true,'isNum float');
+ok(P.xlIsNum('')===false,'isNum empty false');
+ok(P.xlIsNum('1e3')===true,'isNum sci');
+ok(P.xlIsNum('abc')===false,'isNum text false');
+const xml=P.xlSheetXml([['name','42']]);
+ok(xml.indexOf('t="inlineStr"')>0,'string cell inlineStr');
+ok(xml.indexOf('<v>42</v>')>0,'numeric cell v');
+ok(xml.indexOf('r="A1"')>0 && xml.indexOf('r="B1"')>0,'cell refs');
+ok(P.xlEsc('<&>')==='&lt;&amp;&gt;','escape');
+ok(P.xlCrc32(P.xlUtf8('123456789'))===0xCBF43926,'crc32 vector');
+const bytes=P.xlBuild('a,1\nb,2');
+ok(bytes[0]===0x50&&bytes[1]===0x4B,'xlsx starts PK');
+const str=Buffer.from(bytes).toString('latin1');
+ok(str.indexOf('xl/worksheets/sheet1.xml')>0,'contains sheet part');
+ok(str.indexOf('xl/workbook.xml')>0,'contains workbook');
+ok((str.match(/PK\x01\x02/g)||[]).length===5,'central dir 5 entries');
+console.log('PASS '+n+' assertions');

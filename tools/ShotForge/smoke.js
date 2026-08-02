@@ -1,0 +1,17 @@
+const { JSDOM } = require('C:/Users/53014/.workbuddy/binaries/node/workspace/node_modules/jsdom');
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true});
+const {window}=dom; const errs=[]; window.addEventListener('error',e=>errs.push(e.message));
+setTimeout(()=>{ const doc=window.document; let pass=0,fail=0;
+  const ok=(n,c)=>c?pass++:(fail++,console.error('  FAIL: '+n));
+  ok('ShotForgePure exposed', typeof window.ShotForgePure==='object');
+  ok('preview rendered', !!doc.getElementById('preview').querySelector('.cf-win'));
+  ok('copy btn', !!doc.getElementById('copy'));
+  doc.getElementById('code').value='const x=1;'; doc.getElementById('code').dispatchEvent(new window.Event('input'));
+  ok('preview updated', (doc.getElementById('preview').textContent||'').indexOf('const')>=0);
+  ok('no js errors', errs.length===0);
+  if(errs.length) console.error('  js errors:',errs);
+  console.log('ShotForge smoke: '+pass+' passed, '+fail+' failed');
+  process.exit(fail?1:0);
+},400);

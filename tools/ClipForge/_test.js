@@ -1,0 +1,31 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const pre=P.cpPresets();
+ok(Object.keys(pre).length===5,'5 presets');
+ok(pre.triangle.length===3,'triangle 3 pts');
+ok(pre.star.length===10,'star 10 pts');
+ok(pre.hexagon.length===6,'hexagon 6 pts');
+ok(P.cpClamp(150)===100,'clamp high');
+ok(P.cpClamp(-5)===0,'clamp low');
+ok(P.cpClamp('33.333')===33.33,'clamp round 2dp');
+ok(P.cpClamp('x')===0,'clamp NaN');
+const css=P.cpToCss([[50,0],[0,100],[100,100]]);
+ok(css==='polygon(50% 0%, 0% 100%, 100% 100%)','toCss triangle');
+ok(P.cpToCss([[1,2]])==='','toCss <3 pts empty');
+const parsed=P.cpParse('clip-path: polygon(50% 0%, 0% 100%, 100% 100%);');
+ok(parsed && parsed.length===3,'parse count');
+ok(parsed[0][0]===50 && parsed[0][1]===0,'parse first pt');
+ok(P.cpParse('none')===null,'parse invalid null');
+ok(P.cpParse('polygon(1% 2%)')===null,'parse too few null');
+const rt=P.cpParse(P.cpToCss(pre.hexagon));
+ok(JSON.stringify(rt)===JSON.stringify(pre.hexagon),'roundtrip hexagon');
+const ins=P.cpMidInsert([[0,0],[100,0],[50,100]],0);
+ok(ins.length===4,'midInsert grows');
+ok(ins[1][0]===50 && ins[1][1]===0,'midInsert midpoint');
+console.log('PASS '+n+' assertions');

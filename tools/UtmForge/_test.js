@@ -1,0 +1,32 @@
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/); if(!m){console.error('NO SCRIPT');process.exit(1);}
+const fn=new Function('module','exports','require',m[1]); fn(module,module.exports,require);
+const A=module.exports; let pass=0,fail=0;
+function ok(n,c){ if(c) pass++; else { fail++; console.error('  FAIL: '+n); } }
+var b1=A.build('https://x.com', {utm_source:'news',utm_medium:'email'});
+ok('build has source', b1.value.indexOf('utm_source=news')>=0);
+ok('build has medium', b1.value.indexOf('utm_medium=email')>=0);
+var b2=A.build('https://x.com?a=1', {utm_source:'s'});
+ok('build keeps query', b2.value==='https://x.com?a=1&utm_source=s');
+var b3=A.build('https://x.com', {});
+ok('build no params', b3.value==='https://x.com');
+var b4=A.build('https://x.com', {utm_source:'my source'});
+ok('build encodes space', b4.value.indexOf('utm_source=my%20source')>=0);
+var p1=A.parse('https://x.com?utm_source=s&utm_medium=m');
+ok('parse source', p1.utm.utm_source==='s');
+ok('parse medium', p1.utm.utm_medium==='m');
+ok('parse base', p1.base==='https://x.com');
+var p2=A.parse('https://x.com/page');
+ok('parse no utm => empty', Object.keys(p2.utm).length===0);
+var p3=A.parse('https://x.com?foo=bar&utm_source=s');
+ok('parse keeps non-utm', p3.all.foo==='bar');
+var full=A.build('https://x.com', {utm_source:'s',utm_medium:'m',utm_campaign:'c'}).value;
+ok('roundtrip campaign', A.parse(full).utm.utm_campaign==='c');
+ok('validate ok', A.validate({utm_source:'s'}).valid===true);
+ok('validate missing source', A.validate({}).valid===false && A.validate({}).issues.length>0);
+ok('validate empty medium', A.validate({utm_source:'s',utm_medium:''}).issues.indexOf('utm_medium 为空')>=0);
+var b5=A.build('https://x.com', {utm_source:'s',utm_campaign:''});
+ok('build ignores empty campaign', b5.value==='https://x.com?utm_source=s');
+console.log('UtmForge _test: '+pass+' passed, '+fail+' failed');
+process.exit(fail?1:0);

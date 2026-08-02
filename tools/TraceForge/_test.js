@@ -1,0 +1,35 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const good='[{"name":"root","start":0,"dur":100},{"name":"child","start":10,"dur":50,"parent":"root"}]';
+const p=P.trcParse(good);
+ok(p.error===null,'parse ok');
+ok(p.spans.length===2,'2 spans');
+ok(p.spans[1].parent==='root','parent kept');
+ok(P.trcParse('not json').error!==null,'bad json error');
+ok(P.trcParse('[]').error!==null,'empty array error');
+ok(P.trcParse('[{"name":"a","start":0,"dur":0}]').error!==null,'zero dur error');
+ok(P.trcParse('[{"name":"a","start":-1,"dur":5}]').error!==null,'negative start error');
+ok(P.trcParse('[{"name":"a","start":0,"dur":5},{"name":"a","start":0,"dur":5}]').error!==null,'dup name error');
+ok(P.trcParse('[{"name":"a","start":0,"dur":5,"parent":"ghost"}]').error!==null,'missing parent error');
+const D=P.trcDepth(p.spans);
+ok(D.error===null && D.depth.root===0 && D.depth.child===1,'depth calc');
+const deep=P.trcParse('[{"name":"a","start":0,"dur":9},{"name":"b","start":0,"dur":5,"parent":"a"},{"name":"c","start":0,"dur":2,"parent":"b"}]');
+ok(P.trcDepth(deep.spans).depth.c===2,'depth 2 levels');
+const st=P.trcStats(p.spans);
+ok(st.total===100,'total end time');
+ok(st.slowest==='root'&&st.slowestDur===100,'slowest span');
+const st2=P.trcStats(P.trcParse('[{"name":"a","start":90,"dur":30},{"name":"b","start":0,"dur":50}]').spans);
+ok(st2.total===120,'total = max(start+dur)');
+ok(st2.slowest==='b','slowest by dur');
+const svg=P.trcSvg(p.spans);
+ok(svg.indexOf('<svg')===0,'svg root');
+ok(svg.indexOf('root')>0 && svg.indexOf('child')>0,'svg span names');
+ok(svg.indexOf('#EF4444')>0,'slowest highlighted red');
+ok(P.trcEsc('<a>')==='&lt;a&gt;','escape');
+console.log('PASS '+n+' assertions');

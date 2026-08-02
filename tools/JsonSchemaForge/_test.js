@@ -1,0 +1,37 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.jsType(null)==='null' && P.jsType([])==='array','type null/array');
+ok(P.jsType(1)==='integer' && P.jsType(1.5)==='number','type int/number');
+ok(P.jsType('a')==='string' && P.jsType(true)==='boolean','type string/bool');
+ok(P.jsTypeOk('number',1) && !P.jsTypeOk('integer',1.5),'typeOk number widening');
+ok(P.jsValidate({type:'string'},'x').length===0,'string ok');
+ok(P.jsValidate({type:'string'},5)[0].msg.indexOf('类型')>=0,'type mismatch');
+ok(P.jsValidate({type:'string',minLength:2},'a').length===1,'minLength');
+ok(P.jsValidate({type:'string',maxLength:1},'ab').length===1,'maxLength');
+ok(P.jsValidate({type:'string',pattern:'^a'},'b').length===1,'pattern');
+ok(P.jsValidate({type:'integer',minimum:1},0).length===1,'minimum');
+ok(P.jsValidate({type:'integer',maximum:1},2).length===1,'maximum');
+ok(P.jsValidate({enum:['a','b']},'c').length===1,'enum');
+ok(P.jsValidate({type:'array',minItems:2},[1]).length===1,'minItems');
+ok(P.jsValidate({type:'array',maxItems:1},[1,2]).length===1,'maxItems');
+ok(P.jsValidate({type:'array',items:{type:'string'}},['a',1])[0].path==='$[1]','item path');
+const S={type:'object',required:['a'],properties:{a:{type:'string'}}};
+ok(P.jsValidate(S,{})[0].path==='$.a','required path');
+ok(P.jsValidate(S,{a:'x'}).length===0,'object ok');
+ok(P.jsValidate({type:'object',properties:{},additionalProperties:false},{z:1}).length===1,'additionalProperties');
+const inf=P.jsInfer({a:1,b:['x']});
+ok(inf.type==='object' && inf.properties.a.type==='integer','infer object');
+ok(inf.properties.b.type==='array' && inf.properties.b.items.type==='string','infer array items');
+ok(P.jsInfer([]).type==='array' && !P.jsInfer([]).items,'infer empty array');
+ok(P.jsRun('{bad}','{}').error!==null,'bad schema json');
+ok(P.jsRun('{}','{bad}').error!==null,'bad data json');
+const r=P.jsRun(JSON.stringify(S),'{"a":1}');
+ok(r.error===null && r.valid===false && r.errors.length===1,'run invalid');
+ok(P.jsRun(JSON.stringify(S),'{"a":"ok"}').valid===true,'run valid');
+console.log('PASS '+n+' assertions');

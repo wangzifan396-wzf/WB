@@ -1,0 +1,35 @@
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/); if(!m){console.error('NO SCRIPT');process.exit(1);}
+const fn=new Function('module','exports','require',m[1]); fn(module,module.exports,require);
+const A=module.exports; let pass=0,fail=0;
+function ok(n,c){ if(c) pass++; else { fail++; console.error('  FAIL: '+n); } }
+ok('tokenize basic', A.tokenize('docker run -d nginx').length===4);
+ok('tokenize quotes', A.tokenize('docker run -e "A=b c" img')[3]==='A=b c');
+const o=A.parseDockerRun('docker run -d --name web -p 8080:80 -v ./h:/usr/share -e TZ=Asia/Shanghai --restart unless-stopped nginx:alpine');
+ok('image', o.image==='nginx:alpine');
+ok('name', o.name==='web');
+ok('port', o.ports[0]==='8080:80');
+ok('volume', o.volumes[0]==='./h:/usr/share');
+ok('env', o.env[0]==='TZ=Asia/Shanghai');
+ok('restart', o.restart==='unless-stopped');
+const o2=A.parseDockerRun('docker run --network mynet -u 1000:1000 -w /app node:20 npm start');
+ok('network', o2.networks[0]==='mynet');
+ok('user', o2.user==='1000:1000');
+ok('workdir', o2.workdir==='/app');
+ok('command', o2.command.join(' ')==='npm start');
+ok('eq form env', A.parseDockerRun('docker run --env=FOO=bar img').env[0]==='FOO=bar');
+ok('bool privileged', A.parseDockerRun('docker run --privileged img').privileged===true);
+ok('no image throws', (function(){ try{ A.parseDockerRun('docker run -d'); return false; }catch(e){ return true; } })());
+const y=A.toCompose('docker run -d --name web -p 8080:80 --restart unless-stopped nginx:alpine');
+ok('yaml services', y.indexOf('services:')===0);
+ok('yaml svc name', y.indexOf('  web:')>0);
+ok('yaml image', y.indexOf('image: nginx:alpine')>0);
+ok('yaml port quoted', y.indexOf('- "8080:80"')>0);
+ok('yaml sexagesimal guard', A.toCompose('docker run -p 53:53 img').indexOf('- "53:53"')>0);
+ok('yaml restart', y.indexOf('restart: unless-stopped')>0);
+const y2=A.toCompose('docker run --network mynet img');
+ok('yaml networks external', y2.indexOf('external: true')>0);
+ok('yaml quote special', A.toCompose('docker run -e "MSG=hello world" img').indexOf('"MSG=hello world"')>0);
+console.log('DockerForge _test: '+pass+' passed, '+fail+' failed');
+process.exit(fail?1:0);

@@ -1,0 +1,37 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.estimateTokens('')===0, 'empty text 0 tokens');
+ok(P.estimateTokens('abcd')===1, 'ascii 4 chars = 1 token');
+ok(P.estimateTokens('\u4e2d\u6587\u5b57')===3, 'CJK 1 char = 1 token');
+var p=P.planChunks(1000, 512, 64);
+ok(p.stride===448, 'stride = chunk - overlap');
+ok(p.count===3, '1000 tokens / stride 448 -> 3 chunks');
+ok(P.planChunks(300,512,64).count===1, 'short doc single chunk');
+ok(P.planChunks(300,512,64).lastChunk===300, 'single chunk last = total');
+ok(P.planChunks(0,512,64).count===0, 'zero tokens zero chunks');
+ok(P.planChunks(1000,100,100).error, 'overlap >= chunkSize errors');
+ok(P.planChunks(1000,512,64).redundancy>0, 'overlap creates redundancy');
+var b=P.contextBudget(512, 5, 800, 128000, 4000);
+ok(b.retrieved===2560, 'retrieved = chunk * topK');
+ok(b.used===3360, 'used = retrieved + prompt');
+ok(b.available===124000, 'available = ctx - reserve');
+ok(b.fits===true, 'fits in window');
+ok(P.contextBudget(512, 500, 800, 8000, 1000).fits===false, 'overflow detected');
+ok(b.maxTopK===Math.floor((124000-800)/512), 'maxTopK math');
+var c=P.embedCost(100, 512, 0.02);
+ok(c.tokens===51200, 'embed tokens = count * size');
+ok(c.usd>0 && c.cny>c.usd, 'cny greater than usd');
+ok(P.splitText('abcdefghij', 4, 1).length===3, 'splitText chunks with overlap');
+ok(P.splitText('abcdefghij', 4, 1)[1].charAt(0)==='d', 'splitText overlap offset');
+ok(P.splitText('', 4, 1).length===0, 'splitText empty');
+ok(P.recallHint(5,512).indexOf('\u63a8\u8350\u533a\u95f4')>=0, 'healthy params hint');
+ok(P.recallHint(0,512).length>0, 'zero topK hint');
+ok(P.recallHint(5,64).length>0, 'small chunk hint');
+ok(P.recallHint(5,2000).length>0, 'large chunk hint');
+console.log('RagForge _test: '+n+' passed, 0 failed');

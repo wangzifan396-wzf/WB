@@ -1,0 +1,31 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.jdEqual(1,1) && P.jdEqual('a','a') && !P.jdEqual(1,2),'scalar equal');
+ok(P.jdEqual({a:1},{a:1}) && !P.jdEqual({a:1},{a:2}),'obj equal');
+ok(P.jdEqual([1,2],[1,2]) && !P.jdEqual([1,2],[1]),'arr equal');
+const A={name:'nano',tags:['a','b'],nested:{x:1,y:2}};
+const B={name:'nano-tools',tags:['a','c'],nested:{x:1,z:3}};
+const d=P.jdDiff(A,B);
+ok(d.added.indexOf('nested.z')>=0,'added path');
+ok(d.removed.indexOf('nested.y')>=0,'removed path');
+ok(d.changed.length===2,'changed count name+tags');
+ok(d.total===d.added.length+d.removed.length+d.changed.length,'total sum');
+const C={a:1}, E={a:1};
+ok(P.jdDiff(C,E).total===0,'identical no diff');
+const F={list:[1,2,3]}, G={list:[1,9,3]};
+const d2=P.jdDiff(F,G);
+ok(d2.changed.some(function(c){return c.path==='list/1';}),'array index diff');
+const H={x:{y:{z:1}}}, I={x:{y:{z:2}}};
+ok(P.jdDiff(H,I).changed[0].path==='x.y.z','deep path');
+ok(P.jdDiff({},{}).total===0,'empty diff');
+const j=P.jdFlatten({a:{b:1},c:[2,3]});
+ok(j['a.b']===1 && j['c/0']===2 && j['c/1']===3,'flatten paths');
+ok(P.jdDiff(null,1).total===1,'null vs scalar');
+ok(P.jdDiff({k:undefined},{k:1}).changed.some(function(c){return c.path==='k';}),'undefined vs 1 changed not removed');
+console.log('PASS '+n+' assertions');

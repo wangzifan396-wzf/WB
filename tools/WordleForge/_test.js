@@ -1,0 +1,33 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const ws=P.wdWords();
+ok(ws.length===40,'40 words');
+ok(ws.every(function(w){ return /^[A-Z]{5}$/.test(w); }),'all 5-letter uppercase');
+ok(P.wdPick(0)===ws[0],'pick seed 0');
+ok(P.wdPick(41)===ws[1],'pick wraps');
+ok(P.wdPick(-3)===P.wdPick(3),'pick abs');
+ok(P.wdValid('crane')===true,'valid lowercase ok');
+ok(P.wdValid('cran')===false,'too short');
+ok(P.wdValid('cr4ne')===false,'digit invalid');
+ok(P.wdScore('CRANE','CRANE')==='ggggg','all green');
+ok(P.wdScore('STONE','NOTES')==='yyyyy','full anagram all yellow');
+ok(P.wdScore('AAAAA','ABBBB')==='gbbbb','double letter: only one green');
+ok(P.wdScore('ABABA','BABAB')==='yyyyb','double letter counts limited');
+ok(P.wdScore('SPEED','ERASE')==='ybyyb','two E guess vs two E answer');
+ok(P.wdScore('ROBOT','PIANO')==='bybbb','single O only first yellow');
+ok(P.wdScore('AB','CRANE')===null,'bad length null');
+ok(P.wdWin('ggggg')===true,'win');
+ok(P.wdWin('ggggy')===false,'not win');
+var st=P.wdKeyStates([{guess:'CRANE',score:'gybbb'},{guess:'CLOUD',score:'gbbbb'}]);
+ok(st['C']==='g','C green kept');
+ok(st['R']==='y','R yellow');
+ok(st['L']==='b','L gray');
+var st2=P.wdKeyStates([{guess:'AAAAA',score:'ybbbb'},{guess:'ABBBB',score:'gbbbb'}]);
+ok(st2['A']==='g','rank upgrade y->g');
+console.log('PASS '+n+' assertions');

@@ -1,0 +1,34 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.mkvTokens('the quick fox').join('|')==='the|quick|fox','en word tokens');
+ok(P.mkvTokens('你好世界').join('|')==='你|好|世|界','cjk char tokens');
+ok(P.mkvTokens('  a   b  ').length===2,'whitespace collapse');
+ok(P.mkvTokens('').length===0,'empty tokens');
+ok(P.mkvBuild('a b', 2).error!==null,'too short error');
+const mdl=P.mkvBuild('a b a b a c', 1);
+ok(mdl.error===null,'build ok');
+ok(mdl.chain['a'].length===3,'state a has 3 transitions');
+ok(mdl.chain['a'].filter(x=>x==='b').length===2,'a->b twice');
+const st=P.mkvStats(mdl);
+ok(st.keys===2 && st.edges===5,'stats keys/edges');
+const rng=P.mkvSeedRng(42);
+const v1=rng(), v2=rng();
+ok(v1>=0&&v1<1&&v2>=0&&v2<1,'rng in [0,1)');
+ok(P.mkvSeedRng(42)()===v1,'rng deterministic same seed');
+ok(P.mkvSeedRng(7)()!==v1,'rng differs by seed');
+const g1=P.mkvGen(mdl, 10, P.mkvSeedRng(1));
+const g2=P.mkvGen(mdl, 10, P.mkvSeedRng(1));
+ok(g1===g2,'generation deterministic with seed');
+ok(g1.split(' ').length<=10,'respects maxLen');
+const cj=P.mkvBuild('今天天气很好。明天天气更好。', 2);
+ok(cj.error===null && cj.cjk===true,'cjk model');
+const cg=P.mkvGen(cj, 8, P.mkvSeedRng(3));
+ok(cg.length>0 && cg.indexOf(' ')<0,'cjk output no spaces');
+ok(P.mkvGen({error:'x'},10)==='','error model empty gen');
+console.log('PASS '+n+' assertions');

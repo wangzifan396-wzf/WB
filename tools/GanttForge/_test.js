@@ -1,0 +1,32 @@
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/); if(!m){console.error('NO SCRIPT');process.exit(1);}
+const fn=new Function('module','exports','require',m[1]); fn(module,module.exports,require);
+const A=module.exports; let pass=0,fail=0;
+function ok(n,c){ if(c) pass++; else { fail++; console.error('  FAIL: '+n); } }
+ok('date parse', A.gtDate('2026-08-03')===Date.UTC(2026,7,3));
+ok('date bad format', A.gtDate('2026/08/03')===null);
+ok('date invalid day', A.gtDate('2026-02-30')===null);
+const p=A.gtParse('a, 2026-08-03, 2, 100\nb, 2026-08-04, 3');
+ok('parse ok 2 tasks', p.error===null && p.value.length===2);
+ok('default progress 0', p.value[1].progress===0);
+ok('cjk comma ok', A.gtParse('t，2026-08-03，2').error===null);
+ok('empty error', A.gtParse('').error!==null);
+ok('missing fields error', /第 1 行/.test(A.gtParse('only-name').error));
+ok('bad days error', A.gtParse('a, 2026-08-03, 0').error!==null);
+ok('bad progress error', A.gtParse('a, 2026-08-03, 2, 150').error!==null);
+ok('comment skipped', A.gtParse('# c\na, 2026-08-03, 1').value.length===1);
+const st=A.gtStats(p.value);
+ok('span days', st.spanDays===4);
+ok('min start', st.minStart===Date.UTC(2026,7,3));
+ok('weighted progress', st.weightedProgress===40);
+const ov=A.gtOverlaps(p.value);
+ok('overlap detected', ov.length===1 && ov[0][0]==='a');
+ok('no overlap when disjoint', A.gtOverlaps(A.gtParse('a, 2026-08-03, 1\nb, 2026-08-05, 1').value).length===0);
+const s=A.gtSvg('a, 2026-08-03, 2, 50\nb, 2026-08-05, 3, 0');
+ok('svg ok', s.error===null && s.value.indexOf('<svg')===0);
+ok('svg has span label', s.value.indexOf('总跨度 5 天')>-1);
+ok('esc', A.gtEsc('<a&b>')==='&lt;a&amp;b&gt;');
+ok('svg error propagates', A.gtSvg('bad').error!==null);
+console.log('GanttForge _test: '+pass+' passed, '+fail+' failed');
+process.exit(fail?1:0);

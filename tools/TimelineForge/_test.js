@@ -1,0 +1,34 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const d=P.tmlParseDate('2026-07-30');
+ok(d && d.y===2026 && d.m===7 && d.d===30,'full date');
+ok(d.key===20260730,'sortable key');
+ok(P.tmlParseDate('2026').key===20260101,'year only defaults');
+ok(P.tmlParseDate('2026-3').label==='2026-03','month zero pad');
+ok(P.tmlParseDate('2026-13')===null,'bad month null');
+ok(P.tmlParseDate('26-01')===null,'2-digit year null');
+ok(P.tmlParseDate('abc')===null,'garbage null');
+const p=P.tmlParse('2026-02 | B 事件\n2026-01 | A 事件 | 描述文字\n# 注释');
+ok(p.error===null,'parse ok');
+ok(p.events.length===2,'2 events');
+ok(p.events[1].desc==='描述文字','desc kept');
+ok(P.tmlParse('').error!==null,'empty error');
+ok(P.tmlParse('2026-01').error!==null,'missing title error');
+ok(P.tmlParse('bad-date | t').error!==null,'bad date error');
+const sorted=P.tmlSort(p.events);
+ok(sorted[0].title==='A 事件','sorted by date');
+ok(p.events[0].title==='B 事件','original not mutated');
+const svg=P.tmlSvg(p.events);
+ok(svg.indexOf('<svg')===0,'svg root');
+ok(svg.indexOf('A 事件')>0 && svg.indexOf('B 事件')>0,'svg titles');
+ok((svg.match(/<circle/g)||[]).length===2,'svg 2 dots');
+ok(svg.indexOf('&lt;')<0 || P.tmlEsc('<x>')==='&lt;x&gt;','escape works');
+const idxA=svg.indexOf('A 事件'), idxB=svg.indexOf('B 事件');
+ok(idxA<idxB,'svg renders chronological order');
+console.log('PASS '+n+' assertions');

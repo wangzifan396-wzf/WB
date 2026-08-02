@@ -1,0 +1,35 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+var r1=P.pfRng(42), r2=P.pfRng(42);
+ok(r1()===r2(),'rng deterministic');
+var v=P.pfRng(7)();
+ok(v>=0 && v<1,'rng range');
+var rng=P.pfRng(1);
+var f=P.pfEmit('fountain',240,310,10,rng);
+ok(f.length===10,'emit count');
+ok(f.every(function(p){ return p.vy<0; }),'fountain shoots upward');
+ok(f.every(function(p){ return p.x===240 && p.y===310; }),'fountain origin');
+var fw=P.pfEmit('fireworks',100,100,50,P.pfRng(2));
+ok(fw.some(function(p){ return p.vx>0; }) && fw.some(function(p){ return p.vx<0; }),'fireworks radial');
+var sn=P.pfEmit('snow',0,0,5,P.pfRng(3));
+ok(sn.every(function(p){ return p.y===-4 && p.vy>0; }),'snow falls from top');
+var st=P.pfStep(f,{grav:0.2});
+ok(st.length===10,'step keeps young particles');
+ok(st[0].age===1,'age increments');
+ok(st[0].vy>f[0].vy,'gravity accelerates downward');
+ok(f[0].age===0,'immutability: input untouched');
+var old=[{x:10,y:10,vx:0,vy:0,life:5,age:4,hue:0}];
+ok(P.pfStep(old,{}).length===0,'expired removed');
+var off=[{x:10,y:1000,vx:0,vy:0,life:100,age:1,hue:0}];
+ok(P.pfStep(off,{h:320}).length===0,'below floor removed');
+ok(P.pfAlpha({life:100,age:0})===1,'alpha fresh 1');
+ok(P.pfAlpha({life:100,age:100})===0,'alpha dead 0');
+ok(Math.abs(P.pfAlpha({life:100,age:50})-0.5)<1e-9,'alpha half');
+ok(P.pfAlpha(null)===0,'alpha null safe');
+console.log('PASS '+n+' assertions');

@@ -1,0 +1,33 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.icMime('png')==='image/png','mime png');
+ok(P.icMime('JPG')==='image/jpeg','mime jpg alias');
+ok(P.icMime('webp')==='image/webp','mime webp');
+ok(P.icMime('bogus')==='image/png','mime fallback png');
+ok(P.icExt('jpeg')==='jpg','ext jpeg->jpg');
+ok(P.icExt('webp')==='webp','ext webp');
+ok(P.icName('photo.HEIC','webp')==='photo.webp','name replaces ext');
+ok(P.icName('','png')==='image.png','name empty fallback');
+ok(P.icQuality('png',0.5)===undefined,'png quality undefined');
+ok(P.icQuality('jpeg',2)===1,'quality clamp high');
+ok(P.icQuality('jpeg',0)===0.05,'quality clamp low');
+ok(P.icQuality('webp','x')===0.92,'quality NaN default');
+var f=P.icFit(2000,1000,1000,0);
+ok(f.w===1000&&f.h===500,'fit maxW halves');
+var f2=P.icFit(800,600,1600,0);
+ok(f2.w===800&&f2.h===600&&f2.scale===1,'fit no upscale');
+var f3=P.icFit(1000,2000,0,500);
+ok(f3.h===500&&f3.w===250,'fit maxH');
+ok(P.icSizeLabel(512)==='512 B','size B');
+ok(P.icSizeLabel(2048)==='2.0 KB','size KB');
+ok(P.icSizeLabel(3145728)==='3.00 MB','size MB');
+ok(P.icDataUrlBytes('data:image/png;base64,AAAA')===3,'dataurl 4 chars = 3 bytes');
+ok(P.icDataUrlBytes('data:image/png;base64,AAA=')===2,'dataurl padding');
+ok(P.icDataUrlBytes('nope')===0,'dataurl invalid = 0');
+console.log('PASS '+n+' assertions');

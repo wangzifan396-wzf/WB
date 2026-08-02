@@ -1,0 +1,31 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.validateServer('fs',{command:'npx',args:['-y','x']}).valid===true, 'stdio config valid');
+ok(P.validateServer('bad name',{command:'npx'}).valid===false, 'invalid name rejected');
+ok(P.validateServer('x',{}).valid===false, 'missing command and url rejected');
+ok(P.validateServer('x',{command:'npx',args:'nope'}).valid===false, 'args must be array');
+ok(P.validateServer('x',{url:'ftp://a.b'}).valid===false, 'bad url scheme rejected');
+ok(P.validateServer('x',{url:'http://evil.com/sse'}).warnings.length>0, 'non-local http warns');
+ok(P.validateServer('x',{url:'http://localhost:3000/sse'}).warnings.length===0, 'localhost http no warn');
+ok(P.validateServer('x',{command:'n',env:{T:'ghp_AAAAAAAAAAAAAAAAAAAA'}}).warnings.length>0, 'hardcoded token warns');
+ok(P.detectTransport({command:'npx'})==='stdio', 'transport stdio');
+ok(P.detectTransport({url:'https://a.b/sse'})==='sse', 'transport sse');
+ok(P.detectTransport({url:'https://a.b/mcp'})==='http', 'transport http');
+ok(P.detectTransport({})==='unknown', 'transport unknown');
+var cfg=P.buildConfig([{name:'a',command:'npx',args:['-y']}]);
+ok(cfg.mcpServers.a.command==='npx' && cfg.mcpServers.a.args.length===1, 'buildConfig stdio');
+ok(P.buildConfig([{name:'b',url:'https://x.y'}]).mcpServers.b.url==='https://x.y', 'buildConfig remote');
+ok(P.parseArgs('-y "a b" c').length===3, 'parseArgs quoted');
+ok(P.parseArgs('-y "a b" c')[1]==='a b', 'parseArgs preserves quoted spaces');
+ok(Object.keys(P.parseEnv('A=1\n# c\nB=2')).length===2, 'parseEnv skips comments');
+ok(P.parseEnv('URL=https://a.b?x=1').URL==='https://a.b?x=1', 'parseEnv keeps = in value');
+var a=P.auditConfig({mcpServers:{ok1:{command:'npx'}, bad1:{}}});
+ok(a.servers.length===2 && a.totalErrors===1, 'auditConfig counts errors');
+ok(P.auditConfig({}).fatal, 'auditConfig fatal on missing mcpServers');
+console.log('McpForge _test: '+n+' passed, 0 failed');

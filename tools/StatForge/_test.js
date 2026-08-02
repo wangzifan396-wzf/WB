@@ -1,0 +1,30 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const close=function(a,b,e){ return Math.abs(a-b)<(e||1e-9); };
+const p=P.statParse('1,2,3\n4');
+ok(p.error===null && p.nums.length===4,'parse 4 nums');
+ok(P.statParse('1,abc').error!==null,'bad number error');
+ok(close(P.statMean([1,2,3,4]),2.5),'mean');
+ok(close(P.statMedian([1,2,3,4]),2.5),'median even');
+ok(close(P.statMedian([1,2,3]),2),'median odd');
+ok(close(P.statQuantile([1,2,3,4,5],0.5),3),'median via quantile');
+ok(P.statMode([1,1,2,3]).modes[0]===1 && P.statMode([1,1,2,3]).freq===2,'mode');
+ok(close(P.statVariance([2,4,4,4,5,5,7,9],true),32/7),'sample variance');
+ok(close(P.statStd([2,4,4,4,5,5,7,9],true),Math.sqrt(32/7)),'sample std');
+const s=P.statSummary([2,4,4,4,5,5,7,9]);
+ok(s.n===8 && s.min===2 && s.max===9,'summary bounds');
+ok(close(s.iqr, s.q3-s.q1),'iqr');
+const r=P.statRegression([[0,1],[1,3]]);
+ok(r.error===undefined && close(r.slope,2) && close(r.intercept,1) && close(r.r2,1),'linreg perfect');
+ok(P.statRegression([[1,2]]).error!==undefined,'linreg needs 2');
+ok(P.statRegression([[2,1],[2,3]]).error!==undefined,'linreg zero var x');
+const h=P.statHistogram([1,1,2,3,3,3],3);
+ok(h.length===3 && h.reduce(function(a,b){return a+b.count;},0)===6,'histogram total');
+ok(P.statHistSvg([1,2,3,4,5],4).indexOf('<svg')===0,'hist svg');
+console.log('PASS '+n+' assertions');

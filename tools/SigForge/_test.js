@@ -1,0 +1,30 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.sgEsc('<a>&"')==='&lt;a&gt;&amp;&quot;','escape html');
+ok(P.sgEsc(null)==='','escape null');
+ok(P.sgColor('#F5A623')==='#F5A623','color valid 6');
+ok(P.sgColor('#abc')==='#abc','color valid 3');
+ok(P.sgColor('red')==='#5E6AD2','color invalid fallback');
+ok(P.sgInitials('Zifan Wang')==='ZW','initials two words');
+ok(P.sgInitials('Alice')==='A','initials one word');
+ok(P.sgInitials('  ')==='?','initials empty');
+ok(P.sgInitials('a b c')==='AC','initials first+last');
+ok(P.sgUrlLabel('https://example.com/')==='example.com','url label strips');
+ok(P.sgUrlLabel('http://a.io')==='a.io','url label http');
+var sig=P.sgBuild({name:'Bob',title:'Dev',company:'Acme',phone:'123',email:'b@a.io',site:'https://a.io',accent:'#10B981'});
+ok(sig.indexOf('<table')===0,'table layout');
+ok(sig.indexOf('#10B981')>=0,'accent applied');
+ok(sig.indexOf('mailto:b@a.io')>=0,'mailto link');
+ok(sig.indexOf('>B</td>')>=0 || sig.indexOf('>B<')>=0,'initials cell');
+ok(sig.indexOf('Dev')>=0 && sig.indexOf('Acme')>=0,'title company');
+var sig2=P.sgBuild({name:'<X>',accent:'bad'});
+ok(sig2.indexOf('&lt;X&gt;')>=0,'name escaped');
+ok(sig2.indexOf('#5E6AD2')>=0,'fallback accent');
+ok(sig2.indexOf('mailto:')<0,'no email row when empty');
+console.log('PASS '+n+' assertions');

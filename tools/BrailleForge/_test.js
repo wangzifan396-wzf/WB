@@ -1,0 +1,34 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const F=P.brFont();
+ok(Object.keys(F).length===39,'39 glyphs');
+ok(F['A'].length===7,'glyph 7 rows');
+ok(F['T'][0]===31,'T top full bar');
+var bm=P.brBitmap('A');
+ok(bm.length===7,'bitmap 7 rows');
+ok(bm[0].length===6,'bitmap 5+1 cols per char');
+ok(bm[0].join('')==='011100','A row0 = 14');
+ok(bm[3].join('')==='111110','A row3 = 31');
+var bm2=P.brBitmap('AB');
+ok(bm2[0].length===12,'two chars 12 cols');
+var inv=P.brInvert([[0,1],[1,0]]);
+ok(inv[0][0]===1 && inv[0][1]===0 && inv[1][0]===0,'invert flips');
+var art=P.brToBraille(bm);
+ok(art.split('\n').length===2,'7 rows -> 2 braille lines');
+ok(art.split('\n')[0].length===3,'6 cols -> 3 braille chars');
+var cc=art.charCodeAt(0);
+ok(cc>=0x2800 && cc<=0x28FF,'braille block');
+ok(P.brToBraille([])==='','empty bitmap empty');
+var full=P.brToBraille([[1,1],[1,1],[1,1],[1,1]]);
+ok(full===String.fromCharCode(0x28FF),'full 2x4 cell = U+28FF');
+var dot=P.brToBraille([[1,0],[0,0],[0,0],[0,0]]);
+ok(dot===String.fromCharCode(0x2801),'single dot1 = U+2801');
+var det=P.brToBraille(P.brBitmap('NANO'));
+ok(det===P.brToBraille(P.brBitmap('NANO')),'deterministic');
+console.log('PASS '+n+' assertions');

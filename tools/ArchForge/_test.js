@@ -1,0 +1,32 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const p=P.archParse('web -> api\napi -> db');
+ok(p.error===null,'parse ok');
+ok(p.nodes.length===3,'3 nodes');
+ok(p.edges.length===2,'2 edges');
+ok(P.archParse('# comment\n\nweb -> api').edges.length===1,'skip comment/blank');
+ok(P.archParse('bad line').error!==null,'bad line error');
+ok(P.archParse(' -> b').error!==null,'empty node error');
+const L=P.archLayers(p.nodes,p.edges);
+ok(L.error===null,'layers ok');
+ok(L.layers.length===3,'3 layers');
+ok(L.layers[0][0]==='web'&&L.layers[1][0]==='api'&&L.layers[2][0]==='db','layer order');
+const diamond=P.archParse('a -> b\na -> c\nb -> d\nc -> d');
+const LD=P.archLayers(diamond.nodes,diamond.edges);
+ok(LD.layers.length===3 && LD.layers[1].length===2,'diamond mid layer 2');
+ok(LD.depth.d===2,'diamond depth longest path');
+const cyc=P.archParse('a -> b\nb -> a');
+ok(P.archLayers(cyc.nodes,cyc.edges).error!==null,'cycle detected');
+const svg=P.archSvg(p);
+ok(svg.indexOf('<svg')===0,'svg root');
+ok(svg.indexOf('web')>0 && svg.indexOf('db')>0,'svg contains nodes');
+ok((svg.match(/marker-end/g)||[]).length===2,'svg 2 edge paths');
+ok(P.archEsc('<a&"b>')==='&lt;a&amp;&quot;b&gt;','escape');
+ok(P.archSvg(cyc)==='','cycle svg empty');
+console.log('PASS '+n+' assertions');

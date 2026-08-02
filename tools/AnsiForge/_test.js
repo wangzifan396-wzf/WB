@@ -1,0 +1,36 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+const E='\x1b';
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.anTokenize('plain').length===1,'plain single token');
+ok(P.anTokenize('').length===0,'empty tokenize');
+ok(P.anTokenize(null).length===0,'null tokenize');
+const t=P.anTokenize(E+'[31mred'+E+'[0m');
+ok(t.length===3 && t[0].kind==='sgr' && t[1].value==='red','tokenize sgr/text');
+ok(t[0].codes[0]===31 && t[2].codes[0]===0,'codes parsed');
+ok(P.anTokenize(E+'[m')[0].codes[0]===0,'bare reset defaults to 0');
+const base={fg:null,bg:null,bold:false,italic:false,underline:false};
+ok(P.anApply(base,[31]).fg==='#EF4444','apply fg red');
+ok(P.anApply(base,[41]).bg==='#7F1D1D','apply bg red');
+ok(P.anApply(base,[1,3,4]).bold && P.anApply(base,[1,3,4]).underline,'apply attrs');
+ok(P.anApply(P.anApply(base,[1]),[22]).bold===false,'bold off');
+ok(P.anApply(P.anApply(base,[31]),[39]).fg===null,'fg default');
+ok(P.anApply(P.anApply(base,[31,1]),[0]).fg===null,'reset all');
+ok(P.anStyle({fg:'#fff',bg:null,bold:true}).indexOf('font-weight:700')>0,'style bold');
+ok(P.anStyle(base)==='','empty style');
+ok(P.anEscapeHtml('<a>&')==='&lt;a&gt;&amp;','escape html');
+const h=P.anToHtml(E+'[32mok'+E+'[0m done');
+ok(h.indexOf('<span style="color:#10B981">ok</span>')===0,'toHtml span');
+ok(h.indexOf(' done')>0,'toHtml trailing plain');
+ok(P.anToHtml('<b>')==='&lt;b&gt;','toHtml escapes');
+ok(P.anStrip(E+'[31mx'+E+'[0m')==='x','strip');
+ok(P.anStrip(null)==='','strip null');
+const s=P.anStats(E+'[31mred'+E+'[0m');
+ok(s.sequences===2 && s.visibleChars===3,'stats');
+ok(s.rawLength>s.visibleChars,'stats raw longer');
+console.log('PASS '+n+' assertions');

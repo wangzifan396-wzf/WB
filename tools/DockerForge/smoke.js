@@ -1,0 +1,17 @@
+const { JSDOM } = require('C:/Users/53014/.workbuddy/binaries/node/workspace/node_modules/jsdom');
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true});
+const {window}=dom; const errs=[]; window.addEventListener('error',e=>errs.push(e.message));
+setTimeout(()=>{ const doc=window.document; let pass=0,fail=0;
+  const ok=(n,c)=>c?pass++:(fail++,console.error('  FAIL: '+n));
+  ok('DockerForgePure exposed', typeof window.DockerForgePure==='object');
+  ok('run btn', !!doc.getElementById('run'));
+  doc.getElementById('in').value='docker run -d --name web -p 80:80 nginx'; doc.getElementById('run').click();
+  ok('output has services', (doc.getElementById('out').textContent||'').indexOf('services:')>=0);
+  ok('output has image', (doc.getElementById('out').textContent||'').indexOf('nginx')>=0);
+  ok('no js errors', errs.length===0);
+  if(errs.length) console.error('  js errors:',errs);
+  console.log('DockerForge smoke: '+pass+' passed, '+fail+' failed');
+  process.exit(fail?1:0);
+},400);

@@ -1,0 +1,40 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+function near(a,b,eps){ return Math.abs(a-b)<(eps||0.01); }
+ok(P.pcParsePace('5:00')===300,'parse pace mm:ss');
+ok(P.pcParsePace('5.5')===330,'parse pace decimal');
+ok(P.pcParsePace('bad')===null,'parse pace bad');
+ok(P.pcParsePace('5:75')===null,'parse pace seconds range');
+ok(P.pcParseTime('52:30')===3150,'parse time mm:ss');
+ok(P.pcParseTime('1:02:03')===3723,'parse time h:mm:ss');
+ok(P.pcParseTime('x')===null,'parse time bad');
+ok(P.pcFmt(0)==='0:00','fmt zero');
+ok(P.pcFmt(3150)==='52:30','fmt mmss');
+ok(P.pcFmt(3723)==='1:02:03','fmt hmmss');
+ok(P.pcFmt(-1)==='--','fmt negative');
+const t=P.pcFromTime(10, 0);
+ok(t.error!==null,'zero distance error');
+ok(P.pcFromTime(0,10).error!==null,'zero time error');
+const r=P.pcFromTime(3000, 10);
+ok(r.error===null && r.pace===300,'pace from time');
+ok(near(r.speed,12),'speed 12kmh');
+ok(near(r.paceMile,482.8,0.5),'mile pace');
+const p=P.pcFromPace(300, 10);
+ok(p.total===3000 && near(p.speed,12),'time from pace');
+ok(P.pcFromPace(0,10).error!==null,'zero pace error');
+const sp=P.pcSplits(300, 5, 1);
+ok(sp.length===5 && sp[4].cum===1500,'splits 5x1km');
+ok(P.pcSplits(300, 5.5, 1).length===6,'splits partial tail');
+ok(P.pcSplits(300, 42.195, 5).length===9,'marathon splits');
+ok(P.pcRiegel(1500, 5, 10) > 1500*2*0.95,'riegel scales up');
+ok(P.pcRiegel(0,5,10)===null,'riegel guard');
+const pred=P.pcPredict(3000, 10);
+ok(pred.length===4 && pred[0].name==='5K','predict list');
+ok(pred[3].total>pred[0].total,'marathon slower than 5k');
+console.log('PASS '+n+' assertions');

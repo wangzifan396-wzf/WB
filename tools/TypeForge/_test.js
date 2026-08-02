@@ -1,0 +1,31 @@
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/); if(!m){console.error('NO SCRIPT');process.exit(1);}
+const fn=new Function('module','exports','require',m[1]); fn(module,module.exports,require);
+const A=module.exports; let pass=0,fail=0;
+function ok(n,c){ if(c) pass++; else { fail++; console.error('  FAIL: '+n); } }
+var r=A.jsonToInterfaces({name:'Alice',age:30,active:true}, 'User');
+ok('root interface', r.indexOf('export interface User {')>=0);
+ok('string prop', r.indexOf('name: string;')>=0);
+ok('number prop', r.indexOf('age: number;')>=0);
+ok('boolean prop', r.indexOf('active: boolean;')>=0);
+var n=A.jsonToInterfaces({user:{id:1}}, 'Root');
+ok('nested ref', n.indexOf('user: User;')>=0);
+ok('nested iface', n.indexOf('export interface User {')>=0);
+ok('array num', A.jsonToInterfaces({nums:[1,2]},'Root').indexOf('nums: number[];')>=0);
+ok('array obj', A.jsonToInterfaces({items:[{x:1}]},'Root').indexOf('items: Item[];')>=0);
+ok('empty array', A.jsonToInterfaces({xs:[]},'Root').indexOf('xs: any[];')>=0);
+ok('null type', A.jsonToInterfaces({x:null},'Root').indexOf('x: null;')>=0);
+ok('union array', A.jsonToInterfaces({m:[1,'a']},'Root').indexOf('m: (number | string)[];')>=0);
+ok('quoted key', A.jsonToInterfaces({'a-b':1},'Root').indexOf('"a-b": number;')>=0);
+ok('root array', A.jsonToInterfaces([{a:1}],'List').indexOf('export type List =')>=0);
+ok('inferType array', A.inferType([])==='array');
+ok('inferType null', A.inferType(null)==='null');
+ok('inferType obj', A.inferType({})==='object');
+ok('parseSafe ok', A.parseSafe('{"a":1}').ok===true);
+ok('parseSafe bad', A.parseSafe('{bad').ok===false);
+ok('pascalCase snake', A.pascalCase('hello_world')==='HelloWorld');
+ok('pascalCase empty', A.pascalCase('')==='Root');
+ok('singular', A.singular('items')==='item');
+console.log('TypeForge _test: '+pass+' passed, '+fail+' failed');
+process.exit(fail?1:0);

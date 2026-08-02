@@ -1,0 +1,37 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const cfg={ work:4, short:2, long:3, longEvery:2 };
+let st=P.pomoInit(cfg);
+ok(st.phase==='work'&&st.left===4&&!st.running,'init state');
+ok(P.pomoTick(st,cfg)===st,'paused tick no-op');
+st=P.pomoToggle(st);
+ok(st.running===true,'toggle starts');
+st=P.pomoTick(st,cfg);
+ok(st.left===3,'tick decrements');
+st=P.pomoTick(P.pomoTick(P.pomoTick(st,cfg),cfg),cfg);
+ok(st.phase==='short'&&st.done===1,'work end -> short, done+1');
+ok(st.left===2,'short duration');
+st=P.pomoTick(P.pomoTick(st,cfg),cfg);
+ok(st.phase==='work','short end -> work');
+for(let i=0;i<4;i++) st=P.pomoTick(st,cfg);
+ok(st.phase==='long'&&st.done===2,'2nd work -> long (longEvery=2)');
+ok(st.left===3,'long duration');
+for(let i=0;i<3;i++) st=P.pomoTick(st,cfg);
+ok(st.phase==='work'&&st.cycles===1,'long end -> work, cycles+1');
+const sk=P.pomoNextPhase(P.pomoInit(cfg),cfg);
+ok(sk.phase==='short'||sk.phase==='long','skip advances phase');
+ok(P.pomoFmt(0)==='00:00','fmt zero');
+ok(P.pomoFmt(65)==='01:05','fmt 65s');
+ok(P.pomoFmt(25*60)==='25:00','fmt 25min');
+ok(P.pomoProgress({phase:'work',left:2},cfg)===50,'progress 50%');
+ok(P.pomoProgress({phase:'work',left:4},cfg)===0,'progress 0%');
+ok(P.pomoLabel('work')==='专注工作'&&P.pomoLabel('long')==='长休息','labels');
+const d=P.pomoConfig();
+ok(d.work===1500&&d.short===300&&d.long===900&&d.longEvery===4,'default config');
+console.log('PASS '+n+' assertions');

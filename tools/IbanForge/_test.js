@@ -1,0 +1,31 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.ibNormalize(' de89 3704-0044 ')==='DE8937040044','normalize');
+ok(P.ibNormalize(null)==='','normalize null');
+ok(P.ibMod97('0')===0 && P.ibMod97('97')===0,'mod97 basics');
+ok(P.ibMod97('98')===1,'mod97 98');
+ok(P.ibToNumeric('DE89370400440532013000').indexOf('370400440532013000')===0,'toNumeric rotates');
+ok(P.ibToNumeric('GB82WEST12345698765432').indexOf('W')<0,'toNumeric letters mapped');
+ok(P.ibValidate('').error!==null,'empty error');
+ok(P.ibValidate('DE89 3704 0044 0532 0130 00').valid===true,'valid DE');
+ok(P.ibValidate('GB82 WEST 1234 5698 7654 32').valid===true,'valid GB');
+ok(P.ibValidate('DE89 3704 0044 0532 0130 01').valid===false,'bad checksum');
+ok(P.ibValidate('DE89370400440532013').valid===false,'bad length');
+ok(P.ibValidate('DE89370400440532013').reason.indexOf('22')>0,'length reason');
+ok(P.ibValidate('1234').valid===false,'bad format');
+ok(P.ibValidate('ZZ8912345678901234').known===false,'unknown country');
+ok(P.ibFormat('DE89370400440532013000')==='DE89 3704 0044 0532 0130 00','format groups');
+ok(P.ibCheckDigits('DE','370400440532013000')==='89','check digits DE');
+ok(P.ibCheckDigits('GB','WEST12345698765432')==='82','check digits GB');
+ok(P.ibLuhn('4539148803436467').valid===true,'luhn valid');
+ok(P.ibLuhn('4539148803436468').valid===false,'luhn invalid');
+ok(P.ibLuhn('79927398713').valid===true,'luhn classic');
+ok(P.ibLuhn('a').valid===false,'luhn non digit');
+ok(P.ibLuhn('').valid===false,'luhn empty');
+console.log('PASS '+n+' assertions');

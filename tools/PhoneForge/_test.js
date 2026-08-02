@@ -1,0 +1,36 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.phDigits('+86 138-0013 8000')==='8613800138000','digits');
+ok(P.phDigits(null)==='','digits null');
+ok(P.phSplit('').error!==null,'empty error');
+const s=P.phSplit('+8613800138000');
+ok(s.cc==='86' && s.national==='13800138000','split cn');
+ok(P.phSplit('+85261234567').cc==='852','split hk longest prefix');
+ok(P.phSplit('+12125551234').cc==='1','split us');
+ok(P.phSplit('008613800138000').cc==='86','split 00 prefix');
+ok(P.phSplit('13800138000').cc===null,'no plus no cc');
+const v=P.phValidate('+86 138 0013 8000');
+ok(v.valid===true && v.e164==='+8613800138000','validate cn ok');
+ok(P.phValidate('13800138000','86').valid===true,'default cc');
+ok(P.phValidate('013800138000','86').national==='13800138000','strip leading zero');
+ok(P.phValidate('+86 12345').valid===false,'cn wrong length');
+ok(P.phValidate('+86 12800138000').valid===false,'cn wrong prefix');
+ok(P.phValidate('+1 2125551234').valid===true,'us ok');
+ok(P.phValidate('+1 212555').valid===false,'us short');
+ok(P.phValidate('999999999').valid===false,'unknown cc invalid');
+ok(P.phValidate('999999999').reason.length>0,'unknown reason');
+ok(P.phValidate('+852 61234567').valid===true,'hk ok');
+const f=P.phFormat('+8613800138000');
+ok(f.pretty==='+86 138 0013 8000','format cn pretty');
+ok(f.e164==='+8613800138000','format e164');
+ok(P.phFormat('+12125551234').pretty==='+1 (212) 555-1234','format us pretty');
+ok(P.phFormat('+81 9012345678').pretty.indexOf('+81 ')===0,'format generic');
+ok(P.phMask('13800138000')==='138****8000','mask');
+ok(P.phMask('12345')==='12345','mask short');
+console.log('PASS '+n+' assertions');

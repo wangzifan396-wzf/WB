@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>ElfForge — 离线 ELF 解析器：文件头、程序头、节区头逐字段还原</title>
+<meta property="og:title" content="ElfForge">
+<meta property="og:description" content="离线 ELF 解析器：e_ident/文件头、Program Headers、Section Headers 逐字段还原">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 ELF 解析器：e_ident/文件头、Program Headers、Section Headers 逐字段还原 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>ElfForge</h1>
+      <p class="sub" data-i18n="sub">把 ELF 二进制的前几百字节喂进来，逐字段还原文件头、程序头与节区头。数据不出本机。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="elf_in" data-i18n="lb_in">ELF 字节（十六进制，空格/换行随意）</label>
+  <textarea id="elf_in" rows="6" spellcheck="false" data-i18n-ph="ph_in"></textarea>
+  <div class="row">
+    <button id="elf_go" type="button" data-i18n="btn_go">解析</button>
+    <button id="elf_demo" class="ghost" type="button" data-i18n="btn_demo">示例 (x86-64 DYN)</button>
+    <button id="elf_copy" class="ghost" type="button" data-i18n="btn_copy">复制 JSON</button>
+    <input type="file" id="elf_file" style="display:none">
+    <button id="elf_pick" class="ghost" type="button" data-i18n="btn_file">选择文件</button>
+  </div>
+  <div class="err" id="elf_err" role="alert"></div>
+  <div class="out"><div class="grid" id="elf_hdr"></div></div>
+  <div class="out" id="elf_ph"></div>
+  <div class="out" id="elf_sh"></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+
+  function hexToBytes(s){
+    var t = String(s||'').replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,'');
+    if(t.length%2) t = t.slice(0,-1);
+    var out = new Uint8Array(t.length/2);
+    for(var i=0;i<out.length;i++) out[i]=parseInt(t.substr(i*2,2),16);
+    return out;
+  }
+  function hex(n,w){ var s=(n>>>0).toString(16); while(s.length<(w||2)) s='0'+s; return '0x'+s; }
+  function u8(b,o){ return b[o]; }
+  function u16(b,o,le){ return le ? (b[o]|b[o+1]<<8) : (b[o]<<8|b[o+1]); }
+  function u32(b,o,le){ return (le ? (b[o]|b[o+1]<<8|b[o+2]<<16|b[o+3]<<24) : (b[o]<<24|b[o+1]<<16|b[o+2]<<8|b[o+3]))>>>0; }
+  function u64(b,o,le){
+    var lo = le ? u32(b,o,1) : u32(b,o+4,0);
+    var hi = le ? u32(b,o+4,1) : u32(b,o,0);
+    return hi*4294967296 + lo;
+  }
+  function hx(n){ if(n<0) return String(n); var s=n.toString(16); return '0x'+s; }
+
+  var ET={0:'NONE',1:'REL 可重定位',2:'EXEC 可执行',3:'DYN 共享/PIE',4:'CORE 核心转储'};
+  var EM={0:'None',2:'SPARC',3:'x86',8:'MIPS',20:'PowerPC',21:'PowerPC64',22:'S390',
+          40:'ARM',42:'SuperH',43:'SPARCv9',50:'IA-64',62:'x86-64',183:'AArch64',
+          243:'RISC-V',258:'LoongArch'};
+  var OSABI={0:'System V',1:'HP-UX',2:'NetBSD',3:'Linux',6:'Solaris',9:'FreeBSD',12:'OpenBSD'};
+  var PT={0:'NULL',1:'LOAD',2:'DYNAMIC',3:'INTERP',4:'NOTE',5:'SHLIB',6:'PHDR',7:'TLS',
+          1685382480:'GNU_EH_FRAME',1685382481:'GNU_STACK',1685382482:'GNU_RELRO',1685382483:'GNU_PROPERTY'};
+  var SHT={0:'NULL',1:'PROGBITS',2:'SYMTAB',3:'STRTAB',4:'RELA',5:'HASH',6:'DYNAMIC',7:'NOTE',
+           8:'NOBITS',9:'REL',11:'DYNSYM',14:'INIT_ARRAY',15:'FINI_ARRAY',
+           1879048182:'GNU_HASH',1879048190:'GNU_verneed',1879048191:'GNU_versym'};
+
+  function pflags(f){ return ((f&4)?'R':'-')+((f&2)?'W':'-')+((f&1)?'X':'-'); }
+  function shflags(f){
+    var m=[[1,'WRITE'],[2,'ALLOC'],[4,'EXEC'],[16,'MERGE'],[32,'STRINGS'],[64,'INFO_LINK'],[512,'TLS']], o=[];
+    for(var i=0;i<m.length;i++) if(f & m[i][0]) o.push(m[i][1]);
+    return o.join('|') || '-';
+  }
+  function cstr(b,o){ var s=''; while(o<b.length && b[o]){ s+=String.fromCharCode(b[o]); o++; } return s; }
+
+  function parseElf(input){
+    var b = (input instanceof Uint8Array) ? input : hexToBytes(input);
+    if(b.length < 16) return {value:null,error:'字节不足 16，无法读取 e_ident'};
+    if(!(b[0]===0x7F && b[1]===0x45 && b[2]===0x4C && b[3]===0x46))
+      return {value:null,error:'魔数不匹配：期望 7F 45 4C 46 ("\\x7fELF")'};
+    var cls=b[4], data=b[5];
+    if(cls!==1 && cls!==2) return {value:null,error:'EI_CLASS 非法：'+cls+'（应为 1=32 位 或 2=64 位）'};
+    if(data!==1 && data!==2) return {value:null,error:'EI_DATA 非法：'+data+'（应为 1=小端 或 2=大端）'};
+    var w64 = cls===2, le = data===1;
+    var need = w64?64:52;
+    if(b.length < need) return {value:null,error:'ELF 头需要 '+need+' 字节，实际 '+b.length};
+
+    var h = {
+      class: w64?'ELF64':'ELF32',
+      endian: le?'小端 LSB':'大端 MSB',
+      version: b[6], osabi: OSABI[b[7]]||('未知('+b[7]+')'), abiversion: b[8],
+      type: ET[u16(b,16,le)] || ('未知('+u16(b,16,le)+')'),
+      typeRaw: u16(b,16,le),
+      machine: EM[u16(b,18,le)] || ('未知('+u16(b,18,le)+')'),
+      machineRaw: u16(b,18,le)
+    };
+    var o = 24;
+    if(w64){ h.entry=u64(b,o,le); h.phoff=u64(b,o+8,le); h.shoff=u64(b,o+16,le); o+=24; }
+    else   { h.entry=u32(b,o,le); h.phoff=u32(b,o+4,le); h.shoff=u32(b,o+8,le); o+=12; }
+    h.flags=u32(b,o,le); h.ehsize=u16(b,o+4,le); h.phentsize=u16(b,o+6,le); h.phnum=u16(b,o+8,le);
+    h.shentsize=u16(b,o+10,le); h.shnum=u16(b,o+12,le); h.shstrndx=u16(b,o+14,le);
+
+    var phs=[], i, base;
+    for(i=0;i<h.phnum;i++){
+      base = h.phoff + i*h.phentsize;
+      if(base + h.phentsize > b.length) break;
+      if(w64) phs.push({type:PT[u32(b,base,le)]||hx(u32(b,base,le)), flags:pflags(u32(b,base+4,le)),
+                        offset:u64(b,base+8,le), vaddr:u64(b,base+16,le),
+                        filesz:u64(b,base+32,le), memsz:u64(b,base+40,le), align:u64(b,base+48,le)});
+      else    phs.push({type:PT[u32(b,base,le)]||hx(u32(b,base,le)), flags:pflags(u32(b,base+24,le)),
+                        offset:u32(b,base+4,le), vaddr:u32(b,base+8,le),
+                        filesz:u32(b,base+16,le), memsz:u32(b,base+20,le), align:u32(b,base+28,le)});
+    }
+
+    var shs=[], strOff=-1;
+    if(h.shnum && h.shstrndx < h.shnum){
+      var sb = h.shoff + h.shstrndx*h.shentsize;
+      if(sb + h.shentsize <= b.length) strOff = w64 ? u64(b,sb+24,le) : u32(b,sb+16,le);
+    }
+    for(i=0;i<h.shnum;i++){
+      base = h.shoff + i*h.shentsize;
+      if(base + h.shentsize > b.length) break;
+      var nameIdx = u32(b,base,le), sh;
+      if(w64) sh={type:SHT[u32(b,base+4,le)]||hx(u32(b,base+4,le)), flags:shflags(u64(b,base+8,le)),
+                  addr:u64(b,base+16,le), offset:u64(b,base+24,le), size:u64(b,base+32,le)};
+      else    sh={type:SHT[u32(b,base+4,le)]||hx(u32(b,base+4,le)), flags:shflags(u32(b,base+8,le)),
+                  addr:u32(b,base+12,le), offset:u32(b,base+16,le), size:u32(b,base+20,le)};
+      sh.name = (strOff>=0 && strOff+nameIdx < b.length) ? cstr(b, strOff+nameIdx) : ('@'+nameIdx);
+      shs.push(sh);
+    }
+    return {value:{header:h, programs:phs, sections:shs, truncated: (phs.length<h.phnum || shs.length<h.shnum)}, error:''};
+  }
+
+  var API = {parseElf:parseElf, hexToBytes:hexToBytes, hx:hx};
+  if(typeof module!=='undefined' && module.exports) module.exports = API;
+  if(typeof window!=='undefined') window.__ElfForge__ = API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C = window.__ElfForge__, D=document;
+  var $=function(id){return D.getElementById(id);};
+  var DEMO = '7f454c46 02010100 00000000 00000000 0300 3e00 01000000 3010000000000000 4000000000000000 8038000000000000 00000000 4000 3800 0d00 4000 1e00 1d00';
+  var last=null;
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function kv(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function render(){
+    var r = C.parseElf($('elf_in').value);
+    $('elf_err').textContent = r.error||'';
+    if(!r.value){ $('elf_hdr').innerHTML=''; $('elf_ph').innerHTML=''; $('elf_sh').innerHTML=''; last=null; return; }
+    last = r.value;
+    var h=r.value.header, T=window.nanoT||function(k){return k;};
+    $('elf_hdr').innerHTML = kv(T('k_class'),h.class)+kv(T('k_endian'),h.endian)
+      +kv(T('k_type'),h.type)+kv(T('k_machine'),h.machine)
+      +kv(T('k_osabi'),h.osabi)+kv(T('k_entry'),C.hx(h.entry))
+      +kv('phoff / phnum', C.hx(h.phoff)+' / '+h.phnum)
+      +kv('shoff / shnum', C.hx(h.shoff)+' / '+h.shnum)
+      +kv('ehsize', h.ehsize)+kv('shstrndx', h.shstrndx);
+    var ps=r.value.programs, s='<b style="color:var(--muted);font-size:13px">'+T('h_ph')+' ('+ps.length+')</b>';
+    if(!ps.length) s+='<div class="kv"><span>'+T('none')+'</span></div>';
+    for(var i=0;i<ps.length;i++) s+=kv(ps[i].type+'  '+ps[i].flags,
+      'off='+C.hx(ps[i].offset)+'  vaddr='+C.hx(ps[i].vaddr)+'  filesz='+ps[i].filesz+'  memsz='+ps[i].memsz);
+    $('elf_ph').innerHTML=s;
+    var ss=r.value.sections, t='<b style="color:var(--muted);font-size:13px">'+T('h_sh')+' ('+ss.length+')</b>';
+    if(!ss.length) t+='<div class="kv"><span>'+T('none')+'</span></div>';
+    for(var j=0;j<ss.length;j++) t+=kv(ss[j].name+'  ['+ss[j].type+']',
+      'addr='+C.hx(ss[j].addr)+'  off='+C.hx(ss[j].offset)+'  size='+ss[j].size+'  '+ss[j].flags);
+    $('elf_sh').innerHTML=t;
+  }
+  window.nanoRerender = render;
+  $('elf_go').addEventListener('click', render);
+  $('elf_in').addEventListener('input', render);
+  $('elf_demo').addEventListener('click', function(){ $('elf_in').value=DEMO; render(); });
+  $('elf_copy').addEventListener('click', function(){
+    if(!last){ if(window.nanoToast) window.nanoToast((window.nanoT||function(k){return k;})('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(JSON.stringify(last,null,2));
+  });
+  $('elf_pick').addEventListener('click', function(){ $('elf_file').click(); });
+  $('elf_file').addEventListener('change', function(e){
+    var f=e.target.files && e.target.files[0]; if(!f) return;
+    var fr=new FileReader();
+    fr.onload=function(){
+      var b=new Uint8Array(fr.result).subarray(0, 8192), o=[];
+      for(var i=0;i<b.length;i++){ var x=b[i].toString(16); o.push(x.length<2?'0'+x:x); }
+      $('elf_in').value=o.join(' '); render();
+    };
+    fr.readAsArrayBuffer(f.slice(0,8192));
+  });
+  $('elf_in').value = DEMO;
+  render();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy JSON", "btn_demo": "Sample (x86-64 DYN)", "btn_file": "Pick file", "btn_go": "Parse", "copied": "Copied", "copyfail": "Copy failed", "h_ph": "Program Headers", "h_sh": "Section Headers", "k_class": "Class", "k_endian": "Endianness", "k_entry": "Entry", "k_machine": "Machine", "k_osabi": "OS/ABI", "k_type": "Type", "lb_in": "ELF bytes (hex, whitespace ignored)", "none": "(none)", "nores": "Nothing to copy", "ph_in": "7f 45 4c 46 02 01 01 …", "sub": "Offline ELF header inspector: e_ident, program headers, section headers", "title": "ElfForge - offline ELF header inspector"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制 JSON", "btn_demo": "示例 (x86-64 DYN)", "btn_file": "选择文件", "btn_go": "解析", "copied": "已复制", "copyfail": "复制失败", "h_ph": "程序头 Program Headers", "h_sh": "节区头 Section Headers", "k_class": "位宽", "k_endian": "字节序", "k_entry": "入口地址", "k_machine": "目标架构", "k_osabi": "OS/ABI", "k_type": "文件类型", "lb_in": "ELF 字节（十六进制，空格/换行随意）", "none": "（无）", "nores": "没有可复制的解析结果", "ph_in": "7f 45 4c 46 02 01 01 …", "sub": "把 ELF 二进制的前几百字节喂进来，逐字段还原文件头、程序头与节区头。数据不出本机。", "title": "ElfForge — 离线 ELF 解析器：文件头、程序头、节区头逐字段还原"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

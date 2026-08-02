@@ -1,0 +1,32 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const T=P.wfcTiles();
+ok(T.names.length===5,'5 tiles');
+ok(T.adj.sea.indexOf('rock')<0,'sea not adjacent rock');
+ok(T.adj.sand.indexOf('sea')>=0 && T.adj.sea.indexOf('sand')>=0,'adjacency symmetric sea/sand');
+for(const t of T.names) ok(T.adj[t].indexOf(t)>=0,'self-adjacency '+t);
+const rng=P.wfcRng(7);
+ok(P.wfcRng(7)()===rng(),'rng deterministic');
+const r=P.wfcRun(10,10,42);
+ok(r.error===null,'run ok seed 42');
+ok(r.grid.length===10 && r.grid[0].length===10,'grid 10x10');
+ok(P.wfcValidate(r.grid)===true,'all adjacency constraints hold');
+const r2=P.wfcRun(10,10,42);
+ok(JSON.stringify(r2.grid)===JSON.stringify(r.grid),'same seed same grid');
+const r3=P.wfcRun(10,10,43);
+ok(JSON.stringify(r3.grid)!==JSON.stringify(r.grid),'diff seed diff grid');
+ok(P.wfcValidate(r3.grid)===true,'seed 43 valid too');
+const c=P.wfcCounts(r.grid);
+let sum=0; for(const k in c) sum+=c[k];
+ok(sum===100,'counts sum to cells');
+ok(P.wfcValidate([['sea','rock'],['sea','sea']])===false,'validate catches bad pair');
+const svg=P.wfcSvg(r.grid);
+ok(svg.indexOf('<svg')===0,'svg root');
+ok((svg.match(/<rect/g)||[]).length===100,'svg 100 rects');
+console.log('PASS '+n+' assertions');

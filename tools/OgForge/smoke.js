@@ -1,0 +1,11 @@
+
+const { JSDOM } = require('jsdom');
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const dom=new JSDOM(html,{runScripts:'dangerously',resources:'usable',pretendToBeVisual:true});
+const w=dom.window;
+if(!w.OgForgePure){ console.error('pure missing'); process.exit(1); }
+w.document.getElementById('gen').click();
+if(w.document.getElementById('out').value.indexOf('og:title')<0){ console.error('meta output missing'); process.exit(1); }
+console.log('PASS smoke');
+process.exit(0);

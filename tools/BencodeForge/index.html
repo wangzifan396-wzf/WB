@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>BencodeForge — 离线 Bencode 编解码：严格校验字典序与整数规范</title>
+<meta property="og:title" content="BencodeForge">
+<meta property="og:description" content="离线 Bencode（BitTorrent）编解码器，严格校验字典键升序、整数前导零与长度越界">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 Bencode（BitTorrent）编解码器，严格校验字典键升序、整数前导零与长度越界 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>BencodeForge</h1>
+      <p class="sub" data-i18n="sub">BitTorrent 的 bencode 格式双向转换。严格模式会指出字典键未排序、整数前导零等规范违例。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="bc_in" data-i18n="lb_in">Bencode 文本（.torrent 的内容形态）</label>
+  <textarea id="bc_in" rows="5" spellcheck="false" data-i18n-ph="ph_in"></textarea>
+  <div class="row">
+    <button id="bc_dec" type="button" data-i18n="btn_dec">解码 &rarr; JSON</button>
+    <button id="bc_enc" class="ghost" type="button" data-i18n="btn_enc">JSON &rarr; 编码</button>
+    <button id="bc_demo" class="ghost" type="button" data-i18n="btn_demo">种子示例</button>
+    <button id="bc_copy" class="ghost" type="button" data-i18n="btn_copy">复制结果</button>
+  </div>
+  <div class="err" id="bc_err" role="alert"></div>
+  <div class="grid" id="bc_stat"></div>
+  <label for="bc_out" data-i18n="lb_out">结果</label>
+  <textarea id="bc_out" rows="10" spellcheck="false" readonly></textarea>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  /* bencode: i<int>e / <len>:<bytes> / l...e / d...e
+     字节串按 UTF-8 尝试解码，失败或含控制字符时降级为 <hex:...> 表示。 */
+
+  function toBytes(s){
+    if(s instanceof Uint8Array) return s;
+    var str=String(s), out=[], i, c;
+    for(i=0;i<str.length;i++){
+      c=str.charCodeAt(i);
+      if(c<0x80) out.push(c);
+      else if(c<0x800){ out.push(0xC0|c>>6, 0x80|c&63); }
+      else if(c>=0xD800 && c<0xDC00 && i+1<str.length){
+        var c2=str.charCodeAt(i+1), cp=0x10000+((c-0xD800)<<10)+(c2-0xDC00); i++;
+        out.push(0xF0|cp>>18, 0x80|cp>>12&63, 0x80|cp>>6&63, 0x80|cp&63);
+      } else { out.push(0xE0|c>>12, 0x80|c>>6&63, 0x80|c&63); }
+    }
+    return new Uint8Array(out);
+  }
+  function utf8(b){
+    var s='', i=0, c;
+    while(i<b.length){
+      c=b[i];
+      if(c<0x80){ s+=String.fromCharCode(c); i++; }
+      else if(c>=0xC0 && c<0xE0 && i+1<b.length){ s+=String.fromCharCode((c&31)<<6|b[i+1]&63); i+=2; }
+      else if(c>=0xE0 && c<0xF0 && i+2<b.length){ s+=String.fromCharCode((c&15)<<12|(b[i+1]&63)<<6|b[i+2]&63); i+=3; }
+      else if(c>=0xF0 && i+3<b.length){
+        var cp=((c&7)<<18|(b[i+1]&63)<<12|(b[i+2]&63)<<6|b[i+3]&63)-0x10000;
+        s+=String.fromCharCode(0xD800+(cp>>10), 0xDC00+(cp&1023)); i+=4;
+      } else return null;
+    }
+    return s;
+  }
+  function printable(b){
+    for(var i=0;i<b.length;i++){ if(b[i]<0x09 || (b[i]>0x0D && b[i]<0x20)) return false; }
+    var s=utf8(b);
+    return s===null ? false : s;
+  }
+  function toHex(b){ var o=''; for(var i=0;i<b.length;i++){var x=b[i].toString(16); o+= x.length<2?'0'+x:x;} return o; }
+
+  function decode(input){
+    var b = toBytes(input), pos = 0, MAXDEPTH = 64;
+
+    function err(m){ throw new Error(m + '（偏移 ' + pos + '）'); }
+    function readInt(stop){
+      var s = '';
+      while(pos < b.length && b[pos] !== stop){ s += String.fromCharCode(b[pos]); pos++; }
+      if(pos >= b.length) err('缺少终止符 "' + String.fromCharCode(stop) + '"');
+      pos++;
+      if(!/^-?\d+$/.test(s)) err('非法整数 "' + s + '"');
+      if(/^-0$/.test(s)) err('不允许 -0');
+      if(/^0\d/.test(s) || /^-0\d/.test(s)) err('整数不允许前导零 "' + s + '"');
+      return parseInt(s, 10);
+    }
+    function parse(depth){
+      if(depth > MAXDEPTH) err('嵌套过深（>' + MAXDEPTH + '）');
+      if(pos >= b.length) err('数据意外结束');
+      var ch = b[pos];
+      if(ch === 0x69){ pos++; return {t:'int', v:readInt(0x65)}; }               // 'i'
+      if(ch === 0x6C){ pos++;                                                     // 'l'
+        var arr=[];
+        while(pos<b.length && b[pos]!==0x65) arr.push(parse(depth+1));
+        if(pos>=b.length) err('列表缺少 "e"');
+        pos++; return {t:'list', v:arr};
+      }
+      if(ch === 0x64){ pos++;                                                     // 'd'
+        var d=[], prev=null;
+        while(pos<b.length && b[pos]!==0x65){
+          var k = parse(depth+1);
+          if(k.t!=='str') err('字典键必须是字符串');
+          if(prev!==null && k.raw < prev) err('字典键未按字节序升序："'+k.v+'" 在 "'+prev+'" 之后');
+          prev = k.raw;
+          if(pos>=b.length || b[pos]===0x65) err('字典键 "'+k.v+'" 缺少值');
+          d.push([k, parse(depth+1)]);
+        }
+        if(pos>=b.length) err('字典缺少 "e"');
+        pos++; return {t:'dict', v:d};
+      }
+      if(ch>=0x30 && ch<=0x39){                                                   // 数字 -> 字符串
+        var n = readInt(0x3A);
+        if(n < 0) err('字符串长度为负');
+        if(pos + n > b.length) err('字符串长度 '+n+' 超出剩余字节 '+(b.length-pos));
+        var slice = b.subarray(pos, pos+n); pos += n;
+        var p = printable(slice);
+        return {t:'str', v: p===false ? '<hex:'+toHex(slice)+'>' : p, raw: toHex(slice), bin: p===false, len:n};
+      }
+      err('未知类型标记 "'+String.fromCharCode(ch)+'"');
+    }
+    try{
+      var v = parse(0);
+      if(pos !== b.length) return {value:null, error:'尾部有 '+(b.length-pos)+' 字节未消费（偏移 '+pos+'）'};
+      return {value:v, error:''};
+    }catch(e){ return {value:null, error:e.message}; }
+  }
+
+  function toPlain(node){
+    if(!node) return null;
+    if(node.t==='int') return node.v;
+    if(node.t==='str') return node.v;
+    if(node.t==='list'){ var a=[]; for(var i=0;i<node.v.length;i++) a.push(toPlain(node.v[i])); return a; }
+    var o={}; for(var j=0;j<node.v.length;j++) o[node.v[j][0].v]=toPlain(node.v[j][1]); return o;
+  }
+
+  function encode(val){
+    var parts = [];
+    function put(s){ parts.push(s); }
+    function walk(v, depth){
+      if(depth > 64) throw new Error('嵌套过深');
+      if(typeof v === 'number'){
+        if(!isFinite(v) || Math.floor(v)!==v) throw new Error('bencode 只支持整数，收到 '+v);
+        put('i'+v+'e'); return;
+      }
+      if(typeof v === 'string'){ var by=toBytes(v); put(by.length+':'+v); return; }
+      if(v instanceof Array){ put('l'); for(var i=0;i<v.length;i++) walk(v[i], depth+1); put('e'); return; }
+      if(v && typeof v === 'object'){
+        var ks = Object.keys(v).sort();
+        put('d');
+        for(var j=0;j<ks.length;j++){ put(toBytes(ks[j]).length+':'+ks[j]); walk(v[ks[j]], depth+1); }
+        put('e'); return;
+      }
+      throw new Error('不支持的类型：'+(v===null?'null':typeof v));
+    }
+    try{ walk(val, 0); return {value:parts.join(''), error:''}; }
+    catch(e){ return {value:null, error:e.message}; }
+  }
+
+  function summary(node){
+    var s={int:0,str:0,list:0,dict:0,bytes:0};
+    (function w(n){
+      if(!n) return;
+      s[n.t]=(s[n.t]||0)+1;
+      if(n.t==='str') s.bytes += (n.len||0);
+      if(n.t==='list'){ for(var i=0;i<n.v.length;i++) w(n.v[i]); }
+      if(n.t==='dict'){ for(var j=0;j<n.v.length;j++){ w(n.v[j][0]); w(n.v[j][1]); } }
+    })(node);
+    return s;
+  }
+
+  var API={decode:decode, encode:encode, toPlain:toPlain, summary:summary, toBytes:toBytes};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__BencodeForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__BencodeForge__, D=document, $=function(i){return D.getElementById(i);};
+  var DEMO='d8:announce30:http://tracker.example.com/ann4:infod6:lengthi1024e4:name9:hello.txt12:piece lengthi16384eee';
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+  function kv(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  function dec(){
+    var r=C.decode($('bc_in').value);
+    $('bc_err').textContent=r.error||'';
+    if(!r.value){ $('bc_out').value=''; $('bc_stat').innerHTML=''; return; }
+    $('bc_out').value=JSON.stringify(C.toPlain(r.value),null,2);
+    var s=C.summary(r.value);
+    $('bc_stat').innerHTML=kv(T('s_dict'),s.dict)+kv(T('s_list'),s.list)
+      +kv(T('s_str'),s.str)+kv(T('s_int'),s.int)+kv(T('s_bytes'),s.bytes);
+  }
+  function enc(){
+    var v;
+    try{ v=JSON.parse($('bc_out').value||$('bc_in').value); }
+    catch(e){ $('bc_err').textContent=T('e_json')+'：'+e.message; return; }
+    var r=C.encode(v);
+    $('bc_err').textContent=r.error||'';
+    if(r.value){ $('bc_in').value=r.value; $('bc_stat').innerHTML=''; }
+  }
+  window.nanoRerender=dec;
+  $('bc_dec').addEventListener('click',dec);
+  $('bc_enc').addEventListener('click',enc);
+  $('bc_in').addEventListener('input',dec);
+  $('bc_demo').addEventListener('click',function(){ $('bc_in').value=DEMO; dec(); });
+  $('bc_copy').addEventListener('click',function(){
+    var t=$('bc_out').value; if(!t){ if(window.nanoToast) window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(t);
+  });
+  $('bc_in').value=DEMO; dec();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy result", "btn_dec": "Decode → JSON", "btn_demo": "Torrent sample", "btn_enc": "JSON → Encode", "copied": "Copied", "copyfail": "Copy failed", "e_json": "Invalid JSON", "lb_in": "Bencode text (raw .torrent payload)", "lb_out": "Result", "nores": "Nothing to copy", "ph_in": "d8:announce…e", "s_bytes": "String bytes", "s_dict": "Dicts", "s_int": "Integers", "s_list": "Lists", "s_str": "Strings", "sub": "Offline bencode codec with strict validation (sorted keys, no leading zeros)", "title": "BencodeForge - offline bencode codec"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制结果", "btn_dec": "解码 → JSON", "btn_demo": "种子示例", "btn_enc": "JSON → 编码", "copied": "已复制", "copyfail": "复制失败", "e_json": "JSON 解析失败", "lb_in": "Bencode 文本（.torrent 的内容形态）", "lb_out": "结果", "nores": "没有可复制的结果", "ph_in": "d8:announce…e", "s_bytes": "字符串总字节", "s_dict": "字典数", "s_int": "整数个数", "s_list": "列表数", "s_str": "字符串数", "sub": "BitTorrent 的 bencode 格式双向转换。严格模式会指出字典键未排序、整数前导零等规范违例。", "title": "BencodeForge — 离线 Bencode 编解码：严格校验字典序与整数规范"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

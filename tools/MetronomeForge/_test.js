@@ -1,0 +1,33 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.mtInterval(120)===0.5,'120bpm = 0.5s');
+ok(P.mtInterval(60)===1,'60bpm = 1s');
+ok(P.mtInterval(1000)===60/260,'interval clamps high');
+ok(P.mtInterval('x')===0.5,'interval NaN default 120');
+ok(P.mtClampBpm(300)===260,'clamp high');
+ok(P.mtClampBpm(10)===30,'clamp low');
+ok(P.mtClampBpm(120.6)===121,'clamp rounds');
+ok(P.mtAccent(0,4)==='strong','beat0 strong');
+ok(P.mtAccent(1,4)==='weak','beat1 weak');
+ok(P.mtAccent(4,4)==='strong','wraps to strong');
+ok(P.mtAccent(3,6)==='medium','6/8 mid accent');
+ok(P.mtAccent(-1,4)==='weak','negative index safe');
+ok(P.mtFreq('strong')===1568,'strong freq');
+ok(P.mtFreq('weak')===880,'weak freq');
+ok(P.mtTap([])===null,'tap empty null');
+ok(P.mtTap([1000])===null,'tap single null');
+ok(P.mtTap([0,500,1000,1500])===120,'tap 500ms = 120bpm');
+ok(P.mtTap([0,10000])===null,'tap huge gap ignored');
+var s=P.mtSchedule(0, 0, 1.0, 0.5);
+ok(s.beats.length===2,'schedule 2 beats in 1s window');
+ok(s.beats[0]===0 && s.beats[1]===0.5,'beat times');
+ok(s.nextTime===1,'nextTime advances');
+var s2=P.mtSchedule(5, 0, 0.1, 0.5);
+ok(s2.beats.length===0 && s2.nextTime===5,'future beat not scheduled');
+console.log('PASS '+n+' assertions');

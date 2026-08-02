@@ -1,0 +1,31 @@
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/); if(!m){console.error('NO SCRIPT');process.exit(1);}
+const fn=new Function('module','exports','require',m[1]); fn(module,module.exports,require);
+const A=module.exports; let pass=0,fail=0;
+function ok(n,c){ if(c) pass++; else { fail++; console.error('  FAIL: '+n); } }
+const t='A->B: hi\nB-->A: ack\nB->B: retry';
+const p=A.sqParse(t);
+ok('parse ok', p.error===null);
+ok('actors ordered', p.value.actors.join(',')==='A,B');
+ok('3 messages', p.value.messages.length===3);
+ok('solid arrow', p.value.messages[0].dashed===false);
+ok('dashed arrow', p.value.messages[1].dashed===true);
+ok('self message', p.value.messages[2].self===true);
+ok('message text', p.value.messages[0].text==='hi');
+ok('empty error', A.sqParse('').error!==null);
+ok('syntax error line no', /第 1 行/.test(A.sqParse('garbage').error));
+ok('comment skipped', A.sqParse('# note\nA->B: x').value.messages.length===1);
+ok('no msgs error', A.sqParse('# only comment').error!==null);
+ok('spaces tolerated', A.sqParse('Web Server -> DB : query').value.actors[0]==='Web Server');
+const L=A.sqLayout(p.value);
+ok('lanes spaced', L.lanes['B']-L.lanes['A']===150);
+ok('arrows stacked down', L.arrows[1].y>L.arrows[0].y);
+ok('arrow endpoints', L.arrows[0].x1===L.lanes['A'] && L.arrows[0].x2===L.lanes['B']);
+const s=A.sqSvg(t);
+ok('svg ok', s.error===null && s.value.indexOf('<svg')===0);
+ok('svg dashed present', s.value.indexOf('stroke-dasharray')>-1);
+ok('svg self loop path', s.value.indexOf('h46')>-1);
+ok('esc', A.sqEsc('a<b&c')==='a&lt;b&amp;c');
+console.log('SequenceForge _test: '+pass+' passed, '+fail+' failed');
+process.exit(fail?1:0);

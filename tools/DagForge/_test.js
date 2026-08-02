@@ -1,0 +1,32 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+const g=P.dagParse('a=2\nb=3\nc=1\na -> b\na -> c\nb -> c');
+ok(g.error===null,'parse ok');
+ok(g.nodes.length===3,'3 nodes');
+ok(g.dur.b===3,'duration parsed');
+ok(P.dagParse('x -> y').dur.x===1,'default duration 1');
+ok(P.dagParse('bad ~ line').error!==null,'bad line error');
+ok(P.dagParse('a=-1').error!==null,'negative duration error');
+const t=P.dagTopo(g);
+ok(t.error===null,'topo ok');
+ok(t.order.join(',')==='a,b,c','topo order deterministic');
+const cyc=P.dagParse('a -> b\nb -> a');
+ok(P.dagTopo(cyc).error!==null,'cycle detected');
+ok(P.dagCritical(cyc).error!==null,'critical propagates cycle error');
+const c=P.dagCritical(g);
+ok(c.total===6,'critical total 2+3+1');
+ok(c.path.join(',')==='a,b,c','critical path');
+const par=P.dagParse('a=1\nb=10\nc=2\na -> c\nb -> c');
+const cp=P.dagCritical(par);
+ok(cp.total===12,'parallel picks longer branch');
+ok(cp.path.join(',')==='b,c','parallel path via b');
+ok(cp.finish.a===1 && cp.finish.b===10,'finish times');
+const solo=P.dagCritical(P.dagParse('only=5'));
+ok(solo.total===5 && solo.path.join(',')==='only','single node');
+console.log('PASS '+n+' assertions');

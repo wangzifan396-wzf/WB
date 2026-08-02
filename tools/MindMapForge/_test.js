@@ -1,0 +1,30 @@
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/); if(!m){console.error('NO SCRIPT');process.exit(1);}
+const fn=new Function('module','exports','require',m[1]); fn(module,module.exports,require);
+const A=module.exports; let pass=0,fail=0;
+function ok(n,c){ if(c) pass++; else { fail++; console.error('  FAIL: '+n); } }
+const t='root\n  a\n    a1\n    a2\n  b';
+const p=A.mmParse(t);
+ok('parse ok', p.error===null);
+ok('root label', p.value.label==='root');
+ok('root 2 children', p.value.children.length===2);
+ok('a has 2 children', p.value.children[0].children.length===2);
+ok('b leaf', p.value.children[1].children.length===0);
+ok('leaves count 3', A.mmCountLeaves(p.value)===3);
+ok('empty error', A.mmParse('').error!==null);
+ok('two roots error', A.mmParse('r1\nr2').error!==null);
+ok('indent jump error', A.mmParse('r\n    deep').error!==null);
+ok('tab as indent', A.mmParse('r\n\ta').error===null);
+const L=A.mmLayout(p.value);
+ok('layout 5 nodes', L.nodes.length===5);
+ok('layout 4 edges', L.edges.length===4);
+ok('depth increases x', L.nodes[1].x>L.nodes[0].x);
+ok('root vertically centered', Math.abs(L.nodes[0].y-(L.nodes[0].y))<1e-9 && L.nodes[0].y>0);
+const s=A.mmSvg(t);
+ok('svg ok', s.error===null && s.value.indexOf('<svg')===0);
+ok('svg has labels', s.value.indexOf('root')>-1 && s.value.indexOf('a1')>-1);
+ok('svg escape', A.mmEsc('<x>&')==='&lt;x&gt;&amp;');
+ok('svg error propagates', A.mmSvg('').error!==null);
+console.log('MindMapForge _test: '+pass+' passed, '+fail+' failed');
+process.exit(fail?1:0);

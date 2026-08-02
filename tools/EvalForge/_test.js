@@ -1,0 +1,58 @@
+
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=/<script>([\s\S]*?)<\/script>/.exec(html);
+const mod={exports:{}};
+new Function('module','exports','require', m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let pass=0,fail=0;
+function ok(c,msg){ if(c){pass++;} else {fail++; console.error('FAIL: '+msg);} }
+
+ok(P.tokenize('hello world').length===2, 'tokenize splits on whitespace');
+ok(P.tokenize('\u4f60\u597d\u4e16\u754c').length===4, 'tokenize splits CJK per char');
+ok(P.normText('The, Quick!')==='the quick', 'normText lowercases and strips punctuation');
+ok(P.normText('the cat',{articles:true})==='cat', 'normText can drop articles');
+ok(P.ngrams(['a','b','c'],2).length===2, 'ngrams count');
+ok(P.clippedOverlap(['a','a','b'],['a','b'])===2, 'clipped overlap caps by reference');
+ok(P.lcsLength(['a','b','c','d'],['b','d'])===2, 'lcs length');
+var identical=P.bleu('hello world','hello world',4);
+ok(identical.score>0.9, 'identical text scores near 1 BLEU');
+ok(identical.bp===1, 'no brevity penalty when lengths equal');
+var short=P.bleu('hello','hello world there friend',4);
+ok(short.bp<1, 'brevity penalty applies to short candidate');
+ok(P.bleu('','abc').score===0, 'empty candidate yields 0');
+var rl=P.rougeL('the cat sat','the cat sat');
+ok(rl.f===1, 'ROUGE-L is 1 for identical');
+ok(P.rougeL('a b c','x y z').f===0, 'ROUGE-L is 0 with no overlap');
+var rn=P.rougeN('a b c','a b d',1);
+ok(Math.abs(rn.precision-0.6667)<0.001, 'ROUGE-1 precision 2/3');
+ok(P.exactMatch('The Answer.','the answer')===true, 'exactMatch normalizes case and punctuation');
+ok(P.exactMatch('a dog','the dog')===true, 'exactMatch drops articles');
+ok(P.exactMatch('cat','dog')===false, 'exactMatch rejects different text');
+var f1=P.tokenF1('the quick fox','the slow fox');
+ok(f1.common===1, 'tokenF1 drops articles before matching');
+ok(Math.abs(f1.f1-0.5)<0.001, 'tokenF1 value');
+var f1b=P.tokenF1('alpha beta gamma','alpha beta delta');
+ok(f1b.common===2 && Math.abs(f1b.f1-0.6667)<0.001, 'tokenF1 on article-free text');
+ok(P.editDistance('kitten','sitting')===3, 'classic levenshtein distance');
+ok(P.editDistance('','abc')===3, 'edit distance from empty');
+ok(P.similarity('abc','abc')===1, 'similarity of identical is 1');
+ok(P.similarity('','')===1, 'similarity of two empties is 1');
+ok(P.passAtK(10,10,1).value===1, 'pass@1 is 1 when all samples pass');
+ok(P.passAtK(10,0,1).value===0, 'pass@1 is 0 when none pass');
+ok(Math.abs(P.passAtK(10,5,1).value-0.5)<0.001, 'pass@1 equals c/n');
+ok(P.passAtK(5,1,10).value===1, 'k larger than failures returns 1');
+ok(P.passAtK(0,0,1).error!==null, 'invalid n reports error');
+ok(P.passAtK(5,9,1).error!==null, 'c greater than n reports error');
+var ev=P.evaluate('the cat sat on the mat','a cat sits on the mat');
+ok(ev.rougeL>0.5 && ev.rougeL<1, 'evaluate returns partial ROUGE-L');
+ok(ev.exactMatch===false, 'evaluate flags non-exact match');
+var pp=P.parsePairs('a | b\nbroken\nc | d');
+ok(pp.pairs.length===2, 'parsePairs keeps valid rows');
+ok(pp.errors.length===1, 'parsePairs reports malformed row');
+var bt=P.evaluateBatch([{candidate:'x',reference:'x'},{candidate:'y',reference:'z'}]);
+ok(bt.count===2, 'batch counts rows');
+ok(bt.avg.exactMatch===0.5, 'batch exact-match rate');
+
+console.log(pass+' passed, '+fail+' failed');
+process.exit(fail?1:0);

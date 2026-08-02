@@ -1,0 +1,37 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+ok(P.srtParseTime('00:00:01,500')===1500,'parse srt time');
+ok(P.srtParseTime('01:02:03.250')===3723250,'parse vtt time');
+ok(P.srtParseTime('bad')===null,'bad time null');
+ok(P.srtFmtTime(1500)==='00:00:01,500','fmt srt');
+ok(P.srtFmtTime(1500,true)==='00:00:01.500','fmt vtt');
+ok(P.srtFmtTime(-5)==='00:00:00,000','clamp negative');
+const src='1\n00:00:01,000 --> 00:00:02,000\nhello\n\n2\n00:00:03,000 --> 00:00:04,000\nworld';
+const r=P.srtParse(src);
+ok(r.error===null && r.cues.length===2,'parse two cues');
+ok(r.cues[0].text==='hello' && r.cues[1].start===3000,'cue content');
+ok(P.srtParse('').error!==null,'empty error');
+ok(P.srtParse('garbage only').error!==null,'garbage error');
+const sh=P.srtShift(r.cues,500);
+ok(sh[0].start===1500 && sh[1].end===4500,'shift');
+ok(P.srtShift(r.cues,-99999)[0].start===0,'shift clamps to zero');
+const sc=P.srtScale(r.cues,2);
+ok(sc[0].end===4000 && sc[1].start===6000,'scale');
+ok(P.srtScale(r.cues,0)===r.cues,'scale guard');
+const vtt=P.srtStringify(r.cues,true);
+ok(vtt.indexOf('WEBVTT')===0 && vtt.indexOf('00:00:01.000 --> 00:00:02.000')>0,'stringify vtt');
+const srt=P.srtStringify(r.cues,false);
+ok(srt.indexOf('1\n00:00:01,000')===0,'stringify srt');
+ok(P.srtParse(srt).cues.length===2,'roundtrip');
+ok(P.srtParse(vtt).cues.length===2,'vtt roundtrip');
+const st=P.srtStats(r.cues);
+ok(st.count===2 && st.duration===2000 && st.chars===10,'stats');
+ok(st.overlap===0 && st.span===3000,'stats overlap/span');
+ok(P.srtStats(P.srtShift(r.cues,0).concat([{start:0,end:100,text:'x'}])).overlap===1,'overlap detect');
+console.log('PASS '+n+' assertions');

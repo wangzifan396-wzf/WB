@@ -1,0 +1,36 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const m=html.match(/<script>([\s\S]*?)<\/script>/);
+const mod={exports:{}};
+new Function('module','exports','require',m[1])(mod,mod.exports,require);
+const P=mod.exports;
+let n=0; function ok(c,msg){ if(!c){ console.error('FAIL: '+msg); process.exit(1);} n++; }
+var e1=P.jlEscape(0,0,0,0,50);
+ok(e1.inside===true && e1.iter===50,'origin c=0 stays inside');
+var e2=P.jlEscape(3,0,0,0,50);
+ok(e2.inside===false && e2.iter===0,'|z|>2 escapes immediately');
+var e3=P.jlEscape(0,0,-1,0,100);
+ok(e3.inside===true,'c=-1 period-2 orbit stays inside');
+var e3b=P.jlEscape(0,0,-0.7,0.27015,100);
+ok(typeof e3b.iter==='number' && typeof e3b.inside==='boolean','seahorse result shape');
+var e4=P.jlEscape(1.5,1.5,-0.7,0.27015,100);
+ok(e4.inside===false,'far point escapes');
+ok(e4.smooth>=0 && e4.smooth<=100,'smooth in range');
+var e5=P.jlEscape(1.5,1.5,-0.7,0.27015,100);
+ok(e4.iter===e5.iter && e4.smooth===e5.smooth,'deterministic');
+var mctr=P.jlMap(240,160,480,320);
+ok(Math.abs(mctr.x)<1e-9 && Math.abs(mctr.y)<1e-9,'center maps to 0');
+var mtl=P.jlMap(0,0,480,320);
+ok(mtl.x===-1.6,'left edge maps to -scale');
+ok(Math.abs(mtl.y - (-1.6*320/480))<1e-9,'top edge aspect-scaled');
+var inside=P.jlColor(80,80);
+ok(inside[0]===10 && inside[1]===10 && inside[2]===11,'inside = canvas dark');
+var out1=P.jlColor(5,80), out2=P.jlColor(60,80);
+ok(out1.length===3 && out2.length===3,'rgb triples');
+ok(JSON.stringify(out1)!==JSON.stringify(out2),'gradient varies');
+ok(out1.every(function(v){ return v>=0 && v<=255; }),'rgb bounds');
+var pre=P.jlPresets();
+ok(Object.keys(pre).length===5,'5 presets');
+ok(pre.seahorse[0]===-0.7,'seahorse re');
+console.log('PASS '+n+' assertions');
