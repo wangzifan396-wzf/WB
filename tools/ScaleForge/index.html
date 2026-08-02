@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>ScaleForge — 离线音阶工作台：音阶生成 / 音程 / 移调 / 十二平均律频率</title>
+<meta property="og:title" content="ScaleForge">
+<meta property="og:description" content="离线音阶工作台，生成各类音阶、计算音程、移调，并给出十二平均律下的频率">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线音阶工作台，生成各类音阶、计算音程、移调，并给出十二平均律下的频率 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>ScaleForge</h1>
+      <p class="sub" data-i18n="sub">练琴、配器、写歌总要查音阶和音程？把根音、音阶类型选好，音符和频率一次算清。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="sc_root" data-i18n="lb_root">根音</label>
+  <input id="sc_root" type="text" value="C4" spellcheck="false" data-i18n-ph="ph_root">
+  <div class="grid">
+    <div>
+      <label for="sc_type" data-i18n="lb_type">音阶类型</label>
+      <select id="sc_type">
+        <option value="major">大调 Ionian</option>
+        <option value="natural_minor">自然小调</option>
+        <option value="harmonic_minor">和声小调</option>
+        <option value="melodic_minor">旋律小调</option>
+        <option value="dorian">多利亚</option>
+        <option value="phrygian">弗里几亚</option>
+        <option value="lydian">利底亚</option>
+        <option value="mixolydian">混合利底亚</option>
+        <option value="locrian">洛克里亚</option>
+        <option value="major_pentatonic">大调五声</option>
+        <option value="minor_pentatonic">小调五声</option>
+        <option value="blues">布鲁斯</option>
+        <option value="whole_tone">全音阶</option>
+        <option value="chromatic">半音阶</option>
+        <option value="hungarian_minor">匈牙利小调</option>
+        <option value="augmented">增音阶</option>
+      </select>
+    </div>
+    <div>
+      <label for="sc_oct" data-i18n="lb_oct">八度数</label>
+      <select id="sc_oct">
+        <option value="1">1</option><option value="2">2</option>
+        <option value="3">3</option><option value="4">4</option>
+      </select>
+    </div>
+  </div>
+  <label class="row" style="margin-top:8px"><input type="checkbox" id="sc_flat"> <span data-i18n="lb_flat">用降号显示（b）</span></label>
+  <div class="row">
+    <button id="sc_go" type="button" data-i18n="btn_go">生成音阶</button>
+    <button id="sc_copy" class="ghost" type="button" data-i18n="btn_copy">复制结果</button>
+  </div>
+  <div class="err" id="sc_err" role="alert"></div>
+  <div class="grid" id="sc_stat"></div>
+  <div class="out"><pre id="sc_out" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+  <hr style="border:none;border-top:1px dashed var(--line);margin:18px 0">
+  <label style="margin-top:0" data-i18n="lb_int">音程 / 移调</label>
+  <div class="grid">
+    <input id="sc_a" type="text" value="C4" spellcheck="false">
+    <input id="sc_b" type="text" value="E4" spellcheck="false">
+  </div>
+  <div class="row">
+    <button id="sc_int" type="button" data-i18n="btn_int">算音程</button>
+    <button id="sc_up" class="ghost" type="button" data-i18n="btn_up">+2 半音移调</button>
+    <button id="sc_dn" class="ghost" type="button" data-i18n="btn_dn">-2 半音移调</button>
+  </div>
+  <div class="out" style="margin-top:12px"><pre id="sc_intout" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  var SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  var FLAT =['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+  var PATTERNS={
+    major:[0,2,4,5,7,9,11],
+    natural_minor:[0,2,3,5,7,8,10],
+    harmonic_minor:[0,2,3,5,7,8,11],
+    melodic_minor:[0,2,3,5,7,9,11],
+    dorian:[0,2,3,5,7,9,10],
+    phrygian:[0,1,3,5,7,8,10],
+    lydian:[0,2,4,6,7,9,11],
+    mixolydian:[0,2,4,5,7,9,10],
+    locrian:[0,1,3,5,6,8,10],
+    major_pentatonic:[0,2,4,7,9],
+    minor_pentatonic:[0,3,5,7,10],
+    blues:[0,3,5,6,7,10],
+    whole_tone:[0,2,4,6,8,10],
+    chromatic:[0,1,2,3,4,5,6,7,8,9,10,11],
+    hungarian_minor:[0,2,3,6,7,8,11],
+    augmented:[0,3,4,7,8,11]
+  };
+  var DEGREES=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+  var NAMES={
+    major:'大调(Ionian)', natural_minor:'自然小调(Aeolian)', harmonic_minor:'和声小调',
+    melodic_minor:'旋律小调(上行)', dorian:'多利亚(Dorian)', phrygian:'弗里几亚(Phrygian)',
+    lydian:'利底亚(Lydian)', mixolydian:'混合利底亚(Mixolydian)', locrian:'洛克里亚(Locrian)',
+    major_pentatonic:'大调五声', minor_pentatonic:'小调五声', blues:'布鲁斯',
+    whole_tone:'全音阶', chromatic:'半音阶', hungarian_minor:'匈牙利小调', augmented:'增音阶'
+  };
+  function parseNote(s){
+    if(typeof s==='number') return s;
+    if(typeof s!=='string') return null;
+    var m=/^\s*([A-Ga-g])([#b]?)(-?\d+)\s*$/.exec(s.trim());
+    if(!m) return null;
+    var base=m[1].toUpperCase(), acc=m[2], oct=parseInt(m[3],10);
+    var idx=SHARP.indexOf(base); if(idx<0) return null;
+    if(acc==='#') idx+=1; else if(acc==='b') idx-=1;
+    return idx + (oct+1)*12;
+  }
+  function noteName(midi, flats){
+    var tbl=flats?FLAT:SHARP;
+    var idx=((midi%12)+12)%12, oct=Math.floor(midi/12)-1;
+    return tbl[idx]+oct;
+  }
+  function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+  function generate(root, type, octaves, flats){
+    root=parseNote(root);
+    if(root==null) return {value:null,error:'根音无法识别（例如 C4、Bb3）'};
+    var pat=PATTERNS[type];
+    if(!pat) return {value:null,error:'未知音阶类型'};
+    octaves=octaves||1; if(octaves<1)octaves=1; if(octaves>4)octaves=4;
+    var notes=[];
+    for(var o=0;o<octaves;o++) for(var i=0;i<pat.length;i++){
+      var m=root+o*12+pat[i];
+      notes.push({degree:DEGREES[i]||(i+1), semitone:o*12+pat[i], midi:m,
+                  name:noteName(m,flats), freq:Math.round(midiToFreq(m)*1000)/1000});
+    }
+    var top=root+octaves*12;
+    notes.push({degree:DEGREES[0]||(pat.length+1), semitone:octaves*12, midi:top,
+                name:noteName(top,flats), freq:Math.round(midiToFreq(top)*1000)/1000, octave:true});
+    return {value:{root:noteName(root,flats), type:type, typeName:NAMES[type]||type,
+                   octaves:octaves, notes:notes, count:notes.length}, error:''};
+  }
+  function interval(a,b){
+    var m1=parseNote(a), m2=parseNote(b);
+    if(m1==null||m2==null) return {value:null,error:'音符无法识别'};
+    var d=m2-m1;
+    var map={0:'纯一度(P1)',1:'小二度(m2)',2:'大二度(M2)',3:'小三度(m3)',4:'大三度(M3)',
+             5:'纯四度(P4)',6:'增四度/减五度(TT)',7:'纯五度(P5)',8:'小六度(m6)',9:'大六度(M6)',
+             10:'小七度(m7)',11:'大七度(M7)',12:'纯八度(P8)'};
+    var name = (d>=0&&d<=12)?map[d]:(d+' 半音');
+    return {value:{from:noteName(m1), to:noteName(m2), semitones:d, name:name}, error:''};
+  }
+  function transpose(note, semis, flats){
+    var m=parseNote(note);
+    if(m==null) return {value:null,error:'音符无法识别'};
+    var t=m+semis;
+    return {value:{from:note, to:noteName(t,flats), semitones:semis}, error:''};
+  }
+  var API={patterns:PATTERNS, names:NAMES, SHARP:SHARP, FLAT:FLAT,
+           parseNote:parseNote, noteName:noteName, midiToFreq:midiToFreq,
+           generate:generate, interval:interval, transpose:transpose};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__ScaleForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__ScaleForge__, D=document, $=function(i){return D.getElementById(i);};
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function kv(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  var lastText='';
+  function render(){
+    var r=C.generate($('sc_root').value, $('sc_type').value, parseInt($('sc_oct').value,10), $('sc_flat').checked);
+    $('sc_err').textContent=r.error||'';
+    if(!r.value){ $('sc_out').textContent=''; $('sc_stat').innerHTML=''; lastText=''; return; }
+    var v=r.value;
+    $('sc_stat').innerHTML=kv(T('s_root'),v.root)+kv(T('s_type'),v.typeName)+kv(T('s_cnt'),v.count);
+    var L=['#  '+v.root+' '+v.typeName+'  ('+v.octaves+' oct)'];
+    for(var i=0;i<v.notes.length;i++){
+      var n=v.notes[i];
+      L.push((n.octave?'=> ':('  '))+n.degree+'\t'+n.name+'\t'+n.freq+' Hz');
+    }
+    lastText=L.join('\n');
+    $('sc_out').textContent=lastText;
+  }
+  function intervalUI(){
+    var r=C.interval($('sc_a').value, $('sc_b').value);
+    if(r.error){ $('sc_intout').textContent=r.error; return; }
+    var v=r.value;
+    $('sc_intout').textContent=v.from+' → '+v.to+'  =  '+v.semitones+' 半音  ('+v.name+')';
+  }
+  function transposeUI(d){
+    var r=C.transpose($('sc_a').value, d, $('sc_flat').checked);
+    if(r.error){ $('sc_intout').textContent=r.error; return; }
+    $('sc_a').value=r.value.to; intervalUI();
+  }
+  window.nanoRerender=render;
+  $('sc_go').addEventListener('click',render);
+  $('sc_root').addEventListener('input',render);
+  $('sc_type').addEventListener('change',render);
+  $('sc_oct').addEventListener('change',render);
+  $('sc_flat').addEventListener('change',render);
+  $('sc_copy').addEventListener('click',function(){
+    if(!lastText){ if(window.nanoToast)window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(lastText);
+  });
+  $('sc_int').addEventListener('click',intervalUI);
+  $('sc_up').addEventListener('click',function(){transposeUI(2);});
+  $('sc_dn').addEventListener('click',function(){transposeUI(-2);});
+  render(); intervalUI();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy result", "btn_dn": "-2 semitones", "btn_go": "Generate scale", "btn_int": "Interval", "btn_up": "+2 semitones", "copied": "Copied", "copyfail": "Copy failed", "lb_flat": "Use flats (b)", "lb_int": "Interval / transpose", "lb_oct": "Octaves", "lb_root": "Root note", "lb_type": "Scale", "nores": "Nothing to copy", "ph_root": "C4 / Bb3 / F#5", "s_cnt": "Notes", "s_root": "Root", "s_type": "Scale", "sub": "Offline musical scale workbench: scales, intervals, transposition and equal-temperament frequencies", "title": "ScaleForge - offline musical scale workbench"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制结果", "btn_dn": "-2 半音移调", "btn_go": "生成音阶", "btn_int": "算音程", "btn_up": "+2 半音移调", "copied": "已复制", "copyfail": "复制失败", "lb_flat": "用降号显示（b）", "lb_int": "音程 / 移调", "lb_oct": "八度数", "lb_root": "根音", "lb_type": "音阶类型", "nores": "没有可复制的结果", "ph_root": "C4 / Bb3 / F#5", "s_cnt": "音符数", "s_root": "根音", "s_type": "音阶", "sub": "练琴、配器、写歌总要查音阶和音程？把根音、音阶类型选好，音符和频率一次算清。", "title": "ScaleForge — 离线音阶工作台：音阶生成 / 音程 / 移调 / 十二平均律频率"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

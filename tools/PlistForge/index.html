@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PlistForge — 离线 Apple plist 解析器：二进制 bplist00 与 XML 双格式转 JSON</title>
+<meta property="og:title" content="PlistForge">
+<meta property="og:description" content="离线 Apple plist 解析器，支持二进制 bplist00 与 XML 两种格式，输出带类型的树与 JSON">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 Apple plist 解析器，支持二进制 bplist00 与 XML 两种格式，输出带类型的树与 JSON · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>PlistForge</h1>
+      <p class="sub" data-i18n="sub">macOS/iOS 的 plist 有二进制和 XML 两种脸。这里两种都能直接展开成带类型标注的树，并给出等价 JSON。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="pl_in" data-i18n="lb_in">plist 内容：XML 文本，或二进制 bplist 的十六进制 / Base64</label>
+  <textarea id="pl_in" rows="7" spellcheck="false" data-i18n-ph="ph_in"></textarea>
+  <div class="row">
+    <button id="pl_go" type="button" data-i18n="btn_go">解析</button>
+    <button id="pl_demo" class="ghost" type="button" data-i18n="btn_demo">示例 (bplist00)</button>
+    <button id="pl_demox" class="ghost" type="button" data-i18n="btn_demox">示例 (XML)</button>
+    <button id="pl_copy" class="ghost" type="button" data-i18n="btn_copy">复制 JSON</button>
+  </div>
+  <div class="err" id="pl_err" role="alert"></div>
+  <div class="grid" id="pl_stat"></div>
+  <div class="out"><pre id="pl_out" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  function hexToBytes(s){
+    var t=String(s||'').replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,'');
+    if(t.length%2) t=t.slice(0,-1);
+    var o=new Uint8Array(t.length/2);
+    for(var i=0;i<o.length;i++) o[i]=parseInt(t.substr(i*2,2),16);
+    return o;
+  }
+  function b64ToBytes(s){
+    var t=String(s||'').replace(/[^A-Za-z0-9+/=]/g,'');
+    var A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var out=[],buf=0,bits=0;
+    for(var i=0;i<t.length;i++){
+      if(t[i]==='=') break;
+      var v=A.indexOf(t[i]); if(v<0) continue;
+      buf=(buf<<6)|v; bits+=6;
+      if(bits>=8){ bits-=8; out.push((buf>>bits)&255); }
+    }
+    return new Uint8Array(out);
+  }
+  function toHex(b){ var o=[]; for(var i=0;i<b.length;i++){var x=b[i].toString(16); o.push(x.length<2?'0'+x:x);} return o.join(''); }
+  function appleDate(secs){
+    var ms = Date.UTC(2001,0,1) + secs*1000;
+    var d = new Date(ms);
+    return isNaN(d.getTime()) ? ('date '+secs) : d.toISOString().replace('.000','');
+  }
+  function readUInt(b,p,n){ var v=0; for(var i=0;i<n;i++) v=v*256+b[p+i]; return v; }
+  function readSInt(b,p,n){
+    if(n<=6){ var v=readUInt(b,p,n); if(b[p]&128) v-=Math.pow(2,n*8); return v; }
+    // 8/16 字节整数：bplist 中 8 字节整数为有符号
+    var hi=readUInt(b,p,4), lo=readUInt(b,p+4,4);
+    if(n===8 && (b[p]&128)) return hi*4294967296+lo - Math.pow(2,64);
+    return hi*4294967296+lo;
+  }
+  function readReal(b,p,n){
+    var dv=new DataView(b.buffer, b.byteOffset+p, n);
+    return n===4 ? dv.getFloat32(0,false) : dv.getFloat64(0,false);
+  }
+  function utf16be(b,p,len){
+    var s='';
+    for(var i=0;i<len;i++) s+=String.fromCharCode((b[p+i*2]<<8)|b[p+i*2+1]);
+    return s;
+  }
+  function ascii(b,p,len){ var s=''; for(var i=0;i<len;i++) s+=String.fromCharCode(b[p+i]); return s; }
+
+  /* ---------------- 二进制 plist ---------------- */
+  function parseBinary(b){
+    var warns=[];
+    if(b.length<40) throw new Error('文件过短（'+b.length+' 字节），不足魔数 + 32 字节尾部');
+    var magic = ascii(b,0,8);
+    if(magic.slice(0,6)!=='bplist') throw new Error('缺少 bplist 魔数（当前 "'+magic.slice(0,6)+'"）');
+    var ver = magic.slice(6,8);
+    if(ver!=='00') warns.push('版本 '+ver+' 非 00，字段布局可能不同');
+
+    var tp = b.length-32;
+    var offsetIntSize = b[tp+6], objectRefSize = b[tp+7];
+    var numObjects = readUInt(b,tp+8,8);
+    var topObject  = readUInt(b,tp+16,8);
+    var tableOff   = readUInt(b,tp+24,8);
+    if(!offsetIntSize || offsetIntSize>8) throw new Error('offsetIntSize='+offsetIntSize+' 非法');
+    if(!objectRefSize || objectRefSize>8) throw new Error('objectRefSize='+objectRefSize+' 非法');
+    if(tableOff + numObjects*offsetIntSize > b.length) throw new Error('偏移表越界（表位于 '+tableOff+'，共 '+numObjects+' 项）');
+    if(topObject >= numObjects) throw new Error('topObject='+topObject+' 超出对象数 '+numObjects);
+
+    var offsets=[];
+    for(var i=0;i<numObjects;i++) offsets.push(readUInt(b, tableOff+i*offsetIntSize, offsetIntSize));
+
+    var seen = {};
+    function obj(idx, depth){
+      if(depth>64) throw new Error('嵌套超过 64 层，疑似循环引用');
+      if(idx>=numObjects) throw new Error('对象引用 #'+idx+' 越界');
+      var p = offsets[idx];
+      if(p>=b.length) throw new Error('对象 #'+idx+' 偏移 '+p+' 越界');
+      var m = b[p], hi = m>>4, lo = m&15, q = p+1;
+      function count(){
+        if(lo!==15) return lo;
+        var mk=b[q++]; if((mk>>4)!==1) throw new Error('对象 #'+idx+' 的扩展长度标记非法');
+        var n=Math.pow(2, mk&15), c=readUInt(b,q,n); q+=n; return c;
+      }
+      if(m===0x00) return {type:'null', value:null};
+      if(m===0x08) return {type:'bool', value:false};
+      if(m===0x09) return {type:'bool', value:true};
+      if(m===0x0F) return {type:'fill', value:null};
+      if(hi===1){ var n1=Math.pow(2,lo); return {type:'int', value:readSInt(b,q,n1)}; }
+      if(hi===2){ var n2=Math.pow(2,lo); return {type:'real', value:readReal(b,q,n2)}; }
+      if(hi===3){ var s=readReal(b,q,8); return {type:'date', value:appleDate(s), raw:s}; }
+      if(hi===4){ var c4=count(); return {type:'data', value:toHex(b.subarray(q,q+c4)), bytes:c4}; }
+      if(hi===5){ var c5=count(); return {type:'string', value:ascii(b,q,c5)}; }
+      if(hi===6){ var c6=count(); return {type:'string', value:utf16be(b,q,c6), utf16:true}; }
+      if(hi===8){ return {type:'uid', value:readUInt(b,q,lo+1)}; }
+      if(hi===10 || hi===12){
+        var ca=count(), arr=[];
+        for(var a=0;a<ca;a++){ arr.push(obj(readUInt(b,q+a*objectRefSize,objectRefSize), depth+1)); }
+        return {type: hi===10?'array':'set', value:arr};
+      }
+      if(hi===13){
+        var cd=count(), ents=[], keyBase=q, valBase=q+cd*objectRefSize, prev=null;
+        for(var d=0;d<cd;d++){
+          var kNode = obj(readUInt(b,keyBase+d*objectRefSize,objectRefSize), depth+1);
+          var vNode = obj(readUInt(b,valBase+d*objectRefSize,objectRefSize), depth+1);
+          var k = String(kNode.value);
+          if(prev!==null && k<prev) warns.push('字典键未按升序排列："'+prev+'" 之后出现 "'+k+'"');
+          prev=k;
+          ents.push({key:k, value:vNode});
+        }
+        return {type:'dict', value:ents};
+      }
+      throw new Error('未知对象标记 0x'+m.toString(16)+'（对象 #'+idx+' @'+p+'）');
+    }
+    var root = obj(topObject, 0);
+    return {format:'binary', version:ver, numObjects:numObjects, topObject:topObject,
+            offsetIntSize:offsetIntSize, objectRefSize:objectRefSize, root:root, warnings:warns};
+  }
+
+  /* ---------------- XML plist ---------------- */
+  function unent(s){
+    return s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')
+            .replace(/&apos;/g,"'").replace(/&#(\d+);/g,function(_,d){return String.fromCharCode(+d);})
+            .replace(/&amp;/g,'&');
+  }
+  function parseXml(text){
+    var warns=[];
+    var s = String(text).replace(/<\?xml[\s\S]*?\?>/g,'').replace(/<!DOCTYPE[\s\S]*?>/g,'')
+                        .replace(/<!--[\s\S]*?-->/g,'');
+    var re=/<(\/?)([A-Za-z0-9_:-]+)([^>]*?)(\/?)>|([^<]+)/g, m, stack=[], root=null, pendingKey=null, keyBuf=null;
+    function attach(node){
+      if(!stack.length){ if(root) warns.push('根节点之后出现多余元素'); root=node; return; }
+      var top=stack[stack.length-1];
+      if(top.type==='dict'){
+        if(pendingKey===null){ warns.push('字典中出现无 <key> 的值：'+node.type); return; }
+        top.value.push({key:pendingKey, value:node}); pendingKey=null;
+      } else if(top.type==='array'){ top.value.push(node); }
+      else warns.push('容器 '+top.type+' 不能包含子元素');
+    }
+    while((m=re.exec(s))!==null){
+      if(m[5]!==undefined){
+        var txt=m[5];
+        if(keyBuf!==null) keyBuf+=txt;
+        else if(stack.length && stack[stack.length-1].pending!==undefined) stack[stack.length-1].pending+=txt;
+        continue;
+      }
+      var close=m[1]==='/', tag=m[2].toLowerCase(), self=m[4]==='/';
+      if(tag==='plist') continue;
+      if(!close && !self){
+        if(tag==='key'){ keyBuf=''; continue; }
+        if(tag==='dict'||tag==='array'){ var n={type:tag, value:[]}; attach(n); stack.push(n); continue; }
+        stack.push({type:tag, pending:'', value:null, leaf:true}); continue;
+      }
+      if(self){
+        if(tag==='true'||tag==='false'){ attach({type:'bool', value:tag==='true'}); continue; }
+        if(tag==='dict'||tag==='array'){ attach({type:tag, value:[]}); continue; }
+        attach({type:tag, value:null}); continue;
+      }
+      // 闭合
+      if(tag==='key'){ pendingKey=unent(keyBuf||''); keyBuf=null; continue; }
+      var top=stack.pop();
+      if(!top){ warns.push('多余的闭合标签 </'+tag+'>'); continue; }
+      if(top.type!==tag){ warns.push('标签不匹配：<'+top.type+'> 被 </'+tag+'> 闭合'); }
+      if(top.leaf){
+        var raw=(top.pending||'');
+        var node;
+        if(tag==='string') node={type:'string', value:unent(raw)};
+        else if(tag==='integer') node={type:'int', value:parseInt(raw.trim(),10)};
+        else if(tag==='real') node={type:'real', value:parseFloat(raw.trim())};
+        else if(tag==='date') node={type:'date', value:raw.trim()};
+        else if(tag==='data') node={type:'data', value:toHex(b64ToBytes(raw)), bytes:b64ToBytes(raw).length};
+        else if(tag==='true'||tag==='false') node={type:'bool', value:tag==='true'};
+        else { node={type:tag, value:unent(raw)}; warns.push('未知标签 <'+tag+'>'); }
+        attach(node);
+      }
+    }
+    if(!root) throw new Error('未找到根节点（需要 <dict>/<array>/标量）');
+    if(stack.length) warns.push('有 '+stack.length+' 个标签未闭合');
+    return {format:'xml', version:'1.0', root:root, warnings:warns, numObjects:null};
+  }
+
+  function parse(input){
+    var raw = String(input||'').trim();
+    if(!raw) return {value:null, error:'输入为空'};
+    try{
+      if(/^\s*</.test(raw)) return {value:parseXml(raw), error:''};
+      var b;
+      if(/^[0-9a-fA-F\s]+$/.test(raw)) b=hexToBytes(raw);
+      else b=b64ToBytes(raw);
+      if(b.length>=6 && ascii(b,0,6)==='bplist') return {value:parseBinary(b), error:''};
+      if(b.length && b[0]===0x3C) return {value:parseXml(ascii(b,0,b.length)), error:''};
+      return {value:null, error:'无法识别输入：既不是 XML plist，也没有 bplist 魔数'};
+    }catch(e){ return {value:null, error:e.message}; }
+  }
+
+  function toJson(node){
+    if(!node) return null;
+    if(node.type==='dict'){ var o={}; for(var i=0;i<node.value.length;i++) o[node.value[i].key]=toJson(node.value[i].value); return o; }
+    if(node.type==='array'||node.type==='set'){ var a=[]; for(var j=0;j<node.value.length;j++) a.push(toJson(node.value[j])); return a; }
+    return node.value;
+  }
+  function countNodes(node){
+    if(!node) return 0;
+    var n=1;
+    if(node.type==='dict'){ for(var i=0;i<node.value.length;i++) n+=countNodes(node.value[i].value); }
+    else if(node.type==='array'||node.type==='set'){ for(var j=0;j<node.value.length;j++) n+=countNodes(node.value[j]); }
+    return n;
+  }
+  function lines(node, key, depth, out){
+    out=out||[]; depth=depth||0;
+    var pad=new Array(depth+1).join('  ');
+    var label = key!==null && key!==undefined ? key+': ' : '';
+    if(node.type==='dict'){
+      out.push(pad+label+'{ '+node.value.length+' 项 }');
+      for(var i=0;i<node.value.length;i++) lines(node.value[i].value, node.value[i].key, depth+1, out);
+    } else if(node.type==='array'||node.type==='set'){
+      out.push(pad+label+'[ '+node.value.length+' 项 ]');
+      for(var j=0;j<node.value.length;j++) lines(node.value[j], null, depth+1, out);
+    } else {
+      var v=node.value;
+      if(node.type==='data') v='<'+node.bytes+' 字节: '+String(v).slice(0,32)+(String(v).length>32?'…':'')+'>';
+      if(node.type==='string') v=JSON.stringify(v);
+      out.push(pad+label+String(v)+'   ('+node.type+')');
+    }
+    return out;
+  }
+
+  var API={parse:parse, parseBinary:parseBinary, parseXml:parseXml, toJson:toJson,
+           countNodes:countNodes, lines:lines, hexToBytes:hexToBytes, b64ToBytes:b64ToBytes,
+           toHex:toHex, appleDate:appleDate};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__PlistForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__PlistForge__, D=document, $=function(i){return D.getElementById(i);};
+  var DEMO_BIN='62706c6973743030d90102030405060708090a0b0c10111415161754626c6f6255636f756e74546c697374546e616d65566e6573746564536f6666526f6b527069547768656e430102ff1007a30d0e0f100110021003546e616e6fd11213546465657053796573080923400c0000000000003341c2cf4ec0000000081b20262b30373b3e41464a4c505254565b5e6367686972000000000000010100000000000000180000000000000000000000000000007b';
+  var DEMO_XML="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>count</key>\n\t<integer>7</integer>\n\t<key>list</key>\n\t<array>\n\t\t<string>a</string>\n\t\t<string>b</string>\n\t</array>\n\t<key>name</key>\n\t<string>nano &amp; co</string>\n\t<key>nested</key>\n\t<dict>\n\t\t<key>deep</key>\n\t\t<string>yes</string>\n\t</dict>\n\t<key>ok</key>\n\t<true/>\n\t<key>pi</key>\n\t<real>3.5</real>\n</dict>\n</plist>\n";
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function kv(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  var lastText='';
+  function render(){
+    var r=C.parse($('pl_in').value);
+    $('pl_err').textContent=r.error||'';
+    if(!r.value){ $('pl_out').textContent=''; $('pl_stat').innerHTML=''; lastText=''; return; }
+    var v=r.value;
+    var st=kv(T('s_fmt'), v.format==='binary'?'bplist'+v.version:'XML plist')
+      +kv(T('s_nodes'), C.countNodes(v.root))
+      +kv(T('s_root'), v.root.type);
+    if(v.format==='binary') st+=kv(T('s_objs'), v.numObjects+'  (ref '+v.objectRefSize+'B / off '+v.offsetIntSize+'B)');
+    if(v.warnings.length) st+=kv(T('s_warn'), v.warnings.join('; '));
+    $('pl_stat').innerHTML=st;
+    var tree=C.lines(v.root, null, 0).join('\n');
+    lastText=JSON.stringify(C.toJson(v.root), null, 2);
+    $('pl_out').textContent=tree+'\n\n--- JSON ---\n'+lastText;
+  }
+  window.nanoRerender=render;
+  $('pl_go').addEventListener('click',render);
+  $('pl_in').addEventListener('input',render);
+  $('pl_demo').addEventListener('click',function(){ $('pl_in').value=DEMO_BIN; render(); });
+  $('pl_demox').addEventListener('click',function(){ $('pl_in').value=DEMO_XML; render(); });
+  $('pl_copy').addEventListener('click',function(){
+    if(!lastText){ if(window.nanoToast) window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(lastText);
+  });
+  $('pl_in').value=DEMO_BIN; render();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy JSON", "btn_demo": "Sample (bplist00)", "btn_demox": "Sample (XML)", "btn_go": "Parse", "copied": "Copied", "copyfail": "Copy failed", "lb_in": "plist content: XML text, or binary bplist as hex / Base64", "nores": "Nothing to copy", "ph_in": "62 70 6c 69 73 74 30 30 …  or  <plist version=\"1.0\">…", "s_fmt": "Format", "s_nodes": "Nodes", "s_objs": "Object table", "s_root": "Root type", "s_warn": "Spec warnings", "sub": "Offline Apple plist viewer: binary bplist00 and XML plist to a typed tree plus JSON", "title": "PlistForge - offline Apple plist viewer"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制 JSON", "btn_demo": "示例 (bplist00)", "btn_demox": "示例 (XML)", "btn_go": "解析", "copied": "已复制", "copyfail": "复制失败", "lb_in": "plist 内容：XML 文本，或二进制 bplist 的十六进制 / Base64", "nores": "没有可复制的结果", "ph_in": "62 70 6c 69 73 74 30 30 …  或  <plist version=\"1.0\">…", "s_fmt": "格式", "s_nodes": "节点数", "s_objs": "对象表", "s_root": "根类型", "s_warn": "规范告警", "sub": "macOS/iOS 的 plist 有二进制和 XML 两种脸。这里两种都能直接展开成带类型标注的树，并给出等价 JSON。", "title": "PlistForge — 离线 Apple plist 解析器：二进制 bplist00 与 XML 双格式转 JSON"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PeForge — 离线 PE/COFF 头解析器：架构、子系统、数据目录、节表与加固位</title>
+<meta property="og:title" content="PeForge">
+<meta property="og:description" content="离线 PE/COFF 可执行文件头解析器，展开 COFF、Optional 头、数据目录与节表，并检查 DEP/ASLR/W^X">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 PE/COFF 可执行文件头解析器，展开 COFF、Optional 头、数据目录与节表，并检查 DEP/ASLR/W^X · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>PeForge</h1>
+      <p class="sub" data-i18n="sub">把 exe/dll 开头的字节展开成结构化头信息。除了字段本身，还会指出未开 DEP/ASLR、可写又可执行的节这类加固问题。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="pe_in" data-i18n="lb_in">PE 文件头字节（十六进制，前 1KB 足够）</label>
+  <textarea id="pe_in" rows="6" spellcheck="false" data-i18n-ph="ph_in"></textarea>
+  <div class="row">
+    <button id="pe_go" type="button" data-i18n="btn_go">解析</button>
+    <button id="pe_demo" class="ghost" type="button" data-i18n="btn_demo">示例 (x64 EXE)</button>
+    <button id="pe_copy" class="ghost" type="button" data-i18n="btn_copy">复制报告</button>
+  </div>
+  <div class="err" id="pe_err" role="alert"></div>
+  <div class="grid" id="pe_stat"></div>
+  <div class="out"><pre id="pe_out" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  function hexToBytes(s){
+    var t=String(s||'').replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,'');
+    if(t.length%2) t=t.slice(0,-1);
+    var o=new Uint8Array(t.length/2);
+    for(var i=0;i<o.length;i++) o[i]=parseInt(t.substr(i*2,2),16);
+    return o;
+  }
+  function hx(n,w){ var s=(n>>>0).toString(16).toUpperCase(); while(s.length<(w||8)) s='0'+s; return '0x'+s; }
+  function u8(b,p){ return b[p]; }
+  function u16(b,p){ return b[p] | (b[p+1]<<8); }
+  function u32(b,p){ return (b[p] | (b[p+1]<<8) | (b[p+2]<<16) | (b[p+3]<<24))>>>0; }
+  function u64(b,p){ var lo=u32(b,p), hi=u32(b,p+4); return hi*4294967296+lo; }
+  function hex64(b,p){ var lo=u32(b,p), hi=u32(b,p+4);
+    var s=hi.toString(16).toUpperCase(); while(s.length<8) s='0'+s;
+    var t=lo.toString(16).toUpperCase(); while(t.length<8) t='0'+t;
+    return '0x'+s+t; }
+
+  var MACHINE={0:'UNKNOWN',0x14c:'i386',0x1c0:'ARM',0x1c4:'ARMNT (Thumb-2)',0xaa64:'ARM64',
+               0x8664:'x64 (AMD64)',0x200:'IA64',0x5032:'RISCV32',0x5064:'RISCV64',0x6264:'LOONGARCH64'};
+  var SUBSYS={0:'UNKNOWN',1:'NATIVE',2:'WINDOWS_GUI',3:'WINDOWS_CUI',5:'OS2_CUI',7:'POSIX_CUI',
+              9:'WINDOWS_CE_GUI',10:'EFI_APPLICATION',11:'EFI_BOOT_SERVICE_DRIVER',
+              12:'EFI_RUNTIME_DRIVER',13:'EFI_ROM',14:'XBOX',16:'WINDOWS_BOOT_APPLICATION'};
+  var CHARS=[[0x0001,'RELOCS_STRIPPED'],[0x0002,'EXECUTABLE_IMAGE'],[0x0004,'LINE_NUMS_STRIPPED'],
+             [0x0008,'LOCAL_SYMS_STRIPPED'],[0x0020,'LARGE_ADDRESS_AWARE'],[0x0080,'BYTES_REVERSED_LO'],
+             [0x0100,'32BIT_MACHINE'],[0x0200,'DEBUG_STRIPPED'],[0x0400,'REMOVABLE_RUN_FROM_SWAP'],
+             [0x0800,'NET_RUN_FROM_SWAP'],[0x1000,'SYSTEM'],[0x2000,'DLL'],[0x4000,'UP_SYSTEM_ONLY']];
+  var DLLC=[[0x0020,'HIGH_ENTROPY_VA'],[0x0040,'DYNAMIC_BASE (ASLR)'],[0x0080,'FORCE_INTEGRITY'],
+            [0x0100,'NX_COMPAT (DEP)'],[0x0200,'NO_ISOLATION'],[0x0400,'NO_SEH'],[0x0800,'NO_BIND'],
+            [0x1000,'APPCONTAINER'],[0x2000,'WDM_DRIVER'],[0x4000,'GUARD_CF'],[0x8000,'TERMINAL_SERVER_AWARE']];
+  var SECF=[[0x00000020,'CODE'],[0x00000040,'INITIALIZED_DATA'],[0x00000080,'UNINITIALIZED_DATA'],
+            [0x02000000,'DISCARDABLE'],[0x04000000,'NOT_CACHED'],[0x08000000,'NOT_PAGED'],
+            [0x10000000,'SHARED'],[0x20000000,'EXECUTE'],[0x40000000,'READ'],[0x80000000,'WRITE']];
+  var DIRNAMES=['Export','Import','Resource','Exception','Certificate','BaseReloc','Debug','Architecture',
+                'GlobalPtr','TLS','LoadConfig','BoundImport','IAT','DelayImport','CLR Runtime','Reserved'];
+
+  function flags(table, v){
+    var o=[];
+    for(var i=0;i<table.length;i++){ if((v & table[i][0])===table[i][0] && table[i][0]!==0) o.push(table[i][1]); }
+    return o;
+  }
+  function stamp(t){
+    if(!t) return '0 (未设置)';
+    var d=new Date(t*1000);
+    if(t>4102444800 || isNaN(d.getTime())) return String(t)+' (非时间戳，可能是 Reproducible Build 哈希)';
+    return String(t)+'  '+d.toISOString().replace('.000','');
+  }
+  function secName(b,p){
+    var s='';
+    for(var i=0;i<8;i++){ var c=b[p+i]; if(!c) break; s+=String.fromCharCode(c); }
+    return s;
+  }
+
+  function parse(input){
+    var b = (input instanceof Uint8Array) ? input : hexToBytes(input);
+    var warns=[];
+    if(!b.length) return {value:null, error:'输入为空'};
+    if(b.length<64) return {value:null, error:'文件过短（'+b.length+' 字节），不足 DOS 头 64 字节'};
+    if(!(b[0]===0x4D && b[1]===0x5A)) return {value:null, error:'缺少 DOS 魔数 MZ（当前 0x'+
+      ((b[0]<16?'0':'')+b[0].toString(16))+((b[1]<16?'0':'')+b[1].toString(16))+'）'};
+    var lfanew = u32(b, 0x3C);
+    if(lfanew+24 > b.length) return {value:null, error:'e_lfanew='+hx(lfanew)+' 指向文件外（文件 '+b.length+' 字节）'};
+    if(!(b[lfanew]===0x50 && b[lfanew+1]===0x45 && b[lfanew+2]===0 && b[lfanew+3]===0))
+      return {value:null, error:'偏移 '+hx(lfanew)+' 处不是 PE\\0\\0 签名'};
+
+    var c = lfanew+4;
+    var coff = {
+      machine: u16(b,c), machineName: MACHINE[u16(b,c)] || ('未知 '+hx(u16(b,c),4)),
+      sections: u16(b,c+2), timeDateStamp: u32(b,c+4),
+      symbolPtr: u32(b,c+8), symbols: u32(b,c+12),
+      optSize: u16(b,c+16), characteristics: u16(b,c+18)
+    };
+    coff.time = stamp(coff.timeDateStamp);
+    coff.flags = flags(CHARS, coff.characteristics);
+    if(coff.symbols) warns.push('存在 COFF 符号表（'+coff.symbols+' 项），现代链接器通常不再输出');
+
+    var o = c+20, opt=null;
+    if(coff.optSize===0){
+      warns.push('SizeOfOptionalHeader=0，这是目标文件（.obj）而非可执行映像');
+    } else {
+      if(o+2>b.length) return {value:null, error:'Optional 头被截断'};
+      var magic=u16(b,o), pe32plus = magic===0x20B;
+      if(magic!==0x10B && magic!==0x20B && magic!==0x107)
+        return {value:null, error:'未知 Optional 头魔数 '+hx(magic,4)};
+      var need = pe32plus?112:112;
+      if(o+need>b.length) return {value:null, error:'Optional 头被截断（需 '+need+' 字节）'};
+      opt = {
+        magic: magic, kind: magic===0x20B?'PE32+':(magic===0x10B?'PE32':'ROM'),
+        linker: u8(b,o+2)+'.'+u8(b,o+3),
+        sizeOfCode: u32(b,o+4), sizeOfInitData: u32(b,o+8), sizeOfUninitData: u32(b,o+12),
+        entryPoint: u32(b,o+16), baseOfCode: u32(b,o+20)
+      };
+      var q = pe32plus ? o+24 : o+28;
+      if(!pe32plus) opt.baseOfData = u32(b,o+24);
+      opt.imageBase = pe32plus ? hex64(b,q) : hx(u32(b,q));
+      q += pe32plus?8:4;
+      opt.sectionAlignment = u32(b,q); opt.fileAlignment = u32(b,q+4);
+      opt.osVersion = u16(b,q+8)+'.'+u16(b,q+10);
+      opt.imageVersion = u16(b,q+12)+'.'+u16(b,q+14);
+      opt.subsystemVersion = u16(b,q+16)+'.'+u16(b,q+18);
+      opt.sizeOfImage = u32(b,q+24); opt.sizeOfHeaders = u32(b,q+28);
+      opt.checkSum = u32(b,q+32);
+      opt.subsystem = u16(b,q+36); opt.subsystemName = SUBSYS[opt.subsystem] || ('未知 '+opt.subsystem);
+      opt.dllCharacteristics = u16(b,q+38);
+      opt.dllFlags = flags(DLLC, opt.dllCharacteristics);
+      var st = q+40;
+      if(pe32plus){ opt.stackReserve=u64(b,st); opt.stackCommit=u64(b,st+8);
+                    opt.heapReserve=u64(b,st+16); opt.heapCommit=u64(b,st+24); st+=32; }
+      else { opt.stackReserve=u32(b,st); opt.stackCommit=u32(b,st+4);
+             opt.heapReserve=u32(b,st+8); opt.heapCommit=u32(b,st+12); st+=16; }
+      opt.loaderFlags = u32(b,st);
+      opt.numberOfRvaAndSizes = u32(b,st+4);
+      opt.dirs=[];
+      var dp = st+8;
+      for(var i=0;i<opt.numberOfRvaAndSizes && i<16; i++){
+        if(dp+8>b.length) break;
+        var rva=u32(b,dp), sz=u32(b,dp+4); dp+=8;
+        if(rva||sz) opt.dirs.push({index:i, name:DIRNAMES[i]||('#'+i), rva:hx(rva), size:sz});
+      }
+      if(opt.fileAlignment && (opt.fileAlignment & (opt.fileAlignment-1)))
+        warns.push('FileAlignment '+opt.fileAlignment+' 不是 2 的幂，违反 PE 规范');
+      if(opt.sectionAlignment && opt.fileAlignment && opt.sectionAlignment < opt.fileAlignment)
+        warns.push('SectionAlignment 小于 FileAlignment，加载器会拒绝');
+      if(opt.dllFlags.indexOf('NX_COMPAT (DEP)')<0) warns.push('未开启 NX_COMPAT（DEP），缺少数据执行保护');
+      if(opt.dllFlags.indexOf('DYNAMIC_BASE (ASLR)')<0) warns.push('未开启 DYNAMIC_BASE（ASLR），地址可预测');
+    }
+
+    var sp = lfanew+4+20+coff.optSize, sections=[];
+    for(var k=0;k<coff.sections;k++){
+      if(sp+40>b.length){ warns.push('节表被截断：期望 '+coff.sections+' 节，只读到 '+k+' 节'); break; }
+      var s={
+        name: secName(b,sp), virtualSize:u32(b,sp+8), virtualAddress:u32(b,sp+12),
+        rawSize:u32(b,sp+16), rawPtr:u32(b,sp+20), relocs:u16(b,sp+32),
+        characteristics:u32(b,sp+36)
+      };
+      s.flags = flags(SECF, s.characteristics);
+      s.rvaHex = hx(s.virtualAddress);
+      if(s.flags.indexOf('WRITE')>=0 && s.flags.indexOf('EXECUTE')>=0)
+        warns.push('节 '+s.name+' 同时可写可执行（W^X 违规）');
+      if(s.rawPtr && s.rawSize && s.rawPtr+s.rawSize > b.length)
+        s.truncated = true;
+      sections.push(s);
+      sp += 40;
+    }
+    var isDll = coff.flags.indexOf('DLL')>=0;
+    return {value:{lfanew:lfanew, lfanewHex:hx(lfanew), coff:coff, opt:opt, sections:sections,
+                   warnings:warns, fileSize:b.length,
+                   kind: coff.optSize===0?'COFF 目标文件':(isDll?'DLL':'EXE')}, error:''};
+  }
+
+  var API={parse:parse, hexToBytes:hexToBytes, MACHINE:MACHINE, SUBSYS:SUBSYS, flags:flags,
+           CHARS:CHARS, DLLC:DLLC, SECF:SECF, stamp:stamp};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__PeForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__PeForge__, D=document, $=function(i){return D.getElementById(i);};
+  var DEMO='4d5a90000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000005045000064860200000000600000000000000000f00022000b020e1d000400000002000000000000001000000010000000000040010000000010000000020000060000000000000006000000000000000030000000040000000000000300608100001000000000000010000000000000000010000000000000100000000000000000000010000000000000000000000000210000500000000000000000000000000000000000000000000000000000000000000000000000002200001c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002e7465787400000050030000001000000004000000040000000000000000000000000000200000602e726461746100002001000000200000000200000008000000000000000000000000000040000040';
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function kv(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  var lastText='';
+  function render(){
+    var r=C.parse($('pe_in').value);
+    $('pe_err').textContent=r.error||'';
+    if(!r.value){ $('pe_out').textContent=''; $('pe_stat').innerHTML=''; lastText=''; return; }
+    var v=r.value, c=v.coff, o=v.opt, L=[];
+    var st=kv(T('s_kind'), v.kind)+kv(T('s_machine'), c.machineName)
+      +kv(T('s_sections'), c.sections)+kv(T('s_time'), c.time);
+    if(o) st+=kv(T('s_fmt'), o.kind)+kv(T('s_subsys'), o.subsystemName)
+      +kv(T('s_entry'), '0x'+o.entryPoint.toString(16).toUpperCase())+kv(T('s_base'), o.imageBase);
+    $('pe_stat').innerHTML=st;
+
+    L.push('== COFF ==');
+    L.push('  Machine            '+c.machineName+'  (0x'+c.machine.toString(16)+')');
+    L.push('  TimeDateStamp      '+c.time);
+    L.push('  Characteristics    '+(c.flags.join(' | ')||'—'));
+    if(o){
+      L.push('');
+      L.push('== Optional ('+o.kind+') ==');
+      L.push('  Linker             '+o.linker);
+      L.push('  EntryPoint (RVA)   0x'+o.entryPoint.toString(16).toUpperCase());
+      L.push('  ImageBase          '+o.imageBase);
+      L.push('  Align sec/file     '+o.sectionAlignment+' / '+o.fileAlignment);
+      L.push('  SizeOfImage        '+o.sizeOfImage+' B');
+      L.push('  SizeOfHeaders      '+o.sizeOfHeaders+' B');
+      L.push('  Subsystem          '+o.subsystemName+'  (min OS '+o.subsystemVersion+')');
+      L.push('  DllCharacteristics '+(o.dllFlags.join(' | ')||'—'));
+      L.push('  Stack reserve/commit '+o.stackReserve+' / '+o.stackCommit);
+      if(o.dirs.length){
+        L.push('');
+        L.push('== Data Directories ==');
+        for(var i=0;i<o.dirs.length;i++){
+          var d=o.dirs[i];
+          L.push('  '+(d.name+'                ').slice(0,17)+' RVA '+d.rva+'  size '+d.size);
+        }
+      }
+    }
+    if(v.sections.length){
+      L.push('');
+      L.push('== Sections ==');
+      for(var j=0;j<v.sections.length;j++){
+        var s=v.sections[j];
+        L.push('  '+(s.name+'        ').slice(0,9)+' RVA '+s.rvaHex+'  vsize '+s.virtualSize+
+               '  raw '+s.rawSize+'@'+s.rawPtr+(s.truncated?'  [截断]':''));
+        L.push('           '+(s.flags.join(' | ')||'—'));
+      }
+    }
+    if(v.warnings.length){
+      L.push('');
+      L.push('== 提示 ==');
+      for(var w=0;w<v.warnings.length;w++) L.push('  ! '+v.warnings[w]);
+    }
+    lastText=L.join('\n');
+    $('pe_out').textContent=lastText;
+  }
+  window.nanoRerender=render;
+  $('pe_go').addEventListener('click',render);
+  $('pe_in').addEventListener('input',render);
+  $('pe_demo').addEventListener('click',function(){ $('pe_in').value=DEMO; render(); });
+  $('pe_copy').addEventListener('click',function(){
+    if(!lastText){ if(window.nanoToast) window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(lastText);
+  });
+  $('pe_in').value=DEMO; render();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy report", "btn_demo": "Sample (x64 EXE)", "btn_go": "Parse", "copied": "Copied", "copyfail": "Copy failed", "lb_in": "PE header bytes (hex, first 1KB is enough)", "nores": "Nothing to copy", "ph_in": "4d 5a 90 00 03 00 …  paste hex from an exe/dll", "s_base": "ImageBase", "s_entry": "Entry RVA", "s_fmt": "Image format", "s_kind": "Kind", "s_machine": "Machine", "s_sections": "Sections", "s_subsys": "Subsystem", "s_time": "Build time", "sub": "Offline PE/COFF header viewer: COFF, optional header, data directories, sections and hardening flags", "title": "PeForge - offline PE/COFF header viewer"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制报告", "btn_demo": "示例 (x64 EXE)", "btn_go": "解析", "copied": "已复制", "copyfail": "复制失败", "lb_in": "PE 文件头字节（十六进制，前 1KB 足够）", "nores": "没有可复制的结果", "ph_in": "4d 5a 90 00 03 00 …  粘贴 exe/dll 开头的十六进制", "s_base": "ImageBase", "s_entry": "入口 RVA", "s_fmt": "映像格式", "s_kind": "类型", "s_machine": "架构", "s_sections": "节数", "s_subsys": "子系统", "s_time": "构建时间", "sub": "把 exe/dll 开头的字节展开成结构化头信息。除了字段本身，还会指出未开 DEP/ASLR、可写又可执行的节这类加固问题。", "title": "PeForge — 离线 PE/COFF 头解析器：架构、子系统、数据目录、节表与加固位"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>HammingForge — 离线汉明码工作台：编码、注错、综合征定位与 SECDED</title>
+<meta property="og:title" content="HammingForge">
+<meta property="og:description" content="离线汉明码编解码工作台，支持任意数据长度与扩展 SECDED，可注入比特错误并观察综合征定位纠错">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线汉明码编解码工作台，支持任意数据长度与扩展 SECDED，可注入比特错误并观察综合征定位纠错 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>HammingForge</h1>
+      <p class="sub" data-i18n="sub">汉明码怎么知道第几位错了？编好码后随手翻一位，看综合征把它精确指出来——扩展 SECDED 还能识别出双错。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="hm_in" data-i18n="lb_in">数据位（只保留 0/1）</label>
+  <input type="text" id="hm_in" spellcheck="false" data-i18n-ph="ph_in" value="1011">
+  <div class="row">
+    <label style="margin:0"><input type="checkbox" id="hm_ext"> <span data-i18n="lb_ext">扩展 SECDED（加总校验位 P0）</span></label>
+  </div>
+  <div class="row">
+    <button id="hm_enc" type="button" data-i18n="btn_enc">编码</button>
+    <button id="hm_flip" class="ghost" type="button" data-i18n="btn_flip">翻转第 N 位</button>
+    <input type="text" id="hm_pos" value="3" style="width:60px" aria-label="bit position">
+    <button id="hm_copy" class="ghost" type="button" data-i18n="btn_copy">复制码字</button>
+  </div>
+  <label for="hm_cw" data-i18n="lb_cw">码字（可手动改动，下方即时解码）</label>
+  <input type="text" id="hm_cw" spellcheck="false">
+  <div class="err" id="hm_err" role="alert"></div>
+  <div class="grid" id="hm_stat"></div>
+  <div class="out"><pre id="hm_out" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  function bits(s){
+    var t=String(s||'').replace(/[^01]/g,'');
+    var o=[]; for(var i=0;i<t.length;i++) o.push(t.charCodeAt(i)-48);
+    return o;
+  }
+  function str(b){ return b.join(''); }
+  function isPow2(n){ return n>0 && (n & (n-1))===0; }
+  function parityCount(k){
+    var r=0;
+    while(Math.pow(2,r) < k+r+1) r++;
+    return r;
+  }
+  // 编码：数据位放非 2 的幂位置，校验位放 2 的幂位置（1-based）
+  function encode(dataBits, extended){
+    var d=bits(dataBits);
+    if(!d.length) return {value:null, error:'数据位为空'};
+    if(d.length>64) return {value:null, error:'数据位过多（'+d.length+'），上限 64'};
+    var k=d.length, r=parityCount(k), n=k+r;
+    var cw=new Array(n+1).fill(0);   // 1-based
+    var di=0;
+    for(var p=1;p<=n;p++) if(!isPow2(p)) cw[p]=d[di++];
+    var parities=[];
+    for(var b=0;b<r;b++){
+      var pos=Math.pow(2,b), x=0, covers=[];
+      for(var q=1;q<=n;q++){
+        if(q===pos) continue;
+        if(q & pos){ x^=cw[q]; covers.push(q); }
+      }
+      cw[pos]=x;
+      parities.push({pos:pos, value:x, covers:covers});
+    }
+    var out=cw.slice(1);
+    var res={code:str(out), n:n, k:k, r:r, parities:parities, rate:k+'/'+n,
+             scheme:'Hamming('+n+','+k+')'};
+    if(extended){
+      var overall=0;
+      for(var i=0;i<out.length;i++) overall^=out[i];
+      res.code = String(overall)+res.code;   // P0 在最前
+      res.n = n+1;
+      res.overall = overall;
+      res.scheme = 'Extended Hamming('+(n+1)+','+k+') SECDED';
+    }
+    return {value:res, error:''};
+  }
+
+  function decode(codeStr, extended){
+    var c=bits(codeStr);
+    if(!c.length) return {value:null, error:'码字为空'};
+    var overall=null, body=c;
+    if(extended){
+      if(c.length<2) return {value:null, error:'扩展汉明码至少需要 2 位'};
+      overall=c[0]; body=c.slice(1);
+    }
+    var n=body.length;
+    var r=0; while(Math.pow(2,r)<=n) r++;
+    // n = k + r，需满足 2^r >= n+1
+    while(Math.pow(2,r) < n+1) r++;
+    var k=n-r;
+    if(k<1) return {value:null, error:'码字长度 '+n+' 太短，无有效数据位'};
+    var cw=[0].concat(body);
+    var syn=0, checks=[];
+    for(var b=0;b<r;b++){
+      var pos=Math.pow(2,b), x=0;
+      for(var q=1;q<=n;q++) if(q & pos) x^=cw[q];
+      checks.push({pos:pos, fail:x===1});
+      if(x) syn|=pos;
+    }
+    var res={n:body.length, k:k, r:r, syndrome:syn, checks:checks,
+             scheme:(extended?'Extended Hamming('+(n+1)+','+k+') SECDED':'Hamming('+n+','+k+')')};
+    if(extended){
+      var parityAll=overall;
+      for(var i=0;i<body.length;i++) parityAll^=body[i];
+      res.overallFail = parityAll===1;
+      if(syn===0 && !res.overallFail){ res.status='无错误'; }
+      else if(syn!==0 && res.overallFail){ res.status='检出 1 位错误，已纠正'; res.errorPos=syn; }
+      else if(syn===0 && res.overallFail){ res.status='总校验位 P0 自身出错，数据可用'; res.errorPos=0; }
+      else { res.status='检出 2 位错误，无法纠正'; res.uncorrectable=true; }
+    } else {
+      if(syn===0) res.status='无错误';
+      else if(syn>n){ res.status='综合征 '+syn+' 超出码长，检出错误但无法定位'; res.uncorrectable=true; }
+      else { res.status='检出 1 位错误，已纠正'; res.errorPos=syn; }
+    }
+    var fixed=cw.slice();
+    if(res.errorPos && res.errorPos<=n) fixed[res.errorPos] ^= 1;
+    var dataOut=[];
+    for(var p=1;p<=n;p++) if(!isPow2(p)) dataOut.push(fixed[p]);
+    res.corrected = str(fixed.slice(1));
+    res.data = res.uncorrectable ? null : str(dataOut);
+    return {value:res, error:''};
+  }
+
+  function flip(codeStr, pos1){
+    var c=bits(codeStr);
+    if(pos1<1 || pos1>c.length) return codeStr;
+    c[pos1-1] ^= 1;
+    return str(c);
+  }
+  function textToBits(s){
+    var o='';
+    for(var i=0;i<s.length;i++){
+      var v=s.charCodeAt(i)&255, t=v.toString(2);
+      while(t.length<8) t='0'+t;
+      o+=t;
+    }
+    return o;
+  }
+  function bitsToText(b){
+    var t=bits(b), s='';
+    for(var i=0;i+7<t.length;i+=8){
+      var v=0; for(var j=0;j<8;j++) v=(v<<1)|t[i+j];
+      s+=String.fromCharCode(v);
+    }
+    return s;
+  }
+  function overhead(k, extended){
+    var r=parityCount(k);
+    var n=k+r+(extended?1:0);
+    return {n:n, r:r+(extended?1:0), percent:Math.round((n-k)/k*1000)/10};
+  }
+
+  var API={encode:encode, decode:decode, flip:flip, bits:bits, parityCount:parityCount,
+           isPow2:isPow2, textToBits:textToBits, bitsToText:bitsToText, overhead:overhead};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__HammingForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__HammingForge__, D=document, $=function(i){return D.getElementById(i);};
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function kv(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  function doEncode(){
+    var ext=$('hm_ext').checked;
+    var r=C.encode($('hm_in').value, ext);
+    $('hm_err').textContent=r.error||'';
+    if(!r.value){ $('hm_cw').value=''; render(); return; }
+    $('hm_cw').value=r.value.code;
+    render();
+  }
+  function render(){
+    var ext=$('hm_ext').checked;
+    var enc=C.encode($('hm_in').value, ext);
+    var d=C.decode($('hm_cw').value, ext);
+    $('hm_err').textContent=d.error||'';
+    if(!d.value){ $('hm_out').textContent=''; $('hm_stat').innerHTML=''; return; }
+    var v=d.value;
+    var st=kv(T('s_scheme'), v.scheme)
+      +kv(T('s_syn'), v.syndrome+(v.syndrome?'  (0b'+v.syndrome.toString(2)+')':''))
+      +kv(T('s_status'), v.status)
+      +kv(T('s_data'), v.data===null?'—':v.data);
+    if(enc.value) st+=kv(T('s_rate'), enc.value.k+' / '+enc.value.n+'  ('+C.overhead(enc.value.k, ext).percent+'% '+T('s_ovh')+')');
+    $('hm_stat').innerHTML=st;
+    var L=[];
+    L.push(T('s_pos')+':  '+$('hm_cw').value.replace(/[^01]/g,'').split('').map(function(b,i){return b;}).join(' '));
+    var idx=[]; var cw=$('hm_cw').value.replace(/[^01]/g,'');
+    for(var i=1;i<=cw.length;i++) idx.push(((ext?i-1:i)+'').slice(-1));
+    L.push(T('s_idx')+':  '+idx.join(' '));
+    L.push('');
+    for(var c=0;c<v.checks.length;c++){
+      L.push('  P'+v.checks[c].pos+'  '+(v.checks[c].fail?T('s_fail'):T('s_pass')));
+    }
+    if(v.overallFail!==undefined) L.push('  P0  '+(v.overallFail?T('s_fail'):T('s_pass')));
+    L.push('');
+    if(v.errorPos) L.push('  → '+T('s_errat')+' '+v.errorPos);
+    if(v.corrected) L.push('  → '+T('s_fixed')+' '+v.corrected);
+    if(v.data) L.push('  → '+T('s_data')+' '+v.data+'   "'+C.bitsToText(v.data)+'"');
+    $('hm_out').textContent=L.join('\n');
+  }
+  window.nanoRerender=render;
+  $('hm_enc').addEventListener('click',doEncode);
+  $('hm_in').addEventListener('input',doEncode);
+  $('hm_ext').addEventListener('change',doEncode);
+  $('hm_cw').addEventListener('input',render);
+  $('hm_flip').addEventListener('click',function(){
+    var p=parseInt($('hm_pos').value,10)||1;
+    $('hm_cw').value=C.flip($('hm_cw').value, p);
+    render();
+    if(window.nanoToast) window.nanoToast(T('flipped')+' '+p);
+  });
+  $('hm_copy').addEventListener('click',function(){
+    var t=$('hm_cw').value;
+    if(!t){ if(window.nanoToast) window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(t);
+  });
+  doEncode();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy codeword", "btn_enc": "Encode", "btn_flip": "Flip bit N", "copied": "Copied", "copyfail": "Copy failed", "flipped": "Flipped bit", "lb_cw": "Codeword (edit freely, decoded live)", "lb_ext": "Extended SECDED (adds overall parity P0)", "lb_in": "Data bits (0/1 only)", "nores": "No codeword to copy", "ph_in": "1011", "s_data": "Data bits", "s_errat": "error at position", "s_fail": "check FAILED", "s_fixed": "corrected", "s_idx": "Index", "s_ovh": "overhead", "s_pass": "check ok", "s_pos": "Codeword", "s_rate": "Code rate", "s_scheme": "Scheme", "s_status": "Status", "s_syn": "Syndrome", "sub": "Offline Hamming code workbench: encode, inject a bit error, watch the syndrome locate and fix it", "title": "HammingForge - offline Hamming code workbench"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制码字", "btn_enc": "编码", "btn_flip": "翻转第 N 位", "copied": "已复制", "copyfail": "复制失败", "flipped": "已翻转第", "lb_cw": "码字（可手动改动，下方即时解码）", "lb_ext": "扩展 SECDED（加总校验位 P0）", "lb_in": "数据位（只保留 0/1）", "nores": "没有可复制的码字", "ph_in": "1011", "s_data": "数据位", "s_errat": "错误位置", "s_fail": "校验失败", "s_fixed": "纠正后", "s_idx": "位号", "s_ovh": "冗余", "s_pass": "校验通过", "s_pos": "码字", "s_rate": "码率", "s_scheme": "编码方案", "s_status": "状态", "s_syn": "综合征", "sub": "汉明码怎么知道第几位错了？编好码后随手翻一位，看综合征把它精确指出来——扩展 SECDED 还能识别出双错。", "title": "HammingForge — 离线汉明码工作台：编码、注错、综合征定位与 SECDED"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

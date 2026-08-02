@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>LambdaForge — 离线 AWS Lambda 工作台：配置校验 / 成本估算 / IAM + SAM 片段</title>
+<meta property="og:title" content="LambdaForge">
+<meta property="og:description" content="离线 AWS Lambda 工作台，校验内存与超时、估算月成本（x86 对比 arm64）、生成 IAM 角色与 SAM 片段">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 AWS Lambda 工作台，校验内存与超时、估算月成本（x86 对比 arm64）、生成 IAM 角色与 SAM 片段 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>LambdaForge</h1>
+      <p class="sub" data-i18n="sub">调 Lambda 常被内存、超时、架构和账单牵着走。填几个数，给出合规校验、月度成本估算，以及可直接用的 IAM 角色和 SAM 片段。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <div class="grid">
+    <div><label for="lm_req" data-i18n="lb_req">月请求数</label><input id="lm_req" type="text" value="1000000" spellcheck="false"></div>
+    <div><label for="lm_dur" data-i18n="lb_dur">平均时长 (ms)</label><input id="lm_dur" type="text" value="200" spellcheck="false"></div>
+    <div><label for="lm_mem" data-i18n="lb_mem">内存 (MB)</label><input id="lm_mem" type="text" value="512" spellcheck="false"></div>
+    <div>
+      <label for="lm_arch" data-i18n="lb_arch">架构</label>
+      <select id="lm_arch"><option value="x86">x86_64</option><option value="arm">arm64 (Graviton)</option></select>
+    </div>
+    <div><label for="lm_to" data-i18n="lb_to">超时 (s)</label><input id="lm_to" type="text" value="30" spellcheck="false"></div>
+    <div><label for="lm_eps" data-i18n="lb_eps">临时存储 (MB)</label><input id="lm_eps" type="text" value="512" spellcheck="false"></div>
+  </div>
+  <div class="row">
+    <button id="lm_cost" type="button" data-i18n="btn_cost">估算成本</button>
+    <button id="lm_val" class="ghost" type="button" data-i18n="btn_val">校验配置</button>
+    <button id="lm_copy" class="ghost" type="button" data-i18n="btn_copy">复制报表</button>
+  </div>
+  <div class="err" id="lm_err" role="alert"></div>
+  <div class="grid" id="lm_stat"></div>
+  <div class="out"><pre id="lm_out" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  var PRICE={x86:{gbsec:0.0000166667, req:0.0000002}, arm:{gbsec:0.0000133334, req:0.0000002}};
+  var LIMITS={memMin:128, memMax:10240, timeoutMin:1, timeoutMax:900,
+              epsMin:512, epsMax:10240, envCountMax:500, envSizeMax:4096};
+  function vcpu(mb){ return mb/1769; }
+  function validate(cfg){
+    cfg=cfg||{};
+    var errs=[];
+    var m=cfg.mem, t=cfg.timeout, e=cfg.eps, arch=cfg.arch||'x86';
+    if(m==null||m%1!==0||m<LIMITS.memMin||m>LIMITS.memMax) errs.push('内存需在 '+LIMITS.memMin+'–'+LIMITS.memMax+' MB');
+    if(t==null||t%1!==0||t<LIMITS.timeoutMin||t>LIMITS.timeoutMax) errs.push('超时需在 '+LIMITS.timeoutMin+'–'+LIMITS.timeoutMax+' s');
+    if(e!=null && (e<LIMITS.epsMin||e>LIMITS.epsMax)) errs.push('临时存储需在 '+LIMITS.epsMin+'–'+LIMITS.epsMax+' MB');
+    if(arch!=='x86'&&arch!=='arm') errs.push('架构只能是 x86 或 arm');
+    if(m!=null && m>3008 && m%512!==0) errs.push('内存 >3008 MB 时只能按 1024 MB 步进');
+    return errs;
+  }
+  function cost(opts){
+    var R=opts.requests, D=opts.durationMs, M=opts.mem, arch=opts.arch||'x86';
+    if(!R||!D||!M) return {value:null,error:'请填写月请求数、平均时长(ms)、内存(MB)'};
+    var gbsec=R*(D/1000)*(M/1024);
+    var p=PRICE[arch]||PRICE.x86;
+    var compute=gbsec*p.gbsec;
+    var reqcost=R*p.req;
+    var total=compute+reqcost;
+    return {value:{gbsec:Math.round(gbsec*1000)/1000,
+                   computeUsd:Math.round(compute*100000)/100000,
+                   requestUsd:Math.round(reqcost*100000)/100000,
+                   totalUsd:Math.round(total*100000)/100000, arch:arch}, error:''};
+  }
+  function compareCost(opts){
+    var a=cost(opts), b=cost(Object.assign({},opts,{arch:'arm'}));
+    if(a.error||b.error) return {value:null,error:a.error||b.error};
+    var save=Math.round((1-b.value.totalUsd/a.value.totalUsd)*1000)/10;
+    return {value:{x86:a.value.totalUsd, arm:b.value.totalUsd, savePct:save}, error:''};
+  }
+  function recommend(cfg){
+    var recs=[]; var v=vcpu(cfg.mem||512);
+    if(v<0.5) recs.push('当前单 vCPU 比重仅 '+Math.round(v*100)/100+'；CPU 密集型任务建议提到 1024 MB 以上以拿到更多算力');
+    if(cfg.durationMs && cfg.timeout && cfg.durationMs>cfg.timeout*1000*0.8) recs.push('平均时长已接近超时上限，建议调高 timeout 或优化代码');
+    if(!recs.length) recs.push('配置看起来合理');
+    return recs;
+  }
+  function iamRole(opts){
+    opts=opts||{};
+    var stmts=[{Effect:'Allow',
+      Action:['logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents'],
+      Resource:'arn:aws:logs:*:*:*'}];
+    if(opts.s3) stmts.push({Effect:'Allow',Action:['s3:GetObject','s3:PutObject'],
+      Resource:'arn:aws:s3:::'+opts.s3+'/*'});
+    if(opts.dynamo) stmts.push({Effect:'Allow',
+      Action:['dynamodb:GetItem','dynamodb:PutItem','dynamodb:Query'],
+      Resource:'arn:aws:dynamodb:*:*:table/'+opts.dynamo});
+    var trust={Version:'2012-10-17',
+      Statement:[{Effect:'Allow',Principal:{Service:'lambda.amazonaws.com'},Action:'sts:AssumeRole'}]};
+    return {value:{trust:trust, policy:{Version:'2012-10-17', Statement:stmts}}, error:''};
+  }
+  function samSnippet(cfg){
+    cfg=cfg||{};
+    var s='  '+(cfg.name||'MyFunction')+':\n'+
+         '    Type: AWS::Serverless::Function\n'+
+         '    Properties:\n'+
+         '      Runtime: '+(cfg.runtime||'nodejs22.x')+'\n'+
+         '      Handler: '+(cfg.handler||'index.handler')+'\n'+
+         '      MemorySize: '+(cfg.mem||512)+'\n'+
+         '      Timeout: '+(cfg.timeout||30)+'\n'+
+         '      Architectures: ['+(cfg.arch==='arm'?'arm64':'x86_64')+']\n';
+    if(cfg.s3) s+='      # 需要访问的 S3 桶: '+cfg.s3+'\n';
+    return s;
+  }
+  var API={PRICE:PRICE, LIMITS:LIMITS, vcpu:vcpu, validate:validate, cost:cost,
+           compareCost:compareCost, recommend:recommend, iamRole:iamRole, samSnippet:samSnippet};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__LambdaForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__LambdaForge__, D=document, $=function(i){return D.getElementById(i);};
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function kv(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  var lastText='';
+  function num(id){ var v=parseFloat($(id).value); return isNaN(v)?null:v; }
+  function cfg(){ return {requests:num('lm_req'), durationMs:num('lm_dur'), mem:num('lm_mem'),
+    arch:$('lm_arch').value, timeout:num('lm_to'), eps:num('lm_eps')}; }
+  function renderCost(){
+    var r=C.cost(cfg());
+    if(r.error){ $('lm_err').textContent=r.error; $('lm_out').textContent=''; $('lm_stat').innerHTML=''; lastText=''; return; }
+    $('lm_err').textContent='';
+    var v=r.value;
+    $('lm_stat').innerHTML=kv(T('s_gbsec'), v.gbsec+' GB·s')
+      +kv(T('s_compute'), '$'+v.computeUsd)
+      +kv(T('s_req'), '$'+v.requestUsd)
+      +kv(T('s_total'), '$'+v.totalUsd)
+      +kv(T('s_arch'), v.arch==='arm'?'arm64':'x86_64');
+    var cmp=C.compareCost(cfg());
+    var L=['# '+T('s_report')+'  ('+(v.arch==='arm'?'arm64':'x86_64')+')',
+          T('s_gbsec')+': '+v.gbsec,
+          T('s_compute')+': $'+v.computeUsd,
+          T('s_req')+': $'+v.requestUsd,
+          T('s_total')+': $'+v.totalUsd];
+    if(cmp.value){
+      L.push('');
+      L.push('# '+T('s_arm'));
+      L.push('  x86_64: $'+cmp.value.x86);
+      L.push('  arm64 : $'+cmp.value.arm+'  ('+T('s_save')+' '+cmp.value.savePct+'%)');
+    }
+    lastText=L.join('\n');
+    $('lm_out').textContent=lastText;
+  }
+  function renderVal(){
+    var errs=C.validate(cfg());
+    $('lm_err').textContent='';
+    if(errs.length){ $('lm_out').textContent=T('s_invalid')+'\n- '+errs.join('\n- '); lastText=$('lm_out').textContent; $('lm_stat').innerHTML=''; return; }
+    var recs=C.recommend(cfg());
+    var L=['# '+T('s_ok'), T('s_vcpu')+': '+Math.round(C.vcpu(cfg().mem)*1000)/1000];
+    for(var i=0;i<recs.length;i++) L.push('• '+recs[i]);
+    lastText=L.join('\n'); $('lm_out').textContent=lastText;
+  }
+  window.nanoRerender=renderCost;
+  $('lm_cost').addEventListener('click',renderCost);
+  $('lm_val').addEventListener('click',renderVal);
+  $('lm_arch').addEventListener('change',renderCost);
+  $('lm_copy').addEventListener('click',function(){
+    if(!lastText){ if(window.nanoToast)window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(lastText);
+  });
+  renderCost();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy report", "btn_cost": "Estimate cost", "btn_val": "Validate", "copied": "Copied", "copyfail": "Copy failed", "lb_arch": "Arch", "lb_dur": "Avg duration (ms)", "lb_eps": "Ephemeral (MB)", "lb_mem": "Memory (MB)", "lb_req": "Monthly requests", "lb_to": "Timeout (s)", "nores": "Nothing to copy", "s_arch": "Arch", "s_arm": "arm64 compare", "s_compute": "Compute", "s_gbsec": "GB·s", "s_invalid": "Invalid config", "s_ok": "Valid config", "s_report": "Cost report", "s_req": "Request", "s_save": "save", "s_total": "Total", "s_vcpu": "vCPU share", "sub": "Offline AWS Lambda workbench: validate config, estimate cost (x86 vs arm), generate IAM role and SAM snippet", "title": "LambdaForge - offline AWS Lambda workbench"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制报表", "btn_cost": "估算成本", "btn_val": "校验配置", "copied": "已复制", "copyfail": "复制失败", "lb_arch": "架构", "lb_dur": "平均时长 (ms)", "lb_eps": "临时存储 (MB)", "lb_mem": "内存 (MB)", "lb_req": "月请求数", "lb_to": "超时 (s)", "nores": "没有可复制的报表", "s_arch": "架构", "s_arm": "arm64 对比", "s_compute": "计算费", "s_gbsec": "GB·秒", "s_invalid": "配置不合法", "s_ok": "配置合法", "s_report": "成本报表", "s_req": "请求费", "s_save": "可省", "s_total": "合计", "s_vcpu": "单 vCPU 比重", "sub": "调 Lambda 常被内存、超时、架构和账单牵着走。填几个数，给出合规校验、月度成本估算，以及可直接用的 IAM 角色和 SAM 片段。", "title": "LambdaForge — 离线 AWS Lambda 工作台：配置校验 / 成本估算 / IAM + SAM 片段"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

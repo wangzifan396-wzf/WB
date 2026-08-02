@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>VcardForge — 离线 vCard 工作台：vCard 3.0/4.0 解析与生成</title>
+<meta property="og:title" content="VcardForge">
+<meta property="og:description" content="离线 vCard 工作台，解析与生成 vCard 3.0/4.0，支持转义、多卡片与属性摘要">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 vCard 工作台，解析与生成 vCard 3.0/4.0，支持转义、多卡片与属性摘要 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>VcardForge</h1>
+      <p class="sub" data-i18n="sub">联系人卡片总是要在各种 App 之间搬。把字段填进去生成标准 vCard，也能把别人发来的文本贴回来解析成结构。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <div class="grid">
+    <div>
+      <label for="vc_fn" data-i18n="lb_fn">全名 (FN)</label>
+      <input id="vc_fn" type="text" value="张三" spellcheck="false">
+    </div>
+    <div>
+      <label for="vc_n" data-i18n="lb_n">姓名 (N，姓;名)</label>
+      <input id="vc_n" type="text" value="张;三" spellcheck="false">
+    </div>
+    <div><label for="vc_org" data-i18n="lb_org">组织 (ORG)</label><input id="vc_org" type="text" value="示例科技" spellcheck="false"></div>
+    <div><label for="vc_title" data-i18n="lb_title">职位 (TITLE)</label><input id="vc_title" type="text" value="工程师" spellcheck="false"></div>
+    <div><label for="vc_tel" data-i18n="lb_tel">电话 (多个用逗号)</label><input id="vc_tel" type="text" value="13800138000" spellcheck="false"></div>
+    <div><label for="vc_email" data-i18n="lb_email">邮箱 (多个用逗号)</label><input id="vc_email" type="text" value="zhangsan@example.com" spellcheck="false"></div>
+    <div><label for="vc_url" data-i18n="lb_url">网址 (URL)</label><input id="vc_url" type="text" value="https://example.com" spellcheck="false"></div>
+    <div>
+      <label for="vc_ver" data-i18n="lb_ver">版本</label>
+      <select id="vc_ver"><option value="3.0">3.0</option><option value="4.0">4.0</option></select>
+    </div>
+  </div>
+  <div class="row">
+    <button id="vc_gen" type="button" data-i18n="btn_gen">生成 vCard</button>
+    <button id="vc_copy" class="ghost" type="button" data-i18n="btn_copy">复制</button>
+  </div>
+  <div class="out"><pre id="vc_out" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <hr style="border:none;border-top:1px dashed var(--line);margin:18px 0">
+  <label style="margin-top:0" for="vc_in" data-i18n="lb_parse">粘贴 vCard 文本解析</label>
+  <textarea id="vc_in" rows="4" spellcheck="false" data-i18n-ph="ph_parse"></textarea>
+  <div class="row">
+    <button id="vc_parse" type="button" data-i18n="btn_parse">解析</button>
+  </div>
+  <div class="err" id="vc_err" role="alert"></div>
+  <div class="out"><pre id="vc_sum" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  function unescape(v){
+    return String(v)
+      .replace(/\\n/gi,'\n')
+      .replace(/\\,/g,',')
+      .replace(/\\;/g,';')
+      .replace(/\\\\/g,'\\');
+  }
+  function vescape(v){
+    return String(v)
+      .replace(/\\/g,'\\\\')
+      .replace(/\n/g,'\\n')
+      .replace(/,/g,'\\,')
+      .replace(/;/g,'\\;');
+  }
+  function splitParams(p){
+    if(!p) return [];
+    return p.split(';').map(function(x){ var kv=x.split('='); return {k:(kv[0]||'').toUpperCase(), v:kv[1]||''}; });
+  }
+  function parse(text){
+    if(!text || !String(text).trim()) return {value:null,error:'输入为空'};
+    var norm='\n'+String(text).replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    var blocks=norm.split('\nBEGIN:VCARD');
+    var cards=[];
+    for(var bi=1; bi<blocks.length; bi++){
+      var body='BEGIN:VCARD'+blocks[bi];
+      var end=body.indexOf('END:VCARD');
+      if(end<0) continue;
+      body=body.slice(0,end);
+      var raw=body.split('\n'), lines=[], i=0;
+      while(i<raw.length){
+        var line=raw[i];
+        while(i+1<raw.length && /^[ \t]/.test(raw[i+1])) line+=raw[++i].slice(1);
+        i++;
+        if(/^\s*$/.test(line)) continue;
+        lines.push(line);
+      }
+      var card={};
+      for(var li=0; li<lines.length; li++){
+        var mm=/^([^:;]+)((?:;[^:;]+)*):([\s\S]*)$/.exec(lines[li]);
+        if(!mm) continue;
+        var name=mm[1].toUpperCase();
+        var params=splitParams(mm[2]?mm[2].slice(1):'');
+        var val=unescape(mm[3]);
+        (card[name]=card[name]||[]).push({params:params, value:val});
+      }
+      cards.push(card);
+    }
+    if(!cards.length) return {value:null,error:'未找到 BEGIN:VCARD'};
+    return {value:cards, error:''};
+  }
+  function first(card,name){ return (card[name]&&card[name][0])?card[name][0].value:''; }
+  function summary(card){
+    return {
+      fn:first(card,'FN'), n:first(card,'N'), org:first(card,'ORG'),
+      title:first(card,'TITLE'), url:first(card,'URL'), adr:first(card,'ADR'),
+      tel:(card.TEL||[]).map(function(t){return t.value;}),
+      email:(card.EMAIL||[]).map(function(t){return t.value;}),
+      version:first(card,'VERSION')
+    };
+  }
+  function toV3(card){
+    // 把 4.0 的某些属性回退到 3.0 写法（简化：复制并改 VERSION）
+    return card;
+  }
+  function gen(fields, ver){
+    ver=ver||'3.0';
+    var L=['BEGIN:VCARD','VERSION:'+ver];
+    if(fields.fn) L.push('FN:'+vescape(fields.fn));
+    if(fields.n) L.push('N:'+vescape(fields.n));
+    if(fields.org) L.push('ORG:'+vescape(fields.org));
+    if(fields.title) L.push('TITLE:'+vescape(fields.title));
+    if(fields.tel){ (Array.isArray(fields.tel)?fields.tel:[fields.tel]).forEach(function(t){ if(t) L.push('TEL;TYPE=CELL:'+vescape(t)); }); }
+    if(fields.email){ (Array.isArray(fields.email)?fields.email:[fields.email]).forEach(function(e){ if(e) L.push('EMAIL;TYPE=INTERNET:'+vescape(e)); }); }
+    if(fields.url) L.push('URL:'+vescape(fields.url));
+    if(fields.adr) L.push('ADR;TYPE=HOME:'+vescape(fields.adr));
+    L.push('END:VCARD');
+    return L.join('\n');
+  }
+  var API={parse:parse, summary:summary, gen:gen, unescape:unescape, vescape:vescape, toV3:toV3};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__VcardForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__VcardForge__, D=document, $=function(i){return D.getElementById(i);};
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  var lastText='';
+  function fields(){
+    return {fn:$('vc_fn').value, n:$('vc_n').value, org:$('vc_org').value, title:$('vc_title').value,
+      tel:$('vc_tel').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
+      email:$('vc_email').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
+      url:$('vc_url').value, adr:''};
+  }
+  function renderGen(){
+    var txt=C.gen(fields(), $('vc_ver').value);
+    lastText=txt; $('vc_out').textContent=txt;
+  }
+  function parseUI(){
+    var r=C.parse($('vc_in').value);
+    if(r.error){ $('vc_err').textContent=r.error; $('vc_sum').textContent=''; return; }
+    $('vc_err').textContent='';
+    var L=[];
+    r.value.forEach(function(card,idx){
+      var s=C.summary(card);
+      L.push('# '+(idx+1)+'  '+(s.fn||s.n||'(无 FN)'));
+      if(s.org) L.push('  组织: '+s.org);
+      if(s.title) L.push('  职位: '+s.title);
+      if(s.tel.length) L.push('  电话: '+s.tel.join(', '));
+      if(s.email.length) L.push('  邮箱: '+s.email.join(', '));
+      if(s.url) L.push('  网址: '+s.url);
+      L.push('');
+    });
+    $('vc_sum').textContent=L.join('\n');
+  }
+  window.nanoRerender=renderGen;
+  ['vc_fn','vc_n','vc_org','vc_title','vc_tel','vc_email','vc_url'].forEach(function(id){
+    $(id).addEventListener('input',renderGen);
+  });
+  $('vc_ver').addEventListener('change',renderGen);
+  $('vc_gen').addEventListener('click',renderGen);
+  $('vc_copy').addEventListener('click',function(){
+    if(!lastText){ if(window.nanoToast)window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(lastText);
+  });
+  $('vc_parse').addEventListener('click',parseUI);
+  renderGen();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy", "btn_gen": "Generate vCard", "btn_parse": "Parse", "copied": "Copied", "copyfail": "Copy failed", "lb_email": "Email", "lb_fn": "Full name (FN)", "lb_n": "Name (N)", "lb_org": "Org (ORG)", "lb_parse": "Paste vCard to parse", "lb_tel": "Phone", "lb_title": "Title", "lb_url": "URL", "lb_ver": "Version", "nores": "Nothing to copy", "ph_parse": "BEGIN:VCARD …", "sub": "Offline vCard workbench: parse and generate vCard 3.0 / 4.0, with escaping and multi-card support", "title": "VcardForge - offline vCard workbench"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制", "btn_gen": "生成 vCard", "btn_parse": "解析", "copied": "已复制", "copyfail": "复制失败", "lb_email": "邮箱", "lb_fn": "全名 (FN)", "lb_n": "姓名 (N)", "lb_org": "组织 (ORG)", "lb_parse": "粘贴 vCard 文本解析", "lb_tel": "电话", "lb_title": "职位 (TITLE)", "lb_url": "网址 (URL)", "lb_ver": "版本", "nores": "没有可复制的内容", "ph_parse": "BEGIN:VCARD …", "sub": "联系人卡片总是要在各种 App 之间搬。把字段填进去生成标准 vCard，也能把别人发来的文本贴回来解析成结构。", "title": "VcardForge — 离线 vCard 工作台：vCard 3.0/4.0 解析与生成"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

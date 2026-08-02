@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>DtmfForge — 离线 DTMF 双音多频工作台：按键↔频率 编码 / 解码 / 识别</title>
+<meta property="og:title" content="DtmfForge">
+<meta property="og:description" content="离线 DTMF 双音多频工作台，把按键编码成低频+高频，也能反过来解码、按频率识别按键">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 DTMF 双音多频工作台，把按键编码成低频+高频，也能反过来解码、按频率识别按键 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>DtmfForge</h1>
+      <p class="sub" data-i18n="sub">电话拨号音本质上是两个正弦波叠加。粘贴一串按键，立刻得到每一键对应的双频；反过来输入频率也能认出按了什么。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="dt_in" data-i18n="lb_in">要编码的按键（数字 / * # A-D）</label>
+  <input id="dt_in" type="text" value="123#" spellcheck="false" data-i18n-ph="ph_in">
+  <div class="row">
+    <button id="dt_enc" type="button" data-i18n="btn_enc">编码</button>
+    <button id="dt_copy" class="ghost" type="button" data-i18n="btn_copy">复制结果</button>
+  </div>
+  <div class="err" id="dt_err" role="alert"></div>
+  <div class="out"><pre id="dt_encout" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <hr style="border:none;border-top:1px dashed var(--line);margin:18px 0">
+  <div id="dt_pad" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px"></div>
+
+  <label style="margin-top:0" data-i18n="lb_dec">解码 / 识别（填入低频 + 高频 Hz）</label>
+  <div class="grid">
+    <input id="dt_lo" type="text" value="697" spellcheck="false" data-i18n-ph="ph_lo">
+    <input id="dt_hi" type="text" value="1209" spellcheck="false" data-i18n-ph="ph_hi">
+  </div>
+  <div class="row">
+    <button id="dt_dec" type="button" data-i18n="btn_dec">解码</button>
+  </div>
+  <div class="out" style="margin-top:12px"><pre id="dt_decout" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  var LOW=[697,770,852,941];
+  var HIGH=[1209,1336,1477,1633];
+  var KEYS=[
+    ['1','2','3','A'],
+    ['4','5','6','B'],
+    ['7','8','9','C'],
+    ['*','0','#','D']
+  ];
+  function encodeChar(ch){
+    ch=String(ch).toUpperCase();
+    for(var r=0;r<4;r++) for(var c=0;c<4;c++) if(KEYS[r][c]===ch)
+      return {key:ch, low:LOW[r], high:HIGH[c]};
+    return null;
+  }
+  function encode(str){
+    if(str==null) return {value:null,error:'输入为空'};
+    str=String(str);
+    var arr=[];
+    for(var i=0;i<str.length;i++){
+      var e=encodeChar(str[i]);
+      if(!e) return {value:null,error:'非法字符：'+str[i]+'（仅支持 0-9 * # A-D）'};
+      arr.push(e);
+    }
+    return {value:arr, error:''};
+  }
+  function decode(low,high){
+    var r=LOW.indexOf(low), c=HIGH.indexOf(high);
+    if(r<0||c<0) return {value:null,error:'频率不在 DTMF 标准集内'};
+    return {value:{key:KEYS[r][c], low:low, high:high}, error:''};
+  }
+  function nearest(set,f){
+    var bi=-1, bd=1e9;
+    for(var i=0;i<set.length;i++){ var d=Math.abs(set[i]-f); if(d<bd){bd=d;bi=i;} }
+    return {idx:bi, dist:bd};
+  }
+  function detect(lowHz, highHz, tolPct){
+    tolPct=(tolPct==null)?1.5:tolPct;
+    var ln=nearest(LOW, lowHz), hn=nearest(HIGH, highHz);
+    if(ln.idx<0||hn.idx<0) return {value:null,error:'频率超出范围'};
+    if(ln.dist > LOW[ln.idx]*tolPct/100) return {value:null,error:'低频 '+lowHz+' Hz 偏离 '+LOW[ln.idx]+' 超出容差'};
+    if(hn.dist > HIGH[hn.idx]*tolPct/100) return {value:null,error:'高频 '+highHz+' Hz 偏离 '+HIGH[hn.idx]+' 超出容差'};
+    return {value:{key:KEYS[ln.idx][hn.idx], low:LOW[ln.idx], high:HIGH[hn.idx]}, error:''};
+  }
+  function keypad(){
+    var rows=[];
+    for(var r=0;r<4;r++){
+      var row=[];
+      for(var c=0;c<4;c++) row.push({key:KEYS[r][c], low:LOW[r], high:HIGH[c]});
+      rows.push(row);
+    }
+    return {low:LOW, high:HIGH, rows:rows};
+  }
+  var API={LOW:LOW,HIGH:HIGH,KEYS:KEYS,encode:encode,encodeChar:encodeChar,
+           decode:decode,detect:detect,keypad:keypad,nearest:nearest};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__DtmfForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__DtmfForge__, D=document, $=function(i){return D.getElementById(i);};
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  var lastText='';
+
+  // 画 4x4 键盘
+  (function(){
+    var pad=$('dt_pad'), kp=C.keypad();
+    for(var r=0;r<4;r++) for(var c=0;c<4;c++){
+      var cell=kp.rows[r][c];
+      var b=D.createElement('button');
+      b.type='button';
+      b.style.cssText='background:var(--surface);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:10px 0;cursor:pointer;font-size:16px';
+      b.textContent=cell.key;
+      b.title=cell.low+' / '+cell.high+' Hz';
+      b.addEventListener('click',function(evt){
+        var k=evt.currentTarget.textContent;
+        $('dt_in').value=($('dt_in').value+k);
+        render();
+      });
+      pad.appendChild(b);
+    }
+  })();
+
+  function render(){
+    var r=C.encode($('dt_in').value);
+    $('dt_err').textContent=r.error||'';
+    if(!r.value){ $('dt_encout').textContent=''; lastText=''; return; }
+    var L=['# '+T('s_enc')+'  '+r.value.length+' '+T('s_syms')];
+    for(var i=0;i<r.value.length;i++){
+      var e=r.value[i];
+      L.push('  '+e.key+'\t'+e.low+' Hz + '+e.high+' Hz');
+    }
+    lastText=L.join('\n');
+    $('dt_encout').textContent=lastText;
+  }
+  function decodeUI(){
+    var lo=parseFloat($('dt_lo').value), hi=parseFloat($('dt_hi').value);
+    if(isNaN(lo)||isNaN(hi)){ $('dt_decout').textContent=T('s_num'); return; }
+    var r=C.decode(lo,hi);
+    if(r.error){
+      var d=C.detect(lo,hi);
+      if(d.value) $('dt_decout').textContent=T('s_near')+'  '+d.value.key+'  ('+d.value.low+'/'+d.value.high+' Hz)';
+      else $('dt_decout').textContent=r.error;
+      return;
+    }
+    $('dt_decout').textContent=r.value.key+'  =  '+r.value.low+' Hz + '+r.value.high+' Hz';
+  }
+  window.nanoRerender=render;
+  $('dt_enc').addEventListener('click',render);
+  $('dt_in').addEventListener('input',render);
+  $('dt_copy').addEventListener('click',function(){
+    if(!lastText){ if(window.nanoToast)window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(lastText);
+  });
+  $('dt_dec').addEventListener('click',decodeUI);
+  render();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy result", "btn_dec": "Decode", "btn_enc": "Encode", "copied": "Copied", "copyfail": "Copy failed", "lb_dec": "Decode / detect", "lb_in": "Keys to encode", "nores": "Nothing to copy", "ph_hi": "high Hz", "ph_in": "123#ABC", "ph_lo": "low Hz", "s_enc": "Encoded", "s_near": "nearest (within tolerance):", "s_num": "enter numbers", "s_syms": "symbols", "sub": "Offline DTMF dual-tone workbench: encode keys to frequencies, decode and detect tones", "title": "DtmfForge - offline DTMF dual-tone workbench"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制结果", "btn_dec": "解码", "btn_enc": "编码", "copied": "已复制", "copyfail": "复制失败", "lb_dec": "解码 / 识别", "lb_in": "要编码的按键", "nores": "没有可复制的结果", "ph_hi": "高频 Hz", "ph_in": "123#ABC", "ph_lo": "低频 Hz", "s_enc": "编码", "s_near": "容差内最近匹配：", "s_num": "请输入数字", "s_syms": "个符号", "sub": "电话拨号音本质上是两个正弦波叠加。粘贴一串按键，立刻得到每一键对应的双频；反过来输入频率也能认出按了什么。", "title": "DtmfForge — 离线 DTMF 双音多频工作台：按键↔频率 编码 / 解码 / 识别"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

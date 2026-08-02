@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>NmeaForge — 离线 NMEA 0183 解析器：GGA/RMC/GSA/GSV/VTG 字段与校验和</title>
+<meta property="og:title" content="NmeaForge">
+<meta property="og:description" content="离线 NMEA 0183 语句解析器，逐字段解释 GGA/RMC/GSA/GSV/VTG 等，校验 XOR 校验和并换算经纬度">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 NMEA 0183 语句解析器，逐字段解释 GGA/RMC/GSA/GSV/VTG 等，校验 XOR 校验和并换算经纬度 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>NmeaForge</h1>
+      <p class="sub" data-i18n="sub">GPS 模块吐出的那串 $GPGGA 到底说了什么。这里逐字段翻译，顺带校验 XOR 校验和、把 ddmm.mmmm 换成十进制度。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="nm_in" data-i18n="lb_in">NMEA 0183 语句（每行一条）</label>
+  <textarea id="nm_in" rows="6" spellcheck="false" data-i18n-ph="ph_in"></textarea>
+  <div class="row">
+    <button id="nm_go" type="button" data-i18n="btn_go">解析</button>
+    <button id="nm_demo" class="ghost" type="button" data-i18n="btn_demo">示例语句</button>
+    <button id="nm_fix" class="ghost" type="button" data-i18n="btn_fix">重算校验和</button>
+    <button id="nm_copy" class="ghost" type="button" data-i18n="btn_copy">复制报告</button>
+  </div>
+  <div class="err" id="nm_err" role="alert"></div>
+  <div class="grid" id="nm_stat"></div>
+  <div class="out"><pre id="nm_out" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  var TALKERS={GP:'GPS',GL:'GLONASS',GA:'Galileo',GB:'BeiDou',BD:'BeiDou (旧)',GQ:'QZSS',GN:'多星座组合',
+               GI:'NavIC',HC:'磁罗盘',II:'综合仪器',IN:'惯导',EC:'ECDIS',AI:'AIS',SD:'测深仪',VW:'水速'};
+  var FIX={0:'无定位',1:'GPS 单点',2:'差分 DGPS',3:'PPS',4:'RTK 固定解',5:'RTK 浮动解',6:'惯导推算',7:'手动输入',8:'仿真'};
+  var STATUS={A:'有效',V:'无效/警告'};
+  var MODE={A:'自主',D:'差分',E:'推算',M:'手动',S:'仿真',N:'无效',R:'RTK 固定',F:'RTK 浮动',P:'精密'};
+
+  function checksum(body){
+    var s=0;
+    for(var i=0;i<body.length;i++) s ^= body.charCodeAt(i) & 255;
+    var h=s.toString(16).toUpperCase();
+    return h.length<2 ? '0'+h : h;
+  }
+  function num(v){ if(v===''||v===undefined||v===null) return null; var n=parseFloat(v); return isNaN(n)?null:n; }
+  function intv(v){ if(v===''||v===undefined) return null; var n=parseInt(v,10); return isNaN(n)?null:n; }
+
+  // ddmm.mmmm / dddmm.mmmm + N/S/E/W → 十进制度
+  function coord(v, hemi){
+    if(!v) return null;
+    var dot=v.indexOf('.');
+    var degLen = dot>=0 ? dot-2 : v.length-2;
+    if(degLen<1) return null;
+    var deg=parseInt(v.slice(0,degLen),10), min=parseFloat(v.slice(degLen));
+    if(isNaN(deg)||isNaN(min)) return null;
+    if(min>=60) return null;
+    var d = deg + min/60;
+    if(hemi==='S'||hemi==='W') d=-d;
+    return Math.round(d*1e7)/1e7;
+  }
+  function dms(dec, isLat){
+    if(dec===null) return '—';
+    var hemi = isLat ? (dec<0?'S':'N') : (dec<0?'W':'E');
+    var a=Math.abs(dec), d=Math.floor(a), mf=(a-d)*60, m=Math.floor(mf), s=(mf-m)*60;
+    return d+'° '+m+"' "+s.toFixed(2)+'" '+hemi;
+  }
+  function utc(t){
+    if(!t||t.length<6) return null;
+    return t.slice(0,2)+':'+t.slice(2,4)+':'+t.slice(4);
+  }
+  function dmy(d){
+    if(!d||d.length!==6) return null;
+    var yy=parseInt(d.slice(4),10);
+    return (yy<80?2000+yy:1900+yy)+'-'+d.slice(2,4)+'-'+d.slice(0,2);
+  }
+
+  function describe(type, f){
+    var o={};
+    if(type==='GGA'){
+      o['UTC 时间']=utc(f[1]);
+      o['纬度']=coord(f[2],f[3]); o['经度']=coord(f[4],f[5]);
+      o['定位质量']=(FIX[intv(f[6])]||'未知')+' ('+f[6]+')';
+      o['使用卫星数']=intv(f[7]); o['水平精度因子 HDOP']=num(f[8]);
+      o['海拔']=num(f[9])!==null?(num(f[9])+' '+(f[10]||'M')):null;
+      o['大地水准面差']=num(f[11])!==null?(num(f[11])+' '+(f[12]||'M')):null;
+      o['差分龄期']=num(f[13]); o['差分基准站']=f[14]||null;
+    } else if(type==='RMC'){
+      o['UTC 时间']=utc(f[1]); o['状态']=(STATUS[f[2]]||f[2]||'—');
+      o['纬度']=coord(f[3],f[4]); o['经度']=coord(f[5],f[6]);
+      o['对地速度']=num(f[7])!==null?(num(f[7])+' kn  ('+(num(f[7])*1.852).toFixed(2)+' km/h)'):null;
+      o['航向']=num(f[8])!==null?(num(f[8])+'°'):null;
+      o['日期']=dmy(f[9]);
+      o['磁偏角']=num(f[10])!==null?(num(f[10])+'° '+(f[11]||'')):null;
+      if(f[12]) o['定位模式']=(MODE[f[12].charAt(0)]||f[12]);
+    } else if(type==='GSA'){
+      o['模式']=f[1]==='A'?'自动 2D/3D':(f[1]==='M'?'手动':f[1]);
+      o['定位维度']=({1:'未定位',2:'2D',3:'3D'})[intv(f[2])]||f[2];
+      var prns=[];
+      for(var i=3;i<=14;i++) if(f[i]) prns.push(f[i]);
+      o['参与解算 PRN']=prns.length?prns.join(', '):'—';
+      o['PDOP']=num(f[15]); o['HDOP']=num(f[16]); o['VDOP']=num(f[17]);
+    } else if(type==='GSV'){
+      o['本组消息数']=intv(f[1]); o['当前第几条']=intv(f[2]); o['可见卫星总数']=intv(f[3]);
+      var sats=[];
+      for(var k=4;k+3<f.length;k+=4){
+        if(!f[k]) continue;
+        sats.push({prn:f[k], elev:intv(f[k+1]), az:intv(f[k+2]), snr:intv(f[k+3])});
+      }
+      o['本条卫星']=sats.length?sats.map(function(s){
+        return 'PRN '+s.prn+' 仰角'+(s.elev===null?'—':s.elev)+'° 方位'+(s.az===null?'—':s.az)+'° SNR '+(s.snr===null?'—':s.snr);
+      }).join('\n'):'—';
+      o.__sats=sats;
+    } else if(type==='VTG'){
+      o['真北航向']=num(f[1])!==null?(num(f[1])+'°'):null;
+      o['磁北航向']=num(f[3])!==null?(num(f[3])+'°'):null;
+      o['速度(节)']=num(f[5]); o['速度(km/h)']=num(f[7]);
+      if(f[9]) o['定位模式']=(MODE[f[9].charAt(0)]||f[9]);
+    } else if(type==='GLL'){
+      o['纬度']=coord(f[1],f[2]); o['经度']=coord(f[3],f[4]);
+      o['UTC 时间']=utc(f[5]); o['状态']=STATUS[f[6]]||f[6];
+      if(f[7]) o['定位模式']=(MODE[f[7].charAt(0)]||f[7]);
+    } else if(type==='ZDA'){
+      o['UTC 时间']=utc(f[1]);
+      o['日期']=(f[4]||'????')+'-'+(f[3]||'??')+'-'+(f[2]||'??');
+      o['本地时区']=(f[5]||'0')+'h '+(f[6]||'0')+'min';
+    } else if(type==='HDT'){
+      o['真北艏向']=num(f[1])!==null?(num(f[1])+'°'):null;
+    } else if(type==='DBT'){
+      o['水深(英尺)']=num(f[1]); o['水深(米)']=num(f[3]); o['水深(英寻)']=num(f[5]);
+    } else {
+      for(var z=1;z<f.length;z++) o['字段 '+z]=f[z];
+    }
+    return o;
+  }
+
+  function parseLine(line){
+    var raw=String(line||'').trim();
+    if(!raw) return null;
+    var res={raw:raw, ok:false, error:'', type:'', talker:'', talkerName:'', fields:[], data:{}, checksum:null, expected:null};
+    var head=raw.charAt(0);
+    if(head!=='$' && head!=='!'){ res.error='语句必须以 $ 或 ! 开头'; return res; }
+    res.encapsulated = head==='!';
+    var star=raw.lastIndexOf('*');
+    var body, given=null;
+    if(star>=0){ body=raw.slice(1,star); given=raw.slice(star+1).trim().toUpperCase(); }
+    else { body=raw.slice(1); res.error='缺少 * 校验和分隔符'; }
+    res.expected=checksum(body);
+    res.checksum=given;
+    if(given!==null){
+      if(!/^[0-9A-F]{2}$/.test(given)) res.error='校验和格式非法："'+given+'"';
+      else if(given!==res.expected) res.error='校验和不匹配：报文 '+given+'，实算 '+res.expected;
+    }
+    var f=body.split(',');
+    res.fields=f;
+    var addr=f[0]||'';
+    if(/^[A-Z]{2}[A-Z0-9]{3}$/.test(addr)){
+      res.talker=addr.slice(0,2); res.type=addr.slice(2);
+      res.talkerName=TALKERS[res.talker]||('未知 '+res.talker);
+    } else if(/^P/.test(addr)){
+      res.talker='P'; res.talkerName='厂商专有'; res.type=addr.slice(1);
+    } else {
+      res.type=addr; res.talkerName='—';
+      if(!res.error) res.error='地址字段 "'+addr+'" 不符合 5 字符规范';
+    }
+    if(raw.length>82) res.error = res.error || '语句长度 '+raw.length+' 超过 NMEA 0183 的 82 字符上限';
+    res.data=describe(res.type, f);
+    res.ok = !res.error;
+    return res;
+  }
+
+  function parse(text){
+    var lines=String(text||'').split(/\r?\n/), out=[], okc=0, badc=0;
+    for(var i=0;i<lines.length;i++){
+      if(!lines[i].trim()) continue;
+      var r=parseLine(lines[i]);
+      if(!r) continue;
+      out.push(r);
+      if(r.ok) okc++; else badc++;
+    }
+    if(!out.length) return {value:null, error:'没有可解析的语句'};
+    // 汇总位置
+    var pos=null, sats=null, fix=null;
+    for(var k=0;k<out.length;k++){
+      var s=out[k];
+      if(!s.ok) continue;
+      if(s.type==='GGA'){
+        if(s.data['纬度']!==null && s.data['经度']!==null) pos={lat:s.data['纬度'], lon:s.data['经度']};
+        sats=s.data['使用卫星数']; fix=s.data['定位质量'];
+      } else if(s.type==='RMC' && !pos && s.data['纬度']!==null){
+        pos={lat:s.data['纬度'], lon:s.data['经度']};
+      }
+    }
+    return {value:{sentences:out, ok:okc, bad:badc, position:pos, satellites:sats, fix:fix}, error:''};
+  }
+
+  function build(body){
+    var b=String(body||'').replace(/^[$!]/,'').replace(/\*.*$/,'');
+    return '$'+b+'*'+checksum(b);
+  }
+
+  var API={parse:parse, parseLine:parseLine, checksum:checksum, build:build,
+           coord:coord, dms:dms, utc:utc, dmy:dmy, TALKERS:TALKERS, FIX:FIX};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__NmeaForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__NmeaForge__, D=document, $=function(i){return D.getElementById(i);};
+  var DEMO=['$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47',
+            '$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A',
+            '$GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1*39',
+            '$GPGSV,2,1,08,01,40,083,46,02,17,308,41,12,07,344,39,14,22,228,45*75',
+            '$GPVTG,054.7,T,034.4,M,005.5,N,010.2,K*48'].join('\n');
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function kv(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  var lastText='';
+  function render(){
+    var r=C.parse($('nm_in').value);
+    $('nm_err').textContent=r.error||'';
+    if(!r.value){ $('nm_out').textContent=''; $('nm_stat').innerHTML=''; lastText=''; return; }
+    var v=r.value;
+    var st=kv(T('s_total'), v.sentences.length)+kv(T('s_ok'), v.ok+' / '+T('s_bad')+' '+v.bad);
+    if(v.position) st+=kv(T('s_pos'), v.position.lat.toFixed(6)+', '+v.position.lon.toFixed(6))
+                     +kv(T('s_dms'), C.dms(v.position.lat,true)+'  '+C.dms(v.position.lon,false));
+    if(v.fix) st+=kv(T('s_fix'), v.fix);
+    if(v.satellites!==null && v.satellites!==undefined) st+=kv(T('s_sats'), v.satellites);
+    $('nm_stat').innerHTML=st;
+    var L=[];
+    for(var i=0;i<v.sentences.length;i++){
+      var s=v.sentences[i];
+      L.push((s.ok?'✓ ':'✗ ')+s.raw);
+      L.push('   '+(s.talkerName||'—')+' / '+s.type+'   checksum '+(s.checksum||'—')+
+             (s.checksum===s.expected?' (OK)':' (应为 '+s.expected+')'));
+      if(s.error) L.push('   ! '+s.error);
+      for(var k in s.data){
+        if(k.indexOf('__')===0) continue;
+        var val=s.data[k];
+        if(val===null||val===undefined||val==='') continue;
+        var str=String(val);
+        if(str.indexOf('\n')>=0) str='\n       '+str.split('\n').join('\n       ');
+        L.push('   '+k+': '+str);
+      }
+      L.push('');
+    }
+    lastText=L.join('\n');
+    $('nm_out').textContent=lastText;
+  }
+  window.nanoRerender=render;
+  $('nm_go').addEventListener('click',render);
+  $('nm_in').addEventListener('input',render);
+  $('nm_demo').addEventListener('click',function(){ $('nm_in').value=DEMO; render(); });
+  $('nm_fix').addEventListener('click',function(){
+    var out=$('nm_in').value.split(/\r?\n/).map(function(l){ return l.trim()?C.build(l):l; }).join('\n');
+    $('nm_in').value=out; render();
+    if(window.nanoToast) window.nanoToast(T('fixed'));
+  });
+  $('nm_copy').addEventListener('click',function(){
+    if(!lastText){ if(window.nanoToast) window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(lastText);
+  });
+  $('nm_in').value=DEMO; render();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy report", "btn_demo": "Sample", "btn_fix": "Recompute checksum", "btn_go": "Parse", "copied": "Copied", "copyfail": "Copy failed", "fixed": "Checksums recomputed", "lb_in": "NMEA 0183 sentences (one per line)", "nores": "Nothing to copy", "ph_in": "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", "s_bad": "failed", "s_dms": "DMS", "s_fix": "Fix quality", "s_ok": "Checksum OK", "s_pos": "Decimal lat/lon", "s_sats": "Satellites used", "s_total": "Sentences", "sub": "Offline NMEA 0183 sentence decoder with checksum verification and coordinate conversion", "title": "NmeaForge - offline NMEA 0183 decoder"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制报告", "btn_demo": "示例语句", "btn_fix": "重算校验和", "btn_go": "解析", "copied": "已复制", "copyfail": "复制失败", "fixed": "已重算校验和", "lb_in": "NMEA 0183 语句（每行一条）", "nores": "没有可复制的结果", "ph_in": "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47", "s_bad": "失败", "s_dms": "度分秒", "s_fix": "定位质量", "s_ok": "校验通过", "s_pos": "十进制经纬度", "s_sats": "使用卫星数", "s_total": "语句数", "sub": "GPS 模块吐出的那串 $GPGGA 到底说了什么。这里逐字段翻译，顺带校验 XOR 校验和、把 ddmm.mmmm 换成十进制度。", "title": "NmeaForge — 离线 NMEA 0183 解析器：GGA/RMC/GSA/GSV/VTG 字段与校验和"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

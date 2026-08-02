@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>Asn1Forge — 离线 ASN.1 DER 解析器：TLV 树、OID 查表、DER 规范校验</title>
+<meta property="og:title" content="Asn1Forge">
+<meta property="og:description" content="离线 ASN.1 DER/BER TLV 树解析器，含 OID 查表、不定长检测与最短长度编码校验">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 ASN.1 DER/BER TLV 树解析器，含 OID 查表、不定长检测与最短长度编码校验 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>Asn1Forge</h1>
+      <p class="sub" data-i18n="sub">把证书、密钥、签名的 DER 字节展开成 TLV 树。自动查 OID，并指出违反 DER 最短编码的地方。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="as_in" data-i18n="lb_in">DER 字节（十六进制）或 PEM / Base64</label>
+  <textarea id="as_in" rows="6" spellcheck="false" data-i18n-ph="ph_in"></textarea>
+  <div class="row">
+    <button id="as_go" type="button" data-i18n="btn_go">解析 TLV 树</button>
+    <button id="as_demo" class="ghost" type="button" data-i18n="btn_demo">示例 (AlgorithmIdentifier)</button>
+    <button id="as_copy" class="ghost" type="button" data-i18n="btn_copy">复制树</button>
+  </div>
+  <div class="err" id="as_err" role="alert"></div>
+  <div class="grid" id="as_stat"></div>
+  <div class="out"><pre id="as_tree" style="margin:0;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all"></pre></div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 400 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  'use strict';
+  function hexToBytes(s){
+    var t=String(s||'').replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,'');
+    if(t.length%2) t=t.slice(0,-1);
+    var o=new Uint8Array(t.length/2);
+    for(var i=0;i<o.length;i++) o[i]=parseInt(t.substr(i*2,2),16);
+    return o;
+  }
+  function b64ToBytes(s){
+    var t=String(s||'').replace(/-----[^-]+-----/g,'').replace(/[^A-Za-z0-9+/=]/g,'');
+    var A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var out=[],buf=0,bits=0;
+    for(var i=0;i<t.length;i++){
+      if(t[i]==='=') break;
+      var v=A.indexOf(t[i]); if(v<0) continue;
+      buf=(buf<<6)|v; bits+=6;
+      if(bits>=8){ bits-=8; out.push((buf>>bits)&255); }
+    }
+    return new Uint8Array(out);
+  }
+  function toHex(b,sep){ var o=[]; for(var i=0;i<b.length;i++){var x=b[i].toString(16); o.push(x.length<2?'0'+x:x);} return o.join(sep||''); }
+
+  var UNIV={1:'BOOLEAN',2:'INTEGER',3:'BIT STRING',4:'OCTET STRING',5:'NULL',6:'OBJECT IDENTIFIER',
+            7:'ObjectDescriptor',10:'ENUMERATED',12:'UTF8String',13:'RELATIVE-OID',16:'SEQUENCE',
+            17:'SET',18:'NumericString',19:'PrintableString',20:'T61String',22:'IA5String',
+            23:'UTCTime',24:'GeneralizedTime',26:'VisibleString',27:'GeneralString',30:'BMPString'};
+  var CLS=['UNIVERSAL','APPLICATION','CONTEXT','PRIVATE'];
+  var OIDS={
+    '1.2.840.113549.1.1.1':'rsaEncryption','1.2.840.113549.1.1.11':'sha256WithRSAEncryption',
+    '1.2.840.113549.1.1.5':'sha1WithRSAEncryption','1.2.840.113549.1.1.12':'sha384WithRSAEncryption',
+    '1.2.840.113549.1.1.13':'sha512WithRSAEncryption','1.2.840.10045.2.1':'id-ecPublicKey',
+    '1.2.840.10045.4.3.2':'ecdsa-with-SHA256','1.2.840.10045.3.1.7':'prime256v1 (P-256)',
+    '1.3.132.0.34':'secp384r1 (P-384)','1.3.132.0.35':'secp521r1 (P-521)',
+    '1.3.101.112':'Ed25519','1.3.101.110':'X25519',
+    '2.5.4.3':'commonName (CN)','2.5.4.6':'countryName (C)','2.5.4.7':'localityName (L)',
+    '2.5.4.8':'stateOrProvinceName (ST)','2.5.4.10':'organizationName (O)',
+    '2.5.4.11':'organizationalUnitName (OU)','2.5.29.14':'subjectKeyIdentifier',
+    '2.5.29.15':'keyUsage','2.5.29.17':'subjectAltName','2.5.29.19':'basicConstraints',
+    '2.5.29.35':'authorityKeyIdentifier','2.5.29.37':'extKeyUsage',
+    '2.16.840.1.101.3.4.2.1':'sha-256','2.16.840.1.101.3.4.2.2':'sha-384','2.16.840.1.101.3.4.2.3':'sha-512'
+  };
+
+  function decodeOid(b){
+    if(!b.length) return '';
+    // 先按 base-128 续位规则切出所有子标识符
+    var subs=[], v=0, started=false;
+    for(var i=0;i<b.length;i++){
+      if(!started && b[i]===128) return null;   // 子标识符前导 0x80，非最短编码
+      v = v*128 + (b[i]&127);
+      started=true;
+      if(!(b[i]&128)){ subs.push(v); v=0; started=false; }
+    }
+    if(started) return null;   // 未终止的子标识符
+    // 首个子标识符编码了 X*40+Y；X>=2 时 Y 无上限
+    var first=subs.shift(), parts;
+    if(first<40) parts=[0, first];
+    else if(first<80) parts=[1, first-40];
+    else parts=[2, first-80];
+    return parts.concat(subs).join('.');
+  }
+  function decodeInt(b){
+    if(!b.length) return '0';
+    if(b.length<=6){
+      var n=0, neg=(b[0]&128)!==0;
+      for(var i=0;i<b.length;i++) n=n*256+b[i];
+      if(neg) n -= Math.pow(2, b.length*8);
+      return String(n);
+    }
+    return '0x'+toHex(b);
+  }
+  function ascii(b){ var s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return s; }
+
+  function parse(input){
+    var b = (input instanceof Uint8Array) ? input
+          : (/^[\s0-9a-fA-F,x]*$/.test(String(input)) ? hexToBytes(input) : b64ToBytes(input));
+    if(!b.length) return {value:null, error:'输入为空'};
+    var pos=0, warns=[];
+
+    function one(depth){
+      if(depth>32) throw new Error('嵌套超过 32 层（偏移 '+pos+'）');
+      var start=pos;
+      if(pos>=b.length) throw new Error('数据在偏移 '+pos+' 处意外结束');
+      var id=b[pos++], cls=(id>>6)&3, cons=(id&32)!==0, tag=id&31;
+      if(tag===31){
+        tag=0;
+        do{
+          if(pos>=b.length) throw new Error('高位 tag 未终止（偏移 '+pos+'）');
+          tag=tag*128+(b[pos]&127);
+        } while(b[pos++]&128);
+      }
+      if(pos>=b.length) throw new Error('缺少长度字节（偏移 '+pos+'）');
+      var lb=b[pos++], len;
+      if(lb===128){ throw new Error('检测到 BER 不定长（0x80），DER 不允许（偏移 '+(pos-1)+'）'); }
+      if(lb&128){
+        var nb=lb&127;
+        if(nb>4) throw new Error('长度字段过长（'+nb+' 字节，偏移 '+(pos-1)+'）');
+        if(pos+nb>b.length) throw new Error('长度字段被截断（偏移 '+pos+'）');
+        len=0; for(var i=0;i<nb;i++) len=len*256+b[pos++];
+        if(len<128) warns.push('偏移 '+start+'：长度 '+len+' 用了长格式，DER 要求最短编码');
+      } else len=lb;
+      if(pos+len>b.length) throw new Error('内容长度 '+len+' 超出剩余 '+(b.length-pos)+' 字节（偏移 '+pos+'）');
+      var content=b.subarray(pos,pos+len), end=pos+len;
+
+      var name = cls===0 ? (UNIV[tag]||('[UNIVERSAL '+tag+']')) : ('['+(cls===2?'':CLS[cls]+' ')+tag+']');
+      var node={offset:start, header:pos-start, length:len, tag:tag, cls:CLS[cls],
+                constructed:cons, name:name, children:[], value:null};
+
+      if(cons){
+        var save=pos;
+        while(pos<end) node.children.push(one(depth+1));
+        if(pos!==end){ pos=save; throw new Error('子结构长度与父容器不符（偏移 '+start+'）'); }
+      } else {
+        pos=end;
+        if(cls===0){
+          if(tag===1) node.value = content[0]===0 ? 'FALSE' : (content[0]===255 ? 'TRUE' : 'TRUE (非 DER: 0x'+toHex(content)+')');
+          else if(tag===2 || tag===10) node.value = decodeInt(content);
+          else if(tag===5) node.value = len===0 ? 'NULL' : 'NULL (长度应为 0)';
+          else if(tag===6){ var o=decodeOid(content); node.value = o===null ? '(非法 OID 编码)' : (o + (OIDS[o]?('  — '+OIDS[o]):'')); node.oid=o; }
+          else if(tag===3){
+            var unused = content.length ? content[0] : 0;
+            node.value = '未用位 '+unused+'，'+(content.length-1)+' 字节: '+toHex(content.subarray(1,Math.min(content.length,17)))+(content.length>17?'…':'');
+          }
+          else if(tag===12||tag===19||tag===22||tag===26||tag===27||tag===18) node.value = ascii(content);
+          else if(tag===23||tag===24) node.value = ascii(content);
+          else node.value = toHex(content.subarray(0,Math.min(len,24)))+(len>24?'…':'');
+        } else {
+          node.value = toHex(content.subarray(0,Math.min(len,24)))+(len>24?'…':'');
+        }
+      }
+      node.total = pos-start;
+      return node;
+    }
+
+    try{
+      var root=one(0);
+      var trailing = b.length-pos;
+      return {value:{root:root, consumed:pos, trailing:trailing, warnings:warns}, error:''};
+    }catch(e){ return {value:null, error:e.message}; }
+  }
+
+  function flatten(node, depth, out){
+    out=out||[]; depth=depth||0;
+    out.push({depth:depth, node:node});
+    for(var i=0;i<node.children.length;i++) flatten(node.children[i], depth+1, out);
+    return out;
+  }
+  function oidList(node, out){
+    out=out||[];
+    if(node.oid) out.push(node.oid);
+    for(var i=0;i<node.children.length;i++) oidList(node.children[i], out);
+    return out;
+  }
+
+  var API={parse:parse, flatten:flatten, oidList:oidList, decodeOid:decodeOid,
+           hexToBytes:hexToBytes, b64ToBytes:b64ToBytes, toHex:toHex, OIDS:OIDS};
+  if(typeof module!=='undefined' && module.exports) module.exports=API;
+  if(typeof window!=='undefined') window.__Asn1Forge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var C=window.__Asn1Forge__, D=document, $=function(i){return D.getElementById(i);};
+  var DEMO='300d06092a864886f70d0101010500';
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function kv(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function T(k){return (window.nanoT||function(x){return x;})(k);}
+  var lastText='';
+  function render(){
+    var r=C.parse($('as_in').value);
+    $('as_err').textContent=r.error||'';
+    if(!r.value){ $('as_tree').textContent=''; $('as_stat').innerHTML=''; lastText=''; return; }
+    var rows=C.flatten(r.value.root), lines=[];
+    for(var i=0;i<rows.length;i++){
+      var n=rows[i].node, pad=new Array(rows[i].depth+1).join('  ');
+      var head=pad+(n.constructed?'+ ':'- ')+n.name+'  ('+n.length+'B @'+n.offset+')';
+      lines.push(n.value!=null && !n.constructed ? head+'\n'+pad+'    '+n.value : head);
+    }
+    lastText=lines.join('\n');
+    $('as_tree').textContent=lastText;
+    var oids=C.oidList(r.value.root);
+    var st=kv(T('s_nodes'),rows.length)+kv(T('s_consumed'),r.value.consumed+' B')
+      +kv(T('s_trailing'),r.value.trailing+' B')+kv(T('s_oids'),oids.length?oids.join(', '):'—');
+    if(r.value.warnings.length) st+=kv(T('s_warn'), r.value.warnings.join('; '));
+    $('as_stat').innerHTML=st;
+  }
+  window.nanoRerender=render;
+  $('as_go').addEventListener('click',render);
+  $('as_in').addEventListener('input',render);
+  $('as_demo').addEventListener('click',function(){ $('as_in').value=DEMO; render(); });
+  $('as_copy').addEventListener('click',function(){
+    if(!lastText){ if(window.nanoToast) window.nanoToast(T('nores'),1); return; }
+    if(navigator.clipboard) navigator.clipboard.writeText(lastText);
+  });
+  $('as_in').value=DEMO; render();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "btn_copy": "Copy tree", "btn_demo": "Sample (AlgorithmIdentifier)", "btn_go": "Parse TLV tree", "copied": "Copied", "copyfail": "Copy failed", "lb_in": "DER bytes (hex) or PEM / Base64", "nores": "Nothing to copy", "ph_in": "30 0d 06 09 2a 86 48 …  or  -----BEGIN…", "s_consumed": "Consumed", "s_nodes": "Nodes", "s_oids": "OIDs found", "s_trailing": "Trailing", "s_warn": "DER warnings", "sub": "Offline ASN.1 DER/BER TLV tree viewer with OID lookup and DER strictness checks", "title": "Asn1Forge - offline ASN.1 DER TLV viewer"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "btn_copy": "复制树", "btn_demo": "示例 (AlgorithmIdentifier)", "btn_go": "解析 TLV 树", "copied": "已复制", "copyfail": "复制失败", "lb_in": "DER 字节（十六进制）或 PEM / Base64", "nores": "没有可复制的结果", "ph_in": "30 0d 06 09 2a 86 48 …  或  -----BEGIN…", "s_consumed": "已消费", "s_nodes": "节点数", "s_oids": "识别到的 OID", "s_trailing": "尾部剩余", "s_warn": "DER 规范告警", "sub": "把证书、密钥、签名的 DER 字节展开成 TLV 树。自动查 OID，并指出违反 DER 最短编码的地方。", "title": "Asn1Forge — 离线 ASN.1 DER 解析器：TLV 树、OID 查表、DER 规范校验"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>
