@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MidiForge — MIDI 文件解析器</title>
+<meta name="description" data-i18n="meta_desc" content="MidiForge：在浏览器里解析标准 MIDI 文件（format 0/1）。读出文件头、音轨、速度表、拍号、音符事件，并绘制钢琴卷帘。离线优先、零依赖。">
+<meta property="og:title" content="MidiForge">
+<meta property="og:description" content="Standard MIDI File parser: header, tracks, tempo map, time signature, note events and a piano-roll view. Offline, zero-dep.">
+<meta property="og:image" content="og.svg">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E;
+    --text:#FFFFFF; --muted:#A1A1AA; --faint:#71717A;
+    --border:rgba(255,255,255,.08);
+    --accent:#5E6AD2; --success:#10B981; --warning:#F5A623; --info:#22D3EE; --violet:#A78BFA; --bad:#EF4444;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.5; min-height:100vh; display:flex; flex-direction:column;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.3px;}
+  .brand svg{width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.7;}
+  .langbtn{
+    background:var(--surface); color:var(--muted); border:1px solid var(--border);
+    border-radius:var(--radius); padding:6px 12px; cursor:pointer; font-size:13px;
+  }
+  .langbtn:hover{color:var(--text); border-color:var(--accent);}
+  main{flex:1; width:100%; max-width:960px; margin:0 auto; padding:26px 20px 40px;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:22px; margin-bottom:18px;
+  }
+  h2.sec{font-size:15px; color:var(--muted); margin:0 0 14px; font-weight:600;}
+  .drop{
+    border:2px dashed var(--border); border-radius:14px; padding:34px 20px; text-align:center;
+    color:var(--muted); font-size:14px; cursor:pointer; transition:border-color .15s ease, background .15s ease;
+  }
+  .drop:hover,.drop.over{border-color:var(--accent); background:rgba(94,106,210,.07); color:var(--text);}
+  .drop strong{display:block; font-size:16px; color:var(--text); margin-bottom:6px;}
+  .row{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:16px;}
+  .btn{
+    background:var(--surface); color:var(--text); border:1px solid var(--border);
+    border-radius:var(--radius); padding:10px 17px; cursor:pointer; font-size:13.5px;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+  .btn.primary:hover{filter:brightness(1.1);}
+  .stat{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-top:4px;
+  }
+  .stat div{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:11px 13px;}
+  .stat .lab{font-size:11px; color:var(--faint); text-transform:uppercase; letter-spacing:.5px;}
+  .stat .val{font-size:19px; font-weight:600; font-variant-numeric:tabular-nums; margin-top:2px;}
+  .stat .val.sm{font-size:14px; font-weight:500;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{padding:7px 9px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap;}
+  th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left;}
+  th{color:var(--faint); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px;}
+  tbody tr:hover{background:var(--surface);}
+  td.name{color:var(--text);}
+  td.dim{color:var(--muted);}
+  .tablewrap{overflow-x:auto; max-height:320px; overflow-y:auto;}
+  canvas{
+    width:100%; height:260px; display:block; background:var(--surface);
+    border:1px solid var(--border); border-radius:10px;
+  }
+  .legend{display:flex; flex-wrap:wrap; gap:14px; margin-top:10px; font-size:12px; color:var(--faint);}
+  .legend i{display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:5px; vertical-align:-1px;}
+  .msg{margin-top:14px; font-size:13px; min-height:20px; color:var(--muted);}
+  .msg.err{color:var(--bad);}
+  .msg.ok{color:var(--success);}
+  .hidden{display:none;}
+  pre.dump{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:12px; overflow:auto; max-height:280px; margin:0;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; color:var(--muted);
+  }
+  .about p{color:var(--muted); font-size:13.5px; margin:0 0 10px;}
+  .about code{background:var(--surface); padding:1px 6px; border-radius:5px; color:var(--info); font-size:12.5px;}
+  footer{
+    border-top:1px solid var(--border); padding:18px 20px; text-align:center;
+    color:var(--faint); font-size:12.5px;
+  }
+  footer a{color:var(--muted); text-decoration:none;}
+  footer a:hover{color:var(--text);}
+  @media (prefers-reduced-motion:reduce){ .drop{transition:none;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7v6M10 7v6M13 7v6M16 7v6"/></svg>
+    <span>MidiForge</span>
+  </div>
+  <button class="langbtn" id="langBtn" type="button">EN</button>
+</header>
+
+<main>
+  <section class="card">
+    <div class="drop" id="drop" tabindex="0" role="button">
+      <strong data-i18n="drop_title">拖入 .mid 文件</strong>
+      <span data-i18n="drop_sub">或点击选择。文件只在本地解析，不会上传。</span>
+    </div>
+    <input type="file" id="fileIn" accept=".mid,.midi,audio/midi" class="hidden">
+    <div class="row">
+      <button class="btn primary" id="demoBtn" type="button" data-i18n="demo">载入示例</button>
+      <button class="btn" id="clearBtn" type="button" data-i18n="clear">清空</button>
+    </div>
+    <div class="msg" id="msg" data-i18n="msg_idle">等待文件。</div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec" data-i18n="head_title">文件概览</h2>
+    <div class="stat">
+      <div><div class="lab" data-i18n="s_format">Format</div><div class="val" id="sFormat">--</div></div>
+      <div><div class="lab" data-i18n="s_tracks">Tracks</div><div class="val" id="sTracks">--</div></div>
+      <div><div class="lab" data-i18n="s_division">Division</div><div class="val" id="sDivision">--</div></div>
+      <div><div class="lab" data-i18n="s_notes">Notes</div><div class="val" id="sNotes">--</div></div>
+      <div><div class="lab" data-i18n="s_tempo">Tempo</div><div class="val" id="sTempo">--</div></div>
+      <div><div class="lab" data-i18n="s_meter">Meter</div><div class="val" id="sMeter">--</div></div>
+      <div><div class="lab" data-i18n="s_dur">Duration</div><div class="val" id="sDur">--</div></div>
+      <div><div class="lab" data-i18n="s_range">Range</div><div class="val sm" id="sRange">--</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec" data-i18n="roll_title">钢琴卷帘</h2>
+    <canvas id="roll" width="1200" height="520"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i><span data-i18n="l_note">音符</span></span>
+      <span><i style="background:var(--success)"></i><span data-i18n="l_track2">第 2 轨</span></span>
+      <span><i style="background:var(--info)"></i><span data-i18n="l_track3">第 3 轨</span></span>
+      <span><i style="background:var(--warning)"></i><span data-i18n="l_drums">打击乐 (ch 10)</span></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec" data-i18n="tracks_title">音轨</h2>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th data-i18n="t_name">名称</th>
+            <th data-i18n="t_events">事件</th>
+            <th data-i18n="t_notes">音符</th>
+            <th data-i18n="t_ch">通道</th>
+            <th data-i18n="t_prog">音色</th>
+            <th data-i18n="t_ticks">时长 (ticks)</th>
+          </tr>
+        </thead>
+        <tbody id="trackBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec" data-i18n="events_title">事件流（前 200 条）</h2>
+    <pre class="dump" id="evDump">--</pre>
+  </section>
+
+  <section class="card about">
+    <h2 class="sec" data-i18n="about_title">关于</h2>
+    <p data-i18n="about_p1">标准 MIDI 文件由一个 <code>MThd</code> 头块和若干 <code>MTrk</code> 轨道块组成。头块给出 format（0 单轨 / 1 多轨同步 / 2 多轨独立）、轨道数和 division（每四分音符的 tick 数，或 SMPTE 帧率）。</p>
+    <p data-i18n="about_p2">轨道内每个事件前都有一个变长量（VLQ）delta time：每字节用低 7 位存数据，最高位为 1 表示后面还有字节。事件可以省略状态字节沿用上一个，这叫 running status，解析时必须记住它。</p>
+    <p data-i18n="about_p3">tick 转秒需要速度表：<code>seconds = ticks / division × (microsecondsPerQuarter / 1e6)</code>，遇到 <code>Set Tempo</code> 元事件就换算率。本工具把这些都在本地算完，文件不出浏览器。</p>
+  </section>
+</main>
+
+<footer>
+  <span data-i18n="footer">MidiForge · 单文件 · 零依赖 · 本地优先</span> ·
+  <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener noreferrer">GitHub</a>
+</footer>
+
+<script>
+var CORE = (function(){
+  var NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+  var GM = ['Acoustic Grand Piano','Bright Acoustic Piano','Electric Grand Piano','Honky-tonk Piano','Electric Piano 1','Electric Piano 2','Harpsichord','Clavi','Celesta','Glockenspiel','Music Box','Vibraphone','Marimba','Xylophone','Tubular Bells','Dulcimer','Drawbar Organ','Percussive Organ','Rock Organ','Church Organ','Reed Organ','Accordion','Harmonica','Tango Accordion','Acoustic Guitar (nylon)','Acoustic Guitar (steel)','Electric Guitar (jazz)','Electric Guitar (clean)','Electric Guitar (muted)','Overdriven Guitar','Distortion Guitar','Guitar Harmonics','Acoustic Bass','Electric Bass (finger)','Electric Bass (pick)','Fretless Bass','Slap Bass 1','Slap Bass 2','Synth Bass 1','Synth Bass 2','Violin','Viola','Cello','Contrabass','Tremolo Strings','Pizzicato Strings','Orchestral Harp','Timpani','String Ensemble 1','String Ensemble 2','Synth Strings 1','Synth Strings 2','Choir Aahs','Voice Oohs','Synth Voice','Orchestra Hit','Trumpet','Trombone','Tuba','Muted Trumpet','French Horn','Brass Section','Synth Brass 1','Synth Brass 2','Soprano Sax','Alto Sax','Tenor Sax','Baritone Sax','Oboe','English Horn','Bassoon','Clarinet','Piccolo','Flute','Recorder','Pan Flute','Blown Bottle','Shakuhachi','Whistle','Ocarina','Lead 1 (square)','Lead 2 (sawtooth)','Lead 3 (calliope)','Lead 4 (chiff)','Lead 5 (charang)','Lead 6 (voice)','Lead 7 (fifths)','Lead 8 (bass + lead)','Pad 1 (new age)','Pad 2 (warm)','Pad 3 (polysynth)','Pad 4 (choir)','Pad 5 (bowed)','Pad 6 (metallic)','Pad 7 (halo)','Pad 8 (sweep)','FX 1 (rain)','FX 2 (soundtrack)','FX 3 (crystal)','FX 4 (atmosphere)','FX 5 (brightness)','FX 6 (goblins)','FX 7 (echoes)','FX 8 (sci-fi)','Sitar','Banjo','Shamisen','Koto','Kalimba','Bag pipe','Fiddle','Shanai','Tinkle Bell','Agogo','Steel Drums','Woodblock','Taiko Drum','Melodic Tom','Synth Drum','Reverse Cymbal','Guitar Fret Noise','Breath Noise','Seashore','Bird Tweet','Telephone Ring','Helicopter','Applause','Gunshot'];
+
+  var META_NAMES = {
+    0x00:'Sequence Number', 0x01:'Text', 0x02:'Copyright', 0x03:'Track Name',
+    0x04:'Instrument Name', 0x05:'Lyric', 0x06:'Marker', 0x07:'Cue Point',
+    0x08:'Program Name', 0x09:'Device Name', 0x20:'Channel Prefix', 0x21:'Port',
+    0x2F:'End of Track', 0x51:'Set Tempo', 0x54:'SMPTE Offset',
+    0x58:'Time Signature', 0x59:'Key Signature', 0x7F:'Sequencer Specific'
+  };
+
+  function midiToNoteName(m){
+    m = Math.round(m);
+    return NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+  }
+
+  function programName(p){
+    if(p == null || p < 0 || p > 127) return null;
+    return GM[p];
+  }
+
+  // ---- byte reader --------------------------------------------------------
+  function Reader(bytes){
+    this.b = bytes;
+    this.p = 0;
+  }
+  Reader.prototype.eof = function(){ return this.p >= this.b.length; };
+  Reader.prototype.u8 = function(){
+    if(this.p >= this.b.length) throw new Error('unexpected end of data');
+    return this.b[this.p++];
+  };
+  Reader.prototype.peek = function(){ return this.b[this.p]; };
+  Reader.prototype.u16 = function(){ return (this.u8() << 8) | this.u8(); };
+  Reader.prototype.u32 = function(){
+    return ((this.u8() << 24) >>> 0) + (this.u8() << 16) + (this.u8() << 8) + this.u8();
+  };
+  Reader.prototype.str = function(n){
+    var s = '';
+    for(var i = 0; i < n; i++) s += String.fromCharCode(this.u8());
+    return s;
+  };
+  Reader.prototype.slice = function(n){
+    if(this.p + n > this.b.length) throw new Error('unexpected end of data');
+    var out = this.b.slice(this.p, this.p + n);
+    this.p += n;
+    return out;
+  };
+  // Variable-length quantity: 7 data bits per byte, high bit means "more follows".
+  Reader.prototype.vlq = function(){
+    var v = 0, n = 0, byte;
+    do {
+      byte = this.u8();
+      v = (v << 7) | (byte & 0x7F);
+      if(++n > 4) throw new Error('malformed variable-length quantity');
+    } while(byte & 0x80);
+    return v >>> 0;
+  };
+
+  function readVLQ(bytes, offset){
+    var r = new Reader(bytes);
+    r.p = offset || 0;
+    var v = r.vlq();
+    return {value: v, next: r.p, length: r.p - (offset || 0)};
+  }
+
+  function writeVLQ(v){
+    if(!(v >= 0)) return null;
+    v = Math.floor(v);
+    var buf = [v & 0x7F];
+    v = Math.floor(v / 128);
+    while(v > 0){
+      buf.unshift((v & 0x7F) | 0x80);
+      v = Math.floor(v / 128);
+    }
+    return buf;
+  }
+
+  function utf8Bytes(str){
+    var out = [];
+    for(var i = 0; i < str.length; i++){
+      var c = str.charCodeAt(i);
+      if(c < 0x80) out.push(c);
+      else if(c < 0x800){ out.push(0xC0 | (c >> 6), 0x80 | (c & 0x3F)); }
+      else { out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F)); }
+    }
+    return out;
+  }
+
+  function decodeText(bytes){
+    var s = '';
+    for(var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    try{
+      if(typeof decodeURIComponent === 'function' && typeof escape === 'function'){
+        return decodeURIComponent(escape(s));
+      }
+    }catch(e){}
+    return s;
+  }
+
+  // ---- header -------------------------------------------------------------
+  function parseDivision(raw){
+    if(raw & 0x8000){
+      // SMPTE: high byte is negative frames-per-second, low byte is ticks per frame
+      var fps = 256 - ((raw >> 8) & 0xFF);
+      var tpf = raw & 0xFF;
+      return {smpte:true, fps:fps, ticksPerFrame:tpf, ticksPerQuarter:null, raw:raw};
+    }
+    return {smpte:false, fps:null, ticksPerFrame:null, ticksPerQuarter:raw & 0x7FFF, raw:raw};
+  }
+
+  function parseHeader(bytes){
+    if(!bytes || bytes.length < 14) return null;
+    var r = new Reader(bytes);
+    if(r.str(4) !== 'MThd') return null;
+    var len = r.u32();
+    if(len < 6) return null;
+    var format = r.u16();
+    var ntrks = r.u16();
+    var division = parseDivision(r.u16());
+    return {format:format, ntrks:ntrks, division:division, headerLength:len, next:8 + len};
+  }
+
+  // ---- track events -------------------------------------------------------
+  function parseTrackEvents(bytes){
+    var r = new Reader(bytes);
+    var events = [];
+    var tick = 0;
+    var running = null;
+    while(!r.eof()){
+      var delta = r.vlq();
+      tick += delta;
+      var status = r.peek();
+      if(status & 0x80){ r.u8(); running = status < 0xF0 ? status : running; }
+      else {
+        if(running == null) throw new Error('running status used before any status byte');
+        status = running;
+      }
+      var ev = {tick:tick, delta:delta};
+      if(status === 0xFF){
+        var type = r.u8();
+        var len = r.vlq();
+        var data = r.slice(len);
+        ev.kind = 'meta';
+        ev.metaType = type;
+        ev.metaName = META_NAMES[type] || ('Meta 0x' + type.toString(16));
+        ev.data = data;
+        if(type === 0x51 && len === 3){
+          ev.microsecondsPerQuarter = (data[0] << 16) | (data[1] << 8) | data[2];
+          ev.bpm = 60000000 / ev.microsecondsPerQuarter;
+        } else if(type === 0x58 && len >= 4){
+          ev.numerator = data[0];
+          ev.denominator = Math.pow(2, data[1]);
+          ev.clocksPerClick = data[2];
+          ev.thirtySecondsPerQuarter = data[3];
+        } else if(type === 0x59 && len >= 2){
+          ev.sharpsFlats = data[0] > 127 ? data[0] - 256 : data[0];
+          ev.minor = data[1] === 1;
+        } else if(type <= 0x09){
+          ev.text = decodeText(data);
+        }
+        events.push(ev);
+        if(type === 0x2F) break;
+        continue;
+      }
+      if(status === 0xF0 || status === 0xF7){
+        var slen = r.vlq();
+        ev.kind = 'sysex';
+        ev.data = r.slice(slen);
+        events.push(ev);
+        continue;
+      }
+      var hi = status & 0xF0;
+      ev.kind = 'channel';
+      ev.channel = status & 0x0F;
+      ev.status = hi;
+      if(hi === 0x80 || hi === 0x90){
+        ev.note = r.u8();
+        ev.velocity = r.u8();
+        // note-on with velocity 0 is the conventional note-off
+        ev.type = (hi === 0x90 && ev.velocity > 0) ? 'noteOn' : 'noteOff';
+        ev.noteName = midiToNoteName(ev.note);
+      } else if(hi === 0xA0){
+        ev.type = 'aftertouch'; ev.note = r.u8(); ev.pressure = r.u8();
+      } else if(hi === 0xB0){
+        ev.type = 'controller'; ev.controller = r.u8(); ev.value = r.u8();
+      } else if(hi === 0xC0){
+        ev.type = 'programChange'; ev.program = r.u8(); ev.programName = programName(ev.program);
+      } else if(hi === 0xD0){
+        ev.type = 'channelPressure'; ev.pressure = r.u8();
+      } else if(hi === 0xE0){
+        var lsb = r.u8(), msb = r.u8();
+        ev.type = 'pitchBend';
+        ev.value = ((msb << 7) | lsb) - 8192;
+      } else {
+        throw new Error('unknown status byte 0x' + status.toString(16));
+      }
+      events.push(ev);
+    }
+    return events;
+  }
+
+  // Pair note-on with the matching note-off, producing sounding notes.
+  function extractNotes(events, channelFilter){
+    if(!events) return null;
+    var open = {};
+    var notes = [];
+    for(var i = 0; i < events.length; i++){
+      var e = events[i];
+      if(e.kind !== 'channel') continue;
+      if(channelFilter != null && e.channel !== channelFilter) continue;
+      var key = e.channel + ':' + e.note;
+      if(e.type === 'noteOn'){
+        if(!open[key]) open[key] = [];
+        open[key].push(e);
+      } else if(e.type === 'noteOff'){
+        var stack = open[key];
+        if(stack && stack.length){
+          var on = stack.shift();
+          notes.push({
+            note:on.note, name:on.noteName, channel:on.channel,
+            velocity:on.velocity, startTick:on.tick, endTick:e.tick,
+            durationTicks:e.tick - on.tick
+          });
+        }
+      }
+    }
+    // any note left hanging ends at the last event
+    var lastTick = events.length ? events[events.length - 1].tick : 0;
+    for(var k in open){
+      if(!Object.prototype.hasOwnProperty.call(open, k)) continue;
+      for(var j = 0; j < open[k].length; j++){
+        var o = open[k][j];
+        notes.push({
+          note:o.note, name:o.noteName, channel:o.channel,
+          velocity:o.velocity, startTick:o.tick, endTick:lastTick,
+          durationTicks:Math.max(0, lastTick - o.tick), hanging:true
+        });
+      }
+    }
+    notes.sort(function(a, b){ return a.startTick - b.startTick || a.note - b.note; });
+    return notes;
+  }
+
+  function trackName(events){
+    for(var i = 0; i < events.length; i++){
+      if(events[i].kind === 'meta' && events[i].metaType === 0x03) return events[i].text || '';
+    }
+    return '';
+  }
+
+  // ---- whole file ---------------------------------------------------------
+  function parseMidi(bytes){
+    if(!bytes) return {error:'no data'};
+    if(bytes.length < 14) return {error:'file too short to be a MIDI file'};
+    var head = parseHeader(bytes);
+    if(!head) return {error:'missing MThd header chunk'};
+    var tracks = [];
+    var p = head.next;
+    var r = new Reader(bytes);
+    var warnings = [];
+    while(p + 8 <= bytes.length){
+      r.p = p;
+      var id = r.str(4);
+      var len = r.u32();
+      if(id !== 'MTrk'){
+        warnings.push('skipped unknown chunk "' + id + '"');
+        p += 8 + len;
+        continue;
+      }
+      var end = Math.min(bytes.length, r.p + len);
+      var chunk = bytes.slice(r.p, end);
+      var evs, err = null;
+      try{ evs = parseTrackEvents(chunk); }
+      catch(e){ evs = []; err = e.message; warnings.push('track ' + tracks.length + ': ' + e.message); }
+      var notes = extractNotes(evs);
+      var chans = {}, progs = [];
+      var maxTick = 0;
+      for(var i = 0; i < evs.length; i++){
+        if(evs[i].tick > maxTick) maxTick = evs[i].tick;
+        if(evs[i].kind === 'channel') chans[evs[i].channel] = 1;
+        if(evs[i].type === 'programChange') progs.push(evs[i].program);
+      }
+      var chanList = [];
+      for(var c in chans){ if(Object.prototype.hasOwnProperty.call(chans, c)) chanList.push(parseInt(c, 10)); }
+      chanList.sort(function(a, b){ return a - b; });
+      tracks.push({
+        index:tracks.length, name:trackName(evs), events:evs, notes:notes,
+        channels:chanList, programs:progs, lengthTicks:maxTick, byteLength:len, error:err
+      });
+      p = end;
+      if(len === 0) break;
+    }
+    if(!tracks.length) return {error:'no MTrk track chunks found'};
+
+    // tempo map from all tracks (format 1 keeps tempo on track 0, but be permissive)
+    var tempos = [];
+    var timeSigs = [];
+    var keySigs = [];
+    for(var t = 0; t < tracks.length; t++){
+      var te = tracks[t].events;
+      for(var m = 0; m < te.length; m++){
+        var e = te[m];
+        if(e.kind !== 'meta') continue;
+        if(e.metaType === 0x51 && e.microsecondsPerQuarter){
+          tempos.push({tick:e.tick, microsecondsPerQuarter:e.microsecondsPerQuarter, bpm:e.bpm});
+        } else if(e.metaType === 0x58 && e.numerator){
+          timeSigs.push({tick:e.tick, numerator:e.numerator, denominator:e.denominator});
+        } else if(e.metaType === 0x59){
+          keySigs.push({tick:e.tick, sharpsFlats:e.sharpsFlats, minor:e.minor});
+        }
+      }
+    }
+    tempos.sort(function(a, b){ return a.tick - b.tick; });
+    timeSigs.sort(function(a, b){ return a.tick - b.tick; });
+    if(!tempos.length) tempos.push({tick:0, microsecondsPerQuarter:500000, bpm:120, implied:true});
+    if(!timeSigs.length) timeSigs.push({tick:0, numerator:4, denominator:4, implied:true});
+
+    var totalTicks = 0, noteCount = 0, lo = null, hi = null;
+    for(var k = 0; k < tracks.length; k++){
+      if(tracks[k].lengthTicks > totalTicks) totalTicks = tracks[k].lengthTicks;
+      noteCount += tracks[k].notes.length;
+      for(var n = 0; n < tracks[k].notes.length; n++){
+        var nn = tracks[k].notes[n].note;
+        if(lo === null || nn < lo) lo = nn;
+        if(hi === null || nn > hi) hi = nn;
+      }
+    }
+
+    return {
+      format:head.format,
+      ntrks:head.ntrks,
+      division:head.division,
+      tracks:tracks,
+      tempos:tempos,
+      timeSignatures:timeSigs,
+      keySignatures:keySigs,
+      totalTicks:totalTicks,
+      noteCount:noteCount,
+      lowestNote:lo,
+      highestNote:hi,
+      durationSeconds:ticksToSeconds(totalTicks, head.division, tempos),
+      warnings:warnings
+    };
+  }
+
+  // Walk the tempo map so a tick position becomes wall-clock seconds.
+  function ticksToSeconds(tick, division, tempos){
+    if(!(tick >= 0) || !division) return null;
+    if(division.smpte){
+      var tps = division.fps * division.ticksPerFrame;
+      return tps > 0 ? tick / tps : null;
+    }
+    var tpq = division.ticksPerQuarter;
+    if(!(tpq > 0)) return null;
+    var list = (tempos && tempos.length) ? tempos : [{tick:0, microsecondsPerQuarter:500000}];
+    var sec = 0, cur = 0, upq = list[0].microsecondsPerQuarter;
+    for(var i = 0; i < list.length; i++){
+      var seg = list[i];
+      if(seg.tick >= tick) break;
+      if(seg.tick > cur){ sec += (seg.tick - cur) / tpq * (upq / 1e6); cur = seg.tick; }
+      upq = seg.microsecondsPerQuarter;
+    }
+    sec += (tick - cur) / tpq * (upq / 1e6);
+    return sec;
+  }
+
+  function formatDuration(sec){
+    if(sec == null || !isFinite(sec) || sec < 0) return '--';
+    var m = Math.floor(sec / 60);
+    var s = sec - m * 60;
+    return m + ':' + (s < 10 ? '0' : '') + s.toFixed(2);
+  }
+
+  // ---- writer (used by tests and the built-in demo) -----------------------
+  function buildTrackChunk(eventBytes){
+    var body = eventBytes.concat([0x00, 0xFF, 0x2F, 0x00]);
+    var len = body.length;
+    return [0x4D, 0x54, 0x72, 0x6B, (len >>> 24) & 0xFF, (len >>> 16) & 0xFF, (len >>> 8) & 0xFF, len & 0xFF].concat(body);
+  }
+
+  // Build a minimal SMF from a note list; handy for tests and demos.
+  // notes: [{note, startTick, durationTicks, velocity, channel}]
+  function writeMidi(notes, opts){
+    opts = opts || {};
+    var tpq = opts.ticksPerQuarter || 480;
+    var bpm = opts.bpm || 120;
+    var format = opts.format == null ? 0 : opts.format;
+    var name = opts.name || '';
+    var upq = Math.round(60000000 / bpm);
+
+    var evs = [];
+    for(var i = 0; i < (notes || []).length; i++){
+      var n = notes[i];
+      var ch = n.channel || 0;
+      evs.push({tick:n.startTick, order:1, bytes:[0x90 | ch, n.note, n.velocity == null ? 100 : n.velocity]});
+      evs.push({tick:n.startTick + n.durationTicks, order:0, bytes:[0x80 | ch, n.note, 0x40]});
+    }
+    evs.sort(function(a, b){ return a.tick - b.tick || a.order - b.order; });
+
+    var body = [];
+    // tempo + optional name at tick 0
+    body = body.concat(writeVLQ(0), [0xFF, 0x51, 0x03, (upq >> 16) & 0xFF, (upq >> 8) & 0xFF, upq & 0xFF]);
+    body = body.concat(writeVLQ(0), [0xFF, 0x58, 0x04, 4, 2, 24, 8]);
+    if(name){
+      var nb = utf8Bytes(name);
+      body = body.concat(writeVLQ(0), [0xFF, 0x03], writeVLQ(nb.length), nb);
+    }
+    var last = 0;
+    for(var j = 0; j < evs.length; j++){
+      body = body.concat(writeVLQ(evs[j].tick - last), evs[j].bytes);
+      last = evs[j].tick;
+    }
+
+    var head = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, format & 0xFF, 0, 1, (tpq >> 8) & 0xFF, tpq & 0xFF];
+    return new Uint8Array(head.concat(buildTrackChunk(body)));
+  }
+
+  return {
+    NOTE_NAMES:NOTE_NAMES,
+    GM:GM,
+    META_NAMES:META_NAMES,
+    midiToNoteName:midiToNoteName,
+    programName:programName,
+    readVLQ:readVLQ,
+    writeVLQ:writeVLQ,
+    parseDivision:parseDivision,
+    parseHeader:parseHeader,
+    parseTrackEvents:parseTrackEvents,
+    extractNotes:extractNotes,
+    trackName:trackName,
+    parseMidi:parseMidi,
+    ticksToSeconds:ticksToSeconds,
+    formatDuration:formatDuration,
+    writeMidi:writeMidi
+  };
+})();
+
+if(typeof module !== 'undefined' && module.exports){ module.exports = CORE; }
+
+if(typeof window !== 'undefined' && window.document){
+  (function(){
+    var I18N = {
+      zh:{
+        meta_desc:"MidiForge：在浏览器里解析标准 MIDI 文件（format 0/1）。读出文件头、音轨、速度表、拍号、音符事件，并绘制钢琴卷帘。离线优先、零依赖。",
+        drop_title:"拖入 .mid 文件", drop_sub:"或点击选择。文件只在本地解析，不会上传。",
+        demo:"载入示例", clear:"清空", msg_idle:"等待文件。",
+        head_title:"文件概览",
+        s_format:"Format", s_tracks:"轨道", s_division:"Division", s_notes:"音符",
+        s_tempo:"速度", s_meter:"拍号", s_dur:"时长", s_range:"音域",
+        roll_title:"钢琴卷帘", l_note:"音符", l_track2:"第 2 轨", l_track3:"第 3 轨", l_drums:"打击乐 (ch 10)",
+        tracks_title:"音轨", t_name:"名称", t_events:"事件", t_notes:"音符", t_ch:"通道", t_prog:"音色", t_ticks:"时长 (ticks)",
+        events_title:"事件流（前 200 条）",
+        about_title:"关于",
+        about_p1:"标准 MIDI 文件由一个 MThd 头块和若干 MTrk 轨道块组成。头块给出 format（0 单轨 / 1 多轨同步 / 2 多轨独立）、轨道数和 division（每四分音符的 tick 数，或 SMPTE 帧率）。",
+        about_p2:"轨道内每个事件前都有一个变长量（VLQ）delta time：每字节用低 7 位存数据，最高位为 1 表示后面还有字节。事件可以省略状态字节沿用上一个，这叫 running status，解析时必须记住它。",
+        about_p3:"tick 转秒需要速度表：seconds = ticks / division × (microsecondsPerQuarter / 1e6)，遇到 Set Tempo 元事件就换算率。本工具把这些都在本地算完，文件不出浏览器。",
+        footer:"MidiForge · 单文件 · 零依赖 · 本地优先",
+        parsed:"已解析", warn:"警告", err_prefix:"解析失败：", demo_name:"示例：C 大调音阶与和弦"
+      },
+      en:{
+        meta_desc:"MidiForge: parse Standard MIDI Files (format 0/1) in the browser — header, tracks, tempo map, time signature, note events and a piano-roll view. Offline, zero-dep.",
+        drop_title:"Drop a .mid file", drop_sub:"or click to pick one. Parsed locally, never uploaded.",
+        demo:"Load demo", clear:"Clear", msg_idle:"Waiting for a file.",
+        head_title:"File overview",
+        s_format:"Format", s_tracks:"Tracks", s_division:"Division", s_notes:"Notes",
+        s_tempo:"Tempo", s_meter:"Meter", s_dur:"Duration", s_range:"Range",
+        roll_title:"Piano roll", l_note:"Note", l_track2:"Track 2", l_track3:"Track 3", l_drums:"Drums (ch 10)",
+        tracks_title:"Tracks", t_name:"Name", t_events:"Events", t_notes:"Notes", t_ch:"Channels", t_prog:"Program", t_ticks:"Length (ticks)",
+        events_title:"Event stream (first 200)",
+        about_title:"About",
+        about_p1:"A Standard MIDI File is one MThd header chunk plus a number of MTrk track chunks. The header carries the format (0 single-track / 1 synchronous / 2 independent), the track count and the division — ticks per quarter note, or an SMPTE frame rate.",
+        about_p2:"Every event inside a track is preceded by a variable-length quantity (VLQ) delta time: seven data bits per byte, top bit set means another byte follows. Events may omit the status byte and reuse the previous one — running status — so the parser has to remember it.",
+        about_p3:"Turning ticks into seconds needs the tempo map: seconds = ticks / division × (microsecondsPerQuarter / 1e6), switching rate at every Set Tempo meta event. All of this runs locally; the file never leaves the browser.",
+        footer:"MidiForge · single-file · zero-dep · local-first",
+        parsed:"Parsed", warn:"warnings", err_prefix:"Parse failed: ", demo_name:"Demo: C major scale and chords"
+      }
+    };
+    var lang = (function(){
+      try{ return localStorage.getItem('nano-lang'); }catch(e){ return null; }
+    })() || ((navigator.language || 'zh').slice(0,2) === 'zh' ? 'zh' : 'en');
+    function t(k){ return (I18N[lang] && I18N[lang][k] != null) ? I18N[lang][k] : (I18N.zh[k] != null ? I18N.zh[k] : k); }
+    function applyI18n(){
+      var nodes = document.querySelectorAll('[data-i18n]');
+      for(var i = 0; i < nodes.length; i++){
+        var k = nodes[i].getAttribute('data-i18n');
+        var v = t(k);
+        if(nodes[i].tagName === 'META'){ nodes[i].setAttribute('content', v); }
+        else { nodes[i].textContent = v; }
+      }
+      document.documentElement.lang = lang;
+      var lb = document.getElementById('langBtn');
+      if(lb) lb.textContent = lang === 'zh' ? 'EN' : '中文';
+    }
+
+    var $ = function(id){ return document.getElementById(id); };
+    var parsed = null;
+
+    var TRACK_COLORS = ['#5E6AD2', '#10B981', '#22D3EE', '#A78BFA', '#F5A623', '#EF4444'];
+
+    function demoBytes(){
+      // C major scale up, then three triads
+      var scale = [60, 62, 64, 65, 67, 69, 71, 72];
+      var notes = [];
+      var tick = 0;
+      for(var i = 0; i < scale.length; i++){
+        notes.push({note:scale[i], startTick:tick, durationTicks:220, velocity:90, channel:0});
+        tick += 240;
+      }
+      var chords = [[60, 64, 67], [65, 69, 72], [67, 71, 74]];
+      for(var c = 0; c < chords.length; c++){
+        for(var j = 0; j < chords[c].length; j++){
+          notes.push({note:chords[c][j], startTick:tick, durationTicks:440, velocity:80, channel:0});
+        }
+        tick += 480;
+      }
+      return CORE.writeMidi(notes, {ticksPerQuarter:480, bpm:120, name:t('demo_name')});
+    }
+
+    function setMsg(text, cls){
+      var m = $('msg');
+      if(!m) return;
+      m.textContent = text;
+      m.className = 'msg' + (cls ? ' ' + cls : '');
+    }
+
+    function clearAll(){
+      parsed = null;
+      ['sFormat','sTracks','sDivision','sNotes','sTempo','sMeter','sDur','sRange'].forEach(function(id){
+        var el = $(id); if(el) el.textContent = '--';
+      });
+      var tb = $('trackBody'); if(tb) tb.innerHTML = '';
+      var ed = $('evDump'); if(ed) ed.textContent = '--';
+      drawRoll(null);
+      setMsg(t('msg_idle'), '');
+    }
+
+    function drawRoll(data){
+      var cv = $('roll');
+      if(!cv || !cv.getContext) return;
+      var ctx = cv.getContext('2d');
+      if(!ctx) return;
+      var W = cv.width, H = cv.height;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#1A1B1E';
+      ctx.fillRect(0, 0, W, H);
+      if(!data || !data.noteCount) return;
+
+      var lo = data.lowestNote, hi = data.highestNote;
+      if(lo == null || hi == null) return;
+      if(hi - lo < 11){ var mid = (hi + lo) / 2; lo = Math.max(0, Math.round(mid - 6)); hi = lo + 12; }
+      var span = hi - lo + 1;
+      var rowH = H / span;
+      var total = Math.max(1, data.totalTicks);
+
+      // horizontal guide lines on C notes
+      ctx.strokeStyle = 'rgba(255,255,255,.06)';
+      ctx.lineWidth = 1;
+      for(var n = lo; n <= hi; n++){
+        if(n % 12 !== 0) continue;
+        var y = H - (n - lo + 1) * rowH;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+
+      for(var ti = 0; ti < data.tracks.length; ti++){
+        var tr = data.tracks[ti];
+        for(var i = 0; i < tr.notes.length; i++){
+          var nt = tr.notes[i];
+          var x = nt.startTick / total * (W - 2);
+          var w = Math.max(2, nt.durationTicks / total * (W - 2));
+          var yy = H - (nt.note - lo + 1) * rowH;
+          ctx.fillStyle = nt.channel === 9 ? '#F5A623' : TRACK_COLORS[ti % TRACK_COLORS.length];
+          ctx.globalAlpha = 0.35 + 0.65 * ((nt.velocity || 90) / 127);
+          ctx.fillRect(x + 1, yy + 0.5, w, Math.max(2, rowH - 1.5));
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function render(data){
+      parsed = data;
+      if(!data || data.error){
+        clearAll();
+        setMsg(t('err_prefix') + ((data && data.error) || 'unknown'), 'err');
+        return;
+      }
+      var div = data.division;
+      $('sFormat').textContent = String(data.format);
+      $('sTracks').textContent = data.tracks.length + (data.tracks.length === data.ntrks ? '' : ' / ' + data.ntrks);
+      $('sDivision').textContent = div.smpte ? (div.fps + 'fps\u00d7' + div.ticksPerFrame) : (div.ticksPerQuarter + ' tpq');
+      $('sNotes').textContent = String(data.noteCount);
+      $('sTempo').textContent = data.tempos.length
+        ? (data.tempos[0].bpm.toFixed(1) + ' BPM' + (data.tempos.length > 1 ? ' +' + (data.tempos.length - 1) : ''))
+        : '--';
+      $('sMeter').textContent = data.timeSignatures.length
+        ? (data.timeSignatures[0].numerator + '/' + data.timeSignatures[0].denominator)
+        : '--';
+      $('sDur').textContent = CORE.formatDuration(data.durationSeconds);
+      $('sRange').textContent = (data.lowestNote == null) ? '--'
+        : (CORE.midiToNoteName(data.lowestNote) + ' \u2013 ' + CORE.midiToNoteName(data.highestNote));
+
+      var html = '';
+      for(var i = 0; i < data.tracks.length; i++){
+        var tr = data.tracks[i];
+        var prog = tr.programs.length ? CORE.programName(tr.programs[0]) : '';
+        html += '<tr><td class="dim">' + i + '</td>' +
+          '<td class="name">' + escapeHtml(tr.name || '\u2014') + '</td>' +
+          '<td>' + tr.events.length + '</td>' +
+          '<td>' + tr.notes.length + '</td>' +
+          '<td class="dim">' + (tr.channels.length ? tr.channels.map(function(c){ return c + 1; }).join(',') : '\u2014') + '</td>' +
+          '<td class="dim">' + escapeHtml(prog || '\u2014') + '</td>' +
+          '<td>' + tr.lengthTicks + '</td></tr>';
+      }
+      $('trackBody').innerHTML = html;
+
+      var lines = [];
+      var count = 0;
+      for(var ti = 0; ti < data.tracks.length && count < 200; ti++){
+        var evs = data.tracks[ti].events;
+        for(var e = 0; e < evs.length && count < 200; e++){
+          lines.push('[' + ti + '] t=' + pad(evs[e].tick, 7) + '  ' + describe(evs[e]));
+          count++;
+        }
+      }
+      $('evDump').textContent = lines.join('\n') || '--';
+
+      drawRoll(data);
+      var warn = data.warnings && data.warnings.length ? (' \u00b7 ' + data.warnings.length + ' ' + t('warn')) : '';
+      setMsg(t('parsed') + ': ' + data.noteCount + ' notes / ' + data.tracks.length + ' tracks' + warn,
+        (data.warnings && data.warnings.length) ? '' : 'ok');
+    }
+
+    function pad(n, w){
+      var s = String(n);
+      while(s.length < w) s = ' ' + s;
+      return s;
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+
+    function describe(e){
+      if(e.kind === 'meta'){
+        var extra = '';
+        if(e.metaType === 0x51) extra = ' ' + e.bpm.toFixed(2) + ' BPM';
+        else if(e.metaType === 0x58) extra = ' ' + e.numerator + '/' + e.denominator;
+        else if(e.text != null) extra = ' "' + e.text + '"';
+        return 'meta ' + e.metaName + extra;
+      }
+      if(e.kind === 'sysex') return 'sysex ' + e.data.length + ' bytes';
+      if(e.type === 'noteOn' || e.type === 'noteOff'){
+        return e.type + ' ch' + (e.channel + 1) + ' ' + e.noteName + ' v' + e.velocity;
+      }
+      if(e.type === 'controller') return 'cc ch' + (e.channel + 1) + ' #' + e.controller + '=' + e.value;
+      if(e.type === 'programChange') return 'program ch' + (e.channel + 1) + ' ' + e.program + ' ' + (e.programName || '');
+      if(e.type === 'pitchBend') return 'bend ch' + (e.channel + 1) + ' ' + e.value;
+      return e.type + ' ch' + (e.channel + 1);
+    }
+
+    function handleBytes(bytes){
+      try{
+        render(CORE.parseMidi(bytes));
+      }catch(err){
+        clearAll();
+        setMsg(t('err_prefix') + err.message, 'err');
+      }
+    }
+
+    function readFile(file){
+      if(!file) return;
+      var fr = new FileReader();
+      fr.onload = function(){ handleBytes(new Uint8Array(fr.result)); };
+      fr.onerror = function(){ setMsg(t('err_prefix') + 'read error', 'err'); };
+      fr.readAsArrayBuffer(file);
+    }
+
+    var drop = $('drop');
+    var fileIn = $('fileIn');
+    if(drop && fileIn){
+      drop.addEventListener('click', function(){ fileIn.click(); });
+      drop.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileIn.click(); }
+      });
+      drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.className = 'drop over'; });
+      drop.addEventListener('dragleave', function(){ drop.className = 'drop'; });
+      drop.addEventListener('drop', function(e){
+        e.preventDefault();
+        drop.className = 'drop';
+        if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+      });
+      fileIn.addEventListener('change', function(){ if(fileIn.files && fileIn.files[0]) readFile(fileIn.files[0]); });
+    }
+
+    var db = $('demoBtn');
+    if(db) db.addEventListener('click', function(){ handleBytes(demoBytes()); });
+    var cb = $('clearBtn');
+    if(cb) cb.addEventListener('click', clearAll);
+
+    var lb2 = $('langBtn');
+    if(lb2) lb2.addEventListener('click', function(){
+      lang = lang === 'zh' ? 'en' : 'zh';
+      try{ localStorage.setItem('nano-lang', lang); }catch(err){}
+      applyI18n();
+      if(parsed && !parsed.error) render(parsed); else setMsg(t('msg_idle'), '');
+    });
+
+    applyI18n();
+    clearAll();
+
+    if('serviceWorker' in navigator && location.protocol.indexOf('http') === 0){
+      window.addEventListener('load', function(){
+        navigator.serviceWorker.register('sw.js').catch(function(){});
+      });
+    }
+
+    window.__MidiForge__ = CORE;
+  })();
+}
+</script>
+</body>
+</html>

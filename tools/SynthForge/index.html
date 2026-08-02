@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SynthForge — 减法合成器与 WAV 导出</title>
+<meta name="description" data-i18n="meta_desc" content="SynthForge：单文件减法合成器。四种波形、ADSR 包络、一极低通滤波，支持 QWERTY 键盘演奏，并可离线渲染导出 WAV。离线优先、零依赖。">
+<meta property="og:title" content="SynthForge">
+<meta property="og:description" content="Subtractive synthesizer: oscillator shapes, ADSR envelope, low-pass filter, QWERTY playing and offline WAV rendering. Offline, zero-dep.">
+<meta property="og:image" content="og.svg">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E;
+    --text:#FFFFFF; --muted:#A1A1AA; --faint:#71717A;
+    --border:rgba(255,255,255,.08);
+    --accent:#5E6AD2; --success:#10B981; --warning:#F5A623; --info:#22D3EE; --violet:#A78BFA;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.5; min-height:100vh; display:flex; flex-direction:column;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.3px;}
+  .brand svg{width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.7;}
+  .langbtn{
+    background:var(--surface); color:var(--muted); border:1px solid var(--border);
+    border-radius:var(--radius); padding:6px 12px; cursor:pointer; font-size:13px;
+  }
+  .langbtn:hover{color:var(--text); border-color:var(--accent);}
+  main{flex:1; width:100%; max-width:940px; margin:0 auto; padding:26px 20px 40px;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:22px; margin-bottom:18px;
+  }
+  h2.sec{font-size:15px; color:var(--muted); margin:0 0 14px; font-weight:600;}
+  .waves{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;}
+  .wave{
+    background:var(--surface); border:1px solid var(--border); border-radius:20px;
+    padding:6px 16px; font-size:13px; color:var(--muted); cursor:pointer;
+  }
+  .wave:hover{color:var(--text);}
+  .wave.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .knobs{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:16px;}
+  .knob{font-size:12.5px; color:var(--muted);}
+  .knob label{display:block; margin-bottom:5px;}
+  .knob input[type=range]{width:100%; accent-color:var(--accent);}
+  .knob .val{color:var(--info); font-variant-numeric:tabular-nums; float:right;}
+  canvas{
+    width:100%; height:150px; display:block; background:var(--surface);
+    border:1px solid var(--border); border-radius:10px; margin-top:8px;
+  }
+  #scope{height:130px;}
+  .kb{
+    display:flex; position:relative; height:120px; margin-top:6px;
+    border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--surface);
+    user-select:none;
+  }
+  .wkey{
+    flex:1; border-right:1px solid var(--border); background:#232327; position:relative;
+    cursor:pointer; display:flex; align-items:flex-end; justify-content:center;
+    padding-bottom:8px; font-size:10.5px; color:var(--faint);
+  }
+  .wkey:last-child{border-right:none;}
+  .wkey:hover{background:#2B2B31;}
+  .wkey.down{background:var(--accent); color:#fff;}
+  .bkey{
+    position:absolute; top:0; height:62%; background:#0E0E10; border:1px solid #000;
+    border-radius:0 0 5px 5px; z-index:2; cursor:pointer;
+    display:flex; align-items:flex-end; justify-content:center; padding-bottom:5px;
+    font-size:10px; color:var(--faint);
+  }
+  .bkey:hover{background:#17171A;}
+  .bkey.down{background:var(--success); color:#04150E;}
+  .row{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:16px;}
+  .btn{
+    background:var(--surface); color:var(--text); border:1px solid var(--border);
+    border-radius:var(--radius); padding:10px 17px; cursor:pointer; font-size:13.5px;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+  .btn.primary:hover{filter:brightness(1.1);}
+  .field{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted);}
+  .field select,.field input[type=text]{
+    background:var(--surface); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:8px 10px; font-size:14px;
+  }
+  .field input[type=text]{min-width:230px;}
+  .msg{margin-top:14px; font-size:13px; color:var(--muted); min-height:20px;}
+  .msg.ok{color:var(--success);}
+  .presets{display:flex; flex-wrap:wrap; gap:8px;}
+  .preset{
+    background:var(--surface); border:1px solid var(--border); border-radius:20px;
+    padding:5px 14px; font-size:12.5px; color:var(--muted); cursor:pointer;
+  }
+  .preset:hover{color:var(--text); border-color:var(--accent);}
+  .about p{color:var(--muted); font-size:13.5px; margin:0 0 10px;}
+  .about code{background:var(--surface); padding:1px 6px; border-radius:5px; color:var(--info); font-size:12.5px;}
+  footer{
+    border-top:1px solid var(--border); padding:18px 20px; text-align:center;
+    color:var(--faint); font-size:12.5px;
+  }
+  footer a{color:var(--muted); text-decoration:none;}
+  footer a:hover{color:var(--text);}
+  @media (prefers-reduced-motion:reduce){ .wkey,.bkey{transition:none;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l2-6 3 12 3-9 2 3h5"/></svg>
+    <span>SynthForge</span>
+  </div>
+  <button class="langbtn" id="langBtn" type="button">EN</button>
+</header>
+
+<main>
+  <section class="card">
+    <h2 class="sec" data-i18n="osc_title">振荡器</h2>
+    <div class="waves" id="waveTabs"></div>
+    <div class="knobs">
+      <div class="knob">
+        <label for="kAtk" data-i18n="k_attack">Attack<span class="val" id="vAtk">0.01 s</span></label>
+        <input id="kAtk" type="range" min="0" max="200" value="2">
+      </div>
+      <div class="knob">
+        <label for="kDec" data-i18n="k_decay">Decay<span class="val" id="vDec">0.12 s</span></label>
+        <input id="kDec" type="range" min="0" max="200" value="24">
+      </div>
+      <div class="knob">
+        <label for="kSus" data-i18n="k_sustain">Sustain<span class="val" id="vSus">0.60</span></label>
+        <input id="kSus" type="range" min="0" max="100" value="60">
+      </div>
+      <div class="knob">
+        <label for="kRel" data-i18n="k_release">Release<span class="val" id="vRel">0.25 s</span></label>
+        <input id="kRel" type="range" min="0" max="300" value="50">
+      </div>
+      <div class="knob">
+        <label for="kCut" data-i18n="k_cutoff">Cutoff<span class="val" id="vCut">4000 Hz</span></label>
+        <input id="kCut" type="range" min="1" max="100" value="72">
+      </div>
+      <div class="knob">
+        <label for="kDet" data-i18n="k_detune">Detune<span class="val" id="vDet">0 ¢</span></label>
+        <input id="kDet" type="range" min="0" max="50" value="0">
+      </div>
+      <div class="knob">
+        <label for="kGain" data-i18n="k_gain">Gain<span class="val" id="vGain">0.60</span></label>
+        <input id="kGain" type="range" min="0" max="100" value="60">
+      </div>
+      <div class="knob">
+        <label for="kGate" data-i18n="k_gate">Gate<span class="val" id="vGate">0.40 s</span></label>
+        <input id="kGate" type="range" min="5" max="200" value="40">
+      </div>
+    </div>
+    <div class="presets" style="margin-top:16px;" id="presets"></div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec" data-i18n="scope_title">波形与包络</h2>
+    <canvas id="scope" width="1200" height="300"></canvas>
+    <canvas id="envView" width="1200" height="240"></canvas>
+  </section>
+
+  <section class="card">
+    <h2 class="sec" data-i18n="kb_title">键盘（QWERTY：A S D F G H J K，黑键 W E T Y U）</h2>
+    <div class="kb" id="kb"></div>
+    <div class="row">
+      <div class="field">
+        <label for="octSel" data-i18n="octave">八度</label>
+        <select id="octSel">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4" selected>4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+        </select>
+      </div>
+      <button class="btn" id="demoBtn" type="button" data-i18n="demo">试听琶音</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec" data-i18n="wav_title">渲染 WAV</h2>
+    <div class="row" style="margin-top:0;">
+      <div class="field">
+        <label for="seqIn" data-i18n="seq">音符序列</label>
+        <input id="seqIn" type="text" value="C4 E4 G4 C5 G4 E4 C4">
+      </div>
+      <div class="field">
+        <label for="srSel" data-i18n="samplerate">采样率</label>
+        <select id="srSel">
+          <option value="22050">22050</option>
+          <option value="44100" selected>44100</option>
+          <option value="48000">48000</option>
+        </select>
+      </div>
+      <button class="btn primary" id="renderBtn" type="button" data-i18n="render">渲染并下载 WAV</button>
+      <button class="btn" id="previewBtn" type="button" data-i18n="preview">试听序列</button>
+    </div>
+    <div class="msg" id="msg" data-i18n="msg_idle">调好参数后点渲染，浏览器会直接生成 WAV 文件。</div>
+  </section>
+
+  <section class="card about">
+    <h2 class="sec" data-i18n="about_title">关于</h2>
+    <p data-i18n="about_p1">减法合成的思路是先做一个谐波丰富的波形，再用滤波器削掉不要的部分。锯齿波含全部谐波，方波只含奇次谐波，三角波同样只有奇次但衰减更快，正弦波则没有谐波。</p>
+    <p data-i18n="about_p2">ADSR 包络控制音量随时间的走向：<code>attack</code> 起音、<code>decay</code> 衰减到 <code>sustain</code> 电平、松键后按 <code>release</code> 归零。滤波器是一极低通 <code>y[n] = y[n-1] + α(x[n] − y[n-1])</code>，其中 <code>α = dt / (RC + dt)</code>。</p>
+    <p data-i18n="about_p3">导出时不用 WebAudio 录音，而是纯 JS 逐采样离线渲染，再手写 RIFF/WAVE 头封装成 16-bit PCM，因此结果完全确定、可重复。</p>
+  </section>
+</main>
+
+<footer>
+  <span data-i18n="footer">SynthForge · 单文件 · 零依赖 · 本地优先</span> ·
+  <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener noreferrer">GitHub</a>
+</footer>
+
+<script>
+var CORE = (function(){
+  var NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  var BASE = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+  var WAVEFORMS = ['sine','triangle','saw','square','pulse','noise'];
+
+  var PRESETS = [
+    {id:'pluck',  wave:'saw',      env:{attack:0.002, decay:0.18, sustain:0.0,  release:0.12}, cutoff:3200, detune:6,  gain:0.6},
+    {id:'pad',    wave:'triangle', env:{attack:0.45,  decay:0.40, sustain:0.75, release:1.10}, cutoff:1800, detune:14, gain:0.5},
+    {id:'bass',   wave:'square',   env:{attack:0.004, decay:0.22, sustain:0.35, release:0.10}, cutoff:900,  detune:0,  gain:0.7},
+    {id:'lead',   wave:'saw',      env:{attack:0.01,  decay:0.12, sustain:0.7,  release:0.20}, cutoff:6000, detune:9,  gain:0.55},
+    {id:'organ',  wave:'sine',     env:{attack:0.01,  decay:0.01, sustain:1.0,  release:0.08}, cutoff:9000, detune:0,  gain:0.5},
+    {id:'blip',   wave:'pulse',    env:{attack:0.001, decay:0.06, sustain:0.0,  release:0.04}, cutoff:5000, detune:0,  gain:0.6}
+  ];
+
+  function midiToNoteName(m){
+    m = Math.round(m);
+    return NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+  }
+
+  function noteToMidi(name){
+    var m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(String(name).trim());
+    if(!m) return null;
+    var semis = m[2] === '#' ? 1 : (m[2] === 'b' ? -1 : 0);
+    return BASE[m[1].toUpperCase()] + semis + (parseInt(m[3], 10) + 1) * 12;
+  }
+
+  function midiToFreq(midi, a4){
+    a4 = a4 || 440;
+    if(midi == null || !isFinite(midi)) return null;
+    return a4 * Math.pow(2, (midi - 69) / 12);
+  }
+
+  // Deterministic noise so rendered WAVs are byte-for-byte reproducible.
+  function noiseGen(seed){
+    var s = (seed >>> 0) || 12345;
+    return function(){
+      s ^= s << 13; s >>>= 0;
+      s ^= s >> 17;
+      s ^= s << 5; s >>>= 0;
+      return s / 2147483648 - 1;
+    };
+  }
+
+  // One oscillator sample for a normalised phase in [0, 1).
+  function oscSample(type, phase, noise){
+    var p = phase - Math.floor(phase);
+    switch(type){
+      case 'sine': return Math.sin(2 * Math.PI * p);
+      case 'saw': return 2 * p - 1;
+      case 'square': return p < 0.5 ? 1 : -1;
+      case 'pulse': return p < 0.25 ? 1 : -1;
+      case 'triangle':
+        if(p < 0.25) return 4 * p;
+        if(p < 0.75) return 2 - 4 * p;
+        return 4 * p - 4;
+      case 'noise': return noise ? noise() : 0;
+      default: return Math.sin(2 * Math.PI * p);
+    }
+  }
+
+  // ADSR level at time t, given a gate (key-held) length in seconds.
+  function adsrAt(t, env, gate){
+    if(!env || !(t >= 0)) return 0;
+    var a = env.attack || 0, d = env.decay || 0;
+    var s = (env.sustain == null) ? 1 : Math.max(0, Math.min(1, env.sustain));
+    var r = env.release || 0;
+    function held(x){
+      if(a > 0 && x < a) return x / a;
+      if(d > 0 && x < a + d) return 1 - (1 - s) * (x - a) / d;
+      return s;
+    }
+    if(t < gate) return held(t);
+    var lvl = held(gate);
+    if(r <= 0) return 0;
+    var rt = t - gate;
+    if(rt >= r) return 0;
+    return lvl * (1 - rt / r);
+  }
+
+  function envelopeLength(env, gate){
+    if(!env) return gate;
+    return gate + (env.release || 0);
+  }
+
+  // One-pole low-pass: y[n] = y[n-1] + alpha * (x[n] - y[n-1])
+  function onePoleLowpass(input, cutoff, sampleRate){
+    if(!input) return null;
+    var out = new Float32Array(input.length);
+    if(!(cutoff > 0) || !(sampleRate > 0)) return out;
+    if(cutoff >= sampleRate / 2){
+      for(var q = 0; q < input.length; q++) out[q] = input[q];
+      return out;
+    }
+    var dt = 1 / sampleRate;
+    var rc = 1 / (2 * Math.PI * cutoff);
+    var alpha = dt / (rc + dt);
+    var y = 0;
+    for(var i = 0; i < input.length; i++){
+      y = y + alpha * (input[i] - y);
+      out[i] = y;
+    }
+    return out;
+  }
+
+  // Render one note into a Float32Array. Detune adds a second, slightly offset voice.
+  function renderNote(opts, sampleRate){
+    opts = opts || {};
+    sampleRate = sampleRate || 44100;
+    var freq = opts.freq;
+    if(freq == null && opts.midi != null) freq = midiToFreq(opts.midi);
+    if(!(freq > 0) || !(sampleRate > 0)) return null;
+    var gate = (opts.gate == null) ? 0.4 : opts.gate;
+    if(!(gate > 0)) return null;
+    var env = opts.env || {attack:0.01, decay:0.1, sustain:0.7, release:0.2};
+    var wave = opts.wave || 'saw';
+    var gain = (opts.gain == null) ? 0.6 : opts.gain;
+    var detune = opts.detune || 0;
+    var total = envelopeLength(env, gate);
+    var n = Math.max(1, Math.ceil(total * sampleRate));
+    var buf = new Float32Array(n);
+    var noise = noiseGen(opts.seed == null ? 1 : opts.seed);
+    var f2 = detune ? freq * Math.pow(2, detune / 1200) : 0;
+    var ph1 = 0, ph2 = 0;
+    var inc1 = freq / sampleRate;
+    var inc2 = f2 / sampleRate;
+    for(var i = 0; i < n; i++){
+      var t = i / sampleRate;
+      var v = oscSample(wave, ph1, noise);
+      if(detune) v = (v + oscSample(wave, ph2, noise)) * 0.5;
+      buf[i] = v * adsrAt(t, env, gate) * gain;
+      ph1 += inc1;
+      if(ph1 >= 1) ph1 -= 1;
+      if(detune){ ph2 += inc2; if(ph2 >= 1) ph2 -= 1; }
+    }
+    var cutoff = opts.cutoff;
+    if(cutoff && cutoff > 0) buf = onePoleLowpass(buf, cutoff, sampleRate);
+    return buf;
+  }
+
+  // Mix a list of {midi|freq, startSec, gate, velocity} into one buffer.
+  function renderSequence(notes, opts, sampleRate){
+    if(!notes || !notes.length) return null;
+    sampleRate = sampleRate || 44100;
+    opts = opts || {};
+    var env = opts.env || {attack:0.01, decay:0.1, sustain:0.7, release:0.2};
+    var maxEnd = 0;
+    for(var i = 0; i < notes.length; i++){
+      var g = notes[i].gate == null ? (opts.gate == null ? 0.4 : opts.gate) : notes[i].gate;
+      var e = (notes[i].startSec || 0) + envelopeLength(env, g);
+      if(e > maxEnd) maxEnd = e;
+    }
+    var total = Math.max(1, Math.ceil(maxEnd * sampleRate));
+    var mix = new Float32Array(total);
+    for(var k = 0; k < notes.length; k++){
+      var nt = notes[k];
+      var one = renderNote({
+        freq: nt.freq, midi: nt.midi,
+        gate: nt.gate == null ? (opts.gate == null ? 0.4 : opts.gate) : nt.gate,
+        env: env, wave: opts.wave, cutoff: opts.cutoff, detune: opts.detune,
+        gain: (opts.gain == null ? 0.6 : opts.gain) * (nt.velocity == null ? 1 : nt.velocity),
+        seed: k + 1
+      }, sampleRate);
+      if(!one) continue;
+      var off = Math.round((nt.startSec || 0) * sampleRate);
+      for(var j = 0; j < one.length; j++){
+        var idx = off + j;
+        if(idx >= 0 && idx < total) mix[idx] += one[j];
+      }
+    }
+    return mix;
+  }
+
+  // Scale the buffer so its loudest sample hits `peak`.
+  function normalize(buf, peak){
+    if(!buf || !buf.length) return null;
+    peak = (peak == null) ? 0.89 : peak;
+    var max = 0;
+    for(var i = 0; i < buf.length; i++){
+      var a = Math.abs(buf[i]);
+      if(a > max) max = a;
+    }
+    var out = new Float32Array(buf.length);
+    if(max <= 0) return out;
+    var g = peak / max;
+    for(var j = 0; j < buf.length; j++) out[j] = buf[j] * g;
+    return out;
+  }
+
+  // Hand-written RIFF/WAVE container, 16-bit PCM mono.
+  function encodeWav(samples, sampleRate){
+    if(!samples) return null;
+    sampleRate = sampleRate || 44100;
+    if(!(sampleRate > 0)) return null;
+    var n = samples.length;
+    var dataSize = n * 2;
+    var out = new Uint8Array(44 + dataSize);
+    var dv = new DataView(out.buffer);
+    function ascii(off, s){ for(var i = 0; i < s.length; i++) out[off + i] = s.charCodeAt(i); }
+    ascii(0, 'RIFF');
+    dv.setUint32(4, 36 + dataSize, true);
+    ascii(8, 'WAVE');
+    ascii(12, 'fmt ');
+    dv.setUint32(16, 16, true);      // PCM chunk size
+    dv.setUint16(20, 1, true);       // format = PCM
+    dv.setUint16(22, 1, true);       // mono
+    dv.setUint32(24, sampleRate, true);
+    dv.setUint32(28, sampleRate * 2, true); // byte rate
+    dv.setUint16(32, 2, true);       // block align
+    dv.setUint16(34, 16, true);      // bits per sample
+    ascii(36, 'data');
+    dv.setUint32(40, dataSize, true);
+    for(var i = 0; i < n; i++){
+      var v = Math.max(-1, Math.min(1, samples[i]));
+      dv.setInt16(44 + i * 2, Math.round(v * 32767), true);
+    }
+    return out;
+  }
+
+  // Read back a WAV produced by encodeWav (used by tests).
+  function decodeWav(bytes){
+    if(!bytes || bytes.length < 44) return null;
+    var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    function ascii(off, n){
+      var s = '';
+      for(var i = 0; i < n; i++) s += String.fromCharCode(bytes[off + i]);
+      return s;
+    }
+    if(ascii(0, 4) !== 'RIFF' || ascii(8, 4) !== 'WAVE') return null;
+    var channels = dv.getUint16(22, true);
+    var sampleRate = dv.getUint32(24, true);
+    var bits = dv.getUint16(34, true);
+    var dataSize = dv.getUint32(40, true);
+    var n = Math.floor(dataSize / 2);
+    var samples = new Float32Array(n);
+    for(var i = 0; i < n; i++) samples[i] = dv.getInt16(44 + i * 2, true) / 32767;
+    return {channels:channels, sampleRate:sampleRate, bits:bits, samples:samples, dataSize:dataSize};
+  }
+
+  // Parse "C4 E4 G4" or "C4:0.5 E4" into scheduled notes at the given step time.
+  function parseNoteList(text, stepSec, gate){
+    if(text == null) return null;
+    stepSec = stepSec || 0.25;
+    var parts = String(text).trim().split(/[\s,]+/).filter(function(x){ return x.length; });
+    if(!parts.length) return null;
+    var out = [];
+    for(var i = 0; i < parts.length; i++){
+      var seg = parts[i].split(':');
+      var midi = noteToMidi(seg[0]);
+      if(midi == null) continue;
+      var g = seg.length > 1 ? parseFloat(seg[1]) : gate;
+      out.push({
+        midi: midi,
+        name: midiToNoteName(midi),
+        freq: midiToFreq(midi),
+        startSec: out.length * stepSec,
+        gate: (g > 0) ? g : (gate || 0.4)
+      });
+    }
+    return out.length ? out : null;
+  }
+
+  function getPreset(id){
+    for(var i = 0; i < PRESETS.length; i++){ if(PRESETS[i].id === id) return PRESETS[i]; }
+    return null;
+  }
+
+  // Map a 0..100 slider to a musical 20 Hz .. 18 kHz cutoff curve.
+  function sliderToCutoff(v){
+    var x = Math.max(0, Math.min(100, v)) / 100;
+    return Math.round(20 * Math.pow(900, x));
+  }
+
+  return {
+    NOTE_NAMES:NOTE_NAMES,
+    WAVEFORMS:WAVEFORMS,
+    PRESETS:PRESETS,
+    midiToNoteName:midiToNoteName,
+    noteToMidi:noteToMidi,
+    midiToFreq:midiToFreq,
+    noiseGen:noiseGen,
+    oscSample:oscSample,
+    adsrAt:adsrAt,
+    envelopeLength:envelopeLength,
+    onePoleLowpass:onePoleLowpass,
+    renderNote:renderNote,
+    renderSequence:renderSequence,
+    normalize:normalize,
+    encodeWav:encodeWav,
+    decodeWav:decodeWav,
+    parseNoteList:parseNoteList,
+    getPreset:getPreset,
+    sliderToCutoff:sliderToCutoff
+  };
+})();
+
+if(typeof module !== 'undefined' && module.exports){ module.exports = CORE; }
+
+if(typeof window !== 'undefined' && window.document){
+  (function(){
+    var I18N = {
+      zh:{
+        title:"SynthForge — 减法合成器与 WAV 导出",
+        meta_desc:"SynthForge：单文件减法合成器。四种波形、ADSR 包络、一极低通滤波，支持 QWERTY 键盘演奏，并可离线渲染导出 WAV。离线优先、零依赖。",
+        osc_title:"振荡器",
+        k_attack:"Attack 起音", k_decay:"Decay 衰减", k_sustain:"Sustain 延持",
+        k_release:"Release 释放", k_cutoff:"Cutoff 截止", k_detune:"Detune 失谐",
+        k_gain:"Gain 音量", k_gate:"Gate 按键时长",
+        scope_title:"波形与包络",
+        kb_title:"键盘（QWERTY：A S D F G H J K，黑键 W E T Y U）",
+        octave:"八度", demo:"试听琶音",
+        wav_title:"渲染 WAV", seq:"音符序列", samplerate:"采样率",
+        render:"渲染并下载 WAV", preview:"试听序列",
+        msg_idle:"调好参数后点渲染，浏览器会直接生成 WAV 文件。",
+        about_title:"关于",
+        about_p1:"减法合成的思路是先做一个谐波丰富的波形，再用滤波器削掉不要的部分。锯齿波含全部谐波，方波只含奇次谐波，三角波同样只有奇次但衰减更快，正弦波则没有谐波。",
+        about_p2:"ADSR 包络控制音量随时间的走向：<code>attack</code> 起音、<code>decay</code> 衰减到 <code>sustain</code> 电平、松键后按 <code>release</code> 归零。滤波器是一极低通 <code>y[n] = y[n-1] + α(x[n] − y[n-1])</code>，其中 <code>α = dt / (RC + dt)</code>。",
+        about_p3:"导出时不用 WebAudio 录音，而是纯 JS 逐采样离线渲染，再手写 RIFF/WAVE 头封装成 16-bit PCM，因此结果完全确定、可重复。",
+        footer:"SynthForge · 单文件 · 零依赖 · 本地优先",
+        w_sine:"正弦", w_triangle:"三角", w_saw:"锯齿", w_square:"方波", w_pulse:"脉冲", w_noise:"噪声",
+        p_pluck:"拨弦", p_pad:"铺底", p_bass:"贝斯", p_lead:"主音", p_organ:"管风琴", p_blip:"电子点",
+        raw:"原始波形", filtered:"滤波后",
+        msg_bad:"音符序列无法解析，请用 C4 E4 G4 这样的写法。",
+        msg_noaudio:"当前浏览器不支持 WebAudio，无法试听，但渲染下载仍然可用。",
+        msg_done:"已渲染 {n} 个采样点 · {s} 秒 · {k} KB，文件已开始下载。",
+        msg_play:"正在试听 {n} 个音符。"
+      },
+      en:{
+        title:"SynthForge — subtractive synth and WAV export",
+        meta_desc:"SynthForge: a single-file subtractive synthesizer. Oscillator shapes, ADSR envelope, one-pole low-pass, QWERTY playing and offline WAV rendering. Offline-first, zero-dep.",
+        osc_title:"Oscillator",
+        k_attack:"Attack", k_decay:"Decay", k_sustain:"Sustain",
+        k_release:"Release", k_cutoff:"Cutoff", k_detune:"Detune",
+        k_gain:"Gain", k_gate:"Gate",
+        scope_title:"Waveform and envelope",
+        kb_title:"Keyboard (QWERTY: A S D F G H J K, black keys W E T Y U)",
+        octave:"Octave", demo:"Play arpeggio",
+        wav_title:"Render WAV", seq:"Note sequence", samplerate:"Sample rate",
+        render:"Render and download WAV", preview:"Preview sequence",
+        msg_idle:"Dial in the sound, then hit render — the WAV is built right here in the page.",
+        about_title:"About",
+        about_p1:"Subtractive synthesis starts from a harmonically rich waveform and carves away what you do not want. A saw has every harmonic, a square only the odd ones, a triangle is odd-only but rolls off faster, and a sine has none at all.",
+        about_p2:"The ADSR envelope shapes level over time: <code>attack</code> ramps up, <code>decay</code> falls to the <code>sustain</code> level, and <code>release</code> fades to zero after the key is let go. The filter is a one-pole low-pass, <code>y[n] = y[n-1] + α(x[n] − y[n-1])</code> with <code>α = dt / (RC + dt)</code>.",
+        about_p3:"Export does not record WebAudio. It renders sample by sample in plain JS and writes the RIFF/WAVE header by hand as 16-bit PCM, so the result is fully deterministic and reproducible.",
+        footer:"SynthForge · single-file · zero-dep · local-first",
+        w_sine:"Sine", w_triangle:"Triangle", w_saw:"Saw", w_square:"Square", w_pulse:"Pulse", w_noise:"Noise",
+        p_pluck:"Pluck", p_pad:"Pad", p_bass:"Bass", p_lead:"Lead", p_organ:"Organ", p_blip:"Blip",
+        raw:"raw", filtered:"filtered",
+        msg_bad:"Could not parse that sequence — use note names like C4 E4 G4.",
+        msg_noaudio:"WebAudio is unavailable here, so preview is off, but rendering and download still work.",
+        msg_done:"Rendered {n} samples · {s} s · {k} KB, download started.",
+        msg_play:"Previewing {n} notes."
+      }
+    };
+    var HTML_KEYS = {about_p2:1};
+    var lang = (function(){
+      try{ return localStorage.getItem('nano-lang'); }catch(e){ return null; }
+    })() || ((navigator.language || 'zh').slice(0,2) === 'zh' ? 'zh' : 'en');
+    function t(k){ return (I18N[lang] && I18N[lang][k] != null) ? I18N[lang][k] : (I18N.zh[k] != null ? I18N.zh[k] : k); }
+    function $(id){ return document.getElementById(id); }
+
+    function applyI18n(){
+      var nodes = document.querySelectorAll('[data-i18n]');
+      for(var i = 0; i < nodes.length; i++){
+        var el = nodes[i], k = el.getAttribute('data-i18n'), v = t(k);
+        if(el.tagName === 'META'){ el.setAttribute('content', v); continue; }
+        if(HTML_KEYS[k]){ el.innerHTML = v; continue; }
+        var keep = el.querySelector ? el.querySelector('.val') : null;
+        if(keep){ el.textContent = v; el.appendChild(keep); }
+        else { el.textContent = v; }
+      }
+      document.documentElement.lang = lang;
+      document.title = t('title');
+      var lb = $('langBtn');
+      if(lb) lb.textContent = lang === 'zh' ? 'EN' : '中文';
+      buildWaves();
+      buildPresets();
+      readAll();
+    }
+
+    // ---- state ----------------------------------------------------------
+    var wave = 'saw';
+    var audio = null;
+    var state = {env:{attack:0.01, decay:0.12, sustain:0.6, release:0.25}, cutoff:2681, detune:0, gain:0.6, gate:0.4};
+
+    function ac(){
+      if(audio) return audio;
+      var C = window.AudioContext || window.webkitAudioContext;
+      if(!C) return null;
+      try{ audio = new C(); }catch(e){ audio = null; }
+      return audio;
+    }
+    function playFloat(buf){
+      var c = ac();
+      if(!c || !buf || !buf.length) return false;
+      try{
+        if(c.state === 'suspended' && c.resume) c.resume();
+        var ab = c.createBuffer(1, buf.length, c.sampleRate);
+        ab.getChannelData(0).set(buf);
+        var src = c.createBufferSource();
+        src.buffer = ab;
+        src.connect(c.destination);
+        src.start();
+        return true;
+      }catch(e){ return false; }
+    }
+    function synthRate(){ var c = ac(); return (c && c.sampleRate) ? c.sampleRate : 44100; }
+    function opts(){
+      return {env:state.env, wave:wave, cutoff:state.cutoff, detune:state.detune, gain:state.gain, gate:state.gate};
+    }
+
+    // ---- controls -------------------------------------------------------
+    function buildWaves(){
+      var host = $('waveTabs');
+      if(!host) return;
+      host.innerHTML = '';
+      for(var i = 0; i < CORE.WAVEFORMS.length; i++){
+        (function(w){
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'wave' + (w === wave ? ' on' : '');
+          b.textContent = t('w_' + w);
+          b.setAttribute('data-wave', w);
+          b.addEventListener('click', function(){ wave = w; buildWaves(); drawScope(); });
+          host.appendChild(b);
+        })(CORE.WAVEFORMS[i]);
+      }
+    }
+
+    function buildPresets(){
+      var host = $('presets');
+      if(!host) return;
+      host.innerHTML = '';
+      for(var i = 0; i < CORE.PRESETS.length; i++){
+        (function(p){
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'preset';
+          b.textContent = t('p_' + p.id);
+          b.setAttribute('data-preset', p.id);
+          b.addEventListener('click', function(){ loadPreset(p.id); });
+          host.appendChild(b);
+        })(CORE.PRESETS[i]);
+      }
+    }
+
+    function cutoffToSlider(hz){
+      var x = Math.log(Math.max(20, hz) / 20) / Math.log(900);
+      return Math.max(1, Math.min(100, Math.round(x * 100)));
+    }
+
+    function loadPreset(id){
+      var p = CORE.getPreset(id);
+      if(!p) return;
+      wave = p.wave;
+      set('kAtk', Math.round(p.env.attack * 200));
+      set('kDec', Math.round(p.env.decay * 200));
+      set('kSus', Math.round(p.env.sustain * 100));
+      set('kRel', Math.round(p.env.release * 200));
+      set('kCut', cutoffToSlider(p.cutoff));
+      set('kDet', Math.round(p.detune));
+      set('kGain', Math.round(p.gain * 100));
+      buildWaves();
+      readAll();
+    }
+    function set(id, v){ var el = $(id); if(el) el.value = String(v); }
+    function num(id, fb){ var el = $(id); return el ? parseFloat(el.value) : fb; }
+
+    function readAll(){
+      state.env = {
+        attack: num('kAtk', 2) / 200,
+        decay: num('kDec', 24) / 200,
+        sustain: num('kSus', 60) / 100,
+        release: num('kRel', 50) / 200
+      };
+      state.cutoff = CORE.sliderToCutoff(num('kCut', 72));
+      state.detune = num('kDet', 0);
+      state.gain = num('kGain', 60) / 100;
+      state.gate = num('kGate', 40) / 100;
+      txt('vAtk', state.env.attack.toFixed(3) + ' s');
+      txt('vDec', state.env.decay.toFixed(3) + ' s');
+      txt('vSus', state.env.sustain.toFixed(2));
+      txt('vRel', state.env.release.toFixed(3) + ' s');
+      txt('vCut', state.cutoff + ' Hz');
+      txt('vDet', state.detune + ' ¢');
+      txt('vGain', state.gain.toFixed(2));
+      txt('vGate', state.gate.toFixed(2) + ' s');
+      drawScope();
+      drawEnv();
+    }
+    function txt(id, s){ var el = $(id); if(el) el.textContent = s; }
+
+    // ---- drawing --------------------------------------------------------
+    function ctx2d(id){
+      var c = $(id);
+      if(!c || !c.getContext) return null;
+      var g = null;
+      try{ g = c.getContext('2d'); }catch(e){ g = null; }
+      if(!g) return null;
+      return {c:c, g:g};
+    }
+
+    function drawScope(){
+      var h = ctx2d('scope');
+      if(!h) return;
+      var g = h.g, W = h.c.width, H = h.c.height;
+      g.clearRect(0, 0, W, H);
+      g.fillStyle = '#1A1B1E'; g.fillRect(0, 0, W, H);
+      g.strokeStyle = 'rgba(255,255,255,.08)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, H / 2); g.lineTo(W, H / 2); g.stroke();
+
+      var sr = 44100, f = 220, cyc = sr / f, n = Math.round(cyc * 4);
+      var raw = new Float32Array(n), noise = CORE.noiseGen(7), ph = 0, inc = f / sr, i;
+      for(i = 0; i < n; i++){ raw[i] = CORE.oscSample(wave, ph, noise); ph += inc; if(ph >= 1) ph -= 1; }
+      var filt = CORE.onePoleLowpass(raw, state.cutoff, sr);
+      var start = Math.round(cyc * 2), len = n - start;
+      function plot(buf, color, width){
+        g.strokeStyle = color; g.lineWidth = width; g.beginPath();
+        for(var k = 0; k < len; k++){
+          var x = k / (len - 1) * W;
+          var y = H / 2 - buf[start + k] * (H / 2 - 12);
+          if(k === 0) g.moveTo(x, y); else g.lineTo(x, y);
+        }
+        g.stroke();
+      }
+      plot(raw, 'rgba(161,161,170,.55)', 1.5);
+      plot(filt, '#5E6AD2', 2);
+      g.fillStyle = '#71717A'; g.font = '15px system-ui,sans-serif';
+      g.fillText(t('raw'), 12, 22);
+      g.fillStyle = '#5E6AD2';
+      g.fillText(t('filtered'), 12, 44);
+    }
+
+    function drawEnv(){
+      var h = ctx2d('envView');
+      if(!h) return;
+      var g = h.g, W = h.c.width, H = h.c.height, pad = 16;
+      g.clearRect(0, 0, W, H);
+      g.fillStyle = '#1A1B1E'; g.fillRect(0, 0, W, H);
+      var total = CORE.envelopeLength(state.env, state.gate);
+      if(!(total > 0)) return;
+      g.strokeStyle = 'rgba(255,255,255,.08)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, H - pad); g.lineTo(W, H - pad); g.stroke();
+      // gate release boundary
+      var gx = state.gate / total * W;
+      g.strokeStyle = 'rgba(245,166,35,.55)';
+      g.beginPath(); g.moveTo(gx, 0); g.lineTo(gx, H); g.stroke();
+      g.strokeStyle = '#10B981'; g.lineWidth = 2.5; g.beginPath();
+      var steps = 400;
+      for(var i = 0; i <= steps; i++){
+        var tt = i / steps * total;
+        var lvl = CORE.adsrAt(tt, state.env, state.gate);
+        var x = i / steps * W;
+        var y = (H - pad) - lvl * (H - pad * 2);
+        if(i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.stroke();
+      g.fillStyle = '#71717A'; g.font = '15px system-ui,sans-serif';
+      g.fillText(total.toFixed(2) + ' s', W - 90, 26);
+    }
+
+    // ---- keyboard -------------------------------------------------------
+    var WHITE = [[0,'a'],[2,'s'],[4,'d'],[5,'f'],[7,'g'],[9,'h'],[11,'j'],[12,'k']];
+    var BLACK = [[1,'w',0],[3,'e',1],[6,'t',3],[8,'y',4],[10,'u',5]];
+    var keyMap = {};
+    var down = {};
+
+    function buildKb(){
+      var kb = $('kb');
+      if(!kb) return;
+      kb.innerHTML = '';
+      keyMap = {};
+      var i, d;
+      for(i = 0; i < WHITE.length; i++){
+        d = document.createElement('div');
+        d.className = 'wkey';
+        d.setAttribute('data-off', String(WHITE[i][0]));
+        d.setAttribute('data-key', WHITE[i][1]);
+        d.textContent = WHITE[i][1].toUpperCase();
+        kb.appendChild(d);
+        keyMap[WHITE[i][1]] = d;
+      }
+      for(i = 0; i < BLACK.length; i++){
+        d = document.createElement('div');
+        d.className = 'bkey';
+        d.setAttribute('data-off', String(BLACK[i][0]));
+        d.setAttribute('data-key', BLACK[i][1]);
+        d.textContent = BLACK[i][1].toUpperCase();
+        d.style.left = ((BLACK[i][2] + 1) * 12.5 - 3.4) + '%';
+        d.style.width = '6.8%';
+        kb.appendChild(d);
+        keyMap[BLACK[i][1]] = d;
+      }
+      kb.addEventListener('mousedown', function(ev){
+        var el = ev.target;
+        if(!el || !el.getAttribute) return;
+        var off = el.getAttribute('data-off');
+        if(off == null) return;
+        strike(parseInt(off, 10), el);
+      });
+    }
+
+    function octave(){ var s = $('octSel'); return s ? parseInt(s.value, 10) : 4; }
+
+    function strike(off, el){
+      var midi = (octave() + 1) * 12 + off;
+      var sr = synthRate();
+      var buf = CORE.renderNote({midi:midi, env:state.env, wave:wave, cutoff:state.cutoff,
+        detune:state.detune, gain:state.gain, gate:state.gate, seed:midi}, sr);
+      playFloat(buf);
+      if(el){
+        el.className += ' down';
+        setTimeout(function(){
+          el.className = el.className.replace(/\s*down/g, '');
+        }, Math.max(120, state.gate * 1000));
+      }
+    }
+
+    document.addEventListener('keydown', function(ev){
+      if(ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      var tag = (ev.target && ev.target.tagName) || '';
+      if(tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      var k = String(ev.key || '').toLowerCase();
+      var el = keyMap[k];
+      if(!el || down[k]) return;
+      down[k] = 1;
+      ev.preventDefault();
+      strike(parseInt(el.getAttribute('data-off'), 10), el);
+    });
+    document.addEventListener('keyup', function(ev){
+      var k = String(ev.key || '').toLowerCase();
+      if(down[k]) delete down[k];
+    });
+
+    // ---- sequence / export ----------------------------------------------
+    function msg(s, ok){
+      var m = $('msg');
+      if(!m) return;
+      m.textContent = s;
+      m.className = ok ? 'msg ok' : 'msg';
+      m.removeAttribute('data-i18n');
+    }
+    function fill(s, map){
+      return String(s).replace(/\{(\w+)\}/g, function(_, k){ return map[k] == null ? '' : map[k]; });
+    }
+    function seqNotes(){
+      var el = $('seqIn');
+      var step = Math.max(0.08, state.gate * 0.85);
+      return CORE.parseNoteList(el ? el.value : '', step, state.gate);
+    }
+
+    var demoBtn = $('demoBtn');
+    if(demoBtn) demoBtn.addEventListener('click', function(){
+      var base = (octave() + 1) * 12;
+      var offs = [0, 4, 7, 12, 7, 4], notes = [];
+      var step = Math.max(0.09, state.gate * 0.55);
+      for(var i = 0; i < offs.length; i++){
+        notes.push({midi:base + offs[i], startSec:i * step, gate:state.gate});
+      }
+      var buf = CORE.renderSequence(notes, opts(), synthRate());
+      if(!playFloat(CORE.normalize(buf))) msg(t('msg_noaudio'), false);
+    });
+
+    var previewBtn = $('previewBtn');
+    if(previewBtn) previewBtn.addEventListener('click', function(){
+      var notes = seqNotes();
+      if(!notes){ msg(t('msg_bad'), false); return; }
+      var buf = CORE.renderSequence(notes, opts(), synthRate());
+      if(playFloat(CORE.normalize(buf))) msg(fill(t('msg_play'), {n:notes.length}), true);
+      else msg(t('msg_noaudio'), false);
+    });
+
+    var renderBtn = $('renderBtn');
+    if(renderBtn) renderBtn.addEventListener('click', function(){
+      var notes = seqNotes();
+      if(!notes){ msg(t('msg_bad'), false); return; }
+      var srSel = $('srSel');
+      var sr = srSel ? parseInt(srSel.value, 10) : 44100;
+      var buf = CORE.normalize(CORE.renderSequence(notes, opts(), sr));
+      var bytes = CORE.encodeWav(buf, sr);
+      if(!bytes){ msg(t('msg_bad'), false); return; }
+      try{
+        var blob = new Blob([bytes], {type:'audio/wav'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'synthforge-' + wave + '-' + sr + '.wav';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      }catch(e){}
+      msg(fill(t('msg_done'), {
+        n: buf.length,
+        s: (buf.length / sr).toFixed(2),
+        k: (bytes.length / 1024).toFixed(1)
+      }), true);
+    });
+
+    // ---- wiring ---------------------------------------------------------
+    var knobIds = ['kAtk','kDec','kSus','kRel','kCut','kDet','kGain','kGate'];
+    for(var q = 0; q < knobIds.length; q++){
+      (function(id){
+        var el = $(id);
+        if(el) el.addEventListener('input', readAll);
+      })(knobIds[q]);
+    }
+    var octSel = $('octSel');
+    if(octSel) octSel.addEventListener('change', function(){});
+
+    var lb2 = $('langBtn');
+    if(lb2) lb2.addEventListener('click', function(){
+      lang = lang === 'zh' ? 'en' : 'zh';
+      try{ localStorage.setItem('nano-lang', lang); }catch(err){}
+      applyI18n();
+    });
+
+    buildKb();
+    applyI18n();
+
+    if('serviceWorker' in navigator && location.protocol.indexOf('http') === 0){
+      window.addEventListener('load', function(){
+        navigator.serviceWorker.register('sw.js').catch(function(){});
+      });
+    }
+
+    window.__SynthForge__ = CORE;
+  })();
+}
+</script>
+</body>
+</html>

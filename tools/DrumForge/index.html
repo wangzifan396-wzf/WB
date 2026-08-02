@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DrumForge — 16 步鼓机与节奏码</title>
+<meta name="description" data-i18n="meta_desc" content="DrumForge：单文件 16 步鼓机。八个纯合成音色、swing、逐步力度、可分享的节奏码与经典预置节奏，并可离线渲染导出 WAV。离线优先、零依赖。">
+<meta property="og:title" content="DrumForge">
+<meta property="og:description" content="A 16-step drum sequencer with eight fully synthesized voices, swing, per-step velocity, shareable pattern codes and classic preset grooves. Offline, zero-dep.">
+<meta property="og:image" content="og.svg">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E;
+    --text:#FFFFFF; --muted:#A1A1AA; --faint:#71717A;
+    --border:rgba(255,255,255,.08);
+    --accent:#5E6AD2; --success:#10B981; --warning:#F5A623; --info:#22D3EE; --violet:#A78BFA;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.5; min-height:100vh; display:flex; flex-direction:column;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.3px;}
+  .brand svg{width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.7;}
+  .langbtn{
+    background:var(--surface); color:var(--muted); border:1px solid var(--border);
+    border-radius:var(--radius); padding:6px 12px; cursor:pointer; font-size:13px;
+  }
+  .langbtn:hover{color:var(--text); border-color:var(--accent);}
+  main{flex:1; width:100%; max-width:1020px; margin:0 auto; padding:26px 20px 40px;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:22px; margin-bottom:18px;
+  }
+  h2.sec{font-size:15px; color:var(--muted); margin:0 0 14px; font-weight:600;}
+  .transport{display:flex; flex-wrap:wrap; gap:12px; align-items:center;}
+  .btn{
+    background:var(--surface); color:var(--text); border:1px solid var(--border);
+    border-radius:var(--radius); padding:10px 17px; cursor:pointer; font-size:13.5px;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+  .btn.primary:hover{filter:brightness(1.1);}
+  .btn.on{background:var(--success); border-color:var(--success); color:#04150E; font-weight:600;}
+  .field{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted);}
+  .field input[type=range]{width:130px; accent-color:var(--accent);}
+  .field input[type=text],.field select{
+    background:var(--surface); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:8px 10px; font-size:13.5px;
+  }
+  .field .val{color:var(--info); font-variant-numeric:tabular-nums; min-width:56px;}
+  .grid-wrap{overflow-x:auto; margin-top:4px;}
+  table.seq{border-collapse:separate; border-spacing:4px; width:100%; min-width:720px;}
+  table.seq th{
+    font-weight:500; font-size:11.5px; color:var(--faint); text-align:center; padding:0 0 2px;
+  }
+  table.seq th.beat{color:var(--muted);}
+  table.seq td.name{
+    text-align:left; font-size:12.5px; color:var(--muted); white-space:nowrap;
+    padding-right:6px; width:1%;
+  }
+  .voicebtn{
+    background:none; border:none; color:inherit; font:inherit; cursor:pointer;
+    padding:2px 4px; border-radius:6px;
+  }
+  .voicebtn:hover{color:var(--text);}
+  .voicebtn.muted{color:#4B4B52; text-decoration:line-through;}
+  .cell{
+    width:100%; height:30px; border-radius:7px; border:1px solid var(--border);
+    background:var(--surface); cursor:pointer; padding:0; display:block;
+  }
+  .cell:hover{border-color:var(--accent);}
+  .cell.beat{background:#1F2024;}
+  .cell.v1{background:var(--accent); border-color:var(--accent);}
+  .cell.v2{background:var(--info); border-color:var(--info);}
+  .cell.cur{outline:2px solid var(--warning); outline-offset:1px;}
+  .legend{margin-top:12px; font-size:12px; color:var(--faint);}
+  .legend b{color:var(--accent); font-weight:600;}
+  .legend i{color:var(--info); font-style:normal; font-weight:600;}
+  .presets{display:flex; flex-wrap:wrap; gap:8px;}
+  .preset{
+    background:var(--surface); border:1px solid var(--border); border-radius:20px;
+    padding:5px 14px; font-size:12.5px; color:var(--muted); cursor:pointer;
+  }
+  .preset:hover{color:var(--text); border-color:var(--accent);}
+  .row{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:16px;}
+  .msg{margin-top:14px; font-size:13px; color:var(--muted); min-height:20px;}
+  .msg.ok{color:var(--success);}
+  .msg.bad{color:var(--warning);}
+  #codeIn{min-width:330px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px;}
+  .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-top:14px;}
+  .stat{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px;}
+  .stat .k{font-size:11.5px; color:var(--faint);}
+  .stat .v{font-size:16px; color:var(--info); font-variant-numeric:tabular-nums;}
+  .about p{color:var(--muted); font-size:13.5px; margin:0 0 10px;}
+  .about code{background:var(--surface); padding:1px 6px; border-radius:5px; color:var(--info); font-size:12.5px;}
+  footer{
+    border-top:1px solid var(--border); padding:18px 20px; text-align:center;
+    color:var(--faint); font-size:12.5px;
+  }
+  footer a{color:var(--muted); text-decoration:none;}
+  footer a:hover{color:var(--text);}
+  @media (prefers-reduced-motion:reduce){ .cell{transition:none;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="14" r="7"/><path d="M5 14V8m14 6V8M5 8l7-4 7 4-7 4z"/></svg>
+    <span>DrumForge</span>
+  </div>
+  <button class="langbtn" id="langBtn" type="button">EN</button>
+</header>
+
+<main>
+  <section class="card">
+    <h2 class="sec" data-i18n="seq_title">序列器</h2>
+    <div class="transport">
+      <button class="btn primary" id="playBtn" type="button" data-i18n="play">播放</button>
+      <div class="field">
+        <label for="bpmIn" data-i18n="bpm">BPM</label>
+        <input id="bpmIn" type="range" min="60" max="200" value="120">
+        <span class="val" id="bpmVal">120</span>
+      </div>
+      <div class="field">
+        <label for="swingIn" data-i18n="swing">Swing</label>
+        <input id="swingIn" type="range" min="0" max="70" value="0">
+        <span class="val" id="swingVal">0%</span>
+      </div>
+      <div class="field">
+        <label for="barsSel" data-i18n="bars">循环</label>
+        <select id="barsSel">
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="4">4</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-wrap">
+      <table class="seq"><thead><tr id="headRow"></tr></thead><tbody id="gridBody"></tbody></table>
+    </div>
+    <div class="legend" data-i18n="legend">点一下是普通力度 <b>■</b>，再点一下是重音 <i>■</i>，第三下清除。点左侧名字可静音该音色。</div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec" data-i18n="preset_title">预置节奏</h2>
+    <div class="presets" id="presets"></div>
+    <div class="row">
+      <button class="btn" id="randBtn" type="button" data-i18n="rand">随机生成</button>
+      <button class="btn" id="clearBtn" type="button" data-i18n="clear">清空</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k" data-i18n="s_hits">音符数</div><div class="v" id="sHits">0</div></div>
+      <div class="stat"><div class="k" data-i18n="s_density">密度</div><div class="v" id="sDensity">0%</div></div>
+      <div class="stat"><div class="k" data-i18n="s_step">步长</div><div class="v" id="sStep">125 ms</div></div>
+      <div class="stat"><div class="k" data-i18n="s_loop">循环长度</div><div class="v" id="sLoop">4.00 s</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="sec" data-i18n="code_title">节奏码与导出</h2>
+    <div class="row" style="margin-top:0;">
+      <div class="field">
+        <label for="codeIn" data-i18n="code">节奏码</label>
+        <input id="codeIn" type="text" value="">
+      </div>
+      <button class="btn" id="loadBtn" type="button" data-i18n="load">载入</button>
+      <button class="btn" id="copyBtn" type="button" data-i18n="copy">复制</button>
+      <button class="btn primary" id="wavBtn" type="button" data-i18n="wav">导出 WAV</button>
+    </div>
+    <div class="msg" id="msg" data-i18n="msg_idle">节奏码是把 8×16 的格子压成 40 个字符，贴给别人就能还原一模一样的节奏。</div>
+  </section>
+
+  <section class="card about">
+    <h2 class="sec" data-i18n="about_title">关于</h2>
+    <p data-i18n="about_p1">八个音色全部是算出来的，没有采样文件。底鼓是一段从 120 Hz 滑到 45 Hz 的正弦加指数衰减；军鼓是 190 Hz 正弦和噪声混在一起；镲片是噪声经过高通；拍手是三段错开几毫秒的噪声爆发，那点错位就是"人手"的感觉来源。</p>
+    <p data-i18n="about_p2">Swing 只挪偶数位的 16 分音符：<code>延迟 = 步长 × swing%</code>。0% 是死板的机械感，55%–65% 接近三连音摇摆，Boom Bap 一般落在这一带。</p>
+    <p data-i18n="about_p3">节奏码把每个音色的 16 步当成一个 16 位三进制数（0 空、1 普通、2 重音），转成 5 位 36 进制，八行拼起来正好 40 个字符，完全可逆。</p>
+  </section>
+</main>
+
+<footer>
+  <span data-i18n="footer">DrumForge · 单文件 · 零依赖 · 本地优先</span> ·
+  <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener noreferrer">GitHub</a>
+</footer>
+
+<script>
+var CORE = (function(){
+  var STEPS = 16;
+  var VOICES = [
+    {id:'kick',  dur:0.42, gain:1.00},
+    {id:'snare', dur:0.24, gain:0.85},
+    {id:'clap',  dur:0.34, gain:0.75},
+    {id:'chat',  dur:0.07, gain:0.55},
+    {id:'ohat',  dur:0.34, gain:0.50},
+    {id:'ltom',  dur:0.36, gain:0.75},
+    {id:'htom',  dur:0.28, gain:0.72},
+    {id:'rim',   dur:0.08, gain:0.65}
+  ];
+  var VEL = [0, 0.7, 1.0];
+  var POW3 = (function(){
+    var a = [1];
+    for(var i = 1; i <= STEPS; i++) a.push(a[i - 1] * 3);
+    return a;
+  })();
+
+  function voiceIndex(id){
+    for(var i = 0; i < VOICES.length; i++){ if(VOICES[i].id === id) return i; }
+    return -1;
+  }
+
+  // ---- pattern grid ---------------------------------------------------
+  function emptyPattern(){
+    var g = [];
+    for(var v = 0; v < VOICES.length; v++){
+      var row = [];
+      for(var s = 0; s < STEPS; s++) row.push(0);
+      g.push(row);
+    }
+    return g;
+  }
+
+  function clonePattern(g){
+    if(!isPattern(g)) return null;
+    var out = [];
+    for(var v = 0; v < g.length; v++) out.push(g[v].slice());
+    return out;
+  }
+
+  function isPattern(g){
+    if(!g || g.length !== VOICES.length) return false;
+    for(var v = 0; v < g.length; v++){
+      if(!g[v] || g[v].length !== STEPS) return false;
+      for(var s = 0; s < STEPS; s++){
+        var x = g[v][s];
+        if(x !== 0 && x !== 1 && x !== 2) return false;
+      }
+    }
+    return true;
+  }
+
+  // hits: {kick:[0,4], snare:[[4,2],12]} — a bare number means normal velocity.
+  function gridFromHits(hits){
+    var g = emptyPattern();
+    if(!hits) return g;
+    for(var id in hits){
+      if(!Object.prototype.hasOwnProperty.call(hits, id)) continue;
+      var vi = voiceIndex(id);
+      if(vi < 0) continue;
+      var list = hits[id] || [];
+      for(var i = 0; i < list.length; i++){
+        var step, vel;
+        if(list[i] && list[i].length === 2 && typeof list[i] !== 'number'){ step = list[i][0]; vel = list[i][1]; }
+        else { step = list[i]; vel = 1; }
+        if(step >= 0 && step < STEPS) g[vi][step] = (vel === 2) ? 2 : 1;
+      }
+    }
+    return g;
+  }
+
+  function hitCount(g){
+    if(!isPattern(g)) return 0;
+    var n = 0;
+    for(var v = 0; v < g.length; v++){
+      for(var s = 0; s < STEPS; s++) if(g[v][s]) n++;
+    }
+    return n;
+  }
+
+  function density(g){
+    if(!isPattern(g)) return 0;
+    return hitCount(g) / (VOICES.length * STEPS);
+  }
+
+  function toggleStep(g, v, s){
+    if(!isPattern(g)) return null;
+    if(v < 0 || v >= VOICES.length || s < 0 || s >= STEPS) return g;
+    var out = clonePattern(g);
+    out[v][s] = (out[v][s] + 1) % 3;
+    return out;
+  }
+
+  // ---- pattern code: 8 rows x 5 base36 chars = 40 chars ---------------
+  function encodeRow(row){
+    var n = 0;
+    for(var i = 0; i < STEPS; i++){
+      var x = row[i];
+      n += ((x === 1 || x === 2) ? x : 0) * POW3[i];
+    }
+    var s = n.toString(36);
+    while(s.length < 5) s = '0' + s;
+    return s;
+  }
+
+  function decodeRow(str){
+    if(typeof str !== 'string' || str.length !== 5) return null;
+    if(!/^[0-9a-z]{5}$/.test(str)) return null;
+    var n = parseInt(str, 36);
+    if(!(n >= 0) || n >= POW3[STEPS]) return null;
+    var row = [];
+    for(var i = 0; i < STEPS; i++){
+      row.push(Math.floor(n / POW3[i]) % 3);
+    }
+    return row;
+  }
+
+  function encodePattern(g){
+    if(!isPattern(g)) return null;
+    var out = '';
+    for(var v = 0; v < g.length; v++) out += encodeRow(g[v]);
+    return out;
+  }
+
+  function decodePattern(code){
+    if(code == null) return null;
+    var s = String(code).toLowerCase().replace(/[^0-9a-z]/g, '');
+    if(s.length !== VOICES.length * 5) return null;
+    var g = [];
+    for(var v = 0; v < VOICES.length; v++){
+      var row = decodeRow(s.slice(v * 5, v * 5 + 5));
+      if(!row) return null;
+      g.push(row);
+    }
+    return g;
+  }
+
+  // ---- timing ---------------------------------------------------------
+  function stepMs(bpm){
+    if(!(bpm > 0)) return null;
+    return 60000 / bpm / 4;            // one 16th note
+  }
+  function barMs(bpm){
+    var s = stepMs(bpm);
+    return s == null ? null : s * STEPS;
+  }
+  function swingDelayMs(step, bpm, swingPct){
+    var s = stepMs(bpm);
+    if(s == null) return null;
+    if(step % 2 === 0) return 0;
+    var pct = Math.max(0, Math.min(90, swingPct || 0));
+    return s * pct / 100;
+  }
+
+  // Flatten a grid into timed events across `bars` repeats.
+  function scheduleGrid(g, opts){
+    if(!isPattern(g)) return null;
+    opts = opts || {};
+    var bpm = opts.bpm || 120;
+    var bars = Math.max(1, opts.bars || 1);
+    var swing = opts.swing || 0;
+    var mutes = opts.mutes || {};
+    var s = stepMs(bpm);
+    if(s == null) return null;
+    var out = [];
+    for(var b = 0; b < bars; b++){
+      for(var st = 0; st < STEPS; st++){
+        for(var v = 0; v < VOICES.length; v++){
+          var lvl = g[v][st];
+          if(!lvl) continue;
+          if(mutes[VOICES[v].id]) continue;
+          out.push({
+            voice: VOICES[v].id,
+            voiceIndex: v,
+            bar: b,
+            step: st,
+            velocity: VEL[lvl],
+            level: lvl,
+            timeMs: (b * STEPS + st) * s + swingDelayMs(st, bpm, swing)
+          });
+        }
+      }
+    }
+    out.sort(function(a, c){ return a.timeMs - c.timeMs || a.voiceIndex - c.voiceIndex; });
+    return out;
+  }
+
+  // ---- synthesis ------------------------------------------------------
+  function noiseGen(seed){
+    var s = (seed >>> 0) || 20250802;
+    return function(){
+      s ^= s << 13; s >>>= 0;
+      s ^= s >> 17;
+      s ^= s << 5; s >>>= 0;
+      return s / 2147483648 - 1;
+    };
+  }
+
+  function onePoleHighpass(input, cutoff, sampleRate){
+    if(!input) return null;
+    var out = new Float32Array(input.length);
+    if(!(cutoff > 0) || !(sampleRate > 0)){
+      for(var q = 0; q < input.length; q++) out[q] = input[q];
+      return out;
+    }
+    var dt = 1 / sampleRate;
+    var rc = 1 / (2 * Math.PI * cutoff);
+    var a = rc / (rc + dt);
+    var prevIn = 0, prevOut = 0;
+    for(var i = 0; i < input.length; i++){
+      prevOut = a * (prevOut + input[i] - prevIn);
+      prevIn = input[i];
+      out[i] = prevOut;
+    }
+    return out;
+  }
+
+  function voiceSpec(id){
+    for(var i = 0; i < VOICES.length; i++){ if(VOICES[i].id === id) return VOICES[i]; }
+    return null;
+  }
+
+  // Every drum is computed, there are no samples anywhere in this file.
+  function renderVoice(id, sampleRate, seed){
+    var spec = voiceSpec(id);
+    sampleRate = sampleRate || 44100;
+    if(!spec || !(sampleRate > 0)) return null;
+    var n = Math.max(1, Math.ceil(spec.dur * sampleRate));
+    var buf = new Float32Array(n);
+    var noise = noiseGen(seed == null ? (voiceIndex(id) + 11) : seed);
+    var i, t, ph = 0, f, amp;
+
+    if(id === 'kick'){
+      for(i = 0; i < n; i++){
+        t = i / sampleRate;
+        f = 45 + 75 * Math.exp(-t * 38);
+        ph += f / sampleRate;
+        amp = Math.exp(-t * 9);
+        buf[i] = Math.sin(2 * Math.PI * ph) * amp;
+      }
+      // a touch of click so it cuts through on small speakers
+      var clickN = Math.min(n, Math.round(0.003 * sampleRate));
+      for(i = 0; i < clickN; i++) buf[i] += noise() * 0.35 * (1 - i / clickN);
+    } else if(id === 'snare'){
+      var body = new Float32Array(n);
+      for(i = 0; i < n; i++){
+        t = i / sampleRate;
+        body[i] = noise() * Math.exp(-t * 24);
+      }
+      var hp = onePoleHighpass(body, 900, sampleRate);
+      for(i = 0; i < n; i++){
+        t = i / sampleRate;
+        buf[i] = hp[i] * 0.75 + Math.sin(2 * Math.PI * 190 * t) * Math.exp(-t * 30) * 0.5;
+      }
+    } else if(id === 'clap'){
+      var bursts = [0, 0.011, 0.023];
+      var raw = new Float32Array(n);
+      for(i = 0; i < n; i++){
+        t = i / sampleRate;
+        var v = 0;
+        for(var b = 0; b < bursts.length; b++){
+          var x = t - bursts[b];
+          if(x >= 0) v += Math.exp(-x * 340);
+        }
+        // the tail is what makes a clap read as a room, not a click
+        v += Math.exp(-Math.max(0, t - 0.026) * 14) * 0.42;
+        raw[i] = noise() * Math.min(1.6, v);
+      }
+      buf = onePoleHighpass(raw, 1100, sampleRate);
+    } else if(id === 'chat' || id === 'ohat'){
+      var decay = id === 'chat' ? 150 : 13;
+      var rawh = new Float32Array(n);
+      for(i = 0; i < n; i++){
+        t = i / sampleRate;
+        rawh[i] = noise() * Math.exp(-t * decay);
+      }
+      buf = onePoleHighpass(rawh, 7000, sampleRate);
+    } else if(id === 'ltom' || id === 'htom'){
+      var f0 = id === 'ltom' ? 150 : 260;
+      var f1 = id === 'ltom' ? 78 : 140;
+      var dk = id === 'ltom' ? 11 : 13;
+      for(i = 0; i < n; i++){
+        t = i / sampleRate;
+        f = f1 + (f0 - f1) * Math.exp(-t * 18);
+        ph += f / sampleRate;
+        buf[i] = Math.sin(2 * Math.PI * ph) * Math.exp(-t * dk);
+      }
+    } else if(id === 'rim'){
+      for(i = 0; i < n; i++){
+        t = i / sampleRate;
+        amp = Math.exp(-t * 130);
+        buf[i] = (Math.sin(2 * Math.PI * 1720 * t) * 0.6 + Math.sin(2 * Math.PI * 2490 * t) * 0.4) * amp
+               + noise() * amp * 0.25;
+      }
+    }
+
+    var g = spec.gain;
+    for(i = 0; i < n; i++) buf[i] *= g;
+    return buf;
+  }
+
+  function normalize(buf, peak){
+    if(!buf || !buf.length) return null;
+    peak = (peak == null) ? 0.92 : peak;
+    var max = 0, i;
+    for(i = 0; i < buf.length; i++){
+      var a = Math.abs(buf[i]);
+      if(a > max) max = a;
+    }
+    var out = new Float32Array(buf.length);
+    if(max <= 0) return out;
+    var k = peak / max;
+    for(i = 0; i < buf.length; i++) out[i] = buf[i] * k;
+    return out;
+  }
+
+  // Render a whole loop offline; the result is deterministic and loopable.
+  function renderPattern(g, opts){
+    if(!isPattern(g)) return null;
+    opts = opts || {};
+    var sampleRate = opts.sampleRate || 44100;
+    if(!(sampleRate > 0)) return null;
+    var bpm = opts.bpm || 120;
+    var bars = Math.max(1, opts.bars || 1);
+    var events = scheduleGrid(g, {bpm:bpm, bars:bars, swing:opts.swing || 0, mutes:opts.mutes});
+    if(!events) return null;
+    var loopSec = barMs(bpm) * bars / 1000;
+    var tailSec = opts.trim ? 0 : 0.45;
+    var total = Math.max(1, Math.ceil((loopSec + tailSec) * sampleRate));
+    var mix = new Float32Array(total);
+    var cache = {};
+    for(var e = 0; e < events.length; e++){
+      var ev = events[e];
+      if(!cache[ev.voice]) cache[ev.voice] = renderVoice(ev.voice, sampleRate);
+      var src = cache[ev.voice];
+      if(!src) continue;
+      var off = Math.round(ev.timeMs / 1000 * sampleRate);
+      for(var j = 0; j < src.length; j++){
+        var idx = off + j;
+        if(idx < 0) continue;
+        if(idx >= total){
+          // wrap the tail so the loop joins cleanly onto itself
+          if(!opts.trim) break;
+          idx -= total;
+        }
+        mix[idx] += src[j] * ev.velocity;
+      }
+    }
+    return {samples:mix, sampleRate:sampleRate, durationSec:total / sampleRate, loopSec:loopSec, events:events};
+  }
+
+  // Hand-written RIFF/WAVE container, 16-bit PCM mono.
+  function encodeWav(samples, sampleRate){
+    if(!samples) return null;
+    sampleRate = sampleRate || 44100;
+    if(!(sampleRate > 0)) return null;
+    var n = samples.length;
+    var dataSize = n * 2;
+    var out = new Uint8Array(44 + dataSize);
+    var dv = new DataView(out.buffer);
+    function ascii(off, s){ for(var i = 0; i < s.length; i++) out[off + i] = s.charCodeAt(i); }
+    ascii(0, 'RIFF');
+    dv.setUint32(4, 36 + dataSize, true);
+    ascii(8, 'WAVE');
+    ascii(12, 'fmt ');
+    dv.setUint32(16, 16, true);
+    dv.setUint16(20, 1, true);
+    dv.setUint16(22, 1, true);
+    dv.setUint32(24, sampleRate, true);
+    dv.setUint32(28, sampleRate * 2, true);
+    dv.setUint16(32, 2, true);
+    dv.setUint16(34, 16, true);
+    ascii(36, 'data');
+    dv.setUint32(40, dataSize, true);
+    for(var i = 0; i < n; i++){
+      var v = Math.max(-1, Math.min(1, samples[i]));
+      dv.setInt16(44 + i * 2, Math.round(v * 32767), true);
+    }
+    return out;
+  }
+
+  function decodeWav(bytes){
+    if(!bytes || bytes.length < 44) return null;
+    var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    function ascii(off, n){
+      var s = '';
+      for(var i = 0; i < n; i++) s += String.fromCharCode(bytes[off + i]);
+      return s;
+    }
+    if(ascii(0, 4) !== 'RIFF' || ascii(8, 4) !== 'WAVE') return null;
+    var dataSize = dv.getUint32(40, true);
+    var n = Math.floor(dataSize / 2);
+    var samples = new Float32Array(n);
+    for(var i = 0; i < n; i++) samples[i] = dv.getInt16(44 + i * 2, true) / 32767;
+    return {
+      channels: dv.getUint16(22, true),
+      sampleRate: dv.getUint32(24, true),
+      bits: dv.getUint16(34, true),
+      dataSize: dataSize,
+      samples: samples
+    };
+  }
+
+  // ---- presets --------------------------------------------------------
+  var PRESETS = [
+    {id:'house',    bpm:126, swing:0,  hits:{kick:[0,4,8,12], chat:[2,6,10,14], clap:[4,12], ohat:[14]}},
+    {id:'boombap',  bpm:90,  swing:58, hits:{kick:[[0,2],3,8,[10,2]], snare:[4,12], chat:[0,2,4,6,8,10,12,14]}},
+    {id:'break',    bpm:168, swing:0,  hits:{kick:[0,10], snare:[4,7,12], chat:[0,2,4,6,8,10,12,14], ohat:[14]}},
+    {id:'trap',     bpm:140, swing:0,  hits:{kick:[0,6,10], clap:[8], chat:[0,2,3,4,6,8,10,11,12,14,15], ltom:[13]}},
+    {id:'rock',     bpm:118, swing:0,  hits:{kick:[[0,2],8,11], snare:[4,12], chat:[0,2,4,6,8,10,12,14]}},
+    {id:'techno',   bpm:134, swing:0,  hits:{kick:[0,4,8,12], ohat:[2,6,10,14], rim:[3,11], chat:[1,5,9,13]}},
+    {id:'bossa',    bpm:114, swing:0,  hits:{rim:[0,3,6,10,12], kick:[0,8], chat:[0,2,4,6,8,10,12,14]}},
+    {id:'halftime', bpm:86,  swing:54, hits:{kick:[0,10], snare:[8], chat:[0,4,8,12], ohat:[6]}}
+  ];
+
+  function getPreset(id){
+    for(var i = 0; i < PRESETS.length; i++){ if(PRESETS[i].id === id) return PRESETS[i]; }
+    return null;
+  }
+  function presetGrid(id){
+    var p = getPreset(id);
+    return p ? gridFromHits(p.hits) : null;
+  }
+
+  // Weighted, seeded generator — random but still musical, and reproducible.
+  var WEIGHTS = {
+    kick:  {on:[0,4,8,12], hi:0.86, lo:0.13},
+    snare: {on:[4,12],     hi:0.92, lo:0.07},
+    clap:  {on:[4,12],     hi:0.22, lo:0.04},
+    chat:  {on:[0,2,4,6,8,10,12,14], hi:0.62, lo:0.22},
+    ohat:  {on:[2,6,10,14], hi:0.16, lo:0.03},
+    ltom:  {on:[14],       hi:0.18, lo:0.04},
+    htom:  {on:[15],       hi:0.16, lo:0.04},
+    rim:   {on:[3,11],     hi:0.14, lo:0.05}
+  };
+
+  function randomPattern(seed, densityScale){
+    var rnd = noiseGen(seed == null ? 1 : seed);
+    function u(){ return (rnd() + 1) / 2; }
+    var k = (densityScale == null) ? 1 : Math.max(0, Math.min(2, densityScale));
+    var g = emptyPattern();
+    for(var v = 0; v < VOICES.length; v++){
+      var w = WEIGHTS[VOICES[v].id];
+      for(var s = 0; s < STEPS; s++){
+        var strong = w.on.indexOf(s) >= 0;
+        var p = (strong ? w.hi : w.lo) * k;
+        if(u() < p) g[v][s] = (strong && u() < 0.3) ? 2 : 1;
+      }
+    }
+    return g;
+  }
+
+  function fmt(n, d){
+    var x = Number(n);
+    if(!isFinite(x)) return '0';
+    return x.toFixed(d == null ? 2 : d);
+  }
+
+  return {
+    STEPS:STEPS,
+    VOICES:VOICES,
+    VEL:VEL,
+    PRESETS:PRESETS,
+    voiceIndex:voiceIndex,
+    voiceSpec:voiceSpec,
+    emptyPattern:emptyPattern,
+    clonePattern:clonePattern,
+    isPattern:isPattern,
+    gridFromHits:gridFromHits,
+    hitCount:hitCount,
+    density:density,
+    toggleStep:toggleStep,
+    encodeRow:encodeRow,
+    decodeRow:decodeRow,
+    encodePattern:encodePattern,
+    decodePattern:decodePattern,
+    stepMs:stepMs,
+    barMs:barMs,
+    swingDelayMs:swingDelayMs,
+    scheduleGrid:scheduleGrid,
+    noiseGen:noiseGen,
+    onePoleHighpass:onePoleHighpass,
+    renderVoice:renderVoice,
+    normalize:normalize,
+    renderPattern:renderPattern,
+    encodeWav:encodeWav,
+    decodeWav:decodeWav,
+    getPreset:getPreset,
+    presetGrid:presetGrid,
+    randomPattern:randomPattern,
+    fmt:fmt
+  };
+})();
+
+if(typeof module !== 'undefined' && module.exports){ module.exports = CORE; }
+
+if(typeof window !== 'undefined' && window.document){
+  (function(){
+    var I18N = {
+      zh:{
+        title:"DrumForge — 16 步鼓机与节奏码",
+        meta_desc:"DrumForge：单文件 16 步鼓机。八个纯合成音色、swing、逐步力度、可分享的节奏码与经典预置节奏，并可离线渲染导出 WAV。离线优先、零依赖。",
+        seq_title:"序列器", play:"播放", stop:"停止",
+        bpm:"BPM", swing:"Swing", bars:"循环",
+        legend:"点一下是普通力度 <b>■</b>，再点一下是重音 <i>■</i>，第三下清除。点左侧名字可静音该音色。",
+        preset_title:"预置节奏", rand:"随机生成", clear:"清空",
+        s_hits:"音符数", s_density:"密度", s_step:"步长", s_loop:"循环长度",
+        code_title:"节奏码与导出", code:"节奏码", load:"载入", copy:"复制", wav:"导出 WAV",
+        msg_idle:"节奏码是把 8×16 的格子压成 40 个字符，贴给别人就能还原一模一样的节奏。",
+        about_title:"关于",
+        footer:"DrumForge · 单文件 · 零依赖 · 本地优先",
+        v_kick:"底鼓", v_snare:"军鼓", v_clap:"拍手", v_chat:"闭镲",
+        v_ohat:"开镲", v_ltom:"低嗵", v_htom:"高嗵", v_rim:"边击",
+        p_house:"四踩 House", p_boombap:"Boom Bap", p_break:"碎拍 Break", p_trap:"Trap",
+        p_rock:"摇滚 Rock", p_techno:"Techno", p_bossa:"Bossa", p_halftime:"半速 Halftime",
+        msg_loaded:"已载入节奏码，{n} 个音符。",
+        msg_badcode:"这串节奏码读不出来，应该是 40 个字符（0-9 a-z）。",
+        msg_copied:"节奏码已复制。",
+        msg_preset:"已载入「{p}」，{b} BPM，swing {s}%。",
+        msg_wav:"已渲染 {s} 秒 · {k} KB，文件已开始下载。",
+        msg_empty:"格子是空的，先点几下再渲染。",
+        msg_noaudio:"当前浏览器不支持 WebAudio，听不了声，但导出 WAV 仍然可用。"
+      },
+      en:{
+        title:"DrumForge — 16-step drum machine and pattern codes",
+        meta_desc:"DrumForge: a single-file 16-step drum sequencer with eight fully synthesized voices, swing, per-step velocity, shareable pattern codes, classic preset grooves and offline WAV export. Offline-first, zero-dep.",
+        seq_title:"Sequencer", play:"Play", stop:"Stop",
+        bpm:"BPM", swing:"Swing", bars:"Loop",
+        legend:"One click is a normal hit <b>■</b>, a second click accents it <i>■</i>, a third clears it. Click a name on the left to mute that voice.",
+        preset_title:"Preset grooves", rand:"Randomise", clear:"Clear",
+        s_hits:"Hits", s_density:"Density", s_step:"Step", s_loop:"Loop length",
+        code_title:"Pattern code and export", code:"Pattern code", load:"Load", copy:"Copy", wav:"Export WAV",
+        msg_idle:"The pattern code squeezes the 8×16 grid into 40 characters — paste it to anyone and they get the exact same groove.",
+        about_title:"About",
+        footer:"DrumForge · single-file · zero-dep · local-first",
+        v_kick:"Kick", v_snare:"Snare", v_clap:"Clap", v_chat:"Closed hat",
+        v_ohat:"Open hat", v_ltom:"Low tom", v_htom:"High tom", v_rim:"Rim",
+        p_house:"House", p_boombap:"Boom Bap", p_break:"Break", p_trap:"Trap",
+        p_rock:"Rock", p_techno:"Techno", p_bossa:"Bossa", p_halftime:"Halftime",
+        msg_loaded:"Pattern code loaded, {n} hits.",
+        msg_badcode:"Could not read that pattern code — it should be 40 characters (0-9 a-z).",
+        msg_copied:"Pattern code copied.",
+        msg_preset:"Loaded \u201c{p}\u201d at {b} BPM, swing {s}%.",
+        msg_wav:"Rendered {s} s · {k} KB, download started.",
+        msg_empty:"The grid is empty — add a few hits before rendering.",
+        msg_noaudio:"WebAudio is unavailable here so there is no sound, but WAV export still works."
+      }
+    };
+    var HTML_KEYS = {legend:1};
+    var lang = (function(){
+      try{ return localStorage.getItem('nano-lang'); }catch(e){ return null; }
+    })() || ((navigator.language || 'zh').slice(0,2) === 'zh' ? 'zh' : 'en');
+    function t(k){ return (I18N[lang] && I18N[lang][k] != null) ? I18N[lang][k] : (I18N.zh[k] != null ? I18N.zh[k] : k); }
+    function $(id){ return document.getElementById(id); }
+    function fill(s, map){
+      return String(s).replace(/\{(\w+)\}/g, function(_, k){ return map[k] == null ? '' : map[k]; });
+    }
+
+    // ---- state ----------------------------------------------------------
+    var grid = CORE.presetGrid('house');
+    var mutes = {};
+    var playing = false;
+    var audio = null, source = null, timer = null, cursor = 0;
+
+    function bpm(){ var el = $('bpmIn'); return el ? parseInt(el.value, 10) : 120; }
+    function swing(){ var el = $('swingIn'); return el ? parseInt(el.value, 10) : 0; }
+    function bars(){ var el = $('barsSel'); return el ? parseInt(el.value, 10) : 2; }
+    function totalSteps(){ return CORE.STEPS * bars(); }
+
+    function ac(){
+      if(audio) return audio;
+      var C = window.AudioContext || window.webkitAudioContext;
+      if(!C) return null;
+      try{ audio = new C(); }catch(e){ audio = null; }
+      return audio;
+    }
+
+    // ---- build ----------------------------------------------------------
+    function buildHead(){
+      var head = $('headRow');
+      if(!head) return;
+      head.innerHTML = '';
+      var blank = document.createElement('th');
+      blank.textContent = '';
+      head.appendChild(blank);
+      for(var s = 0; s < CORE.STEPS; s++){
+        var th = document.createElement('th');
+        th.textContent = String(s + 1);
+        if(s % 4 === 0) th.className = 'beat';
+        head.appendChild(th);
+      }
+    }
+
+    function buildGrid(){
+      var body = $('gridBody');
+      if(!body) return;
+      body.innerHTML = '';
+      for(var v = 0; v < CORE.VOICES.length; v++){
+        (function(vi){
+          var id = CORE.VOICES[vi].id;
+          var tr = document.createElement('tr');
+          var name = document.createElement('td');
+          name.className = 'name';
+          var nb = document.createElement('button');
+          nb.type = 'button';
+          nb.className = 'voicebtn' + (mutes[id] ? ' muted' : '');
+          nb.textContent = t('v_' + id);
+          nb.setAttribute('data-voice', id);
+          nb.addEventListener('click', function(){
+            if(mutes[id]) delete mutes[id]; else mutes[id] = 1;
+            nb.className = 'voicebtn' + (mutes[id] ? ' muted' : '');
+            if(playing) restart();
+          });
+          name.appendChild(nb);
+          tr.appendChild(name);
+          for(var s = 0; s < CORE.STEPS; s++){
+            (function(si){
+              var td = document.createElement('td');
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'cell';
+              b.setAttribute('data-v', String(vi));
+              b.setAttribute('data-s', String(si));
+              b.addEventListener('click', function(){
+                grid = CORE.toggleStep(grid, vi, si);
+                paint();
+                syncCode();
+                if(playing) restart();
+              });
+              td.appendChild(b);
+              tr.appendChild(td);
+            })(s);
+          }
+          body.appendChild(tr);
+        })(v);
+      }
+    }
+
+    function paint(){
+      var cells = document.querySelectorAll('#gridBody .cell');
+      var curCol = playing ? (cursor % CORE.STEPS) : -1;
+      for(var i = 0; i < cells.length; i++){
+        var c = cells[i];
+        var v = parseInt(c.getAttribute('data-v'), 10);
+        var s = parseInt(c.getAttribute('data-s'), 10);
+        var lvl = grid[v][s];
+        var cls = 'cell';
+        if(lvl === 1) cls += ' v1';
+        else if(lvl === 2) cls += ' v2';
+        else if(s % 4 === 0) cls += ' beat';
+        if(s === curCol) cls += ' cur';
+        c.className = cls;
+      }
+      stats();
+    }
+
+    function stats(){
+      var st = CORE.stepMs(bpm());
+      var loop = CORE.barMs(bpm()) * bars() / 1000;
+      set('sHits', String(CORE.hitCount(grid)));
+      set('sDensity', Math.round(CORE.density(grid) * 100) + '%');
+      set('sStep', CORE.fmt(st, 1) + ' ms');
+      set('sLoop', CORE.fmt(loop, 2) + ' s');
+      set('bpmVal', String(bpm()));
+      set('swingVal', swing() + '%');
+    }
+    function set(id, s){ var el = $(id); if(el) el.textContent = s; }
+
+    function syncCode(){
+      var el = $('codeIn');
+      if(el) el.value = CORE.encodePattern(grid) || '';
+    }
+
+    function msg(s, cls){
+      var m = $('msg');
+      if(!m) return;
+      m.textContent = s;
+      m.className = 'msg' + (cls ? ' ' + cls : '');
+      m.removeAttribute('data-i18n');
+    }
+
+    // ---- transport ------------------------------------------------------
+    function buildLoop(){
+      var res = CORE.renderPattern(grid, {
+        bpm: bpm(), bars: bars(), swing: swing(), mutes: mutes,
+        sampleRate: (ac() && ac().sampleRate) ? ac().sampleRate : 44100,
+        trim: true
+      });
+      return res ? CORE.normalize(res.samples) : null;
+    }
+
+    function startAudio(){
+      var c = ac();
+      if(!c) return false;
+      var buf = buildLoop();
+      if(!buf) return false;
+      try{
+        if(c.state === 'suspended' && c.resume) c.resume();
+        var ab = c.createBuffer(1, buf.length, c.sampleRate);
+        ab.getChannelData(0).set(buf);
+        source = c.createBufferSource();
+        source.buffer = ab;
+        source.loop = true;
+        source.connect(c.destination);
+        source.start();
+        return true;
+      }catch(e){ source = null; return false; }
+    }
+
+    function stopAudio(){
+      if(source){
+        try{ source.stop(); }catch(e){}
+        try{ source.disconnect(); }catch(e){}
+        source = null;
+      }
+    }
+
+    function tick(){
+      cursor = (cursor + 1) % totalSteps();
+      paint();
+    }
+
+    function play(){
+      if(playing) return;
+      playing = true;
+      cursor = 0;
+      var okAudio = startAudio();
+      if(!okAudio) msg(t('msg_noaudio'), 'bad');
+      timer = setInterval(tick, Math.max(20, CORE.stepMs(bpm())));
+      syncPlayBtn();
+      paint();
+    }
+
+    function stop(){
+      playing = false;
+      if(timer){ clearInterval(timer); timer = null; }
+      stopAudio();
+      cursor = 0;
+      syncPlayBtn();
+      paint();
+    }
+
+    function restart(){
+      if(!playing) return;
+      stopAudio();
+      if(timer){ clearInterval(timer); timer = null; }
+      startAudio();
+      timer = setInterval(tick, Math.max(20, CORE.stepMs(bpm())));
+    }
+
+    function syncPlayBtn(){
+      var b = $('playBtn');
+      if(!b) return;
+      b.textContent = playing ? t('stop') : t('play');
+      b.className = 'btn ' + (playing ? 'on' : 'primary');
+    }
+
+    // ---- presets --------------------------------------------------------
+    function buildPresets(){
+      var host = $('presets');
+      if(!host) return;
+      host.innerHTML = '';
+      for(var i = 0; i < CORE.PRESETS.length; i++){
+        (function(p){
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'preset';
+          b.textContent = t('p_' + p.id);
+          b.setAttribute('data-preset', p.id);
+          b.addEventListener('click', function(){
+            grid = CORE.presetGrid(p.id);
+            if($('bpmIn')) $('bpmIn').value = String(p.bpm);
+            if($('swingIn')) $('swingIn').value = String(p.swing);
+            paint();
+            syncCode();
+            msg(fill(t('msg_preset'), {p:t('p_' + p.id), b:p.bpm, s:p.swing}), 'ok');
+            if(playing) restart();
+          });
+          host.appendChild(b);
+        })(CORE.PRESETS[i]);
+      }
+    }
+
+    // ---- i18n -----------------------------------------------------------
+    function applyI18n(){
+      var nodes = document.querySelectorAll('[data-i18n]');
+      for(var i = 0; i < nodes.length; i++){
+        var el = nodes[i], k = el.getAttribute('data-i18n'), v = t(k);
+        if(el.tagName === 'META'){ el.setAttribute('content', v); continue; }
+        if(HTML_KEYS[k]){ el.innerHTML = v; continue; }
+        el.textContent = v;
+      }
+      document.documentElement.lang = lang;
+      document.title = t('title');
+      var lb = $('langBtn');
+      if(lb) lb.textContent = lang === 'zh' ? 'EN' : '中文';
+      buildPresets();
+      buildGrid();
+      syncPlayBtn();
+      paint();
+    }
+
+    // ---- wiring ---------------------------------------------------------
+    var playBtn = $('playBtn');
+    if(playBtn) playBtn.addEventListener('click', function(){ if(playing) stop(); else play(); });
+
+    var bpmIn = $('bpmIn');
+    if(bpmIn) bpmIn.addEventListener('input', function(){ stats(); if(playing) restart(); });
+    var swingIn = $('swingIn');
+    if(swingIn) swingIn.addEventListener('input', function(){ stats(); if(playing) restart(); });
+    var barsSel = $('barsSel');
+    if(barsSel) barsSel.addEventListener('change', function(){ cursor = 0; stats(); if(playing) restart(); });
+
+    var randBtn = $('randBtn');
+    if(randBtn) randBtn.addEventListener('click', function(){
+      grid = CORE.randomPattern((Date.now() & 0x7fffffff) || 1, 1);
+      paint();
+      syncCode();
+      msg(fill(t('msg_loaded'), {n:CORE.hitCount(grid)}), 'ok');
+      if(playing) restart();
+    });
+
+    var clearBtn = $('clearBtn');
+    if(clearBtn) clearBtn.addEventListener('click', function(){
+      grid = CORE.emptyPattern();
+      paint();
+      syncCode();
+      if(playing) restart();
+    });
+
+    var loadBtn = $('loadBtn');
+    if(loadBtn) loadBtn.addEventListener('click', function(){
+      var el = $('codeIn');
+      var g = CORE.decodePattern(el ? el.value : '');
+      if(!g){ msg(t('msg_badcode'), 'bad'); return; }
+      grid = g;
+      paint();
+      syncCode();
+      msg(fill(t('msg_loaded'), {n:CORE.hitCount(grid)}), 'ok');
+      if(playing) restart();
+    });
+
+    var copyBtn = $('copyBtn');
+    if(copyBtn) copyBtn.addEventListener('click', function(){
+      var el = $('codeIn');
+      if(!el) return;
+      try{
+        el.select();
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(el.value);
+        else if(document.execCommand) document.execCommand('copy');
+      }catch(e){}
+      msg(t('msg_copied'), 'ok');
+    });
+
+    var wavBtn = $('wavBtn');
+    if(wavBtn) wavBtn.addEventListener('click', function(){
+      if(CORE.hitCount(grid) === 0){ msg(t('msg_empty'), 'bad'); return; }
+      var res = CORE.renderPattern(grid, {bpm:bpm(), bars:bars(), swing:swing(), mutes:mutes, sampleRate:44100});
+      if(!res){ msg(t('msg_empty'), 'bad'); return; }
+      var bytes = CORE.encodeWav(CORE.normalize(res.samples), res.sampleRate);
+      if(!bytes){ msg(t('msg_empty'), 'bad'); return; }
+      try{
+        var blob = new Blob([bytes], {type:'audio/wav'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'drumforge-' + bpm() + 'bpm-' + (CORE.encodePattern(grid) || 'loop').slice(0, 8) + '.wav';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      }catch(e){}
+      msg(fill(t('msg_wav'), {s:CORE.fmt(res.durationSec, 2), k:CORE.fmt(bytes.length / 1024, 1)}), 'ok');
+    });
+
+    var lb2 = $('langBtn');
+    if(lb2) lb2.addEventListener('click', function(){
+      lang = lang === 'zh' ? 'en' : 'zh';
+      try{ localStorage.setItem('nano-lang', lang); }catch(err){}
+      applyI18n();
+    });
+
+    document.addEventListener('keydown', function(ev){
+      if(ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      var tag = (ev.target && ev.target.tagName) || '';
+      if(tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if(ev.key === ' ' || ev.key === 'Spacebar'){
+        ev.preventDefault();
+        if(playing) stop(); else play();
+      }
+    });
+
+    if($('bpmIn')) $('bpmIn').value = '126';
+    buildHead();
+    applyI18n();
+    syncCode();
+
+    if('serviceWorker' in navigator && location.protocol.indexOf('http') === 0){
+      window.addEventListener('load', function(){
+        navigator.serviceWorker.register('sw.js').catch(function(){});
+      });
+    }
+
+    window.__DrumForge__ = CORE;
+  })();
+}
+</script>
+</body>
+</html>
