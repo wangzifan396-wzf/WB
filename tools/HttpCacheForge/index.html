@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>HttpCacheForge — Cache-Control 策略生成与新鲜度推演：六种场景预设 + 响应头体检。</title>
+<meta property="og:title" content="HttpCacheForge">
+<meta property="og:description" content="Cache-Control 策略生成与缓存新鲜度推演，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Cache-Control 策略生成与缓存新鲜度推演，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>HttpCacheForge</h1>
+  <p class="sub">HTTP 缓存：Cache-Control 指令生成、max-age/s-maxage/SWR 新鲜度推演、响应头冲突体检、ETag 生成与比对 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="grid">
+  <section class="panel">
+    <h2>策略生成</h2>
+    <div class="row">
+      <label>场景预设</label>
+      <select id="preset">
+        <option value="static-hashed">带指纹静态资源</option>
+        <option value="html">HTML 文档</option>
+        <option value="api-private">用户私有 API</option>
+        <option value="api-cdn">可共享 API</option>
+        <option value="image-cdn">图片 CDN</option>
+        <option value="sensitive">敏感数据</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>可见性</label>
+      <select id="vis"><option value="public">public</option><option value="private">private</option><option value="">不指定</option></select>
+    </div>
+    <div class="row">
+      <label>max-age</label><input id="ma" value="31536000" placeholder="秒 或 7d / 1h">
+    </div>
+    <div class="row">
+      <label>s-maxage</label><input id="sma" placeholder="留空则不设置">
+    </div>
+    <div class="row">
+      <label>stale-while-revalidate</label><input id="swr" placeholder="留空则不设置">
+    </div>
+    <div class="row chk">
+      <label><input type="checkbox" id="nc"> no-cache</label>
+      <label><input type="checkbox" id="ns"> no-store</label>
+      <label><input type="checkbox" id="mr"> must-revalidate</label>
+      <label><input type="checkbox" id="im" checked> immutable</label>
+    </div>
+    <pre id="out" class="out"></pre>
+    <div class="row"><button id="copy" class="btn">复制响应头</button></div>
+    <div id="warn" class="notes"></div>
+  </section>
+  <section class="panel">
+    <h2>新鲜度推演</h2>
+    <div class="row"><label>已缓存时长 Age</label><input id="age" value="3600" placeholder="秒 或 2h"></div>
+    <div id="fresh" class="out"></div>
+    <h2 style="margin-top:18px">响应头体检</h2>
+    <div class="row"><input id="audit" style="width:100%" value="public, max-age=60, no-store"></div>
+    <div id="auditOut" class="out"></div>
+    <h2 style="margin-top:18px">ETag 生成</h2>
+    <div class="row"><textarea id="body" rows="3" placeholder="粘贴响应体，生成稳定 ETag">hello world</textarea></div>
+    <div id="etag" class="out"></div>
+  </section>
+</div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var DIRECTIVES = ['public','private','no-cache','no-store','must-revalidate','proxy-revalidate','immutable','no-transform'];
+function parseMaxAge(str){
+  if(str===null || str===undefined || str==='') return {value:null, error:'空值'};
+  var s=String(str).trim().toLowerCase();
+  if(/^\d+$/.test(s)) return {value:parseInt(s,10), error:null};
+  var m=s.match(/^(\d+(?:\.\d+)?)\s*(s|sec|m|min|h|hr|d|day|w|week|y|year)s?$/);
+  if(!m) return {value:null, error:'无法解析时长: '+str};
+  var n=parseFloat(m[1]), u=m[2];
+  var mul = {s:1,sec:1,m:60,min:60,h:3600,hr:3600,d:86400,day:86400,w:604800,week:604800,y:31536000,year:31536000}[u];
+  return {value: Math.round(n*mul), error:null};
+}
+function formatAge(sec){
+  if(typeof sec!=='number' || sec<0 || !isFinite(sec)) return '-';
+  if(sec===0) return '0s';
+  var units=[['y',31536000],['w',604800],['d',86400],['h',3600],['m',60],['s',1]];
+  var out=[], rest=Math.floor(sec);
+  for(var i=0;i<units.length;i++){
+    var q=Math.floor(rest/units[i][1]);
+    if(q>0){ out.push(q+units[i][0]); rest-=q*units[i][1]; }
+    if(out.length===2) break;
+  }
+  return out.join(' ');
+}
+function buildHeader(opt){
+  opt = opt || {};
+  var parts=[], warns=[];
+  if(opt.noStore){
+    parts.push('no-store');
+    if(opt.maxAge) warns.push('no-store 与 max-age 同时出现，max-age 会被忽略');
+    return {header:'Cache-Control: no-store', value:'no-store', directives:['no-store'], warnings:warns};
+  }
+  if(opt.visibility==='private') parts.push('private');
+  else if(opt.visibility==='public') parts.push('public');
+  if(opt.noCache) parts.push('no-cache');
+  if(typeof opt.maxAge==='number' && opt.maxAge>=0) parts.push('max-age='+opt.maxAge);
+  if(typeof opt.sMaxAge==='number' && opt.sMaxAge>=0) parts.push('s-maxage='+opt.sMaxAge);
+  if(typeof opt.staleWhileRevalidate==='number' && opt.staleWhileRevalidate>0) parts.push('stale-while-revalidate='+opt.staleWhileRevalidate);
+  if(typeof opt.staleIfError==='number' && opt.staleIfError>0) parts.push('stale-if-error='+opt.staleIfError);
+  if(opt.mustRevalidate) parts.push('must-revalidate');
+  if(opt.immutable) parts.push('immutable');
+  if(!parts.length) parts.push('no-cache');
+  if(opt.visibility==='private' && typeof opt.sMaxAge==='number') warns.push('private 响应不会被共享缓存存储，s-maxage 无效');
+  if(opt.immutable && (!opt.maxAge || opt.maxAge < 86400)) warns.push('immutable 通常配合较长 max-age（>=1 天）用于带指纹的静态资源');
+  if(opt.noCache && opt.immutable) warns.push('no-cache 与 immutable 语义冲突');
+  var v=parts.join(', ');
+  return {header:'Cache-Control: '+v, value:v, directives:parts, warnings:warns};
+}
+function parseHeader(str){
+  var out={raw:String(str||''), directives:{}, list:[], unknown:[]};
+  var s=out.raw.replace(/^\s*cache-control\s*:\s*/i,'');
+  var toks=s.split(',');
+  for(var i=0;i<toks.length;i++){
+    var t=toks[i].trim();
+    if(!t) continue;
+    out.list.push(t);
+    var eq=t.indexOf('=');
+    if(eq>-1){
+      var k=t.slice(0,eq).trim().toLowerCase();
+      var v=t.slice(eq+1).trim().replace(/^"|"$/g,'');
+      out.directives[k]= /^\d+$/.test(v)? parseInt(v,10) : v;
+    } else {
+      var kk=t.toLowerCase();
+      out.directives[kk]=true;
+      if(DIRECTIVES.indexOf(kk)===-1) out.unknown.push(kk);
+    }
+  }
+  return out;
+}
+function freshness(opt){
+  opt = opt || {};
+  var age = typeof opt.age==='number' ? opt.age : 0;
+  var maxAge = typeof opt.maxAge==='number' ? opt.maxAge : null;
+  var swr = typeof opt.staleWhileRevalidate==='number' ? opt.staleWhileRevalidate : 0;
+  if(maxAge===null) return {state:'unknown', remaining:null, note:'未提供 max-age，缓存需启发式判断或回源校验'};
+  var remain = maxAge - age;
+  if(remain > 0) return {state:'fresh', remaining:remain, note:'命中缓存，剩余 '+formatAge(remain)};
+  if(swr > 0 && (age - maxAge) <= swr)
+    return {state:'stale-revalidating', remaining:0, note:'过期但在 stale-while-revalidate 窗口内，先返回旧副本再后台刷新'};
+  return {state:'stale', remaining:0, note:'已过期 '+formatAge(age-maxAge)+'，需回源校验'};
+}
+function preset(kind){
+  var P = {
+    'static-hashed': {label:'带指纹静态资源', opt:{visibility:'public', maxAge:31536000, immutable:true}},
+    'html': {label:'HTML 文档', opt:{visibility:'public', noCache:true, mustRevalidate:true}},
+    'api-private': {label:'用户私有 API', opt:{visibility:'private', noCache:true, mustRevalidate:true}},
+    'api-cdn': {label:'可共享 API', opt:{visibility:'public', maxAge:60, sMaxAge:300, staleWhileRevalidate:600}},
+    'sensitive': {label:'敏感数据', opt:{noStore:true}},
+    'image-cdn': {label:'图片 CDN', opt:{visibility:'public', maxAge:604800, sMaxAge:2592000, staleIfError:86400}}
+  };
+  return P[kind] || null;
+}
+function etagFor(body, weak){
+  var s=String(body||''), h1=0x811c9dc5, h2=0x01000193;
+  for(var i=0;i<s.length;i++){
+    h1 ^= s.charCodeAt(i); h1 = (h1*16777619)>>>0;
+    h2 = ((h2 + s.charCodeAt(i)*(i+1))*2654435761)>>>0;
+  }
+  var hex = ('00000000'+h1.toString(16)).slice(-8) + ('00000000'+h2.toString(16)).slice(-8);
+  return (weak?'W/':'')+'"'+hex+'"';
+}
+function etagMatch(reqHeader, etag){
+  if(!reqHeader) return false;
+  if(reqHeader.trim()==='*') return true;
+  var want = String(etag||'').replace(/^W\//,'');
+  var parts = String(reqHeader).split(',');
+  for(var i=0;i<parts.length;i++){
+    if(parts[i].trim().replace(/^W\//,'') === want) return true;
+  }
+  return false;
+}
+function auditHeader(str){
+  var p=parseHeader(str), issues=[];
+  var d=p.directives;
+  if(d['no-store'] && (d['max-age']!==undefined || d['public'])) issues.push({level:'warn', msg:'no-store 与 max-age/public 同时出现，缓存语义混乱'});
+  if(d['private'] && d['public']) issues.push({level:'error', msg:'public 与 private 互斥'});
+  if(d['private'] && d['s-maxage']!==undefined) issues.push({level:'warn', msg:'private 下 s-maxage 无效'});
+  if(d['immutable'] && (d['max-age']===undefined || d['max-age']<86400)) issues.push({level:'warn', msg:'immutable 应配合长 max-age'});
+  if(d['max-age']===undefined && d['no-store']===undefined && d['no-cache']===undefined)
+    issues.push({level:'warn', msg:'缺少新鲜度指令，缓存将走启发式过期'});
+  if(d['max-age']!==undefined && d['max-age']>31536000) issues.push({level:'warn', msg:'max-age 超过 1 年，RFC 建议不超过 31536000'});
+  if(p.unknown.length) issues.push({level:'info', msg:'未识别指令: '+p.unknown.join(', ')});
+  var errors=0, warnings=0;
+  for(var i=0;i<issues.length;i++){ if(issues[i].level==='error') errors++; else if(issues[i].level==='warn') warnings++; }
+  return {parsed:p, issues:issues, errors:errors, warnings:warnings, ok: errors===0 && warnings===0};
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { DIRECTIVES:DIRECTIVES, parseMaxAge:parseMaxAge, formatAge:formatAge, buildHeader:buildHeader, parseHeader:parseHeader, freshness:freshness, preset:preset, etagFor:etagFor, etagMatch:etagMatch, auditHeader:auditHeader }; }
+if (typeof window !== 'undefined') { window.HttpCacheForgePure = { DIRECTIVES:DIRECTIVES, parseMaxAge:parseMaxAge, formatAge:formatAge, buildHeader:buildHeader, parseHeader:parseHeader, freshness:freshness, preset:preset, etagFor:etagFor, etagMatch:etagMatch, auditHeader:auditHeader }; }
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var $=function(id){return document.getElementById(id);};
+  function num(v){ var r=parseMaxAge(v); return r.error? null : r.value; }
+  function opts(){
+    return {
+      visibility: $('vis').value,
+      maxAge: num($('ma').value),
+      sMaxAge: num($('sma').value),
+      staleWhileRevalidate: num($('swr').value),
+      noCache: $('nc').checked,
+      noStore: $('ns').checked,
+      mustRevalidate: $('mr').checked,
+      immutable: $('im').checked
+    };
+  }
+  function render(){
+    var o=opts(), r=buildHeader(o);
+    $('out').textContent = r.header;
+    $('warn').innerHTML = r.warnings.length
+      ? r.warnings.map(function(w){return '<div class="w">! '+w+'</div>';}).join('')
+      : '<div class="okmsg">无冲突</div>';
+    var age=num($('age').value)||0;
+    var f=freshness({age:age, maxAge:o.maxAge, staleWhileRevalidate:o.staleWhileRevalidate});
+    $('fresh').textContent = 'Age '+formatAge(age)+' → ['+f.state+'] '+f.note;
+    var a=auditHeader($('audit').value);
+    $('auditOut').innerHTML = a.issues.length
+      ? a.issues.map(function(i){return '<div class="'+(i.level==='error'?'e':i.level==='warn'?'w':'i')+'">'+i.level.toUpperCase()+': '+i.msg+'</div>';}).join('')
+      : '<div class="okmsg">该响应头无明显问题</div>';
+    $('etag').textContent = 'ETag: '+etagFor($('body').value) + '\nWeak: ' + etagFor($('body').value, true);
+  }
+  ['vis','ma','sma','swr','nc','ns','mr','im','age','audit','body'].forEach(function(id){
+    var el=$(id); if(el){ el.addEventListener('input', render); el.addEventListener('change', render); }
+  });
+  $('preset').addEventListener('change', function(){
+    var p=preset($('preset').value); if(!p) return;
+    var o=p.opt;
+    $('vis').value = o.visibility||'';
+    $('ma').value = o.maxAge!==undefined? o.maxAge : '';
+    $('sma').value = o.sMaxAge!==undefined? o.sMaxAge : '';
+    $('swr').value = o.staleWhileRevalidate!==undefined? o.staleWhileRevalidate : '';
+    $('nc').checked=!!o.noCache; $('ns').checked=!!o.noStore;
+    $('mr').checked=!!o.mustRevalidate; $('im').checked=!!o.immutable;
+    render();
+  });
+  $('copy').addEventListener('click', function(){
+    if(navigator.clipboard) navigator.clipboard.writeText($('out').textContent||'');
+  });
+  render();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

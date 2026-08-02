@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>WfcForge — 波函数坍缩（WFC）地形生成器：海/滩/草/林/山邻接约束，最小熵坍缩 + 约束传播，种子可复现，SVG 网格渲染，离线可用。</title>
+<meta property="og:title" content="WfcForge">
+<meta property="og:description" content="波函数坍缩（WFC）地形生成器：海/滩/草/林/山邻接约束，最小熵坍缩 + 约束传播，种子可复现，SVG 网格渲染，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="波函数坍缩（WFC）地形生成器：海/滩/草/林/山邻接约束，最小熵坍缩 + 约束传播，种子可复现，SVG 网格渲染，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>WfcForge</h1>
+  <p class="sub">波函数坍缩（WFC）地形生成器：海/滩/草/林/山邻接约束，最小熵坍缩 + 约束传播，种子可复现，SVG 网格渲染，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="row">
+  <label style="margin:0">种子</label>
+  <input id="seed" type="number" value="42" style="width:90px">
+  <label style="margin:0">尺寸</label>
+  <select id="size"><option value="12">12×12</option><option value="16" selected>16×16</option><option value="24">24×24</option></select>
+  <button id="gen">生成地形</button>
+  <button id="rand" class="ghost">随机种子</button>
+  <span class="sub" id="stat" style="margin:0"></span>
+</div>
+<div id="out" style="border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0A0A0B;overflow:auto;min-height:200px;padding:8px;text-align:center"></div>
+<script>
+function wfcTiles(){
+  return {
+    names:['sea','sand','grass','forest','rock'],
+    colors:{ sea:'#22D3EE', sand:'#F5A623', grass:'#10B981', forest:'#0B7A55', rock:'#71717A' },
+    adj:{
+      sea:['sea','sand'],
+      sand:['sea','sand','grass'],
+      grass:['sand','grass','forest'],
+      forest:['grass','forest','rock'],
+      rock:['forest','rock']
+    }
+  };
+}
+function wfcRng(seed){
+  var t=seed>>>0;
+  return function(){
+    t += 0x6D2B79F5;
+    var r=Math.imul(t ^ (t>>>15), 1|t);
+    r = (r + Math.imul(r ^ (r>>>7), 61|r)) ^ r;
+    return ((r ^ (r>>>14))>>>0)/4294967296;
+  };
+}
+function wfcRun(w, h, seed){
+  var T=wfcTiles(), rng=wfcRng(seed), N=T.names, i;
+  var cells=[];
+  for(i=0;i<w*h;i++) cells.push(N.slice());
+  function propagate(idx){
+    var stack=[idx];
+    while(stack.length){
+      var cur=stack.pop(), cx=cur%w, cy=Math.floor(cur/w);
+      var allowed={};
+      for(var a=0;a<cells[cur].length;a++){
+        var opts=T.adj[cells[cur][a]];
+        for(var b=0;b<opts.length;b++) allowed[opts[b]]=1;
+      }
+      var nbs=[];
+      if(cx>0) nbs.push(cur-1);
+      if(cx<w-1) nbs.push(cur+1);
+      if(cy>0) nbs.push(cur-w);
+      if(cy<h-1) nbs.push(cur+w);
+      for(var k=0;k<nbs.length;k++){
+        var nb=nbs[k], before=cells[nb].length;
+        cells[nb]=cells[nb].filter(function(t){ return allowed[t]; });
+        if(!cells[nb].length) return false;
+        if(cells[nb].length<before) stack.push(nb);
+      }
+    }
+    return true;
+  }
+  for(var step=0;step<w*h;step++){
+    var best=-1, bestE=1e9;
+    for(i=0;i<w*h;i++) if(cells[i].length>1 && cells[i].length<bestE){ bestE=cells[i].length; best=i; }
+    if(best<0) break;
+    var pick=cells[best][Math.floor(rng()*cells[best].length)];
+    cells[best]=[pick];
+    if(!propagate(best)) return { error:'坍缩矛盾（种子 '+seed+'）', grid:null };
+  }
+  var grid=[];
+  for(var y=0;y<h;y++){
+    var row=[];
+    for(var x=0;x<w;x++) row.push(cells[y*w+x][0]);
+    grid.push(row);
+  }
+  return { error:null, grid:grid };
+}
+function wfcValidate(grid){
+  var T=wfcTiles(), h=grid.length, w=grid[0].length;
+  function okPair(a,b){ return T.adj[a].indexOf(b)>=0; }
+  for(var y=0;y<h;y++) for(var x=0;x<w;x++){
+    if(x+1<w && !okPair(grid[y][x],grid[y][x+1])) return false;
+    if(y+1<h && !okPair(grid[y][x],grid[y+1][x])) return false;
+  }
+  return true;
+}
+function wfcSvg(grid){
+  var T=wfcTiles(), h=grid.length, w=grid[0].length, C=22;
+  var s='<svg xmlns="http://www.w3.org/2000/svg" width="'+(w*C)+'" height="'+(h*C)+'" viewBox="0 0 '+(w*C)+' '+(h*C)+'">';
+  for(var y=0;y<h;y++) for(var x=0;x<w;x++)
+    s+='<rect x="'+(x*C)+'" y="'+(y*C)+'" width="'+C+'" height="'+C+'" fill="'+T.colors[grid[y][x]]+'" stroke="#0A0A0B" stroke-width="1"/>';
+  return s+'</svg>';
+}
+function wfcCounts(grid){
+  var out={};
+  for(var y=0;y<grid.length;y++) for(var x=0;x<grid[0].length;x++) out[grid[y][x]]=(out[grid[y][x]]||0)+1;
+  return out;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { wfcTiles:wfcTiles, wfcRng:wfcRng, wfcRun:wfcRun, wfcValidate:wfcValidate, wfcSvg:wfcSvg, wfcCounts:wfcCounts };
+}
+if (typeof window !== 'undefined') {
+  window.WfcForgePure = { wfcTiles:wfcTiles, wfcRng:wfcRng, wfcRun:wfcRun, wfcValidate:wfcValidate, wfcSvg:wfcSvg, wfcCounts:wfcCounts };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.WfcForgePure;
+    function run(){
+      var n=Number($('size').value), seed=Number($('seed').value)>>>0;
+      var r=P.wfcRun(n, n, seed);
+      if(r.error){ $('stat').textContent=r.error+'，请换种子'; $('out').innerHTML=''; return; }
+      $('out').innerHTML=P.wfcSvg(r.grid);
+      var c=P.wfcCounts(r.grid);
+      $('stat').textContent='海 '+(c.sea||0)+' / 滩 '+(c.sand||0)+' / 草 '+(c.grass||0)+' / 林 '+(c.forest||0)+' / 山 '+(c.rock||0);
+    }
+    $('gen').addEventListener('click', run);
+    $('rand').addEventListener('click', function(){ $('seed').value=Math.floor(Math.random()*100000); run(); });
+    run();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

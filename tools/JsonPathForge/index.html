@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JsonPathForge · JSONPath 查询测试器</title>
+<meta name="description" content="单文件离线 JSONPath 查询测试器：$ .. [*] 切片 联合 过滤器 ?(@.x op v)，实时求值 + 规范化路径。零依赖，本地优先。">
+<meta property="og:title" content="JsonPathForge · JSONPath 查询测试器">
+<meta property="og:description" content="JSONPath 实时求值：递归下降 / 切片 / 联合 / 过滤器（&& || =~），单文件零依赖离线可用。">
+<meta property="og:image" content="og.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0A0A0B">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --panel:#1A1B1E;
+  --text:#FFFFFF; --text2:#A1A1AA; --text3:#71717A;
+  --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.14);
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA; --bad:#EF4444;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding:32px 20px 64px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#5E6AD2,#A78BFA);display:flex;align-items:center;justify-content:center;flex:none}
+.logo svg{width:20px;height:20px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.sub{color:var(--text3);font-size:13px;margin-bottom:24px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text2);font-size:13px;cursor:pointer;transition:all .15s}
+.tab:hover{border-color:var(--border2);color:var(--text)}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:6px;min-width:180px;flex:1}
+.field label{font-size:12px;color:var(--text3)}
+input[type=text],textarea,select{background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 12px;font-size:14px;font-family:"SF Mono",Consolas,"Cascadia Mono",monospace;outline:none;width:100%}
+textarea{min-height:220px;resize:vertical;line-height:1.7;font-size:13px}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+button.act{background:var(--accent);border:none;border-radius:8px;color:#fff;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s;flex:none;font-family:inherit}
+button.act:hover{opacity:.88}
+button.ghost{background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text2);padding:10px 14px;font-size:13px;cursor:pointer;flex:none;font-family:inherit}
+button.ghost:hover{border-color:var(--border2);color:var(--text)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.chip{padding:4px 10px;border-radius:7px;border:1px solid var(--border);background:var(--panel);color:var(--text2);font-size:12px;cursor:pointer;font-family:"SF Mono",Consolas,monospace}
+.chip:hover{border-color:var(--accent);color:var(--text)}
+.res{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.stat .k{font-size:12px;color:var(--text3);margin-bottom:4px}
+.stat .v{font-size:16px;font-weight:700;letter-spacing:-.01em;word-break:break-all;font-family:"SF Mono",Consolas,monospace}
+.stat .v.accent{color:var(--accent)} .stat .v.ok{color:var(--ok)} .stat .v.info{color:var(--info)} .stat .v.purple{color:var(--purple)} .stat .v.warn{color:var(--warn)} .stat .v.bad{color:var(--bad)}
+.list{margin-top:16px;display:flex;flex-direction:column;gap:6px}
+.ritem{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-family:"SF Mono",Consolas,monospace;font-size:13px}
+.ritem .rp{color:var(--info);word-break:break-all}
+.ritem .rv{color:var(--text2);word-break:break-all;margin-top:2px;white-space:pre-wrap}
+table.cheat{width:100%;border-collapse:collapse;font-size:13px}
+table.cheat th{color:var(--text3);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border2);font-size:12px}
+table.cheat td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+table.cheat td:first-child{font-family:"SF Mono",Consolas,monospace;color:var(--purple);white-space:nowrap}
+.hint{color:var(--text3);font-size:12px;margin-top:10px}
+.hide{display:none}
+footer{margin-top:40px;color:var(--text3);font-size:12px;display:flex;gap:14px;flex-wrap:wrap}
+footer a{color:var(--text2);text-decoration:none}
+footer a:hover{color:var(--text)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<script>
+/* JsonPathForge 纯函数内核：JSONPath tokenize / parse / exec（Goessner 语义） */
+var JP = (function(){
+  'use strict';
+  var MISS = {miss:true};
+
+  /* ---------- 词法：路径字符串 → token 数组 ---------- */
+  function readName(s, i){
+    var m = s.slice(i).match(/^[A-Za-z0-9_$\u00A0-\uFFFF-]+/);
+    if(!m) return null;
+    return { name: m[0], next: i + m[0].length };
+  }
+  /* 找到与 s[i]='[' 匹配的 ']'（跳过引号内与嵌套括号） */
+  function matchBracket(s, i){
+    var depth = 0, q = null;
+    for(var j=i; j<s.length; j++){
+      var c = s[j];
+      if(q){ if(c === q && s[j-1] !== '\\') q = null; continue; }
+      if(c === "'" || c === '"'){ q = c; continue; }
+      if(c === '[' || c === '(') depth++;
+      else if(c === ')') depth--;
+      else if(c === ']'){ depth--; if(depth === 0) return j; }
+    }
+    throw new Error('未闭合的 [');
+  }
+  /* 顶层分割（跳过引号与括号） */
+  function splitTop(s, sep){
+    var parts = [], depth = 0, q = null, cur = '', i = 0;
+    while(i < s.length){
+      var c = s[i];
+      if(q){ cur += c; if(c === q && s[i-1] !== '\\') q = null; i++; continue; }
+      if(c === "'" || c === '"'){ q = c; cur += c; i++; continue; }
+      if(c === '(' || c === '[') depth++;
+      if(c === ')' || c === ']') depth--;
+      if(depth === 0 && s.slice(i, i+sep.length) === sep){ parts.push(cur); cur = ''; i += sep.length; continue; }
+      cur += c; i++;
+    }
+    parts.push(cur);
+    return parts;
+  }
+  function parseLiteral(s){
+    s = s.trim();
+    var m;
+    if((m = s.match(/^'((?:[^'\\]|\\.)*)'$/)) || (m = s.match(/^"((?:[^"\\]|\\.)*)"$/)))
+      return { lit: m[1].replace(/\\(.)/g, '$1') };
+    if(/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(s)) return { lit: parseFloat(s) };
+    if(s === 'true') return { lit: true };
+    if(s === 'false') return { lit: false };
+    if(s === 'null') return { lit: null };
+    if((m = s.match(/^\/(.+)\/([a-z]*)$/))) return { re: new RegExp(m[1], m[2]) };
+    throw new Error('无法解析字面量: ' + s);
+  }
+  /* @ 访问器 → keys 数组 */
+  function parseAt(s){
+    s = s.trim();
+    if(s[0] !== '@') throw new Error('过滤器左侧须以 @ 开头');
+    var keys = [], i = 1;
+    while(i < s.length){
+      if(s[i] === '.'){
+        var m = readName(s, i+1);
+        if(!m) throw new Error('@ 后缺少属性名');
+        keys.push(m.name); i = m.next;
+      } else if(s[i] === '['){
+        var e = matchBracket(s, i);
+        var inner = s.slice(i+1, e).trim();
+        var qm = inner.match(/^'((?:[^'\\]|\\.)*)'$/) || inner.match(/^"((?:[^"\\]|\\.)*)"$/);
+        if(qm) keys.push(qm[1].replace(/\\(.)/g, '$1'));
+        else if(/^-?\d+$/.test(inner)) keys.push(parseInt(inner, 10));
+        else throw new Error('@[..] 仅支持字符串/整数下标');
+        i = e + 1;
+      } else throw new Error('@ 访问器语法错误: ' + s);
+    }
+    return keys;
+  }
+  var OPS = ['==','!=','<=','>=','=~','<','>'];
+  function parseCond(s){
+    s = s.trim();
+    while(s[0] === '(' && s[s.length-1] === ')'){
+      /* 仅当括号确实整体配对时剥离 */
+      var d = 0, whole = true;
+      for(var i=0;i<s.length;i++){
+        if(s[i]==='(') d++; else if(s[i]===')'){ d--; if(d===0 && i < s.length-1){ whole=false; break; } }
+      }
+      if(!whole) break;
+      s = s.slice(1, -1).trim();
+    }
+    /* 找顶层比较运算符 */
+    var depth = 0, q = null;
+    for(var j=0;j<s.length;j++){
+      var c = s[j];
+      if(q){ if(c===q && s[j-1] !== '\\') q = null; continue; }
+      if(c === "'" || c === '"'){ q = c; continue; }
+      if(c === '(' || c === '[') depth++;
+      if(c === ')' || c === ']') depth--;
+      if(depth === 0){
+        for(var k=0;k<OPS.length;k++){
+          if(s.slice(j, j+OPS[k].length) === OPS[k]){
+            var lhs = s.slice(0, j).trim(), rhs = s.slice(j+OPS[k].length).trim();
+            return { keys: parseAt(lhs), op: OPS[k], rhs: parseLiteral(rhs) };
+          }
+        }
+      }
+    }
+    return { keys: parseAt(s), op: null, rhs: null }; /* 存在性判断 */
+  }
+  function parseFilter(expr){
+    /* expr = ?(...) 的内部（已剥 ? 与外括号）；支持 && || */
+    var ors = splitTop(expr, '||').map(function(part){
+      return splitTop(part, '&&').map(parseCond);
+    });
+    return { ors: ors };
+  }
+  function parseBracket(inner){
+    if(inner === '*') return { t: 'wild' };
+    if(inner[0] === '?'){
+      var body = inner.slice(1).trim();
+      if(body[0] === '(' && body[body.length-1] === ')') body = body.slice(1, -1);
+      return { t: 'filter', f: parseFilter(body), src: inner };
+    }
+    var parts = splitTop(inner, ',').map(function(p){ return p.trim(); });
+    /* 引号名（可联合） */
+    if(/^['"]/.test(parts[0])){
+      var names = parts.map(function(p){
+        var m = p.match(/^'((?:[^'\\]|\\.)*)'$/) || p.match(/^"((?:[^"\\]|\\.)*)"$/);
+        if(!m) throw new Error('无效的引号名: ' + p);
+        return m[1].replace(/\\(.)/g, '$1');
+      });
+      return { t: 'names', names: names };
+    }
+    /* 切片（顶层含 : 且非引号） */
+    if(parts.length === 1 && inner.indexOf(':') >= 0){
+      var seg = inner.split(':');
+      if(seg.length > 3) throw new Error('切片最多 start:end:step 三段');
+      function num(x, dflt){ x = x.trim(); return x === '' ? dflt : parseInt(x, 10); }
+      var stp = num(seg[2] === undefined ? '' : seg[2], 1);
+      if(stp === 0) throw new Error('切片 step 不能为 0');
+      return { t: 'slice', start: num(seg[0], null), end: num(seg[1], null), step: stp };
+    }
+    /* 数字下标（可联合，支持负数） */
+    var idxs = parts.map(function(p){
+      if(!/^-?\d+$/.test(p)) throw new Error('无效下标: ' + p);
+      return parseInt(p, 10);
+    });
+    return { t: 'idx', idxs: idxs };
+  }
+  function tokenize(path){
+    if(typeof path !== 'string') throw new Error('path 必须是字符串');
+    path = path.trim();
+    if(!path) throw new Error('空路径');
+    if(path[0] !== '$') throw new Error('路径必须以 $ 开头');
+    var toks = [{ t: 'root' }], i = 1, n = path.length;
+    while(i < n){
+      var ch = path[i];
+      if(ch === '.'){
+        if(path[i+1] === '.'){
+          i += 2;
+          if(path[i] === '['){ toks.push({ t: 'descAny' }); continue; }
+          if(path[i] === '*'){ toks.push({ t: 'desc', name: '*' }); i++; continue; }
+          var m = readName(path, i);
+          if(!m) throw new Error('.. 后缺少名称');
+          toks.push({ t: 'desc', name: m.name }); i = m.next;
+        } else {
+          i += 1;
+          if(path[i] === '*'){ toks.push({ t: 'wild' }); i++; continue; }
+          var m2 = readName(path, i);
+          if(!m2) throw new Error('. 后缺少名称');
+          toks.push({ t: 'child', name: m2.name }); i = m2.next;
+        }
+      } else if(ch === '['){
+        var e = matchBracket(path, i);
+        toks.push(parseBracket(path.slice(i+1, e).trim()));
+        i = e + 1;
+      } else if(ch === ' '){ i++; }
+      else throw new Error('位置 ' + i + ' 处意外字符 "' + ch + '"');
+    }
+    return toks;
+  }
+
+  /* ---------- 求值 ---------- */
+  function isContainer(v){ return v !== null && typeof v === 'object'; }
+  function getAt(node, keys){
+    var cur = node;
+    for(var i=0;i<keys.length;i++){
+      if(!isContainer(cur)) return MISS;
+      var k = keys[i];
+      if(Array.isArray(cur)){
+        if(typeof k !== 'number'){ return MISS; }
+        var ix = k < 0 ? cur.length + k : k;
+        if(ix < 0 || ix >= cur.length) return MISS;
+        cur = cur[ix];
+      } else {
+        if(!Object.prototype.hasOwnProperty.call(cur, k)) return MISS;
+        cur = cur[k];
+      }
+    }
+    return cur;
+  }
+  function deepEq(a, b){
+    if(a === b) return true;
+    if(typeof a !== typeof b) return false;
+    if(!isContainer(a) || !isContainer(b)) return false;
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  function evalCond(cond, item){
+    var v = getAt(item, cond.keys);
+    if(cond.op === null) return v !== MISS;
+    if(v === MISS) return false;
+    var r = cond.rhs;
+    switch(cond.op){
+      case '==': return r.re ? false : deepEq(v, r.lit);
+      case '!=': return r.re ? true : !deepEq(v, r.lit);
+      case '=~': return !!r.re && typeof v === 'string' && r.re.test(v);
+      case '<':  return sameScalar(v, r.lit) && v <  r.lit;
+      case '<=': return sameScalar(v, r.lit) && v <= r.lit;
+      case '>':  return sameScalar(v, r.lit) && v >  r.lit;
+      case '>=': return sameScalar(v, r.lit) && v >= r.lit;
+    }
+    return false;
+  }
+  function sameScalar(a, b){
+    return (typeof a === 'number' && typeof b === 'number') || (typeof a === 'string' && typeof b === 'string');
+  }
+  function evalFilter(f, item){
+    for(var i=0;i<f.ors.length;i++){
+      var ands = f.ors[i], all = true;
+      for(var j=0;j<ands.length;j++){ if(!evalCond(ands[j], item)){ all = false; break; } }
+      if(all) return true;
+    }
+    return false;
+  }
+  function children(node){
+    var out = [];
+    if(Array.isArray(node.value)){
+      for(var i=0;i<node.value.length;i++) out.push({ path: node.path.concat(i), value: node.value[i] });
+    } else if(isContainer(node.value)){
+      for(var k in node.value){
+        if(Object.prototype.hasOwnProperty.call(node.value, k)) out.push({ path: node.path.concat(k), value: node.value[k] });
+      }
+    }
+    return out;
+  }
+  /* 前序收集：node 自身 + 全部后代（值节点） */
+  function descendantsAndSelf(node, out){
+    out.push(node);
+    var kids = children(node);
+    for(var i=0;i<kids.length;i++) descendantsAndSelf(kids[i], out);
+    return out;
+  }
+  function applyTok(tok, nodes){
+    var out = [], i, j, n, kids;
+    switch(tok.t){
+      case 'root': return nodes;
+      case 'child':
+        for(i=0;i<nodes.length;i++){
+          n = nodes[i];
+          if(Array.isArray(n.value)){
+            if(/^-?\d+$/.test(tok.name)){
+              var ix = parseInt(tok.name, 10); if(ix < 0) ix += n.value.length;
+              if(ix >= 0 && ix < n.value.length) out.push({ path: n.path.concat(ix), value: n.value[ix] });
+            }
+          } else if(isContainer(n.value) && Object.prototype.hasOwnProperty.call(n.value, tok.name)){
+            out.push({ path: n.path.concat(tok.name), value: n.value[tok.name] });
+          }
+        }
+        return out;
+      case 'names':
+        for(i=0;i<nodes.length;i++){
+          n = nodes[i];
+          for(j=0;j<tok.names.length;j++){
+            var nm = tok.names[j];
+            if(isContainer(n.value) && !Array.isArray(n.value) && Object.prototype.hasOwnProperty.call(n.value, nm))
+              out.push({ path: n.path.concat(nm), value: n.value[nm] });
+          }
+        }
+        return out;
+      case 'wild':
+        for(i=0;i<nodes.length;i++) out = out.concat(children(nodes[i]));
+        return out;
+      case 'desc':
+        for(i=0;i<nodes.length;i++){
+          var all = descendantsAndSelf(nodes[i], []);
+          for(j=0;j<all.length;j++){
+            if(tok.name === '*'){
+              if(all[j] !== nodes[i]) out.push(all[j]); /* $..* = 除自身外的全部成员 */
+            } else if(isContainer(all[j].value) && !Array.isArray(all[j].value) && Object.prototype.hasOwnProperty.call(all[j].value, tok.name)){
+              out.push({ path: all[j].path.concat(tok.name), value: all[j].value[tok.name] });
+            }
+          }
+        }
+        return out;
+      case 'descAny':
+        for(i=0;i<nodes.length;i++) out = out.concat(descendantsAndSelf(nodes[i], []));
+        return out;
+      case 'idx':
+        for(i=0;i<nodes.length;i++){
+          n = nodes[i];
+          if(!Array.isArray(n.value)) continue;
+          for(j=0;j<tok.idxs.length;j++){
+            var x = tok.idxs[j]; if(x < 0) x += n.value.length;
+            if(x >= 0 && x < n.value.length) out.push({ path: n.path.concat(x), value: n.value[x] });
+          }
+        }
+        return out;
+      case 'slice':
+        for(i=0;i<nodes.length;i++){
+          n = nodes[i];
+          if(!Array.isArray(n.value)) continue;
+          var len = n.value.length, st = tok.step;
+          if(!st) throw new Error('切片 step 不能为 0');
+          var s0, e0;
+          if(st > 0){
+            s0 = tok.start === null ? 0 : (tok.start < 0 ? Math.max(0, len + tok.start) : Math.min(tok.start, len));
+            e0 = tok.end === null ? len : (tok.end < 0 ? Math.max(0, len + tok.end) : Math.min(tok.end, len));
+            for(j=s0;j<e0;j+=st) out.push({ path: n.path.concat(j), value: n.value[j] });
+          } else {
+            s0 = tok.start === null ? len - 1 : (tok.start < 0 ? len + tok.start : Math.min(tok.start, len - 1));
+            e0 = tok.end === null ? -1 : (tok.end < 0 ? len + tok.end : tok.end);
+            for(j=s0;j>e0;j+=st) if(j >= 0 && j < len) out.push({ path: n.path.concat(j), value: n.value[j] });
+          }
+        }
+        return out;
+      case 'filter':
+        for(i=0;i<nodes.length;i++){
+          kids = children(nodes[i]);
+          for(j=0;j<kids.length;j++) if(evalFilter(tok.f, kids[j].value)) out.push(kids[j]);
+        }
+        return out;
+    }
+    throw new Error('未知 token: ' + tok.t);
+  }
+  function normalize(pathArr){
+    var s = '$';
+    for(var i=1;i<pathArr.length;i++){
+      var k = pathArr[i];
+      s += typeof k === 'number' ? '[' + k + ']' : "['" + String(k).replace(/'/g, "\\'") + "']";
+    }
+    return s;
+  }
+  /* run → [{path:'$[..]', value}]；query → 仅值数组 */
+  function run(obj, path){
+    var toks = typeof path === 'string' ? tokenize(path) : path;
+    var nodes = [{ path: ['$'], value: obj }];
+    for(var i=1;i<toks.length;i++){
+      nodes = applyTok(toks[i], nodes);
+      if(!nodes.length) return [];
+    }
+    return nodes.map(function(n){ return { path: normalize(n.path), value: n.value }; });
+  }
+  function query(obj, path){
+    return run(obj, path).map(function(r){ return r.value; });
+  }
+  var SAMPLE = {
+    store: {
+      book: [
+        { category: 'reference', author: 'Nigel Rees', title: 'Sayings of the Century', price: 8.95 },
+        { category: 'fiction', author: 'Evelyn Waugh', title: 'Sword of Honour', price: 12.99 },
+        { category: 'fiction', author: 'Herman Melville', title: 'Moby Dick', isbn: '0-553-21311-3', price: 8.99 },
+        { category: 'fiction', author: 'J. R. R. Tolkien', title: 'The Lord of the Rings', isbn: '0-395-19395-8', price: 22.99 }
+      ],
+      bicycle: { color: 'red', price: 19.95 }
+    },
+    expensive: 10
+  };
+  return { tokenize: tokenize, run: run, query: query, normalize: normalize, sample: SAMPLE };
+})();
+if(typeof module!=='undefined' && module.exports){ module.exports = JP; }
+if(typeof window!=='undefined'){ window.__JSONPATHFORGE__ = JP; }
+</script>
+
+<div class="wrap">
+  <header>
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"/><circle cx="12" cy="12" r="1.5"/></svg></div>
+    <h1>JsonPathForge</h1>
+  </header>
+  <div class="sub">JSONPath 实时求值 · 递归下降 / 切片 / 联合 / 过滤器（&amp;&amp; || =~）· 规范化路径 —— 单文件 / 零依赖 / 离线可用</div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="query" id="tabQuery">查询</button>
+    <button class="tab" data-tab="cheat" id="tabCheat">速查表</button>
+  </div>
+
+  <!-- 查询 -->
+  <div class="card pane" id="pane-query">
+    <div class="field"><label>JSON 数据</label><textarea id="jsonIn" spellcheck="false"></textarea></div>
+    <div class="row" style="margin-top:12px">
+      <div class="field"><label>JSONPath 表达式</label><input type="text" id="pathIn" value="$.store.book[?(@.price < 10)].title" spellcheck="false"></div>
+      <button class="act" id="queryGo">查询</button>
+      <button class="ghost" id="loadSample">载入示例</button>
+      <button class="ghost" id="copyRes">复制结果 JSON</button>
+    </div>
+    <div class="chips" id="exChips">
+      <span class="chip">$.store.book[*].author</span>
+      <span class="chip">$..author</span>
+      <span class="chip">$.store.*</span>
+      <span class="chip">$.store..price</span>
+      <span class="chip">$..book[2]</span>
+      <span class="chip">$..book[-1]</span>
+      <span class="chip">$..book[:2]</span>
+      <span class="chip">$..book[?(@.isbn)]</span>
+      <span class="chip">$..book[?(@.price &lt; 10)]</span>
+      <span class="chip">$..book[?(@.category == 'fiction' &amp;&amp; @.price &lt; 10)]</span>
+      <span class="chip">$..book[?(@.author =~ /tolkien/i)]</span>
+      <span class="chip">$..*</span>
+    </div>
+    <div class="res hide" id="qStats"></div>
+    <div class="list hide" id="qRes"></div>
+  </div>
+
+  <!-- 速查表 -->
+  <div class="card pane hide" id="pane-cheat">
+    <table class="cheat">
+      <tr><th>语法</th><th>含义</th></tr>
+      <tr><td>$</td><td>根对象</td></tr>
+      <tr><td>.name / ['name']</td><td>子属性（点或方括号记法）</td></tr>
+      <tr><td>..name</td><td>递归下降：任意深度的属性 name</td></tr>
+      <tr><td>* / [*]</td><td>通配：全部子成员 / 全部数组元素</td></tr>
+      <tr><td>..*</td><td>递归通配：全部成员（任意深度）</td></tr>
+      <tr><td>[n] / [-n]</td><td>数组下标（支持负数从尾部计）</td></tr>
+      <tr><td>[0,2] / ['a','b']</td><td>联合：多下标 / 多属性名</td></tr>
+      <tr><td>[start:end:step]</td><td>切片（Python 语义，支持负数与负 step）</td></tr>
+      <tr><td>[?(@.x)]</td><td>过滤器：存在属性 x 的元素</td></tr>
+      <tr><td>[?(@.x op v)]</td><td>比较：== != &lt; &lt;= &gt; &gt;= ，v 为字符串/数字/布尔/null</td></tr>
+      <tr><td>[?(@.x =~ /re/i)]</td><td>正则匹配（字符串属性）</td></tr>
+      <tr><td>[?(A &amp;&amp; B || C)]</td><td>逻辑组合（&amp;&amp; 优先于 ||，支持括号）</td></tr>
+      <tr><td>[?(@ &gt; 3)]</td><td>标量数组元素直接比较</td></tr>
+    </table>
+    <div class="hint">输出为规范化路径（$['store']['book'][0]）+ 对应值；语义对齐 Goessner 原始提案。</div>
+  </div>
+
+  <footer>
+    <span>JsonPathForge · nano-tools</span>
+    <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/JsonPathForge" rel="noopener">GitHub</a>
+    <a href="https://wangzifan396-wzf.github.io/WB/" rel="noopener">全部工具</a>
+  </footer>
+</div>
+
+<script>
+if(typeof window!=='undefined' && window.document){
+(function(){
+  'use strict';
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function stat(k, v, cls){ return '<div class="stat"><div class="k">'+esc(k)+'</div><div class="v '+(cls||'')+'">'+v+'</div></div>'; }
+  function show(id, html){ var el=$(id); el.innerHTML=html; el.classList.remove('hide'); }
+
+  /* tab 切换 */
+  var tabs = document.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++){
+    tabs[i].addEventListener('click', function(){
+      for(var j=0;j<tabs.length;j++) tabs[j].classList.remove('on');
+      this.classList.add('on');
+      var panes = document.querySelectorAll('.pane');
+      for(var k=0;k<panes.length;k++) panes[k].classList.add('hide');
+      $('pane-'+this.getAttribute('data-tab')).classList.remove('hide');
+    });
+  }
+
+  var lastValues = [];
+  function doQuery(){
+    var raw = $('jsonIn').value, p = $('pathIn').value.trim();
+    var data;
+    try { data = JSON.parse(raw); }
+    catch(e){ show('qStats', stat('JSON 解析失败', esc(e.message), 'bad')); $('qRes').classList.add('hide'); return; }
+    var t0 = Date.now(), rs;
+    try { rs = JP.run(data, p); }
+    catch(e){ show('qStats', stat('路径语法错误', esc(e.message), 'bad')); $('qRes').classList.add('hide'); return; }
+    var ms = Date.now() - t0;
+    lastValues = rs.map(function(r){ return r.value; });
+    show('qStats', stat('匹配数', rs.length, rs.length ? 'ok' : 'warn') + stat('耗时', ms + ' ms', 'info') + stat('表达式', esc(p), 'accent'));
+    var html = rs.slice(0, 500).map(function(r){
+      var v = JSON.stringify(r.value, null, 0);
+      if(v && v.length > 220) v = v.slice(0, 220) + '…';
+      return '<div class="ritem"><div class="rp">'+esc(r.path)+'</div><div class="rv">'+esc(v)+'</div></div>';
+    }).join('');
+    if(rs.length > 500) html += '<div class="hint">仅显示前 500 条（共 '+rs.length+' 条）</div>';
+    var el = $('qRes'); el.innerHTML = html || '<div class="hint">无匹配结果</div>'; el.classList.remove('hide');
+    try { localStorage.setItem('jpf.json', raw); localStorage.setItem('jpf.path', p); } catch(e){}
+  }
+
+  $('queryGo').addEventListener('click', doQuery);
+  $('pathIn').addEventListener('keydown', function(e){ if(e.key === 'Enter') doQuery(); });
+  $('loadSample').addEventListener('click', function(){
+    $('jsonIn').value = JSON.stringify(JP.sample, null, 2);
+    doQuery();
+  });
+  $('copyRes').addEventListener('click', function(){
+    var txt = JSON.stringify(lastValues, null, 2);
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).catch(function(){});
+  });
+  var chips = document.querySelectorAll('#exChips .chip');
+  for(var c=0;c<chips.length;c++){
+    chips[c].addEventListener('click', function(){ $('pathIn').value = this.textContent; doQuery(); });
+  }
+
+  /* 初始化：恢复上次或载入示例 */
+  var saved = null, savedP = null;
+  try { saved = localStorage.getItem('jpf.json'); savedP = localStorage.getItem('jpf.path'); } catch(e){}
+  $('jsonIn').value = saved || JSON.stringify(JP.sample, null, 2);
+  if(savedP) $('pathIn').value = savedP;
+  doQuery();
+
+  if('serviceWorker' in navigator && location.protocol !== 'file:'){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+})();
+}
+</script>
+</body>
+</html>

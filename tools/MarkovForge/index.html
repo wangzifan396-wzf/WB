@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>MarkovForge — 马尔可夫链文本生成器：从语料构建 N 阶转移表并采样生成新文本，支持中文逐字/英文逐词双模式与可注入随机源，离线可用。</title>
+<meta property="og:title" content="MarkovForge">
+<meta property="og:description" content="马尔可夫链文本生成器：从语料构建 N 阶转移表并采样生成新文本，支持中文逐字/英文逐词双模式与可注入随机源，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="马尔可夫链文本生成器：从语料构建 N 阶转移表并采样生成新文本，支持中文逐字/英文逐词双模式与可注入随机源，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>MarkovForge</h1>
+  <p class="sub">马尔可夫链文本生成器：从语料构建 N 阶转移表并采样生成新文本，支持中文逐字/英文逐词双模式与可注入随机源，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="row">
+  <label style="margin:0">阶数</label>
+  <select id="order"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option></select>
+  <label style="margin:0">长度</label>
+  <input id="len" type="number" value="60" min="5" max="500" style="width:80px">
+  <button id="gen">生成</button>
+  <button id="demo" class="ghost">示例语料</button>
+  <span class="sub" id="stat" style="margin:0"></span>
+</div>
+<textarea id="src" rows="7" spellcheck="false" placeholder="粘贴语料文本（越多越好）"></textarea>
+<label>生成结果</label>
+<textarea id="out" rows="5" readonly spellcheck="false"></textarea>
+<script>
+function mkvTokens(text){
+  var s=String(text||'').replace(/\s+/g,' ').trim();
+  if(!s) return [];
+  var hasCjk=/[\u4e00-\u9fff]/.test(s);
+  if(hasCjk) return s.replace(/ /g,'').split('');
+  return s.split(' ');
+}
+function mkvBuild(text, order){
+  order=Math.max(1, Math.min(5, Math.floor(order)||1));
+  var toks=mkvTokens(text);
+  if(toks.length<=order) return { error:'语料太短（至少需要 '+(order+1)+' 个 token）' };
+  var chain={}, starts=[];
+  for(var i=0;i+order<toks.length;i++){
+    var key=toks.slice(i,i+order).join('\u0001');
+    if(!chain[key]) chain[key]=[];
+    chain[key].push(toks[i+order]);
+    if(i===0 || /[.!?。！？]$/.test(toks[i-1])) starts.push(key);
+  }
+  if(!starts.length) starts.push(toks.slice(0,order).join('\u0001'));
+  var cjk=/[\u4e00-\u9fff]/.test(toks.join(''));
+  return { error:null, chain:chain, starts:starts, order:order, cjk:cjk };
+}
+function mkvGen(model, maxLen, rng){
+  if(model.error) return '';
+  rng = rng || Math.random;
+  maxLen=Math.max(1, Math.floor(maxLen)||50);
+  var key=model.starts[Math.floor(rng()*model.starts.length)];
+  var out=key.split('\u0001');
+  while(out.length<maxLen){
+    var opts=model.chain[key];
+    if(!opts || !opts.length) break;
+    var next=opts[Math.floor(rng()*opts.length)];
+    out.push(next);
+    key=out.slice(out.length-model.order).join('\u0001');
+  }
+  return out.join(model.cjk?'':' ');
+}
+function mkvStats(model){
+  if(model.error) return { keys:0, edges:0 };
+  var keys=0, edges=0;
+  for(var k in model.chain){ keys++; edges+=model.chain[k].length; }
+  return { keys:keys, edges:edges };
+}
+function mkvSeedRng(seed){
+  var t=seed>>>0;
+  return function(){
+    t += 0x6D2B79F5;
+    var r=Math.imul(t ^ (t>>>15), 1|t);
+    r = (r + Math.imul(r ^ (r>>>7), 61|r)) ^ r;
+    return ((r ^ (r>>>14))>>>0)/4294967296;
+  };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { mkvTokens:mkvTokens, mkvBuild:mkvBuild, mkvGen:mkvGen, mkvStats:mkvStats, mkvSeedRng:mkvSeedRng };
+}
+if (typeof window !== 'undefined') {
+  window.MarkovForgePure = { mkvTokens:mkvTokens, mkvBuild:mkvBuild, mkvGen:mkvGen, mkvStats:mkvStats, mkvSeedRng:mkvSeedRng };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.MarkovForgePure;
+    var DEMO='单文件工具矩阵坚持零依赖与离线优先。每一款工具都是一个纯函数内核加一层轻量界面。纯函数内核保证可测试，离线优先保证随处可用。工具矩阵会持续生长，零依赖让维护成本接近于零。';
+    function run(){
+      var model=P.mkvBuild($('src').value, Number($('order').value));
+      if(model.error){ $('stat').textContent=model.error; $('out').value=''; return; }
+      var st=P.mkvStats(model);
+      $('out').value=P.mkvGen(model, Number($('len').value));
+      $('stat').textContent=st.keys+' 状态 / '+st.edges+' 转移';
+    }
+    $('gen').addEventListener('click', run);
+    $('demo').addEventListener('click', function(){ $('src').value=DEMO; run(); });
+    $('src').value=DEMO; run();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

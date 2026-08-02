@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>MsgpackForge — MessagePack 编解码：JSON 与紧凑二进制互转，无损还原</title>
+<meta property="og:title" content="MsgpackForge">
+<meta property="og:description" content="MessagePack 编解码：JSON 与紧凑二进制互转，无损还原">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="MessagePack 编解码：JSON 与紧凑二进制互转，无损还原 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>MsgpackForge</h1>
+  <p class="sub">MessagePack 编解码：JSON 与紧凑二进制互转，无损还原 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>JSON 输入</label>
+<textarea id="in" rows="4">{"name":"nano","stars":128,"tags":["tiny","fast"],"ok":true}</textarea>
+<label>MessagePack 字节（hex，可编辑后解码）</label>
+<textarea id="hex" rows="3" placeholder="编码后显示"></textarea>
+<div class="row">
+  <button id="enc">编码</button>
+  <button id="dec">解码</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">输入 JSON 后编码</div>
+<script>
+function mpUtf8(str){
+  var out=[];
+  for(var i=0;i<str.length;i++){
+    var c=str.codePointAt(i);
+    if(c>0xFFFF) i++;
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xC0|(c>>6),0x80|(c&63)); }
+    else if(c<0x10000){ out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63)); }
+    else { out.push(0xF0|(c>>18),0x80|((c>>12)&63),0x80|((c>>6)&63),0x80|(c&63)); }
+  }
+  return out;
+}
+function mpUtf8Str(bytes,off,len){
+  var out='',i=off,end=off+len;
+  while(i<end){
+    var b=bytes[i];
+    if(b<0x80){ out+=String.fromCharCode(b); i++; }
+    else if(b<0xE0){ out+=String.fromCharCode(((b&31)<<6)|(bytes[i+1]&63)); i+=2; }
+    else if(b<0xF0){ out+=String.fromCharCode(((b&15)<<12)|((bytes[i+1]&63)<<6)|(bytes[i+2]&63)); i+=3; }
+    else { out+=String.fromCodePoint(((b&7)<<18)|((bytes[i+1]&63)<<12)|((bytes[i+2]&63)<<6)|(bytes[i+3]&63)); i+=4; }
+  }
+  return out;
+}
+function _pushU(out,v,n){ for(var i=n-1;i>=0;i--) out.push((v>>> (8*i))&255); }
+function _f64(out,v){
+  var buf=new ArrayBuffer(8); new DataView(buf).setFloat64(0,v,false);
+  var u=new Uint8Array(buf);
+  for(var i=0;i<8;i++) out.push(u[i]);
+}
+function mpEncode(val){
+  var out=[];
+  (function enc(v){
+    if(v===null||v===undefined){ out.push(0xc0); return; }
+    if(v===false){ out.push(0xc2); return; }
+    if(v===true){ out.push(0xc3); return; }
+    if(typeof v==='number'){
+      if(Number.isInteger(v)&&Math.abs(v)<=0x7fffffff){
+        if(v>=0&&v<128){ out.push(v); }
+        else if(v<0&&v>=-32){ out.push(0x100+v&0xff); }
+        else if(v>=0&&v<256){ out.push(0xcc,v); }
+        else if(v>=0&&v<65536){ out.push(0xcd); _pushU(out,v,2); }
+        else if(v>=0){ out.push(0xce); _pushU(out,v,4); }
+        else if(v>=-128){ out.push(0xd0,v&255); }
+        else if(v>=-32768){ out.push(0xd1); _pushU(out,v&0xffff,2); }
+        else { out.push(0xd2); _pushU(out,v>>>0,4); }
+      } else { out.push(0xcb); _f64(out,v); }
+      return;
+    }
+    if(typeof v==='string'){
+      var b=mpUtf8(v);
+      if(b.length<32) out.push(0xa0|b.length);
+      else if(b.length<256){ out.push(0xd9,b.length); }
+      else { out.push(0xda); _pushU(out,b.length,2); }
+      out.push.apply(out,b);
+      return;
+    }
+    if(Array.isArray(v)){
+      if(v.length<16) out.push(0x90|v.length);
+      else { out.push(0xdc); _pushU(out,v.length,2); }
+      for(var i=0;i<v.length;i++) enc(v[i]);
+      return;
+    }
+    if(typeof v==='object'){
+      var keys=Object.keys(v);
+      if(keys.length<16) out.push(0x80|keys.length);
+      else { out.push(0xde); _pushU(out,keys.length,2); }
+      for(var j=0;j<keys.length;j++){ enc(keys[j]); enc(v[keys[j]]); }
+      return;
+    }
+    throw new Error('unsupported type: '+typeof v);
+  })(val);
+  return out;
+}
+function mpDecode(bytes){
+  var pos=0;
+  function need(n){ if(pos+n>bytes.length) throw new Error('truncated at '+pos); }
+  function u(n){ need(n); var v=0; for(var i=0;i<n;i++) v=v*256+bytes[pos++]; return v; }
+  function dec(){
+    need(1);
+    var b=bytes[pos++];
+    if(b<0x80) return b;
+    if(b>=0xe0) return b-256;
+    if(b>=0xa0&&b<0xc0){ var l=b&31; need(l); var s=mpUtf8Str(bytes,pos,l); pos+=l; return s; }
+    if(b>=0x90&&b<0xa0){ var n=b&15,a=[]; for(var i=0;i<n;i++) a.push(dec()); return a; }
+    if(b>=0x80&&b<0x90){ var k=b&15,o={}; for(var j=0;j<k;j++){ var key=dec(); o[key]=dec(); } return o; }
+    switch(b){
+      case 0xc0: return null;
+      case 0xc2: return false;
+      case 0xc3: return true;
+      case 0xcc: return u(1);
+      case 0xcd: return u(2);
+      case 0xce: return u(4);
+      case 0xd0: { var v=u(1); return v>127?v-256:v; }
+      case 0xd1: { var v2=u(2); return v2>32767?v2-65536:v2; }
+      case 0xd2: { var v4=u(4); return v4>0x7fffffff?v4-0x100000000:v4; }
+      case 0xcb: {
+        need(8);
+        var buf=new ArrayBuffer(8), uu=new Uint8Array(buf);
+        for(var q=0;q<8;q++) uu[q]=bytes[pos++];
+        return new DataView(buf).getFloat64(0,false);
+      }
+      case 0xd9: { var l1=u(1); need(l1); var s1=mpUtf8Str(bytes,pos,l1); pos+=l1; return s1; }
+      case 0xda: { var l2=u(2); need(l2); var s2=mpUtf8Str(bytes,pos,l2); pos+=l2; return s2; }
+      case 0xdc: { var n2=u(2),a2=[]; for(var w=0;w<n2;w++) a2.push(dec()); return a2; }
+      case 0xde: { var k2=u(2),o2={}; for(var z=0;z<k2;z++){ var key2=dec(); o2[key2]=dec(); } return o2; }
+      default: throw new Error('unsupported byte 0x'+b.toString(16));
+    }
+  }
+  var val=dec();
+  if(pos!==bytes.length) throw new Error('trailing bytes');
+  return val;
+}
+function mpToHex(bytes){
+  var s='';
+  for(var i=0;i<bytes.length;i++) s+=(bytes[i]<16?'0':'')+bytes[i].toString(16);
+  return s;
+}
+function mpFromHex(hex){
+  hex=String(hex).replace(/[\s]/g,'');
+  if(!/^([0-9a-fA-F]{2})*$/.test(hex)) throw new Error('非法 hex');
+  var out=[];
+  for(var i=0;i<hex.length;i+=2) out.push(parseInt(hex.substr(i,2),16));
+  return out;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { mpEncode:mpEncode, mpDecode:mpDecode, mpToHex:mpToHex, mpFromHex:mpFromHex };
+}
+if (typeof window !== 'undefined') {
+  window.MsgpackForgePure = { mpEncode:mpEncode, mpDecode:mpDecode, mpToHex:mpToHex, mpFromHex:mpFromHex };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.MsgpackForgePure;
+    $('enc').addEventListener('click', function(){
+      $('err').textContent='';
+      try {
+        var v=JSON.parse($('in').value);
+        var bytes=P.mpEncode(v);
+        $('hex').value=P.mpToHex(bytes);
+        var jl=JSON.stringify(v).length;
+        $('out').textContent='MessagePack '+bytes.length+' 字节 / JSON '+jl+' 字节 → '+(bytes.length/jl*100).toFixed(1)+'%';
+      } catch(e){ $('err').textContent=e.message; }
+    });
+    $('dec').addEventListener('click', function(){
+      $('err').textContent='';
+      try {
+        var val=P.mpDecode(P.mpFromHex($('hex').value));
+        $('out').textContent=JSON.stringify(val,null,2);
+      } catch(e){ $('err').textContent='解码失败：'+e.message; }
+    });
+    $('clear').addEventListener('click', function(){ $('in').value=''; $('hex').value=''; $('out').textContent='输入 JSON 后编码'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

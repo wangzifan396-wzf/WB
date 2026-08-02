@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SplitForge — 聚餐 AA 分摊：逐条录入账单，自动加计小费/税费/折扣，按人数均摊出每人应付，离线可用。</title>
+<meta property="og:title" content="SplitForge">
+<meta property="og:description" content="聚餐 AA 分摊：逐条录入账单，自动加计小费/税费/折扣，按人数均摊出每人应付，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="聚餐 AA 分摊：逐条录入账单，自动加计小费/税费/折扣，按人数均摊出每人应付 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A; --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:12px 0 6px}
+textarea,input[type=text],input[type=number]{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.flex{display:flex;gap:10px}.flex>div{flex:1}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:14px}
+.box b{color:var(--muted);font-size:12px;font-weight:500}
+.box .big{font:22px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ok)}
+.kv{display:flex;justify-content:space-between;font-size:14px;padding:4px 0;border-bottom:1px dashed var(--line)}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>SplitForge</h1>
+  <p class="sub">聚餐 AA 分摊：逐条录入账单，自动加计小费/税费/折扣，按人数均摊出每人应付 · 单文件 · 零依赖 · 本地优先</p>
+
+  <label>账单明细（每行「名称 金额」，金额可省略）</label>
+  <textarea id="items" rows="6" spellcheck="false" placeholder="火锅 328&#10;饮料 66&#10;小吃 42"></textarea>
+  <div class="flex">
+    <div><label>人数</label><input id="people" type="number" value="4"></div>
+    <div><label>小费 %</label><input id="tip" type="number" value="10" step="0.5"></div>
+    <div><label>税费 %</label><input id="tax" type="number" value="0" step="0.5"></div>
+    <div><label>折扣 %</label><input id="disc" type="number" value="0" step="0.5"></div>
+  </div>
+  <div class="row">
+    <button id="run">分摊</button>
+    <button id="demo" class="ghost">示例</button>
+    <button id="clear" class="ghost">清空</button>
+  </div>
+  <div class="err" id="err"></div>
+  <div class="box" id="out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span><span class="badge">离线可用</span><span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+function splitParseItems(text){
+  var items=[], lines=String(text||'').split('\n');
+  for(var i=0;i<lines.length;i++){
+    var ln=lines[i].trim(); if(!ln) continue;
+    var m=ln.match(/^(.*?)\s*([0-9]+(?:\.[0-9]+)?)\s*$/);
+    var amount, label;
+    if(m){ label=m[1].trim()||('项'+(items.length+1)); amount=Number(m[2]); }
+    else { label=ln; amount=NaN; }
+    if(!isFinite(amount) || amount<0) return { error:'第 '+(i+1)+' 行金额非法' };
+    items.push({ label:label, amount:amount });
+  }
+  if(!items.length) return { error:'请至少录入一条账单' };
+  return { error:null, items:items };
+}
+function splitCompute(items, opts){
+  var people=Number(opts.people);
+  if(!(people>=1 && people%1===0)) return { error:'人数须为正整数' };
+  var subtotal=0; for(var i=0;i<items.length;i++) subtotal+=items[i].amount;
+  var disc=subtotal*(Number(opts.discountPct)||0)/100;
+  var after=subtotal-disc;
+  var tax=after*(Number(opts.taxPct)||0)/100;
+  var tip=after*(Number(opts.tipPct)||0)/100;
+  var grand=after+tax+tip;
+  return { error:null, subtotal:Math.round(subtotal*100)/100, discount:Math.round(disc*100)/100,
+    tax:Math.round(tax*100)/100, tip:Math.round(tip*100)/100, grand:Math.round(grand*100)/100,
+    perPerson:Math.round(grand/people*100)/100, count:items.length };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { splitParseItems:splitParseItems, splitCompute:splitCompute };
+}
+if (typeof window !== 'undefined') {
+  window.SplitForgePure = { splitParseItems:splitParseItems, splitCompute:splitCompute };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.SplitForgePure;
+    function money(x){ return '¥'+x.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    var DEMO='火锅 328\n饮料 66\n小吃 42';
+    function run(){
+      var pi=P.splitParseItems($('items').value);
+      if(pi.error){ $('err').textContent=pi.error; $('out').innerHTML=''; return; }
+      var r=P.splitCompute(pi.items,{people:$('people').value,tipPct:$('tip').value,taxPct:$('tax').value,discountPct:$('disc').value});
+      if(r.error){ $('err').textContent=r.error; $('out').innerHTML=''; return; }
+      $('err').textContent='';
+      $('out').innerHTML=
+        '<div class="kv"><b>小计</b><span>'+money(r.subtotal)+'</span></div>'+
+        (r.discount>0?'<div class="kv"><b>折扣</b><span>-'+money(r.discount)+'</span></div>':'')+
+        (r.tax>0?'<div class="kv"><b>税费</b><span>'+money(r.tax)+'</span></div>':'')+
+        (r.tip>0?'<div class="kv"><b>小费</b><span>'+money(r.tip)+'</span></div>':'')+
+        '<div class="kv"><b>合计（'+r.count+' 项 / '+$('people').value+' 人）</b><span>'+money(r.grand)+'</span></div>'+
+        '<div style="margin-top:10px"><b style="color:var(--muted);font-weight:500">每人应付</b><div class="big">'+money(r.perPerson)+'</div></div>';
+    }
+    $('run').addEventListener('click', run);
+    $('demo').addEventListener('click', function(){ $('items').value=DEMO; run(); });
+    $('clear').addEventListener('click', function(){ $('items').value=''; $('out').innerHTML=''; $('err').textContent=''; });
+    $('items').value=DEMO; run();
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

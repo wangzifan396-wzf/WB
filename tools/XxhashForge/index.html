@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>XxhashForge — xxHash32 极速非加密哈希：条带累加 + 雪崩混淆，官方向量验证</title>
+<meta property="og:title" content="XxhashForge">
+<meta property="og:description" content="xxHash32 极速非加密哈希：条带累加 + 雪崩混淆，官方向量验证">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="xxHash32 极速非加密哈希：条带累加 + 雪崩混淆，官方向量验证 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>XxhashForge</h1>
+  <p class="sub">xxHash32 极速非加密哈希：条带累加 + 雪崩混淆，官方向量验证 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>输入文本</label>
+<textarea id="in" rows="4">Nobody inspects the spammish repetition</textarea>
+<label>种子（uint32）</label>
+<input id="seed" type="number" value="0" min="0">
+<div class="row">
+  <button id="run">计算 xxHash32</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">输入文本后运行</div>
+<script>
+var _P1=2654435761, _P2=2246822519, _P3=3266489917, _P4=668265263, _P5=374761393;
+function _rotl(x,r){ return ((x<<r)|(x>>>(32-r)))>>>0; }
+function xxUtf8(str){
+  var out=[];
+  for(var i=0;i<str.length;i++){
+    var c=str.codePointAt(i);
+    if(c>0xFFFF) i++;
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xC0|(c>>6),0x80|(c&63)); }
+    else if(c<0x10000){ out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63)); }
+    else { out.push(0xF0|(c>>18),0x80|((c>>12)&63),0x80|((c>>6)&63),0x80|(c&63)); }
+  }
+  return out;
+}
+function _u32(bytes,i){
+  return (bytes[i]|(bytes[i+1]<<8)|(bytes[i+2]<<16)|(bytes[i+3]<<24))>>>0;
+}
+function xxhash32Bytes(bytes, seed){
+  seed=(seed||0)>>>0;
+  var len=bytes.length, i=0, h;
+  if(len>=16){
+    var v1=(seed+_P1+_P2)>>>0, v2=(seed+_P2)>>>0, v3=seed>>>0, v4=(seed-_P1)>>>0;
+    while(i<=len-16){
+      v1=Math.imul(_rotl((v1+Math.imul(_u32(bytes,i),_P2))>>>0,13),_P1)>>>0; i+=4;
+      v2=Math.imul(_rotl((v2+Math.imul(_u32(bytes,i),_P2))>>>0,13),_P1)>>>0; i+=4;
+      v3=Math.imul(_rotl((v3+Math.imul(_u32(bytes,i),_P2))>>>0,13),_P1)>>>0; i+=4;
+      v4=Math.imul(_rotl((v4+Math.imul(_u32(bytes,i),_P2))>>>0,13),_P1)>>>0; i+=4;
+    }
+    h=(_rotl(v1,1)+_rotl(v2,7)+_rotl(v3,12)+_rotl(v4,18))>>>0;
+  } else {
+    h=(seed+_P5)>>>0;
+  }
+  h=(h+len)>>>0;
+  while(i<=len-4){
+    h=(h+Math.imul(_u32(bytes,i),_P3))>>>0;
+    h=Math.imul(_rotl(h,17),_P4)>>>0;
+    i+=4;
+  }
+  while(i<len){
+    h=(h+Math.imul(bytes[i],_P5))>>>0;
+    h=Math.imul(_rotl(h,11),_P1)>>>0;
+    i++;
+  }
+  h^=h>>>15; h=Math.imul(h,_P2)>>>0;
+  h^=h>>>13; h=Math.imul(h,_P3)>>>0;
+  h^=h>>>16;
+  return h>>>0;
+}
+function xxhash32(str, seed){ return xxhash32Bytes(xxUtf8(str), seed); }
+function xxhash32Hex(str, seed){
+  var h=xxhash32(str, seed).toString(16);
+  while(h.length<8) h='0'+h;
+  return h;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { xxhash32:xxhash32, xxhash32Hex:xxhash32Hex, xxhash32Bytes:xxhash32Bytes, xxUtf8:xxUtf8 };
+}
+if (typeof window !== 'undefined') {
+  window.XxhashForgePure = { xxhash32:xxhash32, xxhash32Hex:xxhash32Hex, xxhash32Bytes:xxhash32Bytes };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.XxhashForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      try {
+        var seed=Number($('seed').value)>>>0;
+        var h=P.xxhash32($('in').value, seed);
+        $('out').textContent='xxHash32(seed='+seed+')\nhex: 0x'+P.xxhash32Hex($('in').value, seed)+'\ndec: '+h;
+      } catch(e){ $('err').textContent=e.message; }
+    });
+    $('clear').addEventListener('click', function(){ $('in').value=''; $('out').textContent='输入文本后运行'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

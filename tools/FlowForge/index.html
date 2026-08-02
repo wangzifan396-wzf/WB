@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<title>FlowForge · 任务看板</title>
+<meta name="description" content="FlowForge — 本地优先的离线任务看板：多看板、拖拽排序、标签/优先级/截止日期、清单子任务，零依赖纯前端，数据留在你自己的浏览器。">
+<meta property="og:title" content="FlowForge · 任务看板">
+<meta property="og:description" content="本地优先的离线任务看板：多看板、拖拽排序、标签/优先级/截止日期、清单子任务。">
+<meta property="og:image" content="og.svg">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="FlowForge · 任务看板">
+<meta name="twitter:description" content="本地优先的离线任务看板：多看板、拖拽排序、标签/优先级/截止日期、清单子任务。">
+<meta name="twitter:image" content="og.svg">
+<style>
+:root{
+  --bg:#0A0A0B; --surface:#141417; --surface-2:#1A1B1E; --surface-3:#202125;
+  --text:#FFFFFF; --muted:#A1A1AA; --faint:#71717A;
+  --border:rgba(255,255,255,0.08); --border-strong:rgba(255,255,255,0.14);
+  --accent:#5E6AD2; --accent-soft:rgba(94,106,210,0.16);
+  --ok:#10B981; --warn:#F5A623; --danger:#F5365C;
+  --radius:10px;
+}
+[data-theme="light"]{
+  --bg:#FFFFFF; --surface:#F7F8FA; --surface-2:#EEF0F3; --surface-3:#E4E7EC;
+  --text:#18181B; --muted:#52525B; --faint:#71717A;
+  --border:rgba(0,0,0,0.10); --border-strong:rgba(0,0,0,0.18);
+  --accent-soft:rgba(94,106,210,0.10);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px; border-radius:6px;
+}
+.app{max-width:1200px;margin:0 auto;padding:18px 18px 64px;display:flex;flex-direction:column;gap:16px;min-height:100%}
+.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:8px;margin-right:auto}
+.brand h1{font-size:22px;margin:0;letter-spacing:-.02em}
+.brand .tag{color:var(--muted);font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input,select,textarea{
+  background:var(--surface); color:var(--text); border:1px solid var(--border);
+  border-radius:8px; padding:8px 10px; font-size:13px;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.btn{
+  background:var(--surface); color:var(--text); border:1px solid var(--border);
+  border-radius:8px; padding:8px 12px; cursor:pointer; font-size:13px; font-weight:600;
+  transition:border-color .12s ease,transform .12s ease,background .12s ease;
+  white-space:nowrap;
+}
+.btn:hover{border-color:var(--border-strong)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.icon{padding:8px 10px}
+.search{flex:1;min-width:160px;max-width:280px}
+.board-meta{color:var(--muted);font-size:12px;display:flex;gap:14px;flex-wrap:wrap}
+.board-meta b{color:var(--text);font-weight:700}
+.columns{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:8px}
+.col{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  width:288px;min-width:288px;display:flex;flex-direction:column;max-height:calc(100vh - 180px);
+}
+.col.drag-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.col-head{display:flex;align-items:center;gap:8px;padding:12px 12px 8px}
+.col-head .grip{cursor:grab;color:var(--faint);user-select:none;font-size:14px;line-height:1}
+.col-title{font-weight:700;font-size:14px;flex:1;cursor:text;border:none;background:transparent;color:var(--text);padding:2px 0}
+.col-title:focus{outline:none;border-bottom:1px solid var(--accent)}
+.col-count{color:var(--faint);font-size:12px}
+.col-menu{position:relative}
+.col-menu .pop{display:none;position:absolute;right:0;top:28px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:8px;padding:4px;z-index:30;min-width:120px}
+.col-menu.open .pop{display:block}
+.col-menu .pop button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:7px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+.col-menu .pop button:hover{background:var(--surface-3)}
+.cards{padding:4px 8px 8px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1}
+.card{
+  background:var(--surface-2); border:1px solid var(--border); border-radius:8px;
+  padding:10px 10px 8px;cursor:grab;position:relative;
+}
+.card.dragging{opacity:.4}
+.card .ct{font-weight:600;font-size:13px;word-break:break-word}
+.card .labels{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.lab{font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--border-strong);color:var(--muted)}
+.lab.l0{color:#cbd5e1} .lab.l1{color:#7dd3fc} .lab.l2{color:#fca5a5} .lab.l3{color:#86efac} .lab.l4{color:#fcd34d}
+.card .meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.pdot{width:9px;height:9px;border-radius:50%}
+.p-high{background:var(--danger)} .p-med{background:var(--warn)} .p-low{background:var(--faint)}
+.due{font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--border)}
+.due.overdue{color:var(--danger);border-color:var(--danger)}
+.due.soon{color:var(--warn);border-color:var(--warn)}
+.due.upcoming{color:var(--muted)}
+.check{font-size:11px;color:var(--muted)}
+.card .acts{position:absolute;top:7px;right:7px;display:none;gap:4px}
+.card:hover .acts{display:flex}
+.card .acts button{background:var(--surface-3);border:none;color:var(--muted);border-radius:6px;width:22px;height:22px;cursor:pointer;font-size:12px;line-height:1}
+.card .acts button:hover{color:var(--text)}
+.add-card{padding:8px;margin:0 8px 8px}
+.add-card button{width:100%;background:transparent;border:1px dashed var(--border-strong);color:var(--muted);border-radius:8px;padding:8px;cursor:pointer;font-size:13px}
+.add-card button:hover{border-color:var(--accent);color:var(--accent)}
+.add-col{flex:0 0 auto}
+.empty{color:var(--faint);text-align:center;padding:40px 0;font-size:14px}
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-start;justify-content:center;padding:48px 16px;z-index:100;overflow:auto}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border-strong);border-radius:14px;width:560px;max-width:100%;padding:20px;display:flex;flex-direction:column;gap:12px}
+.modal h3{margin:0;font-size:17px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;color:var(--muted)}
+.field input,.field textarea,.field select{width:100%}
+.field textarea{min-height:70px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ck{display:flex;align-items:center;gap:8px;padding:4px 0}
+.ck input[type=text]{flex:1}
+.ck .x{background:none;border:none;color:var(--faint);cursor:pointer;font-size:15px}
+.modal .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);padding:9px 16px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:200}
+.toast.show{opacity:1}
+@media (max-width:640px){.search{max-width:none;width:100%}.col{width:84vw;min-width:84vw}}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <h1>FlowForge</h1>
+      <span class="tag" data-i18n-html="Local-first Kanban board">本地优先的任务看板</span>
+    </div>
+    <div class="row">
+      <select id="boardSel" title="看板"></select>
+      <button class="btn" id="newBoard" title="新建看板">＋ 新建看板</button>
+    </div>
+    <div class="row" style="margin-left:auto">
+      <input class="search" id="search" placeholder="搜索任务">
+      <select id="priFilter" title="优先级筛选">
+        <option value="">全部优先级</option>
+        <option value="high">高</option>
+        <option value="med">中</option>
+        <option value="low">低</option>
+      </select>
+      <button class="btn icon" id="themeBtn" title="主题">◐</button>
+      <button class="btn" id="exportBtn" title="导出看板">导出</button>
+      <button class="btn" id="importBtn" title="导入看板">导入</button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+  </div>
+  <div class="board-meta" id="meta"></div>
+  <div class="columns" id="board"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal">
+    <h3 id="modalTitle">添加卡片</h3>
+    <div class="field"><label>标题</label><input id="fTitle" placeholder="任务标题"></div>
+    <div class="field"><label>描述</label><textarea id="fDesc" placeholder="补充说明（可选）"></textarea></div>
+    <div class="grid2">
+      <div class="field"><label>优先级</label>
+        <select id="fPri"><option value="high">高</option><option value="med" selected>中</option><option value="low">低</option></select>
+      </div>
+      <div class="field"><label>截止日期</label><input id="fDue" type="date"></div>
+    </div>
+    <div class="field"><label>标签（逗号分隔）</label><input id="fLabels" placeholder="如：前端, 紧急"></div>
+    <div class="field"><label>清单</label><div id="fCheck"></div><button class="btn" id="addCk" type="button">＋ 添加子任务</button></div>
+    <div class="foot">
+      <button class="btn" id="mCancel" type="button">取消</button>
+      <button class="btn primary" id="mSave" type="button">保存</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== FlowForge 主脚本（纯函数 + UI） ===== */
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function clone(o){ try{ return JSON.parse(JSON.stringify(o)); }catch(e){ return JSON.parse(JSON.stringify(o||{})); } }
+function uid(p){ p=p||'id'; return p+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3); }
+
+function newBoard(name){
+  return { id:uid('b'), name:name||'我的看板', columns:[
+    {id:uid('c'),name:'待办',cards:[]},
+    {id:uid('c'),name:'进行中',cards:[]},
+    {id:uid('c'),name:'已完成',cards:[]}
+  ]};
+}
+function findCol(board,colId){ for(var i=0;i<board.columns.length;i++){ if(board.columns[i].id===colId) return board.columns[i]; } return null; }
+function findCard(board,cardId){
+  for(var i=0;i<board.columns.length;i++){ var col=board.columns[i];
+    for(var j=0;j<col.cards.length;j++){ if(col.cards[j].id===cardId) return {col:col,card:col.cards[j],idx:j}; } }
+  return null;
+}
+function addColumn(board,name){ var b=clone(board); b.columns.push({id:uid('c'),name:name||'新列',cards:[]}); return b; }
+function renameColumn(board,colId,name){ var b=clone(board); var c=findCol(b,colId); if(c) c.name=name; return b; }
+function deleteColumn(board,colId){ var b=clone(board); b.columns=b.columns.filter(function(c){return c.id!==colId;}); return b; }
+function addCard(board,colId,partial){
+  var b=clone(board); var c=findCol(b,colId); if(!c) return b;
+  var card={ id:uid('k'), title:(partial&&partial.title)||'新任务', desc:(partial&&partial.desc)||'',
+    labels:(partial&&partial.labels)||[], priority:(partial&&partial.priority)||'med',
+    due:(partial&&partial.due)||null, done:false, checklist:(partial&&partial.checklist)||[] };
+  c.cards.push(card); return b;
+}
+function updateCard(board,cardId,patch){ var b=clone(board); var f=findCard(b,cardId); if(f) Object.assign(f.card,patch); return b; }
+function deleteCard(board,cardId){ var b=clone(board); var f=findCard(b,cardId); if(f) f.col.cards.splice(f.idx,1); return b; }
+function moveCard(board,cardId,toColId,toIndex){
+  var b=clone(board); var f=findCard(b,cardId); if(!f) return b;
+  var card=f.card; f.col.cards.splice(f.idx,1);
+  var tc=findCol(b,toColId); if(!tc) return b;
+  var i=toIndex; if(i==null||i<0||i>tc.cards.length) i=tc.cards.length;
+  tc.cards.splice(i,0,card); return b;
+}
+function moveColumn(board,colId,toIndex){
+  var b=clone(board); var from=-1;
+  for(var i=0;i<b.columns.length;i++){ if(b.columns[i].id===colId){ from=i; break; } }
+  if(from<0) return b;
+  var c=b.columns.splice(from,1)[0];
+  var t=toIndex; if(t<0||t>b.columns.length) t=b.columns.length;
+  b.columns.splice(t,0,c); return b;
+}
+function dueState(due,now){
+  if(!due) return 'none';
+  var d=new Date(due+'T00:00:00'); var n=new Date((now||todayStr())+'T00:00:00');
+  if(isNaN(d.getTime())) return 'none';
+  var diff=(d.getTime()-n.getTime())/86400000;
+  if(diff<0) return 'overdue';
+  if(diff<=2) return 'soon';
+  return 'upcoming';
+}
+function todayStr(){ var t=new Date(); return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); }
+function priorityRank(p){ return p==='high'?3:p==='med'?2:p==='low'?1:0; }
+function filterCards(cards,opt){
+  opt=opt||{}; var q=(opt.q||'').trim().toLowerCase(); var labels=opt.labels||[]; var pri=opt.priority||'';
+  return cards.filter(function(c){
+    if(q && (c.title+c.desc).toLowerCase().indexOf(q)<0) return false;
+    if(pri && c.priority!==pri) return false;
+    if(labels.length && !labels.some(function(l){ return c.labels.indexOf(l)>=0; })) return false;
+    return true;
+  });
+}
+function sortCards(cards,by){
+  var a=cards.slice();
+  if(by==='priority') a.sort(function(x,y){ return priorityRank(y.priority)-priorityRank(x.priority); });
+  else if(by==='due') a.sort(function(x,y){
+    var dx=x.due?new Date(x.due).getTime():Infinity, dy=y.due?new Date(y.due).getTime():Infinity;
+    return dx-dy;
+  });
+  return a;
+}
+function exportBoard(board){ return JSON.stringify(board); }
+function importBoard(json){
+  var b; try{ b=JSON.parse(json); }catch(e){ throw new Error('invalid'); }
+  if(!b || !Array.isArray(b.columns)) throw new Error('invalid');
+  for(var i=0;i<b.columns.length;i++){ if(!b.columns[i].cards) b.columns[i].cards=[]; }
+  b.id=b.id||uid('b'); b.name=b.name||'导入的看板';
+  return b;
+}
+function boardStats(board){
+  var total=0,done=0,overdue=0,byP={high:0,med:0,low:0};
+  board.columns.forEach(function(col){ col.cards.forEach(function(c){
+    total++; if(c.done) done++; if(c.priority) byP[c.priority]=(byP[c.priority]||0)+1;
+    if(dueState(c.due)==='overdue') overdue++;
+  }); });
+  return {total:total,done:done,overdue:overdue,byPriority:byP};
+}
+function labelColor(lab){
+  var s=0; for(var i=0;i<lab.length;i++) s=(s+lab.charCodeAt(i))%5; return 'l'+s;
+}
+
+if(typeof module!=='undefined'&&module.exports){
+  module.exports={escapeHtml,clone,uid,newBoard,findCol,findCard,addColumn,renameColumn,
+    deleteColumn,addCard,updateCard,deleteCard,moveCard,moveColumn,dueState,todayStr,
+    priorityRank,filterCards,sortCards,exportBoard,importBoard,boardStats,labelColor};
+}
+
+if(typeof window!=='undefined'){
+(function(){
+  var LS='flowforge.state.v1', LST='flowforge.theme';
+  var state={boards:[],activeId:null};
+  var editing=null; // {colId, cardId|null}
+  var dragCard=null, dragCol=null;
+
+  function $(s){ return document.querySelector(s); }
+  function save(){ try{ localStorage.setItem(LS,JSON.stringify(state)); }catch(e){} }
+  function load(){
+    try{ var r=localStorage.getItem(LS); if(r){ state=JSON.parse(r); } }catch(e){}
+    if(!state.boards || !state.boards.length){ state={boards:[newBoard('我的看板')],activeId:null}; }
+    if(!state.activeId || !getBoard(state.activeId)) state.activeId=state.boards[0].id;
+  }
+  function getBoard(id){ for(var i=0;i<state.boards.length;i++){ if(state.boards[i].id===id) return state.boards[i]; } return null; }
+  function active(){ return getBoard(state.activeId); }
+  function toast(msg){ var t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){ t.classList.remove('show'); },1600); }
+
+  function render(){
+    var b=active(); if(!b){ $('#board').innerHTML='<div class="empty">暂无看板，点击「新建看板」开始</div>'; $('#meta').textContent=''; return; }
+    // board select
+    var sel=$('#boardSel'); sel.innerHTML=state.boards.map(function(x){ return '<option value="'+x.id+'">'+escapeHtml(x.name)+'</option>'; }).join('');
+    sel.value=b.id;
+    // meta
+    var st=boardStats(b);
+    $('#meta').innerHTML='<span>共 <b>'+st.total+'</b> 项</span><span>已完成 <b>'+st.done+'</b></span>'+
+      '<span>逾期 <b>'+st.overdue+'</b></span><span>高优先级 <b>'+st.byPriority.high+'</b></span>';
+    // columns
+    var q=$('#search').value, pri=$('#priFilter').value;
+    var html=b.columns.map(function(col){
+      var cards=filterCards(col.cards,{q:q,labels:[],priority:pri});
+      var cardsHtml=cards.map(cardHtml).join('') || '<div class="empty" style="padding:14px 0;font-size:12px">暂无卡片</div>';
+      return '<div class="col" data-col="'+col.id+'">'+
+        '<div class="col-head"><span class="grip" data-grip="'+col.id+'" title="拖动以重新排序">⠿</span>'+
+          '<input class="col-title" data-coltitle="'+col.id+'" value="'+escapeHtml(col.name)+'">'+
+          '<span class="col-count">'+col.cards.length+'</span>'+
+          '<span class="col-menu"><button class="btn icon" data-menu="'+col.id+'">⋯</button>'+
+            '<span class="pop"><button data-act="rename" data-col="'+col.id+'">重命名列</button>'+
+            '<button data-act="del" data-col="'+col.id+'">删除列</button></span></span>'+
+        '</div>'+
+        '<div class="cards" data-drop="'+col.id+'">'+cardsHtml+'</div>'+
+        '<div class="add-card"><button class="btn" data-add="'+col.id+'">＋ 添加卡片</button></div>'+
+      '</div>';
+    }).join('');
+    html+='<div class="add-col"><button class="btn primary" id="addCol">＋ 添加列</button></div>';
+    $('#board').innerHTML=html;
+  }
+  function cardHtml(c){
+    var labs=c.labels.map(function(l){ return '<span class="lab '+labelColor(l)+'">'+escapeHtml(l)+'</span>'; }).join('');
+    var due=''; if(c.due){ var ds=dueState(c.due); var txt=c.due.slice(5); var cls=ds==='overdue'?'overdue':ds==='soon'?'soon':'upcoming';
+      var pre=ds==='overdue'?'逾期 ':ds==='soon'?'即将 ':'';
+      due='<span class="due '+cls+'">'+pre+txt+'</span>'; }
+    var ck=''; if(c.checklist&&c.checklist.length){ var dn=c.checklist.filter(function(k){return k.done;}).length; ck='<span class="check">☑ '+dn+'/'+c.checklist.length+'</span>'; }
+    var titleCls=c.done?'ct" style="text-decoration:line-through;opacity:.6':'ct';
+    return '<div class="card" draggable="true" data-card="'+c.id+'">'+
+      '<div class="acts"><button data-edit="'+c.id+'" title="编辑卡片">✎</button>'+
+        '<button data-del="'+c.id+'" title="删除卡片">×</button></div>'+
+      '<div class="'+titleCls+'">'+escapeHtml(c.title)+'</div>'+
+      (labs?'<div class="labels">'+labs+'</div>':'')+
+      '<div class="meta"><span class="pdot p-'+c.priority+'"></span>'+due+ck+'</div>'+
+    '</div>';
+  }
+
+  // ---- modal ----
+  function openModal(colId,cardId){
+    editing={colId:colId,cardId:cardId||null};
+    var b=active(); var c=cardId?findCard(b,cardId):null;
+    $('#modalTitle').textContent=cardId?'编辑卡片':'添加卡片';
+    $('#fTitle').value=c?c.title:'';
+    $('#fDesc').value=c?c.desc:'';
+    $('#fPri').value=c?c.priority:'med';
+    $('#fDue').value=c&&c.due?c.due:'';
+    $('#fLabels').value=c?(c.labels||[]).join(', '):'';
+    renderChecklist(c?c.checklist:[]);
+    $('#overlay').classList.add('open');
+    setTimeout(function(){ $('#fTitle').focus(); },30);
+  }
+  function closeModal(){ $('#overlay').classList.remove('open'); editing=null; }
+  function renderChecklist(list){
+    $('#fCheck').innerHTML=(list||[]).map(function(k,i){
+      return '<div class="ck"><input type="text" data-ck="'+i+'" value="'+escapeHtml(k.text)+'"><input type="checkbox" data-ckd="'+i+'"'+(k.done?' checked':'')+'><button class="x" data-ckx="'+i+'">×</button></div>';
+    }).join('');
+  }
+  function readChecklist(){
+    var items=[]; var rows=$('#fCheck').querySelectorAll('.ck');
+    rows.forEach(function(r){
+      var i=r.querySelector('input[type=text]').getAttribute('data-ck');
+      var t=r.querySelector('input[type=text]').value.trim();
+      var d=r.querySelector('input[type=checkbox]').checked;
+      if(t) items.push({text:t,done:d});
+    });
+    return items;
+  }
+  function saveModal(){
+    if(!editing) return;
+    var title=$('#fTitle').value.trim(); if(!title){ toast('请填写标题'); return; }
+    var partial={ title:title, desc:$('#fDesc').value.trim(),
+      labels:$('#fLabels').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
+      priority:$('#fPri').value, due:$('#fDue').value||null, checklist:readChecklist() };
+    var b=active();
+    if(editing.cardId){ state.boards=state.boards.map(function(x){ return x.id===b.id?updateCard(x,editing.cardId,partial):x; }); }
+    else { state.boards=state.boards.map(function(x){ return x.id===b.id?addCard(x,editing.colId,partial):x; }); }
+    save(); render(); closeModal();
+  }
+
+  // ---- events ----
+  function bind(){
+    $('#boardSel').addEventListener('change',function(e){ state.activeId=e.target.value; save(); render(); });
+    $('#newBoard').addEventListener('click',function(){ var name=prompt('看板名称','我的看板'); if(name===null) return; var nb=newBoard(name.trim()||'我的看板'); state.boards.push(nb); state.activeId=nb.id; save(); render(); });
+    $('#search').addEventListener('input',render);
+    $('#priFilter').addEventListener('change',render);
+    $('#themeBtn').addEventListener('click',toggleTheme);
+    $('#exportBtn').addEventListener('click',function(){ var b=active(); var blob=new Blob([exportBoard(b)],{type:'application/json'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(b.name||'board')+'.json'; a.click(); toast('已导出'); });
+    $('#importBtn').addEventListener('click',function(){ $('#importFile').click(); });
+    $('#importFile').addEventListener('change',function(e){ var f=e.target.files[0]; if(!f) return; var rd=new FileReader(); rd.onload=function(){ try{ var nb=importBoard(rd.result); state.boards.push(nb); state.activeId=nb.id; save(); render(); toast('已导入'); }catch(err){ toast('导入失败：文件格式不正确'); } }; rd.readAsText(f); e.target.value=''; });
+    $('#mCancel').addEventListener('click',closeModal);
+    $('#mSave').addEventListener('click',saveModal);
+    $('#addCk').addEventListener('click',function(){ var list=readChecklist(); list.push({text:'',done:false}); renderChecklist(list); });
+    $('#board').addEventListener('click',function(e){
+      var t=e.target;
+      if(t.id==='addCol'){ var ab=active(); state.boards=state.boards.map(function(x){ return x.id===ab.id?addColumn(x,prompt('列名称','新列')||'新列'):x; }); save(); render(); return; }
+      if(t.dataset.add){ openModal(t.dataset.add,null); return; }
+      if(t.dataset.edit){ openModal(findCard(active(),t.dataset.edit).col.id, t.dataset.edit); return; }
+      if(t.dataset.del){ if(confirm('确认删除该卡片？')){ var b=active(); state.boards=state.boards.map(function(x){ return x.id===b.id?deleteCard(x,t.dataset.del):x; }); save(); render(); } return; }
+      if(t.dataset.menu){ var m=t.parentElement; m.classList.toggle('open'); return; }
+      var ma=t.dataset.act;
+      if(ma){ var cid=t.dataset.col; var b=active();
+        if(ma==='rename'){ var nc=prompt('重命名列',findCol(b,cid).name); if(nc!==null){ state.boards=state.boards.map(function(x){ return x.id===b.id?renameColumn(x,cid,nc.trim()||findCol(b,cid).name):x; }); save(); render(); } }
+        if(ma==='del'){ if(confirm('确认删除该列？列内卡片将一并删除')&&b.columns.length>1){ state.boards=state.boards.map(function(x){ return x.id===b.id?deleteColumn(x,cid):x; }); save(); render(); } }
+        return;
+      }
+      if(t.dataset.coltitle){ /* handled on change */ }
+    });
+    $('#board').addEventListener('change',function(e){ var t=e.target; if(t.dataset.coltitle){ var b=active(); state.boards=state.boards.map(function(x){ return x.id===b.id?renameColumn(x,t.dataset.coltitle,t.value.trim()||'未命名'):x; }); save(); } });
+    $('#board').addEventListener('blur',function(e){ var t=e.target; if(t.dataset.coltitle){ var b=active(); state.boards=state.boards.map(function(x){ return x.id===b.id?renameColumn(x,t.dataset.coltitle,t.value.trim()||'未命名'):x; }); save(); render(); } },true);
+    // card drag
+    $('#board').addEventListener('dragstart',function(e){ var card=e.target.closest('.card'); if(card){ dragCard={id:card.dataset.card,col:card.dataset.col}; card.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',card.dataset.card); return; }
+      var grip=e.target.closest('[data-grip]'); if(grip){ dragCol=grip.dataset.grip; e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('col',grip.dataset.grip); }
+    });
+    $('#board').addEventListener('dragend',function(e){ dragCard=null; dragCol=null; document.querySelectorAll('.dragging').forEach(function(n){n.classList.remove('dragging');}); document.querySelectorAll('.drag-over').forEach(function(n){n.classList.remove('drag-over');}); });
+    $('#board').addEventListener('dragover',function(e){ var col=e.target.closest('.col'); if(col){ e.preventDefault(); col.classList.add('drag-over'); } });
+    $('#board').addEventListener('dragleave',function(e){ var col=e.target.closest('.col'); if(col&&!col.contains(e.relatedTarget)) col.classList.remove('drag-over'); });
+    $('#board').addEventListener('drop',function(e){
+      var col=e.target.closest('.col'); if(!col) return; e.preventDefault(); col.classList.remove('drag-over');
+      var colId=col.dataset.col;
+      if(dragCard){ var b=active(); var overCard=e.target.closest('.card'); var idx=col.cards?col.cards.length:0;
+        if(overCard&&overCard.dataset.card!==dragCard.id){ var tc=findCol(b,colId); var oi=-1; for(var i=0;i<tc.cards.length;i++){ if(tc.cards[i].id===overCard.dataset.card){ oi=i; break; } }
+          var rect=overCard.getBoundingClientRect(); idx=(e.clientY<rect.top+rect.height/2)?oi:oi+1; }
+        state.boards=state.boards.map(function(x){ return x.id===b.id?moveCard(x,dragCard.id,colId,idx):x; }); save(); render();
+      } else if(dragCol){ var b2=active(); var cards=document.querySelectorAll('.col'); var to=0; for(var i=0;i<cards.length;i++){ if(cards[i].dataset.col===colId){ to=i; break; } }
+        state.boards=state.boards.map(function(x){ return x.id===b2.id?moveColumn(x,dragCol,to):x; }); save(); render(); }
+    });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeModal(); });
+    $('#overlay').addEventListener('click',function(e){ if(e.target===$('#overlay')) closeModal(); });
+    $('#fCheck').addEventListener('input',function(e){ if(e.target.dataset.ck!==undefined){ var list=readChecklist(); renderChecklist(list); } });
+    $('#fCheck').addEventListener('click',function(e){ if(e.target.dataset.ckx!==undefined){ var i=+e.target.dataset.ckx; var list=readChecklist(); list.splice(i,1); renderChecklist(list); } });
+  }
+  function applyTheme(t){ document.documentElement.setAttribute('data-theme',t); try{ localStorage.setItem(LST,t); }catch(e){} }
+  function toggleTheme(){ var cur=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light'; applyTheme(cur); }
+  function initTheme(){ var t; try{ t=localStorage.getItem(LST); }catch(e){} applyTheme(t==='light'?'light':'dark'); }
+
+  function init(){
+    initTheme(); load(); save(); bind(); render();
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded',init);
+})();
+}
+</script>
+<script>window.NANO_I18N_EXTRA={
+"FlowForge · 任务看板":"FlowForge · Task Board",
+"本地优先的任务看板":"Local-first Kanban board",
+"新建看板":"New Board","看板名称":"Board name","删除看板":"Delete Board","重命名看板":"Rename Board",
+"添加列":"Add Column","列名称":"Column name","重命名列":"Rename Column","删除列":"Delete Column",
+"添加卡片":"Add Card","编辑卡片":"Edit Card","标题":"Title","描述":"Description",
+"优先级":"Priority","高":"High","中":"Medium","低":"Low","标签":"Label","标签（逗号分隔）":"Labels (comma separated)",
+"截止日期":"Due date","无截止日期":"No due date","清单":"Checklist","添加子任务":"Add subtask",
+"搜索任务":"Search tasks","优先级筛选":"Priority filter","全部优先级":"All priorities",
+"导出":"Export","导入":"Import","保存":"Save","取消":"Cancel","删除":"Delete",
+"确认删除该卡片？":"Delete this card?","确认删除该看板？此操作不可撤销":"Delete this board? This cannot be undone.",
+"逾期":"Overdue","即将到期":"Due soon","还有":"left","项未完成":"items left","已清空":"Cleared",
+"暂无卡片":"No cards","主题":"Theme","今天":"Today","明天":"Tomorrow","完成":"Complete","未完成":"Incomplete",
+"添加":"Add","拖动以重新排序":"Drag to reorder",
+"暂无看板，点击「新建看板」开始":"No boards yet. Click \"New Board\" to start.",
+"导入失败：文件格式不正确":"Import failed: invalid file format","已导出":"Exported","已导入":"Imported",
+"高":"High","中":"Medium","低":"Low",
+"＋ 新建看板":"+ New Board","＋ 添加卡片":"+ Add Card","＋ 添加列":"+ Add Column","＋ 添加子任务":"+ Add subtask"
+};</script>
+<script>
+/* NANO_I18N_RUNTIME */
+(function(){
+  var COMMON = {
+    "复制":"Copy","复制结果":"Copy result","复制链接":"Copy link","复制代码":"Copy code",
+    "清空":"Clear","清除":"Clear","清除全部":"Clear all","清空全部":"Clear all",
+    "粘贴":"Paste","生成":"Generate","运行":"Run","执行":"Run","停止":"Stop","暂停":"Pause",
+    "继续":"Resume","重试":"Retry","格式化":"Format","压缩":"Minify","美化":"Beautify","压缩美化":"Minify",
+    "导出":"Export","导入":"Import","保存":"Save","删除":"Delete","移除":"Remove","添加":"Add",
+    "重置":"Reset","还原":"Reset","搜索":"Search","提交":"Submit","取消":"Cancel","确定":"OK",
+    "确认":"Confirm","关闭":"Close","输入":"Input","输出":"Output","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","名称":"Name","值":"Value","类型":"Type",
+    "大小":"Size","数量":"Count","颜色":"Color","文本":"Text","内容":"Content","编码":"Encode",
+    "解码":"Decode","加密":"Encrypt","解密":"Decrypt","校验":"Verify","计算":"Calculate",
+    "转换":"Convert","上传":"Upload","下载":"Download","全选":"Select all","折叠":"Collapse",
+    "展开":"Expand","开始":"Start","帮助":"Help","关于":"About","更多":"More","更少":"Less",
+    "示例":"Example","随机":"Random","全部":"All","中文":"中文","English":"English","浅色":"Light",
+    "深色":"Dark","亮色":"Dark","暗色":"Dark","复制成功":"Copied","已复制":"Copied",
+    "加载中":"Loading…","暂无数据":"No data","请输入":"Please enter","或":"or","拖拽":"Drag",
+    "拖到此处":"Drop here","选择文件":"Choose file","字数":"Words","字符":"Characters",
+    "行数":"Lines","用时":"Time","耗时":"Elapsed","共":"Total","项":"items","条":"items",
+    "历史":"History","清空历史":"Clear history","复制结果":"Copy result","复制":"Copy",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh","应用":"Apply",
+    "不区分大小写":"Case-insensitive","忽略空白":"Ignore whitespace","换行":"Line break",
+    "正则表达式":"Regex","模式":"Mode","选项":"Options","高级":"Advanced","基础":"Basic",
+    "开启":"On","关闭":"Off","启用":"Enable","禁用":"Disable","显示":"Show","隐藏":"Hide",
+    "复制 SVG":"Copy SVG","下载 SVG":"Download SVG","复制 PNG":"Copy PNG","下载 PNG":"Download PNG",
+    "复制 CSS":"Copy CSS","复制 URL":"Copy URL","复制到剪贴板":"Copy to clipboard",
+    "已保存到本地":"Saved locally","解析中":"Parsing…","分析中":"Analyzing…","生成中":"Generating…",
+    "请选择":"Please select","请先":"Please first","不支持":"Not supported","错误":"Error",
+    "成功":"Success","失败":"Failed","完成":"Done","下一步":"Next","上一步":"Previous",
+    "当前":"Current","总计":"Total","平均":"Average","最大":"Max","最小":"Min",
+    "字符数":"Chars","词数":"Words","句数":"Sentences","段落":"Paragraphs",
+    "浅色模式":"Light mode","深色模式":"Dark mode","切换主题":"Toggle theme","切换语言":"Switch language",
+    "打开文件":"Open file","保存文件":"Save file","导出文件":"Export file","导入文件":"Import file",
+    "复制全部":"Copy all","清除结果":"Clear result","清空结果":"Clear result",
+    "全屏":"Fullscreen","退出全屏":"Exit fullscreen","适应屏幕":"Fit screen","缩放":"Zoom",
+    "放大":"Zoom in","缩小":"Zoom out","重置视图":"Reset view","居中":"Center",
+    "添加节点":"Add node","删除节点":"Delete node","添加连线":"Add edge","删除连线":"Delete edge",
+    "自动布局":"Auto layout","适应视图":"Fit view","导出 JSON":"Export JSON","导出 Markdown":"Export Markdown",
+    "开始分析":"Start analysis","停止分析":"Stop analysis","分析文件夹":"Analyze folder",
+    "拖拽文件夹到此处":"Drop a folder here","或点击选择":"or click to choose","粘贴文本":"Paste text",
+    "复制结果":"Copy result","复制代码":"Copy code"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p = node.parentElement;
+    while(p){
+      var t = p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  var current = 'zh';
+  function applyLang(lang){
+    var d = full();
+    var root = document.documentElement;
+    current = lang;
+    var rawTitle = document.title;
+    if(lang==='en'){
+      if(d[rawTitle]) document.title = d[rawTitle];
+    } else {
+      var ex = window.NANO_I18N_EXTRA || {};
+      for(var _k in ex){ if(ex[_k] === rawTitle){ document.title = _k; break; } }
+    }
+    if(lang==='en'){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n = w.nextNode()){ n.__zh = n.nodeValue; n.nodeValue = d[n.nodeValue.trim()]; }
+      var els = root.querySelectorAll('[data-i18n-html]');
+      for(var ei=0; ei<els.length; ei++){ var el=els[ei]; if(el.__zhtml===undefined){ el.__zhtml = el.innerHTML; } el.innerHTML = el.getAttribute('data-i18n-html'); }
+    } else {
+      var w2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m = w2.nextNode()){ m.nodeValue = m.__zh; m.__zh = undefined; }
+      var els2 = root.querySelectorAll('[data-i18n-html]');
+      for(var ej=0; ej<els2.length; ej++){ var el2=els2[ej]; if(el2.__zhtml!==undefined){ el2.innerHTML = el2.__zhtml; el2.__zhtml = undefined; } }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en' ? 'zh' : 'en');
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand = document.createElement('a');
+    brand.id = 'nano-brand';
+    brand.href = 'https://wangzifan396-wzf.github.io/WB/';
+    brand.target = '_blank';
+    brand.rel = 'noopener';
+    brand.textContent = 'nano·tools';
+    brand.title = 'nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter = function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave = function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b = document.createElement('button');
+    b.id = 'nano-lang-btn';
+    b.title = 'Switch language / 切换语言';
+    b.textContent = 'EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter = function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave = function(){ b.style.transform='none'; };
+    b.onclick = toggle;
+    bar.appendChild(brand);
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved = localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved = ((navigator.language||'zh').slice(0,2).toLowerCase()==='en') ? 'en' : 'zh'; }
+    applyLang(saved);
+    mountBtn();
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (saved==='en'?'中':'EN');
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded',init);
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script></body>
+</html>

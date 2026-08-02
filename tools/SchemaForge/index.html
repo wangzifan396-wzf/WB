@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SchemaForge — 离线数据库建模 / ER 图设计器</title>
+<meta name="description" content="离线数据库 Schema / ER 图设计器：可视化建表、外键关联，导出 MySQL / PostgreSQL / SQLite 多方言 SQL DDL 与 Mermaid，单文件零依赖。">
+<meta property="og:title" content="SchemaForge">
+<meta property="og:description" content="Offline database schema / ER diagram designer. Visual tables, foreign keys, multi-dialect SQL DDL and Mermaid export.">
+<meta property="og:image" content="og.png">
+<meta property="og:type" content="website">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08);
+  --line2:rgba(255,255,255,.14); --txt:#FFFFFF; --txt2:#A1A1AA; --txt3:#71717A;
+  --acc:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --pur:#A78BFA;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;}
+.app{display:flex;flex-direction:column;height:100vh}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+header .logo{width:26px;height:26px;flex:0 0 auto}
+header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.3px}
+header .tag{font-size:11px;color:var(--txt3);border:1px solid var(--line);padding:2px 7px;border-radius:999px}
+header .spacer{flex:1}
+header a,header button{color:var(--txt2);font-size:12px;text-decoration:none;background:var(--surface);
+  border:1px solid var(--line);padding:6px 10px;border-radius:7px;cursor:pointer;font-family:inherit}
+header button:hover,header a:hover{border-color:var(--line2);color:var(--txt)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--card);align-items:center}
+.toolbar button,.toolbar select{font-family:inherit;font-size:12px;color:var(--txt);background:var(--surface);
+  border:1px solid var(--line);padding:7px 11px;border-radius:7px;cursor:pointer}
+.toolbar button:hover{border-color:var(--line2);background:#202126}
+.toolbar button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.toolbar button.primary:hover{filter:brightness(1.08)}
+.toolbar .group{display:flex;gap:6px;align-items:center}
+.toolbar select{padding:6px 8px}
+.toolbar label{font-size:11px;color:var(--txt3)}
+main{flex:1;display:flex;min-height:0}
+.stage-wrap{flex:1;position:relative;overflow:hidden;background:
+  radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0) 0 0/22px 22px, var(--bg)}
+#stage{width:100%;height:100%;display:block;cursor:grab}
+#stage.grabbing{cursor:grabbing}
+.sidebar{width:320px;flex:0 0 320px;border-left:1px solid var(--line);background:var(--card);
+  padding:14px;overflow:auto}
+.sidebar h3{margin:0 0 10px;font-size:13px;color:var(--txt2);font-weight:600}
+.editor-empty{color:var(--txt3);font-size:13px;line-height:1.7;margin-top:30px;text-align:center}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:11px;color:var(--txt3);margin-bottom:4px}
+.field input,.field select{width:100%;font-family:inherit;font-size:13px;color:var(--txt);
+  background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+.field input:focus,.field select:focus{outline:none;border-color:var(--acc)}
+.col-row{display:flex;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--line);
+  border-radius:8px;padding:8px;margin-bottom:8px}
+.col-row .ci{flex:1;min-width:0}
+.col-row .ci input,.col-row .ci select{margin-bottom:5px}
+.col-row .ci:last-child input{margin-bottom:0}
+.col-row .flags{display:flex;gap:4px;margin-top:5px}
+.col-row .flags label{font-size:10px;color:var(--txt3);display:inline-flex;gap:3px;align-items:center;cursor:pointer}
+.col-actions{display:flex;gap:6px;margin-top:6px}
+.mini{font-size:11px;padding:5px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--txt2);cursor:pointer;font-family:inherit}
+.mini:hover{border-color:var(--line2);color:var(--txt)}
+.mini.danger{color:#f87171;border-color:rgba(248,113,113,.3)}
+.mini.danger:hover{background:rgba(248,113,113,.1)}
+.row2{display:flex;gap:8px}
+.row2>*{flex:1}
+.btn-add{width:100%;padding:8px;border:1px dashed var(--line2);background:transparent;color:var(--txt2);
+  border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;margin-top:4px}
+.btn-add:hover{color:var(--txt);border-color:var(--acc)}
+.table-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--line);
+  border-radius:8px;margin-bottom:6px;cursor:pointer;background:var(--surface)}
+.table-item:hover{border-color:var(--line2)}
+.table-item.sel{border-color:var(--acc);background:#1c1d2b}
+.table-item .nm{font-size:13px;font-weight:600}
+.table-item .meta{font-size:10px;color:var(--txt3)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:50}
+.modal.open{display:flex}
+.modal .box{width:min(760px,92vw);max-height:84vh;background:var(--card);border:1px solid var(--line2);border-radius:12px;
+  display:flex;flex-direction:column;overflow:hidden}
+.modal .box header{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.modal .box header h3{margin:0;font-size:14px}
+.modal .box .body{padding:14px 16px;overflow:auto}
+.modal textarea{width:100%;min-height:300px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:12px;line-height:1.6;color:#d7dbe8;background:#0d0d10;border:1px solid var(--line);border-radius:8px;padding:12px;resize:vertical}
+.modal .foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ok);color:#04261b;
+  padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
+.toast.show{opacity:1}
+.errbar{position:fixed;bottom:20px;right:20px;max-width:320px;background:#2a1416;border:1px solid rgba(248,113,113,.4);
+  color:#fca5a5;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5;display:none;z-index:60}
+footer{padding:7px 16px;border-top:1px solid var(--line);background:var(--card);font-size:11px;color:var(--txt3);
+  display:flex;gap:14px;align-items:center}
+footer .dot{color:var(--ok)}
+.table-box{fill:var(--card);stroke:var(--line2);stroke-width:1}
+.table-head{fill:var(--acc);opacity:.16}
+.table-name{fill:#fff;font:600 13px system-ui;dominant-baseline:middle}
+.col-line{fill:var(--txt2);font:12px system-ui;dominant-baseline:middle}
+.col-type{fill:var(--txt3);font:11px system-ui;dominant-baseline:middle}
+.badge-pk{fill:var(--warn);font:700 9px system-ui;dominant-baseline:middle}
+.badge-fk{fill:var(--info);font:700 9px system-ui;dominant-baseline:middle}
+.rel-path{fill:none;stroke:var(--pur);stroke-width:1.6;opacity:.8}
+.sel-outline{fill:none;stroke:var(--acc);stroke-width:2}
+@media (max-width:820px){.sidebar{width:260px;flex-basis:260px}}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+<meta name="theme-color" content="#5E6AD2">
+</head>
+<body>
+<div class="app">
+  <header>
+    <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="#5E6AD2" stroke-width="1.8">
+      <ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M5 12c0 1.66 3.13 3 7 3s7-1.34 7-3"/>
+    </svg>
+    <h1 data-i18n="title">SchemaForge</h1>
+    <span class="tag">离线 · 零依赖</span>
+    <div class="spacer"></div>
+    <button id="btnLang" title="切换语言">EN</button>
+    <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/SchemaForge" target="_blank" rel="noopener">GitHub</a>
+  </header>
+  <div class="toolbar">
+    <div class="group"><button class="primary" id="btnAddTable" data-i18n="addTable">+ 新建表</button></div>
+    <div class="group"><label data-i18n="dialect">方言</label>
+      <select id="selDialect">
+        <option value="mysql">MySQL</option>
+        <option value="postgres">PostgreSQL</option>
+        <option value="sqlite">SQLite</option>
+      </select></div>
+    <div class="group"><button id="btnSQL" data-i18n="exportSQL">导出 SQL</button>
+      <button id="btnMermaid" data-i18n="exportMermaid">导出 Mermaid</button>
+      <button id="btnSVG" data-i18n="exportSVG">导出 SVG</button>
+      <button id="btnPNG" data-i18n="exportPNG">导出 PNG</button></div>
+    <div class="group"><button id="btnSample" data-i18n="sample">示例</button>
+      <button id="btnClear" class="mini danger" data-i18n="clear">清空</button></div>
+    <div class="group" style="margin-left:auto;color:var(--txt3);font-size:11px" id="hint" data-i18n="hint">拖拽表头移动 · 滚轮缩放 · 点击表编辑</div>
+  </div>
+  <main>
+    <div class="stage-wrap">
+      <svg id="stage" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <aside class="sidebar" id="sidebar"></aside>
+  </main>
+  <footer>
+    <span class="dot">●</span><span id="statTables" data-i18n="statTables">0 张表</span>
+    <span id="statCols" data-i18n="statCols">0 个字段</span>
+    <span style="margin-left:auto" id="statFk" data-i18n="statFk">0 个外键</span> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<div class="modal" id="modal"><div class="box">
+  <header><h3 id="modalTitle">导出</h3><div style="flex:1"></div><button class="mini" id="modalClose">✕</button></header>
+  <div class="body"><textarea id="modalText" readonly></textarea></div>
+  <div class="foot"><button class="mini" id="modalCopy" data-i18n="copy">复制</button><button class="mini" id="modalDown" data-i18n="download">下载</button></div>
+</div></div>
+<div class="toast" id="toast"></div>
+<div class="errbar" id="errbar"></div>
+<script>
+"use strict";
+var SF = (function(){
+  function uid(p){ return (p||'id')+'_'+Math.random().toString(36).slice(2,9); }
+  function makeColumn(o){ return Object.assign({id:uid('col'),name:'column',type:'INT',pk:false,nn:false,uq:false,fk:null,def:''},o||{}); }
+  function makeTable(o){ return Object.assign({id:uid('tbl'),name:'table',x:80,y:80,columns:[]},o||{}); }
+  function findTable(tables,id){ for(var i=0;i<tables.length;i++) if(tables[i].id===id) return tables[i]; return null; }
+  function findCol(t,id){ if(!t) return null; for(var i=0;i<t.columns.length;i++) if(t.columns[i].id===id) return t.columns[i]; return null; }
+  function mapType(t,dialect){
+    t=(t||'INT').toUpperCase();
+    if(dialect==='mysql'){ if(t==='INT')return 'INT'; if(t==='BOOL')return 'TINYINT(1)'; if(t==='DATETIME')return 'DATETIME'; if(t==='FLOAT')return 'FLOAT'; if(t==='DECIMAL')return 'DECIMAL(10,2)'; if(t==='TEXT')return 'TEXT'; if(t==='VARCHAR')return 'VARCHAR(255)'; return t; }
+    if(dialect==='postgres'){ if(t==='INT')return 'INTEGER'; if(t==='BOOL')return 'BOOLEAN'; if(t==='DATETIME')return 'TIMESTAMP'; if(t==='FLOAT')return 'REAL'; if(t==='DECIMAL')return 'DECIMAL(10,2)'; if(t==='TEXT')return 'TEXT'; if(t==='VARCHAR')return 'VARCHAR(255)'; return t; }
+    if(dialect==='sqlite'){ if(t==='INT')return 'INTEGER'; if(t==='BOOL')return 'INTEGER'; if(t==='DATETIME')return 'TEXT'; if(t==='FLOAT')return 'REAL'; if(t==='DECIMAL')return 'REAL'; if(t==='TEXT')return 'TEXT'; if(t==='VARCHAR')return 'TEXT'; return t; }
+    if(dialect==='mermaid'){ if(t==='INT')return 'int'; if(t==='BOOL')return 'boolean'; if(t==='DATETIME')return 'datetime'; if(t==='FLOAT')return 'float'; if(t==='DECIMAL')return 'decimal'; if(t==='TEXT')return 'text'; if(t==='VARCHAR')return 'varchar'; return 'int'; }
+    return t;
+  }
+  function fmtDefault(d){
+    if(d==null||d==='') return null;
+    if(/^(true|false|null)$/i.test(d)) return d.toLowerCase();
+    if(/^-?\d+(\.\d+)?$/.test(d)) return d;
+    return "'"+String(d).replace(/'/g,"''")+"'";
+  }
+  function genDDL(tables, dialect){
+    var q=function(n){ return dialect==='mysql' ? '`'+n+'`' : '"'+n+'"'; };
+    var out=[];
+    tables.forEach(function(t){
+      if(!t.name) return;
+      var compositePk=[];
+      var lines=[];
+      t.columns.forEach(function(c){
+        var parts=[q(c.name), mapType(c.type,dialect)];
+        if(c.pk) compositePk.push(c.name);
+        if(c.pk && compositePk.length===1){ parts.push('PRIMARY KEY'); }
+        else {
+          if(c.nn) parts.push('NOT NULL');
+          if(c.uq) parts.push('UNIQUE');
+        }
+        var d=fmtDefault(c.def);
+        if(d!==null) parts.push('DEFAULT '+d);
+        lines.push('  '+parts.join(' '));
+      });
+      if(compositePk.length>1){
+        lines.push('  PRIMARY KEY ('+compositePk.map(q).join(', ')+')');
+      }
+      t.columns.forEach(function(c){
+        if(c.fk && c.fk.table && c.fk.col){
+          var ft=findTable(tables,c.fk.table); var fc=ft&&findCol(ft,c.fk.col);
+          if(ft&&fc){
+            lines.push('  FOREIGN KEY ('+q(c.name)+') REFERENCES '+q(ft.name)+' ('+q(fc.name)+')');
+          }
+        }
+      });
+      out.push('CREATE TABLE '+q(t.name)+' (\n'+lines.join(',\n')+'\n);');
+    });
+    return out.join('\n\n');
+  }
+  function genMermaid(tables){
+    var out=['erDiagram'];
+    tables.forEach(function(t){
+      if(!t.name) return;
+      out.push('  '+t.name+' {');
+      t.columns.forEach(function(c){
+        var attr=mapType(c.type,'mermaid');
+        var tags=[]; if(c.pk) tags.push('PK'); if(c.fk&&c.fk.table) tags.push('FK');
+        out.push('    '+attr+' '+c.name+(tags.length?' '+tags.join(' '):''));
+      });
+      out.push('  }');
+    });
+    tables.forEach(function(t){
+      if(!t.name) return;
+      t.columns.forEach(function(c){
+        if(c.fk&&c.fk.table&&c.fk.col){
+          var ft=findTable(tables,c.fk.table);
+          if(ft&&ft.name) out.push('  '+ft.name+' ||--o{ '+t.name+' : '+c.name);
+        }
+      });
+    });
+    return out.join('\n');
+  }
+  function genSVG(tables){
+    var W=200, headH=30, colH=24, pad=0;
+    var parts=[]; var maxX=0,maxY=0;
+    tables.forEach(function(t){
+      var h=headH+t.columns.length*colH+pad;
+      maxX=Math.max(maxX,t.x+W); maxY=Math.max(maxY,t.y+h);
+    });
+    parts.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+(maxX+40)+' '+(maxY+40)+'" font-family="system-ui">');
+    parts.push('<rect width="100%" height="100%" fill="#0A0A0B"/>');
+    tables.forEach(function(t){
+      var h=headH+t.columns.length*colH;
+      parts.push('<g transform="translate('+t.x+','+t.y+')">');
+      parts.push('<rect width="'+W+'" height="'+h+'" rx="8" fill="#141417" stroke="rgba(255,255,255,.14)"/>');
+      parts.push('<rect width="'+W+'" height="'+headH+'" rx="8" fill="#5E6AD2" opacity=".18"/>');
+      parts.push('<text x="12" y="'+(headH/2)+'" fill="#fff" font-size="13" font-weight="700" dominant-baseline="middle">'+esc(t.name)+'</text>');
+      t.columns.forEach(function(c,i){
+        var y=headH+i*colH+colH/2;
+        parts.push('<text x="12" y="'+y+'" fill="#A1A1AA" font-size="12" dominant-baseline="middle">'+esc(c.name)+'</text>');
+        parts.push('<text x="'+(W-12)+'" y="'+y+'" fill="#71717A" font-size="11" text-anchor="end" dominant-baseline="middle">'+esc(mapType(c.type,null))+'</text>');
+        var bx=W-12;
+        if(c.pk){ parts.push('<text x="'+(bx-44)+'" y="'+y+'" fill="#F5A623" font-size="9" font-weight="700" text-anchor="end" dominant-baseline="middle">PK</text>'); }
+        if(c.fk&&c.fk.table){ parts.push('<text x="'+(bx-(c.pk?74:0)-0)+'" y="'+y+'" fill="#22D3EE" font-size="9" font-weight="700" text-anchor="end" dominant-baseline="middle">FK</text>'); }
+      });
+      parts.push('</g>');
+    });
+    // relationships
+    tables.forEach(function(t){
+      t.columns.forEach(function(c){
+        if(c.fk&&c.fk.table&&c.fk.col){
+          var ft=findTable(tables,c.fk.table); if(!ft) return;
+          var fi=t.columns.indexOf(c); var fc=findCol(ft,c.fk.col); if(!fc) return;
+          var ti=ft.columns.indexOf(fc);
+          var x1=t.x+W, y1=t.y+headH+fi*colH+colH/2;
+          var x2=ft.x, y2=ft.y+headH+ti*colH+colH/2;
+          var mx=(x1+x2)/2;
+          parts.push('<path d="M'+x1+' '+y1+' C '+mx+' '+y1+', '+mx+' '+y2+', '+x2+' '+y2+'" fill="none" stroke="#A78BFA" stroke-width="1.6" opacity=".8" class="rel-path"/>');
+        }
+      });
+    });
+    parts.push('</svg>');
+    return parts.join('\n');
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
+  function validate(tables){
+    var errs=[]; var names={};
+    tables.forEach(function(t){
+      if(!t.name||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(t.name)) errs.push('非法表名: '+(t.name||'(空)'));
+      if(names[t.name]) errs.push('重复表名: '+t.name); names[t.name]=1;
+      var cn={};
+      t.columns.forEach(function(c){
+        if(!c.name||!/^[A-Za-z_][A-Za-z0-9_]*$/.test(c.name)) errs.push((t.name||'?')+' 非法列名: '+(c.name||'(空)'));
+        if(cn[c.name]) errs.push((t.name||'?')+' 重复列: '+c.name); cn[c.name]=1;
+        if(c.fk&&c.fk.table&&c.fk.col){
+          var ft=findTable(tables,c.fk.table);
+          if(!ft||!findCol(ft,c.fk.col)) errs.push((t.name||'?')+'.'+c.name+' 外键目标不存在');
+        }
+      });
+    });
+    return errs;
+  }
+  function autoLayout(tables){
+    var perRow=3, gx=260, gy=260, ox=80, oy=80;
+    tables.forEach(function(t,i){
+      t.x=ox+(i%perRow)*gx; t.y=oy+Math.floor(i/perRow)*gy;
+    });
+    return tables;
+  }
+  function sampleSchema(){
+    var users=makeTable({name:'users',columns:[
+      makeColumn({name:'id',type:'INT',pk:true,nn:true}),
+      makeColumn({name:'name',type:'VARCHAR',nn:true}),
+      makeColumn({name:'email',type:'VARCHAR',uq:true,nn:true}),
+      makeColumn({name:'created_at',type:'DATETIME'})
+    ]});
+    var posts=makeTable({name:'posts',columns:[
+      makeColumn({name:'id',type:'INT',pk:true,nn:true}),
+      makeColumn({name:'user_id',type:'INT',nn:true,fk:{table:users.id,col:users.columns[0].id}}),
+      makeColumn({name:'title',type:'VARCHAR',nn:true}),
+      makeColumn({name:'body',type:'TEXT'}),
+      makeColumn({name:'published',type:'BOOL'})
+    ]});
+    var comments=makeTable({name:'comments',columns:[
+      makeColumn({name:'id',type:'INT',pk:true,nn:true}),
+      makeColumn({name:'post_id',type:'INT',nn:true,fk:{table:posts.id,col:posts.columns[0].id}}),
+      makeColumn({name:'author',type:'VARCHAR'}),
+      makeColumn({name:'body',type:'TEXT',nn:true})
+    ]});
+    return [users,posts,comments];
+  }
+  return {
+    version:'1.0.0',
+    uid:uid, makeColumn:makeColumn, makeTable:makeTable,
+    findTable:findTable, findCol:findCol, mapType:mapType, fmtDefault:fmtDefault,
+    genDDL:genDDL, genMermaid:genMermaid, genSVG:genSVG, validate:validate,
+    autoLayout:autoLayout, sampleSchema:sampleSchema
+  };
+})();
+if(typeof module!=='undefined'&&module.exports){ module.exports=SF; }
+</script>
+<script>
+"use strict";
+if(typeof window!=='undefined'&&window.document){
+(function(){
+  var I18N={
+    zh:{title:'SchemaForge',addTable:'+ 新建表',dialect:'方言',exportSQL:'导出 SQL',exportMermaid:'导出 Mermaid',
+        exportSVG:'导出 SVG',exportPNG:'导出 PNG',sample:'示例',clear:'清空',hint:'拖拽表头移动 · 滚轮缩放 · 点击表编辑',
+        statTables:'张表',statCols:'个字段',statFk:'个外键',copy:'复制',download:'下载',tables:'表',editorEmpty:'在左侧点击一张表进行编辑，或点击「+ 新建表」。',
+        tableName:'表名',addColumn:'+ 添加字段',delTable:'删除此表',pk:'主键',nn:'非空',uq:'唯一',fk:'外键',type:'类型',
+        default:'默认值',noTable:'未选择表',fkTarget:'外键目标',none:'(无)',colName:'字段名',selectTable:'选择表',edit:'编辑',saveLocal:'已自动保存到本地',errTitle:'校验错误',close:'关闭',lang:'EN'},
+    en:{title:'SchemaForge',addTable:'+ New Table',dialect:'Dialect',exportSQL:'Export SQL',exportMermaid:'Export Mermaid',
+        exportSVG:'Export SVG',exportPNG:'Export PNG',sample:'Sample',clear:'Clear',hint:'Drag header to move · wheel to zoom · click a table to edit',
+        statTables:'tables',statCols:'columns',statFk:'foreign keys',copy:'Copy',download:'Download',tables:'Tables',editorEmpty:'Click a table on the left to edit, or click "+ New Table".',
+        tableName:'Table name',addColumn:'+ Add column',delTable:'Delete table',pk:'PK',nn:'NN',uq:'UQ',fk:'FK',type:'Type',
+        default:'Default',noTable:'No table selected',fkTarget:'FK target',none:'(none)',colName:'Column',selectTable:'Select table',edit:'Edit',saveLocal:'Auto-saved locally',errTitle:'Validation errors',close:'Close',lang:'中'}
+  };
+  var lang='zh';
+  var t=function(k){ return (I18N[lang]&&I18N[lang][k])||(I18N.zh[k])||k; };
+  var tables=[]; var selected=null; var selCol=null;
+  var tx=0,ty=0,sc=1;
+  var $stage=document.getElementById('stage');
+  var $side=document.getElementById('sidebar');
+  var $modal=document.getElementById('modal');
+  var LS_KEY='schemaforge.doc.v1';
+  function applyLang(){
+    document.querySelectorAll('[data-i18n]').forEach(function(el){
+      var k=el.getAttribute('data-i18n');
+      if(k==='lang'){ el.textContent=t('lang'); return; }
+      if(I18N[lang][k]) el.textContent=I18N[lang][k];
+    });
+    document.documentElement.lang = lang==='zh'?'zh-CN':'en';
+    renderSidebar();
+  }
+  function load(){
+    try{ var raw=localStorage.getItem(LS_KEY); if(raw){ var d=JSON.parse(raw); if(d&&d.tables){ tables=d.tables; if(d.selected) selected=d.selected; } } }catch(e){}
+    if(!tables.length){ tables=SF.sampleSchema(); }
+  }
+  function save(){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify({tables:tables,selected:selected})); }catch(e){}
+  }
+  function toast(msg){
+    var el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show');
+    setTimeout(function(){ el.classList.remove('show'); },1600);
+  }
+  function showErrs(errs){
+    if(!errs||!errs.length) return false;
+    var bar=document.getElementById('errbar');
+    bar.innerHTML='<b>'+t('errTitle')+'</b><br>'+errs.map(function(e){return '· '+escHtml(e);}).join('<br>');
+    bar.style.display='block';
+    setTimeout(function(){ bar.style.display='none'; },5000);
+    return true;
+  }
+  function escHtml(s){ return String(s).replace(/[&<>]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m];}); }
+  function dim(){ return $stage.viewBox.baseVal; }
+  function toLocalX(clientX){ var r=$stage.getBoundingClientRect(); var vb=dim(); return (clientX-r.left)/r.width*vb.width; }
+  function toLocalY(clientY){ var r=$stage.getBoundingClientRect(); var vb=dim(); return (clientY-r.top)/r.height*vb.height; }
+  var HEAD=30, COLH=24, TW=200;
+  function tableRect(t){ return {x:t.x,y:t.y,w:TW,h:HEAD+t.columns.length*COLH}; }
+  function render(){
+    var svgns='http://www.w3.org/2000/svg';
+    var root=document.createElementNS(svgns,'g');
+    root.setAttribute('transform','translate('+tx+','+ty+') scale('+sc+')');
+    // relationships (drawn under tables, in world space)
+    tables.forEach(function(t){
+      t.columns.forEach(function(c){
+        if(c.fk&&c.fk.table&&c.fk.col){
+          var ft=SF.findTable(tables,c.fk.table); if(!ft) return;
+          var fi=t.columns.indexOf(c); var fc=SF.findCol(ft,c.fk.col); if(!fc) return;
+          var ti=ft.columns.indexOf(fc);
+          var x1=t.x+TW, y1=t.y+HEAD+fi*COLH+COLH/2;
+          var x2=ft.x, y2=ft.y+HEAD+ti*COLH+COLH/2;
+          var mx=(x1+x2)/2;
+          var p=document.createElementNS(svgns,'path');
+          p.setAttribute('d','M'+x1+' '+y1+' C '+mx+' '+y1+', '+mx+' '+y2+', '+x2+' '+y2);
+          p.setAttribute('class','rel-path');
+          root.appendChild(p);
+        }
+      });
+    });
+    tables.forEach(function(t){
+      var g=document.createElementNS(svgns,'g');
+      g.setAttribute('transform','translate('+t.x+','+t.y+')');
+      g.style.cursor='pointer';
+      var r=document.createElementNS(svgns,'rect');
+      r.setAttribute('width',TW); r.setAttribute('height',HEAD+t.columns.length*COLH);
+      r.setAttribute('rx',8); r.setAttribute('class','table-box');
+      g.appendChild(r);
+      var rh=document.createElementNS(svgns,'rect');
+      rh.setAttribute('width',TW); rh.setAttribute('height',HEAD); rh.setAttribute('rx',8);
+      rh.setAttribute('class','table-head'); g.appendChild(rh);
+      var nm=document.createElementNS(svgns,'text');
+      nm.setAttribute('x',12); nm.setAttribute('y',HEAD/2); nm.setAttribute('class','table-name');
+      nm.textContent=t.name||'(未命名)'; g.appendChild(nm);
+      t.columns.forEach(function(c,i){
+        var y=HEAD+i*COLH+COLH/2;
+        var ct=document.createElementNS(svgns,'text');
+        ct.setAttribute('x',12); ct.setAttribute('y',y); ct.setAttribute('class','col-line');
+        ct.textContent=c.name; g.appendChild(ct);
+        var ty=document.createElementNS(svgns,'text');
+        ty.setAttribute('x',TW-12); ty.setAttribute('y',y); ty.setAttribute('class','col-type'); ty.setAttribute('text-anchor','end');
+        ty.textContent=SF.mapType(c.type,null); g.appendChild(ty);
+        var bx=TW-12;
+        if(c.pk){ var pk=document.createElementNS(svgns,'text'); pk.setAttribute('x',bx-46); pk.setAttribute('y',y); pk.setAttribute('class','badge-pk'); pk.setAttribute('text-anchor','end'); pk.textContent='PK'; g.appendChild(pk); }
+        if(c.fk&&c.fk.table){ var fk=document.createElementNS(svgns,'text'); fk.setAttribute('x',bx-(c.pk?74:0)); fk.setAttribute('y',y); fk.setAttribute('class','badge-fk'); fk.setAttribute('text-anchor','end'); fk.textContent='FK'; g.appendChild(fk); }
+      });
+      if(selected===t.id){
+        var so=document.createElementNS(svgns,'rect');
+        so.setAttribute('x',-2); so.setAttribute('y',-2); so.setAttribute('width',TW+4); so.setAttribute('height',HEAD+t.columns.length*COLH+4);
+        so.setAttribute('rx',9); so.setAttribute('class','sel-outline'); g.appendChild(so);
+      }
+      g.addEventListener('pointerdown',function(e){
+        if(e.target===r||e.target===rh||e.target===nm||e.target.parentNode===g){
+          // header hit
+        }
+      });
+      g.addEventListener('mousedown',function(e){
+        e.stopPropagation();
+        selected=t.id; selCol=null; renderSidebar(); render();
+        var sx=toLocalX(e.clientX), sy=toLocalY(e.clientY);
+        var ox=t.x, oy=t.y;
+        function mv(ev){
+          var cx=toLocalX(ev.clientX), cy=toLocalY(ev.clientY);
+          t.x=ox+(cx-sx); t.y=oy+(cy-sy); render();
+        }
+        function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); save(); }
+        document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+      });
+      root.appendChild(g);
+    });
+    while($stage.firstChild) $stage.removeChild($stage.firstChild);
+    $stage.appendChild(root);
+    updateStats();
+  }
+  function updateStats(){
+    var cols=0, fk=0;
+    tables.forEach(function(t){ cols+=t.columns.length; t.columns.forEach(function(c){ if(c.fk&&c.fk.table) fk++; }); });
+    document.getElementById('statTables').textContent=tables.length+' '+t('statTables');
+    document.getElementById('statCols').textContent=cols+' '+t('statCols');
+    document.getElementById('statFk').textContent=fk+' '+t('statFk');
+  }
+  function renderSidebar(){
+    if(!selected){
+      $side.innerHTML='<h3>'+t('tables')+'</h3>'+
+        tables.map(function(t){ return '<div class="table-item'+(selected===t.id?' sel':'')+'" data-id="'+t.id+'"><div><div class="nm">'+escHtml(t.name||'(未命名)')+'</div><div class="meta">'+t.columns.length+' '+'</div></div></div>'; }).join('')+
+        '<button class="btn-add" id="btnAdd2" data-i18n="addTable">'+t('addTable')+'</button>'+
+        '<p class="editor-empty">'+t('editorEmpty')+'</p>';
+      $side.querySelectorAll('.table-item').forEach(function(it){ it.addEventListener('click',function(){ selected=it.getAttribute('data-id'); selCol=null; render(); renderSidebar(); }); });
+      var b=$side.querySelector('#btnAdd2'); if(b) b.addEventListener('click',addTable);
+      return;
+    }
+    var tref=SF.findTable(tables,selected);
+    if(!tref){ selected=null; renderSidebar(); render(); return; }
+    var html='<h3>'+escHtml(tref.name||'(未命名)')+'</h3>';
+    html+='<div class="field"><label data-i18n="tableName">'+t('tableName')+'</label><input id="fName" value="'+escHtml(tref.name)+'"></div>';
+    html+='<div style="font-size:11px;color:var(--txt3);margin:4px 0 8px">'+tref.columns.length+' '+t('statCols')+'</div>';
+    tref.columns.forEach(function(c){
+      html+='<div class="col-row" data-id="'+c.id+'"><div class="ci">'+
+        '<input class="ci-name" value="'+escHtml(c.name)+'" placeholder="'+t('colName')+'">'+
+        '<select class="ci-type">'+
+          ['INT','VARCHAR','TEXT','BOOL','DATETIME','FLOAT','DECIMAL'].map(function(tp){ return '<option'+(c.type===tp?' selected':'')+'>'+tp+'</option>'; }).join('')+
+        '</select>'+
+        '<select class="ci-fk"><option value="">'+t('none')+'</option>'+
+          tables.filter(function(x){return x.id!==tref.id;}).map(function(x){
+            return x.columns.map(function(cc){ var v=x.id+'|'+cc.id; return '<option value="'+v+'"'+(c.fk&&c.fk.table===x.id&&c.fk.col===cc.id?' selected':'')+'>'+escHtml(x.name)+'.'+escHtml(cc.name)+'</option>'; }).join('');
+          }).join('')+
+        '</select>'+
+        '<div class="flags">'+
+          '<label><input type="checkbox" class="ci-pk"'+(c.pk?' checked':'')+'> '+t('pk')+'</label>'+
+          '<label><input type="checkbox" class="ci-nn"'+(c.nn?' checked':'')+'> '+t('nn')+'</label>'+
+          '<label><input type="checkbox" class="ci-uq"'+(c.uq?' checked':'')+'> '+t('uq')+'</label>'+
+        '</div>'+
+        '<input class="ci-def" value="'+escHtml(c.def)+'" placeholder="'+t('default')+'" style="margin-top:5px">'+
+        '</div>'+
+        '<button class="mini danger ci-del" title="delete">✕</button>'+
+      '</div>';
+    });
+    html+='<button class="btn-add" id="btnAddCol">'+t('addColumn')+'</button>';
+    html+='<div class="col-actions" style="margin-top:12px"><button class="mini danger" id="btnDelTable">'+t('delTable')+'</button></div>';
+    $side.innerHTML=html;
+    // bind
+    $side.querySelector('#fName').addEventListener('input',function(e){ tref.name=e.target.value; render(); save(); });
+    $side.querySelectorAll('.col-row').forEach(function(row){
+      var cid=row.getAttribute('data-id'); var c=SF.findCol(tref,cid);
+      row.querySelector('.ci-name').addEventListener('input',function(e){ c.name=e.target.value; render(); save(); });
+      row.querySelector('.ci-type').addEventListener('change',function(e){ c.type=e.target.value; render(); save(); });
+      row.querySelector('.ci-fk').addEventListener('change',function(e){ var v=e.target.value; if(!v){ c.fk=null; } else { var p=v.split('|'); c.fk={table:p[0],col:p[1]}; } render(); save(); });
+      row.querySelector('.ci-pk').addEventListener('change',function(e){ c.pk=e.target.checked; render(); save(); });
+      row.querySelector('.ci-nn').addEventListener('change',function(e){ c.nn=e.target.checked; render(); save(); });
+      row.querySelector('.ci-uq').addEventListener('change',function(e){ c.uq=e.target.checked; render(); save(); });
+      row.querySelector('.ci-def').addEventListener('input',function(e){ c.def=e.target.value; save(); });
+      row.querySelector('.ci-del').addEventListener('click',function(){ tref.columns=tref.columns.filter(function(x){return x.id!==cid;}); render(); renderSidebar(); save(); });
+    });
+    $side.querySelector('#btnAddCol').addEventListener('click',function(){ tref.columns.push(SF.makeColumn({name:'column'+(tref.columns.length+1)})); render(); renderSidebar(); save(); });
+    $side.querySelector('#btnDelTable').addEventListener('click',function(){ tables=tables.filter(function(x){return x.id!==tref.id;}); selected=null; render(); renderSidebar(); save(); });
+  }
+  function addTable(){
+    var t=SF.makeTable({name:'table'+(tables.length+1), x:80+ (tables.length%3)*260, y:80+Math.floor(tables.length/3)*260});
+    t.columns.push(SF.makeColumn({name:'id',type:'INT',pk:true,nn:true}));
+    tables.push(t); selected=t.id; render(); renderSidebar(); save();
+  }
+  function openModal(title, text, fname){
+    document.getElementById('modalTitle').textContent=title;
+    document.getElementById('modalText').value=text;
+    $modal.classList.add('open');
+    document.getElementById('modalDown').onclick=function(){ triggerDownload('data:text/plain;charset=utf-8,'+encodeURIComponent(text), fname); };
+  }
+  function triggerDownload(href,name){
+    var a=document.createElement('a'); a.href=href; a.download=name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  function exportPNG(){
+    try{
+      var xml=SF.genSVG(tables);
+      var svg64='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(xml)));
+      var img=new Image();
+      img.onload=function(){
+        try{
+          var c=document.createElement('canvas');
+          var vb=$stage.viewBox.baseVal; c.width=vb.width*2; c.height=vb.height*2;
+          var ctx=c.getContext('2d'); if(!ctx) return;
+          ctx.fillStyle='#0A0A0B'; ctx.fillRect(0,0,c.width,c.height);
+          ctx.drawImage(img,0,0,c.width,c.height);
+          triggerDownload(c.toDataURL('image/png'),'schemaforge.png');
+        }catch(e){ toast('PNG 导出需要浏览器环境'); }
+      };
+      img.onerror=function(){ toast('PNG 导出需浏览器'); };
+      img.src=svg64;
+    }catch(e){ toast('PNG 导出需浏览器'); }
+  }
+  // events
+  document.getElementById('btnAddTable').addEventListener('click',addTable);
+  document.getElementById('btnSample').addEventListener('click',function(){ tables=SF.sampleSchema(); SF.autoLayout(tables); selected=tables[0]?tables[0].id:null; render(); renderSidebar(); save(); toast(t('sample')); });
+  document.getElementById('btnClear').addEventListener('click',function(){ if(confirm('清空全部表？')){ tables=[]; selected=null; render(); renderSidebar(); save(); } });
+  document.getElementById('btnSQL').addEventListener('click',function(){ var d=SF.validate(tables); if(showErrs(d)) return; openModal('SQL (MySQL/PG/SQLite)', SF.genDDL(tables, document.getElementById('selDialect').value),'schema.sql'); });
+  document.getElementById('btnMermaid').addEventListener('click',function(){ openModal('Mermaid erDiagram', SF.genMermaid(tables),'schema.mmd'); });
+  document.getElementById('btnSVG').addEventListener('click',function(){ openModal('SVG', SF.genSVG(tables),'schema.svg'); });
+  document.getElementById('btnPNG').addEventListener('click',exportPNG);
+  document.getElementById('btnLang').addEventListener('click',function(){ lang=lang==='zh'?'en':'zh'; applyLang(); });
+  document.getElementById('modalClose').addEventListener('click',function(){ $modal.classList.remove('open'); });
+  document.getElementById('modalCopy').addEventListener('click',function(){ var ta=document.getElementById('modalText'); ta.select(); try{ document.execCommand('copy'); }catch(e){} if(navigator.clipboard){ navigator.clipboard.writeText(ta.value).catch(function(){}); } toast(t('copy')); });
+  $stage.addEventListener('wheel',function(e){ e.preventDefault(); var f=e.deltaY<0?1.1:0.9; sc=Math.max(0.3,Math.min(3,sc*f)); render(); },{passive:false});
+  $stage.addEventListener('mousedown',function(e){
+    if(e.target!==$stage) return;
+    var sx=e.clientX, sy=e.clientY, ox=tx, oy=ty;
+    $stage.classList.add('grabbing');
+    function mv(ev){ tx=ox+(ev.clientX-sx); ty=oy+(ev.clientY-sy); render(); }
+    function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); $stage.classList.remove('grabbing'); }
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+  });
+  // init
+  load(); applyLang(); render(); renderSidebar();
+  window.__SCHEMAFORGE__={ version:SF.version, kernel:SF, getTables:function(){return tables;}, setTables:function(x){tables=x;selected=null;render();renderSidebar();save();},
+    addTable:addTable, loadSample:function(){tables=SF.sampleSchema();SF.autoLayout(tables);selected=tables[0].id;render();renderSidebar();save();},
+    genDDL:function(d){return SF.genDDL(tables,d);}, genMermaid:function(){return SF.genMermaid(tables);}, genSVG:function(){return SF.genSVG(tables);},
+    validate:function(){return SF.validate(tables);}, render:render, applyLang:applyLang, t:t, save:save };
+  if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
+})();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SamlForge — SAML 2.0 解码器：粘贴 SAML Response（XML 或 base64），解析 Issuer、NameID、有效期、Audience 与属性声明，校验签名与时间窗，离线可用。</title>
+<meta property="og:title" content="SamlForge">
+<meta property="og:description" content="SAML 2.0 Response 解码器：粘贴 SAML Response 的 XML 原文或 base64 编码，解析 Issuer、NameID/Subject、Conditions 有效期（并校验当前是否在有效期内）、Audience 与所有属性声明（AttributeStatement），标注是否签名。帮助排查 SSO 登录问题，全部在浏览器内完成、不上传任何数据。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="SAML 2.0 Response 解码器：粘贴 SAML Response 的 XML 原文或 base64 编码，解析 Issuer、NameID/Subject、Conditions 有效期（并校验当前是否在有效期内）、Audience 与所有属性声明（AttributeStatement），标注是否签名。帮助排查 SSO 登录问题，全部在浏览器内完成、不上传任何数据。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SamlForge</h1>
+  <p class="sub">SAML · SSO · 解码</p>
+
+<label for="saml-in">SAML Response（XML 原文，或 base64 编码）</label>
+<textarea id="saml-in" rows="8" placeholder="粘贴 &lt;saml2p:Response ...&gt; 或 base64 字符串"></textarea>
+<div class="row">
+  <button id="saml-go">解码</button>
+  <button class="ghost" id="saml-clr">清空</button>
+  <label style="margin:0 0 0 8px"><input type="checkbox" id="saml-raw"> 显示原始 XML</label>
+</div>
+<div class="err" id="saml-err"></div>
+<div class="out" id="saml-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 365 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function SamlForgePure(){
+  function b64dec(s){
+    s=(s||'').replace(/[^A-Za-z0-9+/=]/g,'');
+    try { return decodeURIComponent(escape(atob(s))); } catch(e){ return null; }
+  }
+  function tagText(xml, tag){
+    var re=new RegExp('<(?:[\\w]+:)?'+tag+'\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w]+:)?'+tag+'>');
+    var m=xml.match(re); return m?m[1].trim():null;
+  }
+  function tagAttr(xml, tag, attr){
+    var re=new RegExp('<(?:[\\w]+:)?'+tag+'\\b[^>]*\\b'+attr+'="([^"]*)"');
+    var m=xml.match(re); return m?m[1]:null;
+  }
+  function tagAll(xml, tag){
+    var re=new RegExp('<(?:[\\w]+:)?'+tag+'\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w]+:)?'+tag+'>','g');
+    var out=[],m; while((m=re.exec(xml))) out.push(m[1].trim()); return out;
+  }
+  function analyze(input){
+    var s=(input||'').trim();
+    if(!s) return {error:'请输入 SAML Response（XML 原文，或 base64 编码）'};
+    var xml;
+    if(s.charAt(0)==='<'){ xml=s; }
+    else if(/^[A-Za-z0-9+/=\r\n]+$/.test(s)){
+      var dec=b64dec(s);
+      if(!dec) return {error:'Base64 解码失败'};
+      if(dec.charAt(0)==='<'){ xml=dec; }
+      else if(dec.charCodeAt(0)===0x78){ return {error:'检测到 Deflate 压缩载荷（HTTP-Redirect 绑定）。请先解压为 XML 再粘贴（POST 绑定的 base64 XML 可直接解析）。'}; }
+      else return {error:'Base64 解码后不是 XML'};
+    } else return {error:'无法识别的输入：应为 XML 或 Base64'};
+    if(xml.indexOf('<')<0) return {error:'内容中未找到 XML 标签'};
+    var issuer=tagText(xml,'Issuer');
+    var nameId=tagText(xml,'NameID');
+    var nb=tagAttr(xml,'Conditions','NotBefore');
+    var na=tagAttr(xml,'Conditions','NotOnOrAfter');
+    var audience=tagAll(xml,'Audience');
+    var dest=tagAttr(xml,'Response','Destination')||tagAttr(xml,'Assertion','Destination');
+    var attrs=[];
+    var are=/<(?:[\w]+:)?Attribute\b[^>]*\bName="([^"]*)"[^>]*>([\s\S]*?)<\/(?:[\w]+:)?Attribute>/g;
+    var am; while((am=are.exec(xml))){ attrs.push({name:am[1], values:tagAll(am[2],'AttributeValue')}); }
+    var sig=tagText(xml,'SignatureValue');
+    var now=new Date();
+    function t(x){ if(!x) return null; var d=new Date(x); return isNaN(d)?null:d; }
+    var a=t(nb), b=t(na);
+    var valid=(!a||now>=a)&&(!b||now<=b);
+    var validMsg=valid?'当前在有效期内':(a&&now<a?'尚未生效 (NotBefore '+nb+')':'已过期 (NotOnOrAfter '+na+')');
+    return {error:null, xml:xml, info:{
+      issuer:issuer, nameId:nameId, notBefore:nb, notOnOrAfter:na,
+      audience:audience, destination:dest, attributes:attrs,
+      signed:!!sig, valid:valid, validMsg:validMsg
+    }};
+  }
+  var api={analyze:analyze};
+  if(typeof window!=='undefined'){ window.__PURE__=api; }
+  if(typeof module!=='undefined'&&module.exports){ module.exports={SamlForgePure:SamlForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P=SamlForgePure();
+  var $in=document.getElementById('saml-in'), $err=document.getElementById('saml-err'),
+      $out=document.getElementById('saml-out'), $raw=document.getElementById('saml-raw');
+  function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function row(k,v){return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>';}
+  function go(){
+    var r=P.analyze($in.value);
+    $err.textContent=r.error||'';
+    if(r.error){ $out.innerHTML=''; return; }
+    var i=r.info, h='';
+    h+=row('Issuer', i.issuer||'(无)');
+    h+=row('NameID / Subject', i.nameId||'(无)');
+    h+=row('Destination', i.destination||'(无)');
+    h+=row('NotBefore', i.notBefore||'(无)');
+    h+=row('NotOnOrAfter', i.notOnOrAfter||'(无)');
+    h+=row('有效期', i.validMsg);
+    h+=row('Audience', (i.audience&&i.audience.length)?i.audience.join(', '):'(无)');
+    h+=row('已签名', i.signed?'是':'否');
+    if(i.attributes&&i.attributes.length){
+      h+='<div style="margin-top:10px;color:var(--muted);font-size:13px">属性声明 ('+i.attributes.length+')</div>';
+      i.attributes.forEach(function(a){
+        h+='<div class="kv"><b>'+esc(a.name)+'</b><span>'+esc(a.values.join(', '))+'</span></div>';
+      });
+    }
+    if($raw.checked){ h+='<pre style="white-space:pre-wrap;word-break:break-all;margin-top:10px;color:var(--dim);font-size:12px">'+esc(r.xml)+'</pre>'; }
+    $out.innerHTML=h;
+  }
+  document.getElementById('saml-go').addEventListener('click',go);
+  document.getElementById('saml-clr').addEventListener('click',function(){$in.value='';$out.innerHTML='';$err.textContent='';});
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

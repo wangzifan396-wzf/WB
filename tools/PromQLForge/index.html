@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PromqlForge — PromQL 解释器/构建器：解析 Prometheus 查询，拆解指标/标签过滤/范围向量/聚合，并用表单可视化拼装查询，离线可用。</title>
+<meta property="og:title" content="PromqlForge">
+<meta property="og:description" content="PromQL 工具：粘贴一段 Prometheus 查询，自动拆解指标名、标签匹配器、范围向量（如 [5m]）、offset 与聚合（sum by ...）等子句并逐条解释；也可用表单选择函数（rate/irate/increase…）、聚合、标签过滤、范围与 offset，可视化拼装出正确的 PromQL。排查监控告警、学习 PromQL 的好帮手，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="PromQL 工具：粘贴一段 Prometheus 查询，自动拆解指标名、标签匹配器、范围向量（如 [5m]）、offset 与聚合（sum by ...）等子句并逐条解释；也可用表单选择函数（rate/irate/increase…）、聚合、标签过滤、范围与 offset，可视化拼装出正确的 PromQL。排查监控告警、学习 PromQL 的好帮手，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>PromqlForge</h1>
+  <p class="sub">PromQL · Prometheus · 可观测性</p>
+
+<div class="tabs">
+  <button class="tab on" data-tab="exp">解释查询</button>
+  <button class="tab" data-tab="bld">构建查询</button>
+</div>
+<div id="pq-exp">
+  <label for="pq-in">PromQL 查询</label>
+  <textarea id="pq-in" rows="4" placeholder="sum(rate(http_requests_total{code=&quot;200&quot;}[5m])) by (instance)"></textarea>
+  <div class="row"><button id="pq-go">解释</button><button class="ghost" id="pq-clr">清空</button></div>
+  <div class="err" id="pq-err"></div>
+  <div class="out" id="pq-out"></div>
+</div>
+<div id="pq-bld" style="display:none">
+  <div class="row">
+    <label>函数 <select id="pq-fn"><option value="">(无)</option><option>rate</option><option>irate</option><option>increase</option><option>histogram_quantile</option><option>delta</option><option>idelta</option></select></label>
+    <label>聚合 <select id="pq-agg"><option value="">(无)</option><option>sum</option><option>avg</option><option>count</option><option>max</option><option>min</option></select></label>
+    <label>聚合维度 <input id="pq-aggby" placeholder="instance,job" style="width:120px"></label>
+  </div>
+  <label for="pq-metric">指标名</label>
+  <input id="pq-metric" placeholder="http_requests_total">
+  <label for="pq-filters">标签过滤（每行 k=~v，支持 = =~ != !~）</label>
+  <textarea id="pq-filters" rows="3" placeholder='code="200"
+instance=~"web.*"'></textarea>
+  <div class="row">
+    <label>范围 <input id="pq-range" placeholder="5m" style="width:80px"></label>
+    <label>offset <input id="pq-offset" placeholder="1h" style="width:80px"></label>
+    <button id="pq-bld-go">构建</button>
+  </div>
+  <div class="err" id="pq-bld-err"></div>
+  <div class="out" id="pq-bld-out"></div>
+</div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 365 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function PromqlForgePure(){
+  var AGGS=['sum','avg','count','min','max','stddev','stdvar','group','count_values','quantile','topk','bottomk'];
+  function isAgg(f){ return AGGS.indexOf(f)>=0; }
+  // ---------- 词法分析 ----------
+  function tokenize(q){
+    var toks=[], i=0, n=q.length;
+    function isId(c){ return /[a-zA-Z0-9_:.\x80-\uffff]/.test(c); }
+    while(i<n){
+      var c=q[i];
+      if(/\s/.test(c)){ i++; continue; }
+      if(c==='"'||c==="'"){
+        var quote=c, j=i+1, str='';
+        while(j<n && q[j]!==quote){ if(q[j]==='\\'&&j+1<n) j++; str+=q[j]; j++; }
+        toks.push({type:'string', value:str}); i=j+1; continue;
+      }
+      if(/[0-9]/.test(c) || (c==='.'&&/[0-9]/.test(q[i+1]||''))){
+        var k=i; while(k<n && /[0-9.eE+\-]/.test(q[k])) k++;
+        // 简易：数后若紧跟单位（s m h d w y）也吞掉
+        while(k<n && /[smhdwy]/.test(q[k])) k++;
+        toks.push({type:'number', value:q.slice(i,k)}); i=k; continue;
+      }
+      if(/[a-zA-Z_]/.test(c)){
+        var k=i; while(k<n && isId(q[k])) k++;
+        var w=q.slice(i,k); toks.push({type:isAgg(w)?'agg':'ident', value:w}); i=k; continue;
+      }
+      // 运算符 / 标点
+      var two=q.substr(i,2);
+      if(['==','!=','=~','!~','>=','<=','->'].indexOf(two)>=0){ toks.push({type:'op', value:two}); i+=2; continue; }
+      toks.push({type:'punct', value:c}); i++;
+    }
+    return toks;
+  }
+  // ---------- 解释 ----------
+  function splitMatchers(s){
+    return s.split(',').map(function(x){return x.trim();}).filter(Boolean);
+  }
+  function explain(q){
+    q=(q||'').trim();
+    if(!q) return {error:'请输入 PromQL 查询'};
+    var notes=[];
+    // 指标名（未被 ( 紧跟的标识符）
+    var metricMatch=q.match(/\b([a-zA-Z_:][a-zA-Z0-9_:]*)\b(?!\s*\()/);
+    var metric=metricMatch?metricMatch[1]:null;
+    // 标签匹配器 metric{...}
+    var matcherRe=/([a-zA-Z_:][a-zA-Z0-9_:]*)\s*\{([^}]*)\}/g, mm, matchers=[];
+    while((mm=matcherRe.exec(q))){ matchers.push({metric:mm[1], conds:splitMatchers(mm[2])}); }
+    // 范围向量 [...]
+    var rangeRe=/\[([^\]]+)\]/g, ranges=[]; while((mm=rangeRe.exec(q))) ranges.push(mm[1]);
+    // offset
+    var offRe=/offset\s+([0-9a-z]+)/g, offsets=[]; while((mm=offRe.exec(q))) offsets.push(mm[1]);
+    // 聚合（支持 sum(...) by (...) 与独立聚合）
+    var aggFnRe=/\b(sum|avg|count|min|max|stddev|stdvar|group|quantile|topk|bottomk|count_values)\b(?=\s*\()/g;
+    var aggFns=[], am; while((am=aggFnRe.exec(q))){ aggFns.push({fn:am[1], pos:am.index}); }
+    var byRe=/\b(by|without)\s*\(([^)]*)\)/g, consumed={};
+    while((mm=byRe.exec(q))){
+      var kind=mm[1], labels=mm[2], pos=mm.index, fn=null;
+      for(var k=0;k<aggFns.length;k++){ if(aggFns[k].pos<pos){ fn=aggFns[k].fn; consumed[aggFns[k].pos]=true; } }
+      notes.push('聚合：'+(fn||'聚合')+(kind==='without'?(' without ('+labels+')'):(' by ('+labels+')')));
+    }
+    aggFns.forEach(function(a){ if(!consumed[a.pos]) notes.push('聚合：'+a.fn); });
+    // 函数调用
+    var fnRe=/\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, fns=[]; while((mm=fnRe.exec(q))){ fns.push(mm[1]); }
+    if(metric) notes.push('指标：'+metric);
+    matchers.forEach(function(m){ notes.push('标签过滤：'+m.metric+'{'+m.conds.join(', ')+'}'); });
+    ranges.forEach(function(r){ notes.push('范围向量：['+r+']'); });
+    offsets.forEach(function(o){ notes.push('偏移：offset '+o); });
+    fns.forEach(function(f){ if(!isAgg(f)) notes.push('函数：'+f+'()'); });
+    return {error:null, notes:notes, metric:metric, range:ranges[0]||null, tokens:tokenize(q)};
+  }
+  // ---------- 构建 ----------
+  function build(spec){
+    spec=spec||{};
+    var sel=spec.metric||'';
+    if(spec.filters && spec.filters.length){
+      var conds=spec.filters.filter(function(f){return f.k&&f.v;}).map(function(f){return f.k+(f.op||'=')+'"'+f.v+'"';});
+      if(conds.length) sel+='{'+conds.join(', ')+'}';
+    }
+    if(spec.range) sel=sel+'['+spec.range+']';
+    if(spec.fn) sel=spec.fn+'('+sel+')';
+    if(spec.agg){
+      sel=spec.agg+'('+sel+')'+(spec.aggLabels?(' by ('+spec.aggLabels+')'):'');
+    }
+    if(spec.offset) sel+=' offset '+spec.offset;
+    return {error:null, query:sel.trim()};
+  }
+  var api={tokenize:tokenize, explain:explain, build:build, isAgg:isAgg};
+  if(typeof window!=='undefined'){ window.__PURE__=api; }
+  if(typeof module!=='undefined'&&module.exports){ module.exports={PromqlForgePure:PromqlForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P=PromqlForgePure();
+  function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click',function(){
+      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
+      t.classList.add('on');
+      var tab=t.getAttribute('data-tab');
+      document.getElementById('pq-exp').style.display = tab==='exp'?'':'none';
+      document.getElementById('pq-bld').style.display = tab==='bld'?'':'none';
+    });
+  });
+  // 解释
+  document.getElementById('pq-go').addEventListener('click',function(){
+    var r=P.explain(document.getElementById('pq-in').value);
+    var $e=document.getElementById('pq-err'), $o=document.getElementById('pq-out');
+    $e.textContent=r.error||'';
+    if(r.error){ $o.innerHTML=''; return; }
+    var h='';
+    if(!r.notes.length) h+='<div class="kv"><b>说明</b><span>未识别出可解释的子句</span></div>';
+    r.notes.forEach(function(n){ h+='<div class="kv"><span>'+esc(n)+'</span></div>'; });
+    $o.innerHTML=h;
+  });
+  document.getElementById('pq-clr').addEventListener('click',function(){
+    document.getElementById('pq-in').value='';document.getElementById('pq-out').innerHTML='';document.getElementById('pq-err').textContent='';
+  });
+  // 构建
+  document.getElementById('pq-bld-go').addEventListener('click',function(){
+    var filters=document.getElementById('pq-filters').value.split('\n').map(function(l){
+      var m=l.trim().match(/^([a-zA-Z_:][\w:]*)\s*(=~|!~|!=|=)\s*(.+)$/);
+      if(!m) return null;
+      var v=m[3].trim().replace(/^["']|["']$/g,'');
+      return {k:m[1], op:m[2], v:v};
+    }).filter(Boolean);
+    var spec={
+      fn:document.getElementById('pq-fn').value,
+      agg:document.getElementById('pq-agg').value,
+      aggLabels:document.getElementById('pq-aggby').value.trim(),
+      metric:document.getElementById('pq-metric').value.trim(),
+      filters:filters,
+      range:document.getElementById('pq-range').value.trim(),
+      offset:document.getElementById('pq-offset').value.trim()
+    };
+    var r=P.build(spec);
+    var $e=document.getElementById('pq-bld-err'), $o=document.getElementById('pq-bld-out');
+    $e.textContent=r.error||'';
+    if(r.error){ $o.innerHTML=''; return; }
+    $o.innerHTML='<div class="kv"><b>PromQL</b><span style="color:var(--accent)">'+esc(r.query)+'</span></div>';
+  });
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

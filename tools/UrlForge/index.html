@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>UrlForge · 离线 URL 工具箱</title>
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --sub:#1A1B1E; --line:rgba(255,255,255,0.08);
+    --line2:rgba(255,255,255,0.14); --t1:#fff; --t2:#A1A1AA; --t3:#71717A;
+    --accent:#5E6AD2; --good:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--t1);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding:32px 18px 60px}
+  .wrap{max-width:880px;margin:0 auto}
+  header h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
+  header p{color:var(--t2);margin:0 0 22px;font-size:14px}
+  .sec{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .sec h2{font-size:14px;margin:0 0 12px;color:var(--t1);display:flex;align-items:center;gap:8px}
+  .sec h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  label{display:block;font-size:12px;color:var(--t2);margin:10px 0 6px}
+  input[type=text],textarea,select{width:100%;background:var(--sub);border:1px solid var(--line);color:var(--t1);border-radius:8px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none}
+  input:focus,textarea:focus,select:focus{border-color:var(--line2)}
+  textarea{resize:vertical;min-height:74px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row>*{flex:1;min-width:160px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;margin-top:10px}
+  button.ghost{background:var(--sub);border:1px solid var(--line2)}
+  .out{background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:12px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;color:var(--t1);min-height:24px}
+  .err{color:var(--warn)}
+  dl{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;margin:0}
+  dt{color:var(--t3);font-size:12px}
+  dd{margin:0;word-break:break-all;font-size:13px}
+  .hint{font-size:12px;color:var(--t3);margin-top:8px}
+  .badge{display:inline-block;font-size:11px;color:var(--good);border:1px solid rgba(16,185,129,.4);border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:middle}
+  footer{color:var(--t3);font-size:12px;text-align:center;margin-top:24px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线 URL 工具箱：解析、编码/解码、查询参数构建与排序、Slug 生成、规范化，零上传。">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>UrlForge <span class="badge">离线 · 零上传</span></h1>
+    <p>URL 解析、编码/解码、查询参数构建与排序、Slug 生成、URL 规范化。纯前端，数据永不离机。</p>
+  </header>
+
+  <div class="sec">
+    <h2><span class="dot"></span>URL 解析</h2>
+    <input type="text" id="urlInput" value="https://user:pass@example.com:8080/path/to/page?a=1&b=hello%20world#section"/>
+    <button id="btnParse">解析</button>
+    <div class="out" id="parseOut"></div>
+  </div>
+
+  <div class="sec">
+    <h2><span class="dot"></span>查询参数 编码 / 解码 / 排序</h2>
+    <label>编码：每行 <code>key=value</code></label>
+    <textarea id="qEncInput">a=1
+b=hello world
+c=$pecial&char</textarea>
+    <button id="btnEnc">编码为查询串</button>
+    <div class="out" id="qEncOut"></div>
+
+    <label>解码：粘贴查询串</label>
+    <input type="text" id="qDecInput" value="a=1&b=hello%20world"/>
+    <button id="btnDec">解码为对象</button>
+    <div class="out" id="qDecOut"></div>
+
+    <label>排序：粘贴完整 URL 或查询串</label>
+    <input type="text" id="qSortInput" value="https://x.com/p?b=2&a=1&c=3"/>
+    <button id="btnSort">排序参数</button>
+    <div class="out" id="qSortOut"></div>
+  </div>
+
+  <div class="sec">
+    <h2><span class="dot"></span>Slug 生成</h2>
+    <div class="row">
+      <div><label>输入文本</label><input type="text" id="slugInput" value="Hello World! 你好 世界"/></div>
+      <div style="flex:0 0 140px"><label>分隔符</label>
+        <select id="slugSep"><option value="-">连字符 -</option><option value="_">下划线 _</option></select>
+      </div>
+    </div>
+    <button id="btnSlug">生成 Slug</button>
+    <div class="out" id="slugOut"></div>
+    <div class="hint">默认保留 Unicode（中文不丢失），全部小写；取消勾选则仅保留 ASCII 字母数字。</div>
+    <label style="display:flex;align-items:center;gap:8px;color:var(--t2)"><input type="checkbox" id="slugAscii" style="width:auto;flex:none"/>仅 ASCII（剥离中文）</label>
+  </div>
+
+  <div class="sec">
+    <h2><span class="dot"></span>构建 URL</h2>
+    <div class="row">
+      <div><label>协议</label><input type="text" id="bProto" value="https"/></div>
+      <div><label>主机</label><input type="text" id="bHost" value="example.com"/></div>
+      <div><label>端口(可空)</label><input type="text" id="bPort" value=""/></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><label>路径</label><input type="text" id="bPath" value="/api/v1/items"/></div>
+      <div><label>查询串(可空)</label><input type="text" id="bQuery" value="page=2&sort=desc"/></div>
+    </div>
+    <button id="btnBuild">构建</button>
+    <div class="out" id="bOut"></div>
+  </div>
+
+  <footer>UrlForge · 单文件 · 本地优先 · 零依赖 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+
+<script>
+/* ===== 纯函数（受 module.exports 守卫，可用于 Node 测试） ===== */
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+function parseUrl(u){
+  try{
+    var url = new URL(u);
+    return {
+      protocol: url.protocol,
+      username: url.username,
+      password: url.password,
+      host: url.host,
+      hostname: url.hostname,
+      port: url.port,
+      pathname: url.pathname,
+      search: url.search,
+      hash: url.hash,
+      origin: url.origin,
+      href: url.href
+    };
+  }catch(e){ return null; }
+}
+function isValidUrl(u){ try{ new URL(u); return true; }catch(e){ return false; } }
+
+function decodeQuery(qs){
+  var s = qs || '';
+  if(s.charAt(0) === '?') s = s.slice(1);
+  var out = {};
+  if(!s) return out;
+  var sp = new URLSearchParams(s);
+  sp.forEach(function(v,k){ out[k]=v; });
+  return out;
+}
+function encodeQuery(obj){
+  var parts = Object.keys(obj).map(function(k){
+    var v = obj[k];
+    if(v === null || v === undefined) return null;
+    return encodeURIComponent(k) + '=' + encodeURIComponent(String(v));
+  });
+  return parts.filter(function(p){ return p !== null; }).join('&');
+}
+function percentEncode(s){ return encodeURIComponent(s); }
+function percentDecode(s){ try{ return decodeURIComponent(s); }catch(e){ return s; } }
+
+function extractParam(url, key){
+  try{ var u = new URL(url); return u.searchParams.get(key); }catch(e){ return null; }
+}
+function sortQuery(url){
+  try{
+    var u = new URL(url);
+    var keys = Array.from(u.searchParams.keys()).sort();
+    var sp = new URLSearchParams();
+    keys.forEach(function(k){ u.searchParams.getAll(k).forEach(function(v){ sp.append(k,v); }); });
+    u.search = sp.toString();
+    return u.toString();
+  }catch(e){ return url; }
+}
+function normalizeUrl(url){
+  try{
+    var u = new URL(url);
+    u.protocol = u.protocol.toLowerCase();
+    u.hostname = u.hostname.toLowerCase();
+    if((u.protocol === 'http:' && u.port === '80') || (u.protocol === 'https:' && u.port === '443')) u.port = '';
+    var keys = Array.from(u.searchParams.keys()).sort();
+    var sp = new URLSearchParams();
+    keys.forEach(function(k){ u.searchParams.getAll(k).forEach(function(v){ sp.append(k,v); }); });
+    u.search = sp.toString();
+    if(u.hash === '#') u.hash = '';
+    return u.toString();
+  }catch(e){ return url; }
+}
+function slugify(s, opts){
+  opts = opts || {};
+  var sep = (opts.separator != null) ? opts.separator : '-';
+  var lower = opts.lowercase !== false;
+  var preserve = opts.preserveUnicode !== false;
+  var str = String(s);
+  if(lower) str = str.toLowerCase();
+  if(preserve){
+    str = str.replace(/[^\p{L}\p{N}]+/gu, sep);
+  } else {
+    str = str.replace(/[^a-z0-9]+/gi, sep);
+  }
+  var escSep = sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var re = new RegExp(escSep + '+', 'g');
+  str = str.replace(re, sep);
+  str = str.replace(new RegExp('^' + escSep + '+|' + escSep + '+$', 'g'), '');
+  return str;
+}
+function buildUrl(opts){
+  opts = opts || {};
+  try{
+    var proto = opts.protocol || 'https';
+    if(proto.slice(-1) !== ':') proto += ':';
+    var host = opts.host || opts.hostname || '';
+    if(opts.port && host && !/:[\d]+$/.test(host)) host += ':' + opts.port;
+    var auth = (opts.user ? opts.user + (opts.pass ? ':' + opts.pass : '') + '@' : '');
+    var rest = (opts.pathname || '') + (opts.search || '') + (opts.hash || '');
+    return new URL(proto + '//' + auth + host + rest).href;
+  }catch(e){ return null; }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    parseUrl: parseUrl,
+    isValidUrl: isValidUrl,
+    decodeQuery: decodeQuery,
+    encodeQuery: encodeQuery,
+    percentEncode: percentEncode,
+    percentDecode: percentDecode,
+    extractParam: extractParam,
+    sortQuery: sortQuery,
+    normalizeUrl: normalizeUrl,
+    slugify: slugify,
+    buildUrl: buildUrl
+  };
+}
+
+/* ===== UI（仅浏览器环境执行） ===== */
+if (typeof window !== 'undefined' && window.document) {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+
+    function renderParse(u){
+      var p = parseUrl(u);
+      if(!p){ $('parseOut').innerHTML = '<span class="err">无法解析该 URL</span>'; return; }
+      var rows = [
+        ['protocol', p.protocol],
+        ['username', p.username || '—'],
+        ['password', p.password ? '•'.repeat(p.password.length) : '—'],
+        ['host', p.host],
+        ['hostname', p.hostname],
+        ['port', p.port || '—'],
+        ['pathname', p.pathname],
+        ['search', p.search || '—'],
+        ['hash', p.hash || '—'],
+        ['origin', p.origin],
+        ['href', p.href]
+      ];
+      $('parseOut').innerHTML = '<dl>' + rows.map(function(r){
+        return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>';
+      }).join('') + '</dl>';
+    }
+
+    $('btnParse').addEventListener('click', function(){ renderParse($('urlInput').value); });
+
+    $('btnEnc').addEventListener('click', function(){
+      var lines = $('qEncInput').value.split('\n');
+      var obj = {};
+      lines.forEach(function(ln){
+        var i = ln.indexOf('=');
+        if(i < 0) return;
+        var k = ln.slice(0, i).trim();
+        var v = ln.slice(i + 1);
+        if(k) obj[k] = v;
+      });
+      $('qEncOut').textContent = encodeQuery(obj);
+    });
+
+    $('btnDec').addEventListener('click', function(){
+      var o = decodeQuery($('qDecInput').value);
+      $('qDecOut').textContent = JSON.stringify(o, null, 2);
+    });
+
+    $('btnSort').addEventListener('click', function(){
+      var v = $('qSortInput').value.trim();
+      if(v && !/^https?:/i.test(v) && v.indexOf('=') >= 0 && v.indexOf('?') < 0) v = 'https://x.com/?' + v;
+      $('qSortOut').textContent = sortQuery(v);
+    });
+
+    $('btnSlug').addEventListener('click', function(){
+      var ascii = $('slugAscii').checked;
+      $('slugOut').textContent = slugify($('slugInput').value, { separator: $('slugSep').value, preserveUnicode: !ascii });
+    });
+
+    $('btnBuild').addEventListener('click', function(){
+      var r = buildUrl({
+        protocol: $('bProto').value,
+        host: $('bHost').value,
+        port: $('bPort').value,
+        pathname: $('bPath').value,
+        search: $('bQuery').value ? (($('bQuery').value.charAt(0) === '?') ? $('bQuery').value : '?' + $('bQuery').value) : ''
+      });
+      $('bOut').textContent = r == null ? '构建失败：请检查输入' : r;
+    });
+
+    // 默认解析一个示例，便于首屏可见
+    renderParse($('urlInput').value);
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

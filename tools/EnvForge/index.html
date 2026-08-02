@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EnvForge · 离线 .env 解析 / 对比 / 校验器</title>
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --panel:#1A1B1E; --text:#FFFFFF;
+    --muted:#A1A1AA; --dim:#71717A; --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+    --accent:#5E6AD2; --good:#10B981; --warn:#F5A623; --info:#22D3EE;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:900px;margin:0 auto;padding:28px 18px 64px;}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .logo{width:38px;height:38px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--info));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800}
+  h1{font-size:20px;margin:0}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:680px){.grid{grid-template-columns:1fr}}
+  label{font-size:12px;color:var(--dim);display:block;margin-bottom:5px}
+  textarea,input{background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13px;outline:none;width:100%;font-family:ui-monospace,Menlo,Consolas,monospace}
+  textarea{resize:vertical;min-height:140px;line-height:1.5}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px}
+  .btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 14px;font-weight:600;cursor:pointer;font-size:13px}
+  .btn.ghost{background:var(--panel);border:1px solid var(--border2);color:var(--text)}
+  .btn.info{background:var(--info);color:#06222a;font-weight:700}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+  td{padding:7px 10px;border-bottom:1px solid var(--border)}
+  td.k{color:var(--info);font-family:ui-monospace,Menlo,Consolas,monospace;width:34%}
+  td.v{font-family:ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+  .out{margin-top:10px}
+  .msg{font-size:13px;padding:8px 10px;border-radius:8px;background:var(--panel);border:1px solid var(--border)}
+  .ok{color:var(--good)} .bad{color:#F87171} .warn{color:var(--warn)}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--panel);border:1px solid var(--border2);color:var(--muted);margin-left:6px}
+  footer{color:var(--dim);font-size:12px;text-align:center;margin-top:22px}
+  a{color:var(--info);text-decoration:none}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线 .env 解析 / 对比 / 校验器：变量引用展开、两份配置差异、必填项校验，纯本地。">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">E</div>
+    <div><h1>EnvForge <span class="pill">离线 · 零依赖</span></h1></div>
+  </header>
+  <div class="sub">.env 解析、变量引用展开、两份配置对比、必填项校验。纯本地，数据永不离机。</div>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label>.env A</label>
+        <textarea id="envA" spellcheck="false">APP_NAME=MyApp
+APP_ENV=production
+API_URL=https://${APP_NAME}.example.com
+DB_HOST=localhost
+DB_PORT=5432
+# 密钥请勿提交
+SECRET_KEY=change-me</textarea>
+      </div>
+      <div>
+        <label>.env B（用于对比，可留空）</label>
+        <textarea id="envB" spellcheck="false">APP_NAME=MyApp
+APP_ENV=staging
+API_URL=https://${APP_NAME}.example.com
+DB_HOST=db.internal
+DB_PORT=5432</textarea>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn" id="parse">解析 A</button>
+      <button class="btn info" id="resolve">展开引用 ${VAR}</button>
+      <button class="btn ghost" id="diff">对比 A/B</button>
+    </div>
+    <div class="out" id="parseOut"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div style="flex:1;min-width:240px">
+        <label>必填项（逗号分隔）</label>
+        <input id="req" value="APP_NAME,DB_HOST,SECRET_KEY">
+      </div>
+      <button class="btn ghost" id="validate">校验必填</button>
+      <span class="msg" id="valOut" style="flex:1"></span>
+    </div>
+  </div>
+
+  <footer>属于 <a href="https://github.com/wangzifan396-wzf/WB" target="_blank" rel="noopener">nano-tools</a> 单文件工具矩阵 · 本地优先 · 无追踪 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+
+<script>
+/* ============ 纯函数层 ============ */
+function stripQuotes(v){
+  v=v.replace(/^\s+/,'').replace(/\s+$/,'');
+  if(v.length>=2 && ((v[0]==='"'&&v[v.length-1]==='"') || (v[0]==="'"&&v[v.length-1]==="'"))){
+    return v.slice(1,-1);
+  }
+  return v;
+}
+function parseEnv(text){
+  var lines=String(text).split(/\r?\n/);
+  var out=[];
+  for(var i=0;i<lines.length;i++){
+    var raw=lines[i];
+    var line=raw.replace(/^\s+/,'').replace(/\s+$/,'');
+    if(line==='' ) continue;
+    if(line[0]==='#'){ out.push({key:null, comment:line.slice(1).trim(), raw:raw}); continue; }
+    var eq=line.indexOf('=');
+    if(eq<0){ out.push({key:null, comment:null, raw:raw, invalid:true}); continue; }
+    var key=line.slice(0,eq).replace(/^\s+/,'').replace(/\s+$/,'');
+    if(/^export\s+/i.test(key)) key=key.replace(/^export\s+/i,'');
+    var value=line.slice(eq+1);
+    var comment=null;
+    if(!/^["']/.test(value)){
+      var ci=value.indexOf(' #');
+      if(ci>=0){ comment=value.slice(ci+1).trim(); value=value.slice(0,ci); }
+    }
+    value=stripQuotes(value);
+    out.push({key:key, value:value, comment:comment, raw:raw});
+  }
+  return out;
+}
+function serializeEnv(entries){
+  return entries.filter(function(e){ return e.key!==null && !e.invalid; })
+    .map(function(e){ return e.key+'='+e.value + (e.comment? ' # '+e.comment : ''); }).join('\n');
+}
+function getVar(entries, key){
+  for(var i=0;i<entries.length;i++){ if(entries[i].key===key) return entries[i].value; }
+  return undefined;
+}
+function resolveRefs(entries){
+  var resolved=[];
+  for(var i=0;i<entries.length;i++){
+    var e=entries[i];
+    if(e.key===null){ resolved.push(e); continue; }
+    var v=e.value.replace(/\$\{(\w+)\}/g, function(_,n){
+      var found=getVar(resolved,n);
+      return (found===undefined)?('${'+n+'}') : found;
+    });
+    resolved.push({key:e.key, value:v, comment:e.comment, raw:e.raw});
+  }
+  return resolved;
+}
+function diffEnv(aText, bText){
+  var A=parseEnv(aText), B=parseEnv(bText);
+  var am={}, bm={};
+  A.forEach(function(e){ if(e.key!==null) am[e.key]=e.value; });
+  B.forEach(function(e){ if(e.key!==null) bm[e.key]=e.value; });
+  var added=[], removed=[], changed=[];
+  Object.keys(bm).forEach(function(k){ if(!(k in am)) added.push(k); });
+  Object.keys(am).forEach(function(k){ if(!(k in bm)) removed.push(k); });
+  Object.keys(am).forEach(function(k){ if(k in bm && am[k]!==bm[k]) changed.push({key:k, a:am[k], b:bm[k]}); });
+  return {added:added, removed:removed, changed:changed};
+}
+function validateEnv(text, required){
+  var entries=parseEnv(text);
+  var have={};
+  entries.forEach(function(e){ if(e.key!==null) have[e.key]=true; });
+  var missing=required.filter(function(k){ return !have[k]; });
+  return {missing:missing, ok:missing.length===0};
+}
+function toJSON(entries){
+  var o={};
+  entries.forEach(function(e){ if(e.key!==null) o[e.key]=e.value; });
+  return o;
+}
+function fromJSON(obj){
+  return Object.keys(obj).map(function(k){ return {key:k, value:String(obj[k]), comment:null, raw:''}; });
+}
+
+if (typeof module!=='undefined' && module.exports){
+  module.exports={stripQuotes:stripQuotes, parseEnv:parseEnv, serializeEnv:serializeEnv, getVar:getVar, resolveRefs:resolveRefs, diffEnv:diffEnv, validateEnv:validateEnv, toJSON:toJSON, fromJSON:fromJSON};
+}
+
+/* ============ UI ============ */
+if (typeof window!=='undefined' && window.document){
+  (function(){
+    function q(id){ return document.getElementById(id); }
+    function renderTable(entries){
+      var rows=entries.filter(function(e){ return e.key!==null; })
+        .map(function(e){ return '<tr><td class="k">'+esc(e.key)+'</td><td class="v">'+esc(e.value)+'</td></tr>'; }).join('');
+      return '<table>'+rows+'</table>';
+    }
+    function esc(s){ return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];}); }
+
+    q('parse').onclick=function(){
+      var entries=parseEnv(q('envA').value);
+      q('parseOut').innerHTML=renderTable(entries);
+    };
+    q('resolve').onclick=function(){
+      var entries=resolveRefs(parseEnv(q('envA').value));
+      q('parseOut').innerHTML=renderTable(entries);
+    };
+    q('diff').onclick=function(){
+      var d=diffEnv(q('envA').value, q('envB').value);
+      var h='<div class="msg">';
+      h+='<span class="ok">新增 '+(d.added.length?d.added.join(', '):'无')+'</span> · ';
+      h+='<span class="bad">移除 '+(d.removed.length?d.removed.join(', '):'无')+'</span> · ';
+      h+='<span class="warn">变更 '+d.changed.length+'</span></div>';
+      if(d.changed.length){
+        h+='<table>';
+        d.changed.forEach(function(c){ h+='<tr><td class="k">'+esc(c.key)+'</td><td class="v">'+esc(c.a)+' → '+esc(c.b)+'</td></tr>'; });
+        h+='</table>';
+      }
+      q('parseOut').innerHTML=h;
+    };
+    q('validate').onclick=function(){
+      var req=q('req').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
+      var r=validateEnv(q('envA').value, req);
+      q('valOut').innerHTML = r.ok
+        ? '<span class="ok">✓ 全部必填项已存在（'+req.length+' 项）</span>'
+        : '<span class="bad">✗ 缺失：'+r.missing.join(', ')+'</span>';
+    };
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

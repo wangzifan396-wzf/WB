@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CodeForge — 离线前端游乐场 · 单文件零依赖</title>
+<meta name="description" content="离线前端游乐场：HTML/CSS/JS 三栏编辑 + 沙箱 iframe 实时预览 + 控制台捕获。单文件、零依赖、数据永不离机。">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="CodeForge — 离线前端游乐场">
+<meta property="og:description" content="HTML/CSS/JS 三栏 + 沙箱实时预览 + 控制台捕获。单文件、零依赖、离线优先。">
+<meta property="og:image" content="og.svg">
+<script>
+/* ============================================================
+ * CodeForge core — pure functions (testable in Node)
+ * ============================================================ */
+'use strict';
+
+var CF_VERSION = '1.0.0';
+var CF_BRIDGE_KEY = '__cfConsole';
+
+/** HTML-escape a string for safe text interpolation. */
+function cfEscapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Console bridge script injected into the sandbox document. */
+function cfBridgeScript() {
+  return '<script>(function(){' +
+    'function send(t,a){try{parent.postMessage({' + JSON.stringify(CF_BRIDGE_KEY) + ':1,type:t,args:a},"*")}catch(e){}}' +
+    'function ser(v){try{if(v===undefined)return"undefined";if(typeof v==="function")return String(v);' +
+    'if(typeof v==="object"&&v!==null){if(v instanceof Error)return v.name+": "+v.message;' +
+    'return JSON.stringify(v,function(k,x){return typeof x==="bigint"?String(x)+"n":x},1)}' +
+    'return String(v)}catch(e){return"[unserializable]"}}' +
+    '["log","info","warn","error"].forEach(function(m){var o=console[m].bind(console);' +
+    'console[m]=function(){var a=[].slice.call(arguments).map(ser);send(m,a);o.apply(null,arguments)}});' +
+    'window.addEventListener("error",function(e){send("error",[String(e.message)+" ("+(e.lineno||0)+":"+(e.colno||0)+")"])});' +
+    'window.addEventListener("unhandledrejection",function(e){send("error",["Unhandled rejection: "+ser(e.reason)])});' +
+    '})()<\/script>';
+}
+
+/** Assemble a full sandbox document from three code panes. */
+function cfBuildDoc(html, css, js) {
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+    cfBridgeScript() +
+    '<style>' + String(css == null ? '' : css) + '</style></head><body>' +
+    String(html == null ? '' : html) +
+    '<script>try{' + String(js == null ? '' : js) +
+    '\n}catch(e){console.error(e&&e.message?e.name+": "+e.message:String(e))}<\/script></body></html>';
+}
+
+/** Build a standalone exportable HTML document (no bridge). */
+function cfExportDoc(html, css, js, title) {
+  return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+    '<title>' + cfEscapeHtml(title || 'CodeForge Export') + '</title>\n' +
+    '<style>\n' + String(css == null ? '' : css) + '\n</style>\n</head>\n<body>\n' +
+    String(html == null ? '' : html) +
+    '\n<script>\n' + String(js == null ? '' : js) + '\n<\/script>\n</body>\n</html>\n';
+}
+
+/** Serialize a project object to portable JSON. */
+function cfSerializeProject(p) {
+  p = p || {};
+  return JSON.stringify({
+    app: 'CodeForge', v: 1,
+    name: String(p.name || 'untitled'),
+    html: String(p.html || ''), css: String(p.css || ''), js: String(p.js || ''),
+    savedAt: p.savedAt || null
+  });
+}
+
+/** Parse project JSON; returns null when invalid. */
+function cfParseProject(json) {
+  try {
+    var o = JSON.parse(json);
+    if (!o || typeof o !== 'object') return null;
+    if (o.app !== 'CodeForge') return null;
+    return {
+      name: String(o.name || 'untitled'),
+      html: String(o.html || ''), css: String(o.css || ''), js: String(o.js || ''),
+      savedAt: o.savedAt || null
+    };
+  } catch (e) { return null; }
+}
+
+/** Sanitize a project name into a safe filename base. */
+function cfExportFilename(name, ext) {
+  var base = String(name == null ? '' : name).trim()
+    .replace(/[\\/:*?"<>|#%&{}$!'@+`=\s]+/g, '-')
+    .replace(/-+/g, '-').replace(/^-|-$/g, '')
+    .slice(0, 60);
+  if (!base) base = 'codeforge-export';
+  return base + '.' + (ext || 'html');
+}
+
+/** Human-readable byte size of a string (UTF-8 aware). */
+function cfByteSize(s) {
+  var n = 0, str = String(s == null ? '' : s);
+  for (var i = 0; i < str.length; i++) {
+    var c = str.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xD800 && c <= 0xDBFF) { n += 4; i++; }
+    else n += 3;
+  }
+  return n;
+}
+
+/** Format byte count as human string. */
+function cfFormatBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+/** Count lines in a string (empty string = 1 line). */
+function cfLineCount(s) {
+  return String(s == null ? '' : s).split('\n').length;
+}
+
+/** Format a console arg list into one display string. */
+function cfFormatConsoleLine(args) {
+  if (!Array.isArray(args)) return String(args == null ? '' : args);
+  return args.join(' ');
+}
+
+/** Validate a message event payload from the sandbox bridge. */
+function cfIsBridgeMessage(data) {
+  return !!(data && typeof data === 'object' && data[CF_BRIDGE_KEY] === 1 &&
+    typeof data.type === 'string' && Array.isArray(data.args));
+}
+
+/** Insert two spaces at cursor; returns {value, selStart}. */
+function cfIndentAt(value, selStart, selEnd) {
+  value = String(value == null ? '' : value);
+  var s = Math.max(0, selStart | 0), e = Math.max(s, selEnd | 0);
+  var next = value.slice(0, s) + '  ' + value.slice(e);
+  return { value: next, selStart: s + 2 };
+}
+
+/** Default starter project. */
+function cfStarterProject() {
+  return {
+    name: 'hello-forge',
+    html: '<div class="card">\n  <h1>CodeForge</h1>\n  <p>离线前端游乐场 — 编辑左侧代码，右侧实时预览。</p>\n  <button id="btn">点我</button>\n</div>',
+    css: 'body{font-family:system-ui;display:grid;place-items:center;min-height:90vh;background:#0f1115;color:#eee}\n.card{padding:2rem 2.5rem;border:1px solid #333;border-radius:12px;background:#181a20;text-align:center}\nh1{color:#7b86e8;margin:0 0 .5rem}\nbutton{margin-top:1rem;padding:.5rem 1.4rem;border:0;border-radius:8px;background:#5E6AD2;color:#fff;cursor:pointer}',
+    js: 'var n = 0;\ndocument.getElementById("btn").addEventListener("click", function () {\n  n++;\n  this.textContent = "点了 " + n + " 次";\n  console.log("clicked", n);\n});\nconsole.info("CodeForge sandbox ready");',
+    savedAt: null
+  };
+}
+
+/* Node export guard */
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    CF_VERSION: CF_VERSION, CF_BRIDGE_KEY: CF_BRIDGE_KEY,
+    cfEscapeHtml: cfEscapeHtml, cfBridgeScript: cfBridgeScript,
+    cfBuildDoc: cfBuildDoc, cfExportDoc: cfExportDoc,
+    cfSerializeProject: cfSerializeProject, cfParseProject: cfParseProject,
+    cfExportFilename: cfExportFilename, cfByteSize: cfByteSize,
+    cfFormatBytes: cfFormatBytes, cfLineCount: cfLineCount,
+    cfFormatConsoleLine: cfFormatConsoleLine, cfIsBridgeMessage: cfIsBridgeMessage,
+    cfIndentAt: cfIndentAt, cfStarterProject: cfStarterProject
+  };
+}
+</script>
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --panel:#1A1B1E;
+  --text:#FFFFFF; --text-2:#A1A1AA; --text-3:#71717A;
+  --border:rgba(255,255,255,.08); --border-strong:rgba(255,255,255,.14);
+  --accent:#5E6AD2; --green:#10B981; --amber:#F5A623; --cyan:#22D3EE; --purple:#A78BFA; --red:#F87171;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:14px; display:flex; flex-direction:column; overflow:hidden;
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* ---- header ---- */
+header{
+  display:flex; align-items:center; gap:12px; padding:10px 16px;
+  background:var(--card); border-bottom:1px solid var(--border); flex:none; flex-wrap:wrap;
+}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:.2px}
+.logo svg{flex:none}
+.logo .sub{font-weight:400;font-size:12px;color:var(--text-3)}
+#projName{
+  background:var(--panel); border:1px solid var(--border); color:var(--text);
+  border-radius:8px; padding:6px 10px; font-size:13px; width:160px; outline:none;
+}
+#projName:focus{border-color:var(--accent)}
+.spacer{flex:1}
+.btn{
+  background:var(--panel); border:1px solid var(--border); color:var(--text-2);
+  border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer; transition:all .15s;
+  display:inline-flex; align-items:center; gap:6px;
+}
+.btn:hover{color:var(--text); border-color:var(--border-strong)}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.on{color:var(--green); border-color:rgba(16,185,129,.4)}
+kbd{font:11px ui-monospace,monospace;color:var(--text-3);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+
+/* ---- layout ---- */
+main{flex:1; display:grid; grid-template-rows:minmax(120px,42%) 6px 1fr; min-height:0}
+#editors{display:grid; grid-template-columns:1fr 1fr 1fr; gap:1px; background:var(--border); min-height:0}
+.pane{display:flex; flex-direction:column; background:var(--card); min-width:0; min-height:0}
+.pane-head{
+  display:flex; align-items:center; gap:8px; padding:6px 12px;
+  font-size:12px; font-weight:600; color:var(--text-2); border-bottom:1px solid var(--border); flex:none;
+}
+.dot{width:8px;height:8px;border-radius:50%}
+.dot.html{background:var(--amber)} .dot.css{background:var(--cyan)} .dot.js{background:var(--purple)}
+.pane-head .meta{margin-left:auto;font-weight:400;color:var(--text-3);font-size:11px}
+textarea.code{
+  flex:1; width:100%; resize:none; border:0; outline:none; background:var(--card); color:var(--text);
+  font:13px/1.6 ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+  padding:10px 12px; white-space:pre; overflow:auto; tab-size:2; caret-color:var(--accent);
+}
+textarea.code::placeholder{color:var(--text-3)}
+#dragRow{background:var(--bg); cursor:row-resize; position:relative}
+#dragRow::after{content:"";position:absolute;left:50%;top:2px;transform:translateX(-50%);width:48px;height:2px;border-radius:2px;background:var(--border-strong)}
+
+#bottom{display:grid; grid-template-columns:1fr minmax(220px,32%); gap:1px; background:var(--border); min-height:0}
+#previewWrap{background:#fff; position:relative; min-width:0}
+#preview{width:100%;height:100%;border:0;display:block;background:#fff}
+#consolePane{display:flex; flex-direction:column; background:var(--card); min-width:0}
+#consoleOut{flex:1; overflow:auto; padding:8px 12px; font:12px/1.7 ui-monospace,Consolas,Menlo,monospace}
+.cline{white-space:pre-wrap; word-break:break-word; border-bottom:1px solid rgba(255,255,255,.04); padding:2px 0}
+.cline.log{color:var(--text-2)} .cline.info{color:var(--cyan)}
+.cline.warn{color:var(--amber)} .cline.error{color:var(--red)}
+.cline .tag{display:inline-block;min-width:38px;color:var(--text-3);user-select:none}
+
+/* ---- projects drawer ---- */
+#drawer{
+  position:fixed; top:0; right:-320px; width:300px; height:100%; z-index:30;
+  background:var(--panel); border-left:1px solid var(--border-strong);
+  transition:right .2s ease; display:flex; flex-direction:column; box-shadow:-12px 0 40px rgba(0,0,0,.5);
+}
+#drawer.open{right:0}
+#drawer h3{font-size:13px; padding:14px 16px; border-bottom:1px solid var(--border); color:var(--text-2)}
+#projList{flex:1; overflow:auto; padding:8px}
+.pitem{
+  display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; cursor:pointer;
+  border:1px solid transparent; color:var(--text-2); font-size:13px;
+}
+.pitem:hover{background:var(--card); border-color:var(--border); color:var(--text)}
+.pitem .del{margin-left:auto; color:var(--text-3); font-size:12px; padding:2px 6px; border-radius:6px}
+.pitem .del:hover{color:var(--red); background:rgba(248,113,113,.1)}
+.empty{color:var(--text-3); font-size:12px; text-align:center; padding:24px 12px}
+#toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(80px); z-index:40;
+  background:var(--panel); border:1px solid var(--border-strong); color:var(--text);
+  padding:8px 18px; border-radius:10px; font-size:13px; transition:transform .25s ease; box-shadow:0 8px 30px rgba(0,0,0,.5);
+}
+#toast.show{transform:translateX(-50%) translateY(0)}
+@media (max-width:860px){
+  #editors{grid-template-columns:1fr}
+  main{grid-template-rows:minmax(160px,50%) 6px 1fr}
+  #bottom{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="2" y="3" width="20" height="18" rx="4" stroke="#5E6AD2" stroke-width="2"/>
+      <path d="M9 9l-3 3 3 3M15 9l3 3-3 3" stroke="#A78BFA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    CodeForge <span class="sub">离线前端游乐场</span>
+  </div>
+  <input id="projName" value="hello-forge" spellcheck="false" aria-label="项目名">
+  <div class="spacer"></div>
+  <button class="btn on" id="autoBtn" title="自动运行开关">自动运行</button>
+  <button class="btn primary" id="runBtn">运行 <kbd>Ctrl+↵</kbd></button>
+  <button class="btn" id="saveBtn">保存 <kbd>Ctrl+S</kbd></button>
+  <button class="btn" id="projBtn">项目</button>
+  <button class="btn" id="exportBtn">导出 HTML</button>
+</header>
+
+<main>
+  <section id="editors">
+    <div class="pane">
+      <div class="pane-head"><span class="dot html"></span>HTML<span class="meta" id="mHtml"></span></div>
+      <textarea class="code" id="edHtml" spellcheck="false" placeholder="<!-- HTML -->"></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-head"><span class="dot css"></span>CSS<span class="meta" id="mCss"></span></div>
+      <textarea class="code" id="edCss" spellcheck="false" placeholder="/* CSS */"></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-head"><span class="dot js"></span>JS<span class="meta" id="mJs"></span></div>
+      <textarea class="code" id="edJs" spellcheck="false" placeholder="// JavaScript"></textarea>
+    </div>
+  </section>
+  <div id="dragRow" title="拖动调整高度"></div>
+  <section id="bottom">
+    <div id="previewWrap"><iframe id="preview" sandbox="allow-scripts" title="预览"></iframe></div>
+    <div class="pane" id="consolePane">
+      <div class="pane-head"><span class="dot" style="background:var(--green)"></span>Console
+        <span class="meta"><button class="btn" id="clearBtn" style="padding:2px 8px;font-size:11px">清空</button></span>
+      </div>
+      <div id="consoleOut" aria-live="polite"></div>
+    </div>
+  </section>
+</main>
+
+<aside id="drawer" aria-label="项目列表">
+  <h3>本地项目（localStorage）</h3>
+  <div id="projList"></div>
+</aside>
+<div id="toast" role="status"></div>
+
+<script>
+/* ============================================================
+ * CodeForge UI — browser only
+ * ============================================================ */
+if (typeof window !== 'undefined' && window.document) {
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var edHtml = $('edHtml'), edCss = $('edCss'), edJs = $('edJs');
+  var preview = $('preview'), consoleOut = $('consoleOut');
+  var projName = $('projName');
+  var LS_CUR = 'cf_current', LS_LIST = 'cf_projects';
+  var autoRun = true, timer = null;
+
+  /* ---- toast ---- */
+  var toastTimer = null;
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  /* ---- state ---- */
+  function currentProject() {
+    return {
+      name: projName.value.trim() || 'untitled',
+      html: edHtml.value, css: edCss.value, js: edJs.value,
+      savedAt: new Date().toISOString()
+    };
+  }
+  function loadProject(p) {
+    projName.value = p.name || 'untitled';
+    edHtml.value = p.html || ''; edCss.value = p.css || ''; edJs.value = p.js || '';
+    updateMeta(); run();
+  }
+  function persistCurrent() {
+    try { localStorage.setItem(LS_CUR, cfSerializeProject(currentProject())); } catch (e) {}
+  }
+  function readList() {
+    try {
+      var a = JSON.parse(localStorage.getItem(LS_LIST) || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+  function writeList(a) {
+    try { localStorage.setItem(LS_LIST, JSON.stringify(a)); } catch (e) {}
+  }
+
+  /* ---- run / console ---- */
+  function run() {
+    consoleOut.innerHTML = '';
+    preview.srcdoc = cfBuildDoc(edHtml.value, edCss.value, edJs.value);
+  }
+  window.addEventListener('message', function (ev) {
+    if (!cfIsBridgeMessage(ev.data)) return;
+    var line = document.createElement('div');
+    line.className = 'cline ' + ev.data.type;
+    var tag = document.createElement('span');
+    tag.className = 'tag'; tag.textContent = ev.data.type;
+    line.appendChild(tag);
+    line.appendChild(document.createTextNode(cfFormatConsoleLine(ev.data.args)));
+    consoleOut.appendChild(line);
+    consoleOut.scrollTop = consoleOut.scrollHeight;
+  });
+
+  function scheduleRun() {
+    persistCurrent();
+    updateMeta();
+    if (!autoRun) return;
+    clearTimeout(timer);
+    timer = setTimeout(run, 400);
+  }
+
+  function updateMeta() {
+    $('mHtml').textContent = cfLineCount(edHtml.value) + ' 行 · ' + cfFormatBytes(cfByteSize(edHtml.value));
+    $('mCss').textContent = cfLineCount(edCss.value) + ' 行 · ' + cfFormatBytes(cfByteSize(edCss.value));
+    $('mJs').textContent = cfLineCount(edJs.value) + ' 行 · ' + cfFormatBytes(cfByteSize(edJs.value));
+  }
+
+  /* ---- editors ---- */
+  [edHtml, edCss, edJs].forEach(function (ed) {
+    ed.addEventListener('input', scheduleRun);
+    ed.addEventListener('keydown', function (e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        var r = cfIndentAt(ed.value, ed.selectionStart, ed.selectionEnd);
+        ed.value = r.value; ed.selectionStart = ed.selectionEnd = r.selStart;
+        scheduleRun();
+      }
+    });
+  });
+  projName.addEventListener('input', persistCurrent);
+
+  /* ---- toolbar ---- */
+  $('runBtn').addEventListener('click', run);
+  $('autoBtn').addEventListener('click', function () {
+    autoRun = !autoRun;
+    this.classList.toggle('on', autoRun);
+    this.textContent = autoRun ? '自动运行' : '手动运行';
+    toast(autoRun ? '已开启自动运行' : '已切换手动运行');
+  });
+  $('clearBtn').addEventListener('click', function () { consoleOut.innerHTML = ''; });
+
+  $('saveBtn').addEventListener('click', saveToList);
+  function saveToList() {
+    var p = currentProject();
+    var list = readList();
+    var i = list.findIndex(function (x) { return x.name === p.name; });
+    if (i >= 0) list[i] = p; else list.unshift(p);
+    writeList(list.slice(0, 50));
+    persistCurrent(); renderList();
+    toast('已保存「' + p.name + '」');
+  }
+
+  $('exportBtn').addEventListener('click', function () {
+    var p = currentProject();
+    var doc = cfExportDoc(p.html, p.css, p.js, p.name);
+    var blob = new Blob([doc], { type: 'text/html;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = cfExportFilename(p.name, 'html');
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 500);
+    toast('已导出独立 HTML');
+  });
+
+  /* ---- drawer ---- */
+  $('projBtn').addEventListener('click', function () {
+    renderList();
+    $('drawer').classList.toggle('open');
+  });
+  document.addEventListener('click', function (e) {
+    var d = $('drawer');
+    if (d.classList.contains('open') && !d.contains(e.target) && e.target !== $('projBtn')) {
+      d.classList.remove('open');
+    }
+  });
+  function renderList() {
+    var list = readList(), box = $('projList');
+    box.innerHTML = '';
+    if (!list.length) {
+      var em = document.createElement('div');
+      em.className = 'empty'; em.textContent = '暂无已保存项目 — 点「保存」写入本地';
+      box.appendChild(em); return;
+    }
+    list.forEach(function (p) {
+      var it = document.createElement('div');
+      it.className = 'pitem';
+      var nm = document.createElement('span'); nm.textContent = p.name;
+      var del = document.createElement('span'); del.className = 'del'; del.textContent = '删除';
+      it.appendChild(nm); it.appendChild(del);
+      it.addEventListener('click', function (e) {
+        if (e.target === del) {
+          writeList(readList().filter(function (x) { return x.name !== p.name; }));
+          renderList(); toast('已删除「' + p.name + '」');
+        } else {
+          loadProject(p); $('drawer').classList.remove('open');
+          toast('已载入「' + p.name + '」');
+        }
+      });
+      box.appendChild(it);
+    });
+  }
+
+  /* ---- keyboard ---- */
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveToList(); }
+  });
+
+  /* ---- row drag ---- */
+  (function () {
+    var main = document.querySelector('main'), drag = $('dragRow'), dragging = false;
+    drag.addEventListener('pointerdown', function (e) { dragging = true; drag.setPointerCapture(e.pointerId); });
+    drag.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var r = main.getBoundingClientRect();
+      var pct = Math.min(80, Math.max(15, ((e.clientY - r.top) / r.height) * 100));
+      main.style.gridTemplateRows = pct + '% 6px 1fr';
+    });
+    drag.addEventListener('pointerup', function () { dragging = false; });
+  })();
+
+  /* ---- boot ---- */
+  var saved = null;
+  try { saved = cfParseProject(localStorage.getItem(LS_CUR)); } catch (e) {}
+  loadProject(saved || cfStarterProject());
+
+  /* ---- public API ---- */
+  window.__CODEFORGE__ = {
+    version: CF_VERSION,
+    run: run,
+    getProject: currentProject,
+    setProject: loadProject,
+    buildDoc: cfBuildDoc,
+    exportDoc: cfExportDoc,
+    serialize: cfSerializeProject,
+    parse: cfParseProject
+  };
+
+  /* ---- PWA ---- */
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+})();
+}
+</script>
+<footer style="margin-top:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);color:#71717A;font-size:12px;text-align:center">nano-tools · 单文件 · 零依赖 · 本地优先 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</body>
+</html>

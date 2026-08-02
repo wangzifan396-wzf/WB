@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>RegexExplainForge — 正则表达式解释器：逐片段转自然语言，含分组/量词/字符类。</title>
+<meta property="og:title" content="RegexExplainForge">
+<meta property="og:description" content="正则表达式解释器：逐片段转自然语言说明，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="正则表达式解释器：逐片段转自然语言说明，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>RegexExplainForge</h1>
+  <p class="sub">正则表达式解释：逐 token 解析锚点、字符类、分组、量词、分支，输出可读中文说明 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>正则表达式</label>
+<input type="text" id="pat" value="^(\d{3,4})-[a-z]+$" spellcheck="false">
+<label>标志（如 gi）</label>
+<input type="text" id="fl" value="" style="max-width:120px">
+<div class="row"><button id="run">解释</button></div>
+<div class="err" id="err"></div>
+<div class="out" id="sum"></div>
+<div class="out" id="out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function rxExplain(pattern, flags){
+  pattern = String(pattern==null?'':pattern);
+  flags = String(flags==null?'':flags);
+  var tokens=[], i=0, depth=0;
+  function err(msg){ return {valid:false, error:msg, parts:tokens, summary:''}; }
+  while(i<pattern.length){
+    var c=pattern[i];
+    if(c==='\\'){
+      if(i+1>=pattern.length) return err('末尾悬空的转义符 \\');
+      var e=pattern[i+1]; i+=2;
+      var map={'d':'数字 [0-9]','D':'非数字','w':'单词字符 [A-Za-z0-9_]','W':'非单词字符','s':'空白字符','S':'非空白字符','b':'单词边界','B':'非单词边界','n':'换行符','t':'制表符','r':'回车符'};
+      if(map.hasOwnProperty(e)) tokens.push({t:'\\'+e, desc:map[e]});
+      else tokens.push({t:'\\'+e, desc:'字面字符「'+e+'」'});
+      continue;
+    }
+    if(c==='['){
+      var j=pattern.indexOf(']', i+1);
+      if(j<0) return err('字符类缺少闭合 ]');
+      var cls=pattern.slice(i, j+1), neg=pattern[i+1]==='^';
+      tokens.push({t:cls, desc:(neg?'排除字符集 ':'字符集 ')+(neg?cls.slice(2,-1):cls.slice(1,-1))});
+      i=j+1; continue;
+    }
+    if(c==='('){
+      if(pattern[i+1]==='?' && pattern[i+2]===':'){ tokens.push({t:'(?:', desc:'非捕获分组（不记录）'}); i+=3; depth++; continue; }
+      tokens.push({t:'(', desc:'捕获分组 #'+(depth+1)}); i++; depth++; continue;
+    }
+    if(c===')'){ tokens.push({t:')', desc:'分组结束'}); i++; depth=Math.max(0,depth-1); continue; }
+    if(c==='^'){ tokens.push({t:'^', desc:'字符串开头'}); i++; continue; }
+    if(c==='$'){ tokens.push({t:'$', desc:'字符串结尾'}); i++; continue; }
+    if(c==='.'){ tokens.push({t:'.', desc:'任意字符（除换行）'}); i++; continue; }
+    if(c==='|'){ tokens.push({t:'|', desc:'或（二选一）'}); i++; continue; }
+    if(c==='*'||c==='+'||c==='?'){
+      var q={'*':'零次或多次','+':'一次或多次','?':'零次或一次'}[c];
+      tokens.push({t:c, desc:q}); i++; continue;
+    }
+    if(c==='{'){
+      var mm=pattern.slice(i).match(/^\{(\d+)(,(\d*))?\}/);
+      if(!mm){ tokens.push({t:'{', desc:'字面「{」'}); i++; continue; }
+      var desc = mm[2]===undefined ? '精确 '+mm[1]+' 次' : (mm[3]==='' ? mm[1]+' 次或更多' : mm[1]+'-'+mm[3]+' 次');
+      tokens.push({t:mm[0], desc:desc}); i+=mm[0].length; continue;
+    }
+    tokens.push({t:c, desc:'字面字符「'+c+'」'}); i++;
+  }
+  if(depth>0) return err('分组括号未闭合');
+  var summary = tokens.length + ' 个片段' + (flags?('，标志 '+flags):'') + (flags.indexOf('i')>=0?'（忽略大小写）':'') + (flags.indexOf('g')>=0?'（全局匹配）':'') + (flags.indexOf('m')>=0?'（多行）':'');
+  return {valid:true, error:null, parts:tokens, summary:summary};
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { rxExplain:rxExplain };
+}
+if (typeof window !== 'undefined') {
+  window.RegexExplainForgePure = { rxExplain:rxExplain };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.RegexExplainForgePure;
+  function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }); }
+  function run(){
+    var r=P.rxExplain($('pat').value, $('fl').value);
+    if(!r.valid){ $('err').textContent='无法解析：'+r.error; $('sum').innerHTML=''; $('out').innerHTML=''; return; }
+    $('err').textContent='';
+    $('sum').innerHTML='<div class="kv"><b>正则解释</b><span>'+esc(r.summary)+'</span></div>';
+    var t='';
+    for(var i=0;i<r.parts.length;i++) t+='<div class="kv"><b>'+esc(r.parts[i].t)+'</b><span>'+esc(r.parts[i].desc)+'</span></div>';
+    $('out').innerHTML=t;
+  }
+  $('run').addEventListener('click', run);
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

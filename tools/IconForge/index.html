@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<link rel="icon" href="favicon.svg">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IconForge · SVG 图标编辑器</title>
+<meta property="og:title" content="IconForge">
+<meta property="og:description" content="SVG 线性图标编辑器：内置图标集、描边/填充/尺寸可调、导出 SVG。">
+<meta property="og:image" content="og.svg">
+<style>
+:root{--bg:#0A0A0B;--card:#141417;--card2:#1A1B1E;--text:#FFFFFF;--mut:#A1A1AA;--mut2:#71717A;--border:rgba(255,255,255,0.08);--accent:#5e6ad2;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+body{max-width:900px;margin:0 auto;padding:32px 20px 80px;line-height:1.5}
+h1{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.sub{color:var(--mut);font-size:14px;margin-top:6px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-top:20px}
+h2{font-size:15px;font-weight:600;color:var(--mut);margin-bottom:14px;text-transform:uppercase;letter-spacing:.08em}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.ic{background:var(--card2);border:1px solid var(--border);border-radius:10px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s}
+.ic:hover{border-color:var(--accent)}
+.ic.on{border-color:var(--accent);background:rgba(94,106,210,.12)}
+.ic svg{width:22px;height:22px}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+input[type=range]{accent-color:var(--accent);width:160px}
+input[type=text],input[type=number]{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 11px;font-size:14px;font-family:ui-monospace,monospace;width:120px}
+label{font-size:13px;color:var(--mut)}
+label.chk{display:flex;gap:7px;align-items:center;cursor:pointer;user-select:none}
+.preview{display:flex;align-items:center;gap:18px;margin-top:8px}
+.pvbox{width:120px;height:120px;background:var(--card2);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center}
+.pvbox svg{width:64px;height:64px}
+textarea{width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;font-family:ui-monospace,monospace;font-size:12px;height:96px;margin-top:12px;resize:vertical}
+button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer}
+button.ghost{background:var(--card2);border:1px solid var(--border);color:var(--text)}
+footer{margin-top:34px;color:var(--mut2);font-size:12px;text-align:center}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+
+  <meta name="theme-color" content="#0A0A0B">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:type" content="website">
+  <meta name="description" content="SVG 线性图标编辑器：内置图标集、描边/填充/尺寸可调、导出 SVG。">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="IconForge · SVG 图标编辑器">
+<meta name="twitter:description" content="SVG 线性图标编辑器：内置图标集、描边/填充/尺寸可调、导出 SVG。">
+<meta name="twitter:image" content="og.svg">
+<style id="nano-a11y">
+:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<h1>IconForge</h1>
+<div class="sub">SVG 线性图标编辑器 · 单文件 · 零依赖 · 本地优先</div>
+
+<div class="card">
+  <h2>图标库</h2>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="card">
+  <h2>编辑</h2>
+  <div class="preview">
+    <div class="pvbox" id="pv"></div>
+    <div class="row" style="flex-direction:column;align-items:flex-start;gap:12px">
+      <div class="row"><label>描边色</label><input type="text" id="stroke" value="#5E6AD2"></div>
+      <div class="row"><label>描边宽</label><input type="range" id="sw" min="0.5" max="3" step="0.5" value="2"><span id="swv">2</span></div>
+      <div class="row"><label>尺寸</label><input type="number" id="size" value="64" min="8" max="512"></div>
+      <label class="chk"><input type="checkbox" id="filled"> 填充模式（实心）</label>
+      <div class="row"><label>填充色</label><input type="text" id="fill" value="#5E6AD2"></div>
+    </div>
+  </div>
+  <textarea id="out" readonly></textarea>
+  <div class="row" style="margin-top:10px">
+    <button id="copy">复制 SVG</button>
+    <button class="ghost" id="dl">下载 .svg</button>
+  </div>
+</div>
+
+<footer>MIT Licensed · 数据永不离机</footer>
+
+<script>
+// ---------- pure functions ----------
+const ICONS={
+  home:'M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
+  user:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
+  search:'M21 21l-4.3-4.3M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14',
+  heart:'M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21l8.8-8.3a5 5 0 0 0 0-7.1z',
+  star:'M12 3l2.7 5.7 6.3.7-4.6 4.3 1.2 6.2L12 17.6 6.4 19.9 7.6 13.7 3 9.4l6.3-.7z',
+  trash:'M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13',
+  edit:'M14 4l6 6L8 22H2v-6z',
+  plus:'M12 5v14M5 12h14',
+  check:'M20 6L9 17l-5-5',
+  arrow:'M5 12h14M13 6l6 6-6 6',
+  mail:'M3 6h18v12H3zM3 7l9 6 9-6',
+  lock:'M6 11h12v9H6zM9 11V8a3 3 0 0 1 6 0v3',
+  bell:'M18 9a6 6 0 1 0-12 0c0 6-2 8-2 8h16s-2-2-2-8M13.5 21a2 2 0 0 1-3 0',
+  cloud:'M17 18a4 4 0 0 0 .5-8 5 5 0 0 0-9.6-1.3A4 4 0 0 0 7 18z',
+  camera:'M4 8h3l2-3h6l2 3h3v12H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
+  download:'M12 3v12M7 11l5 5 5-5M5 21h14',
+  link:'M10 14a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1'
+};
+function buildSvg(name,opts){
+  opts=opts||{};
+  const d=ICONS[name]; if(!d) return '';
+  const size=opts.size||64, sw=opts.strokeWidth==null?2:opts.strokeWidth;
+  const stroke=opts.filled? 'none' : (opts.stroke||'#5E6AD2');
+  const fill=opts.filled? (opts.fill||'#5E6AD2') : 'none';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+}
+
+if(typeof module!=='undefined'&&module.exports){module.exports={ICONS,buildSvg};}
+
+// ---------- UI ----------
+if(typeof window!=='undefined'){
+  const $=id=>document.getElementById(id);
+  let cur='home';
+  const grid=$('grid');
+  Object.keys(ICONS).forEach(n=>{
+    const b=document.createElement('div'); b.className='ic'; b.dataset.n=n;
+    b.innerHTML=buildSvg(n,{size:22,strokeWidth:2,stroke:'#A1A1AA'});
+    b.addEventListener('click',()=>{cur=n;document.querySelectorAll('.ic').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();});
+    grid.appendChild(b);
+  });
+  function opts(){return {size:+$('size').value,strokeWidth:+$('sw').value,stroke:$('stroke').value,filled:$('filled').checked,fill:$('fill').value};}
+  function render(){
+    const o=opts();
+    $('pv').innerHTML=buildSvg(cur,o);
+    $('out').value=buildSvg(cur,o);
+  }
+  ['stroke','sw','size','fill'].forEach(id=>$(id).addEventListener('input',()=>{$('swv').textContent=$('sw').value;render();}));
+  $('filled').addEventListener('change',render);
+  $('copy').addEventListener('click',()=>{navigator.clipboard&&navigator.clipboard.writeText($('out').value);});
+  $('dl').addEventListener('click',()=>{const a=document.createElement('a');a.href='data:image/svg+xml;utf8,'+encodeURIComponent($('out').value);a.download=cur+'.svg';a.click();});
+  grid.firstChild.classList.add('on'); render();
+}
+</script>
+<footer id="nt-foot">
+<style>
+  .nt-foot{position:relative;z-index:2;margin-top:56px;border-top:1px solid rgba(255,255,255,.08);background:#0A0A0B;color:#71717A;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6}
+  .nt-foot *{box-sizing:border-box}
+  .nt-foot a{text-decoration:none}
+  .nt-in{max-width:1080px;margin:0 auto;padding:34px 24px 30px}
+  .nt-row{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .nt-id{min-width:0}
+  .nt-brand{display:flex;align-items:center;gap:10px;font-weight:700;color:#fff;font-size:15px;letter-spacing:-.02em}
+  .nt-brand .mk{width:26px;height:26px;border-radius:7px;background:#5E6AD2;display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px}
+  .nt-tag{margin-top:4px;color:#71717A;font-size:12.5px}
+  .nt-cta{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:9px;background:#5E6AD2;color:#fff;font-weight:600;font-size:13.5px;border:1px solid #5E6AD2;transition:transform .18s ease,background .2s ease,box-shadow .2s ease}
+  .nt-cta:hover{transform:translateY(-1px);background:#7C84E8;box-shadow:0 6px 20px rgba(94,106,210,.3)}
+  .nt-sep{height:1px;background:rgba(255,255,255,.08);margin:22px 0 16px}
+  .nt-rel{display:flex;flex-wrap:wrap;gap:8px}
+  .nt-rel a{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:#141417;border:1px solid rgba(255,255,255,.08);color:#A1A1AA;font-size:12.5px;font-weight:600;transition:all .18s ease}
+  .nt-rel a:hover{border-color:#5E6AD2;color:#fff}
+  .nt-cur{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(94,106,210,.12);border:1px solid #5E6AD2;color:#fff;font-size:12.5px;font-weight:700}
+  .nt-meta{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#71717A;font-size:12px}
+  .nt-meta a{color:#A1A1AA;border-bottom:1px dashed rgba(255,255,255,.08)}
+  .nt-meta a:hover{color:#5E6AD2}
+  @media(max-width:560px){.nt-row{flex-direction:column;align-items:flex-start}.nt-cta{width:100%;justify-content:center}}
+</style>
+<div class="nt-in">
+  <div class="nt-row">
+    <div class="nt-id">
+      <div class="nt-brand"><span class="mk">n</span> nano-tools</div>
+      <div class="nt-tag">单文件 · 零依赖 · 本地优先的开发者工具集</div>
+    </div>
+    <a class="nt-cta" href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">浏览全部 328 款工具 &rarr;</a>
+  </div>
+  <div class="nt-sep"></div>
+  <div class="nt-rel">
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BaseForge/" target="_blank" rel="noopener">BaseForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BoxKit/" target="_blank" rel="noopener">BoxKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CSSKit/" target="_blank" rel="noopener">CSSKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Chartify/" target="_blank" rel="noopener">Chartify</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ColorForge/" target="_blank" rel="noopener">ColorForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ContextLens/" target="_blank" rel="noopener">ContextLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronForge/" target="_blank" rel="noopener">CronForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronText/" target="_blank" rel="noopener">CronText</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DataForge/" target="_blank" rel="noopener">DataForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DiffLens/" target="_blank" rel="noopener">DiffLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Graphite/" target="_blank" rel="noopener">Graphite</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/HashKit/" target="_blank" rel="noopener">HashKit</a>
+      <span class="nt-cur">IconForge &middot; 当前</span>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Inkwell/" target="_blank" rel="noopener">Inkwell</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/JsonForge/" target="_blank" rel="noopener">JsonForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MarkForge/" target="_blank" rel="noopener">MarkForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MockForge/" target="_blank" rel="noopener">MockForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PalettePro/" target="_blank" rel="noopener">PalettePro</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PassForge/" target="_blank" rel="noopener">PassForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RESTKit/" target="_blank" rel="noopener">RESTKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RegexLab/" target="_blank" rel="noopener">RegexLab</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SVGForge/" target="_blank" rel="noopener">SVGForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SnapCompress/" target="_blank" rel="noopener">SnapCompress</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/UniConvert/" target="_blank" rel="noopener">UniConvert</a>
+  </div>
+  <div class="nt-meta">
+    <span>&copy; <span id="nt-yr"></span> nano-tools &middot; 由 HTML5 + 原生 JS 构建 &middot; 零依赖</span>
+    <span><a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> &middot; <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/IconForge" target="_blank" rel="noopener">本工具源码</a></span>
+  </div>
+</div>
+<script>
+(function(){var y=document.getElementById('nt-yr');if(y)y.textContent=new Date().getFullYear();})();
+</script>
+</footer>
+
+
+
+
+
+<!-- nano-i18n:start -->
+<script>
+window.NANO_I18N_EXTRA = {
+  "IconForge · SVG 图标编辑器":"IconForge · SVG Icon Editor"
+};
+/* NANO_I18N_RUNTIME */
+(function(){
+  // nano-tools 通用双语运行时：翻译可见 UI 文本（按钮/标签/标题/hero），不入脚本/样式/输入区。
+  var COMMON = {
+    "复制":"Copy","复制结果":"Copy result","复制链接":"Copy link","复制代码":"Copy code",
+    "清空":"Clear","清除":"Clear","清除全部":"Clear all","清空全部":"Clear all",
+    "粘贴":"Paste","生成":"Generate","运行":"Run","执行":"Run","停止":"Stop","暂停":"Pause",
+    "继续":"Resume","重试":"Retry","格式化":"Format","压缩":"Minify","美化":"Beautify","压缩美化":"Minify",
+    "导出":"Export","导入":"Import","保存":"Save","删除":"Delete","移除":"Remove","添加":"Add",
+    "重置":"Reset","还原":"Reset","搜索":"Search","提交":"Submit","取消":"Cancel","确定":"OK",
+    "确认":"Confirm","关闭":"Close","输入":"Input","输出":"Output","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","名称":"Name","值":"Value","类型":"Type",
+    "大小":"Size","数量":"Count","颜色":"Color","文本":"Text","内容":"Content","编码":"Encode",
+    "解码":"Decode","加密":"Encrypt","解密":"Decrypt","校验":"Verify","计算":"Calculate",
+    "转换":"Convert","上传":"Upload","下载":"Download","全选":"Select all","折叠":"Collapse",
+    "展开":"Expand","开始":"Start","帮助":"Help","关于":"About","更多":"More","更少":"Less",
+    "示例":"Example","随机":"Random","全部":"All","中文":"中文","English":"English","浅色":"Light",
+    "深色":"Dark","亮色":"Light","暗色":"Dark","复制成功":"Copied","已复制":"Copied",
+    "加载中":"Loading…","暂无数据":"No data","请输入":"Please enter","或":"or","拖拽":"Drag",
+    "拖到此处":"Drop here","选择文件":"Choose file","字数":"Words","字符":"Characters",
+    "行数":"Lines","用时":"Time","耗时":"Elapsed","共":"Total","项":"items","条":"items",
+    "历史":"History","清空历史":"Clear history","复制结果":"Copy result","复制":"Copy",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh","应用":"Apply",
+    "不区分大小写":"Case-insensitive","忽略空白":"Ignore whitespace","换行":"Line break",
+    "正则表达式":"Regex","模式":"Mode","选项":"Options","高级":"Advanced","基础":"Basic",
+    "开启":"On","关闭":"Off","启用":"Enable","禁用":"Disable","显示":"Show","隐藏":"Hide",
+    "复制 SVG":"Copy SVG","下载 SVG":"Download SVG","复制 PNG":"Copy PNG","下载 PNG":"Download PNG",
+    "复制 CSS":"Copy CSS","复制 URL":"Copy URL","复制到剪贴板":"Copy to clipboard",
+    "已保存到本地":"Saved locally","解析中":"Parsing…","分析中":"Analyzing…","生成中":"Generating…",
+    "请选择":"Please select","请先":"Please first","不支持":"Not supported","错误":"Error",
+    "成功":"Success","失败":"Failed","完成":"Done","下一步":"Next","上一步":"Previous",
+    "当前":"Current","总计":"Total","平均":"Average","最大":"Max","最小":"Min",
+    "字符数":"Chars","词数":"Words","句数":"Sentences","段落":"Paragraphs",
+    "浅色模式":"Light mode","深色模式":"Dark mode","切换主题":"Toggle theme","切换语言":"Switch language",
+    "打开文件":"Open file","保存文件":"Save file","导出文件":"Export file","导入文件":"Import file",
+    "复制全部":"Copy all","清除结果":"Clear result","清空结果":"Clear result",
+    "全屏":"Fullscreen","退出全屏":"Exit fullscreen","适应屏幕":"Fit screen","缩放":"Zoom",
+    "放大":"Zoom in","缩小":"Zoom out","重置视图":"Reset view","居中":"Center",
+    "添加节点":"Add node","删除节点":"Delete node","添加连线":"Add edge","删除连线":"Delete edge",
+    "自动布局":"Auto layout","适应视图":"Fit view","导出 JSON":"Export JSON","导出 Markdown":"Export Markdown",
+    "开始分析":"Start analysis","停止分析":"Stop analysis","分析文件夹":"Analyze folder",
+    "拖拽文件夹到此处":"Drop a folder here","或点击选择":"or click to choose","粘贴文本":"Paste text",
+    "复制结果":"Copy result","复制代码":"Copy code"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p = node.parentElement;
+    while(p){
+      var t = p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  var current = 'zh';
+  function applyLang(lang){
+    var d = full();
+    var root = document.documentElement;
+    current = lang;
+    // 翻译 <title>（浏览器标签 / 分享卡片）
+    var rawTitle = document.title;
+    if(lang==='en'){
+      if(d[rawTitle]) document.title = d[rawTitle];
+    } else {
+      var ex = window.NANO_I18N_EXTRA || {};
+      for(var _k in ex){ if(ex[_k] === rawTitle){ document.title = _k; break; } }
+    }
+    if(lang==='en'){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n = w.nextNode()){ n.__zh = n.nodeValue; n.nodeValue = d[n.nodeValue.trim()]; }
+      // 整元素翻译（hero 含子结构，如彩色词 <span>）
+      var els = root.querySelectorAll('[data-i18n-html]');
+      for(var ei=0; ei<els.length; ei++){ var el=els[ei]; if(el.__zhtml===undefined){ el.__zhtml = el.innerHTML; } el.innerHTML = el.getAttribute('data-i18n-html'); }
+    } else {
+      var w2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m = w2.nextNode()){ m.nodeValue = m.__zh; m.__zh = undefined; }
+      // 还原整元素翻译
+      var els2 = root.querySelectorAll('[data-i18n-html]');
+      for(var ej=0; ej<els2.length; ej++){ var el2=els2[ej]; if(el2.__zhtml!==undefined){ el2.innerHTML = el2.__zhtml; el2.__zhtml = undefined; } }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en' ? 'zh' : 'en');
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand = document.createElement('a');
+    brand.id = 'nano-brand';
+    brand.href = 'https://wangzifan396-wzf.github.io/WB/';
+    brand.target = '_blank';
+    brand.rel = 'noopener';
+    brand.textContent = 'nano·tools';
+    brand.title = 'nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter = function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave = function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b = document.createElement('button');
+    b.id = 'nano-lang-btn';
+    b.title = 'Switch language / 切换语言';
+    b.textContent = 'EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter = function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave = function(){ b.style.transform='none'; };
+    b.onclick = toggle;
+    bar.appendChild(brand);
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved = localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved = ((navigator.language||'zh').slice(0,2).toLowerCase()==='en') ? 'en' : 'zh'; }
+    applyLang(saved);
+    mountBtn();
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (saved==='en'?'中':'EN');
+    // 捕获渲染后注入的静态文本（动态节点）
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+
+</script>
+<!-- nano-i18n:end -->
+</body>
+</html>

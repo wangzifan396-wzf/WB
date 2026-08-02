@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>RagForge — RAG 分块规划器：token 估算、重叠切分、上下文预算与向量化成本测算。</title>
+<meta property="og:title" content="RagForge">
+<meta property="og:description" content="RAG 分块与上下文预算规划器，含成本测算，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="RAG 分块与上下文预算规划器，含成本测算，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>RagForge</h1>
+  <p class="sub">RAG 规划：中英混排 token 估算、分块步长与冗余率、上下文窗口预算分配、Embedding 成本（USD/CNY）测算 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>语料文本（用于估算 token，可留空并直接填总量）</label>
+<textarea id="text" rows="4">nano-tools 是一套单文件、零依赖、离线优先的网页工具矩阵。每个工具都是独立 HTML，数据处理全部在浏览器本地完成。</textarea>
+<div class="grid">
+  <div><label>总 token（留空则按上方文本估算）</label><input type="text" id="total" value=""></div>
+  <div><label>分块大小 chunkSize</label><input type="text" id="chunk" value="512"></div>
+  <div><label>重叠 overlap</label><input type="text" id="overlap" value="64"></div>
+  <div><label>检索条数 topK</label><input type="text" id="topk" value="5"></div>
+  <div><label>系统提示 token</label><input type="text" id="prompt" value="800"></div>
+  <div><label>上下文窗口</label><input type="text" id="ctx" value="128000"></div>
+  <div><label>预留输出 token</label><input type="text" id="reserve" value="4000"></div>
+  <div><label>嵌入单价（美元/百万 token）</label><input type="text" id="price" value="0.02"></div>
+</div>
+<div class="row"><button id="calc">计算方案</button></div>
+<div class="err" id="err"></div>
+<div class="out" id="out">分块与预算结果将显示在这里</div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function estimateTokens(text){
+  if(!text) return 0;
+  var s=String(text);
+  var cjk=(s.match(/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/g)||[]).length;
+  var rest=s.length-cjk;
+  return Math.ceil(cjk*1.0 + rest/4);
+}
+function planChunks(totalTokens, chunkSize, overlap){
+  totalTokens=Math.max(0, Math.floor(totalTokens||0));
+  chunkSize=Math.max(1, Math.floor(chunkSize||0));
+  overlap=Math.max(0, Math.floor(overlap||0));
+  if(overlap>=chunkSize) return {error:'overlap 必须小于 chunkSize', count:0, stride:0, redundancy:0};
+  var stride=chunkSize-overlap;
+  if(totalTokens===0) return {error:null, count:0, stride:stride, redundancy:0, lastChunk:0};
+  var count = totalTokens<=chunkSize ? 1 : Math.ceil((totalTokens-overlap)/stride);
+  var covered = count*chunkSize - (count-1)*overlap;
+  var stored = count*chunkSize;
+  var redundancy = totalTokens>0 ? Math.round(((stored/totalTokens)-1)*1000)/10 : 0;
+  var lastChunk = totalTokens<=chunkSize ? totalTokens : totalTokens-(count-1)*stride;
+  return {error:null, count:count, stride:stride, covered:covered, stored:stored, redundancy:redundancy, lastChunk:lastChunk};
+}
+function contextBudget(chunkSize, topK, promptTokens, maxContext, reserveOutput){
+  chunkSize=Math.max(0,Math.floor(chunkSize||0));
+  topK=Math.max(0,Math.floor(topK||0));
+  promptTokens=Math.max(0,Math.floor(promptTokens||0));
+  maxContext=Math.max(1,Math.floor(maxContext||0));
+  reserveOutput=Math.max(0,Math.floor(reserveOutput||0));
+  var retrieved=chunkSize*topK;
+  var used=retrieved+promptTokens;
+  var available=maxContext-reserveOutput;
+  var fits=used<=available;
+  var maxTopK = chunkSize>0 ? Math.max(0, Math.floor((available-promptTokens)/chunkSize)) : 0;
+  return {retrieved:retrieved, used:used, available:available, fits:fits,
+          headroom:available-used, utilization:Math.round((used/available)*1000)/10, maxTopK:maxTopK};
+}
+function embedCost(chunkCount, chunkSize, pricePerMillion){
+  var tokens=Math.max(0,chunkCount||0)*Math.max(0,chunkSize||0);
+  var usd=(tokens/1000000)*(pricePerMillion||0);
+  return {tokens:tokens, usd:Math.round(usd*1000000)/1000000, cny:Math.round(usd*7.2*1000000)/1000000};
+}
+function splitText(text, chunkChars, overlapChars){
+  var s=String(text||'');
+  chunkChars=Math.max(1,Math.floor(chunkChars||0));
+  overlapChars=Math.max(0,Math.floor(overlapChars||0));
+  if(overlapChars>=chunkChars) overlapChars=chunkChars-1;
+  var out=[], stride=chunkChars-overlapChars, i=0;
+  if(s.length===0) return out;
+  while(i<s.length){
+    out.push(s.slice(i, i+chunkChars));
+    if(i+chunkChars>=s.length) break;
+    i+=stride;
+  }
+  return out;
+}
+function recallHint(topK, chunkSize){
+  if(topK<=0) return '未检索任何片段，模型只能靠参数化知识回答';
+  if(chunkSize<128) return '片段过小，语义可能被截断，建议 256-512';
+  if(chunkSize>1500) return '片段过大，噪声高且浪费上下文，建议 512-1024';
+  if(topK<3) return 'topK 偏低，召回可能不足，建议 3-8';
+  if(topK>12) return 'topK 偏高，噪声上升且成本增加，建议 3-8';
+  return '参数处于常见推荐区间';
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { estimateTokens:estimateTokens, planChunks:planChunks, contextBudget:contextBudget, embedCost:embedCost, splitText:splitText, recallHint:recallHint }; }
+if (typeof window !== 'undefined') { window.RagForgePure = { estimateTokens:estimateTokens, planChunks:planChunks, contextBudget:contextBudget, embedCost:embedCost, splitText:splitText, recallHint:recallHint }; }
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.RagForgePure;
+  function num(id,d){ var v=parseFloat($(id).value); return isNaN(v)?d:v; }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function calc(){
+    var total = $('total').value.trim() ? num('total',0) : P.estimateTokens($('text').value);
+    var chunk=num('chunk',512), ov=num('overlap',64), topk=num('topk',5);
+    var plan=P.planChunks(total, chunk, ov);
+    if(plan.error){ $('err').textContent=plan.error; $('out').textContent='—'; return; }
+    $('err').textContent='';
+    var bud=P.contextBudget(chunk, topk, num('prompt',0), num('ctx',128000), num('reserve',0));
+    var cost=P.embedCost(plan.count, chunk, num('price',0));
+    var h='<div class="grid">'
+      +'<div class="kv"><b>语料 token</b><span>'+total+'</span></div>'
+      +'<div class="kv"><b>分块数</b><span>'+plan.count+'</span></div>'
+      +'<div class="kv"><b>步长 stride</b><span>'+plan.stride+'</span></div>'
+      +'<div class="kv"><b>末块 token</b><span>'+plan.lastChunk+'</span></div>'
+      +'<div class="kv"><b>冗余率</b><span>'+plan.redundancy+'%</span></div>'
+      +'<div class="kv"><b>检索占用</b><span>'+bud.retrieved+'</span></div>'
+      +'<div class="kv"><b>总占用 / 可用</b><span>'+bud.used+' / '+bud.available+'</span></div>'
+      +'<div class="kv"><b>窗口利用率</b><span>'+bud.utilization+'%</span></div>'
+      +'<div class="kv"><b>最大可容 topK</b><span>'+bud.maxTopK+'</span></div>'
+      +'<div class="kv"><b>嵌入 token</b><span>'+cost.tokens+'</span></div>'
+      +'<div class="kv"><b>嵌入成本</b><span>$'+cost.usd+' / ¥'+cost.cny+'</span></div>'
+      +'<div class="kv"><b>是否放得下</b><span style="color:'+(bud.fits?'var(--ok)':'var(--warn)')+'">'+(bud.fits?'✓ 是':'✗ 超出')+'</span></div>'
+      +'</div>'
+      +'<div style="margin-top:10px;color:var(--muted);font-size:13px">建议：'+esc(P.recallHint(topk, chunk))+'</div>';
+    $('out').innerHTML=h;
+  }
+  $('calc').addEventListener('click', calc);
+  ['text','total','chunk','overlap','topk','prompt','ctx','reserve','price'].forEach(function(id){
+    $(id).addEventListener('input', calc);
+  });
+  calc();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

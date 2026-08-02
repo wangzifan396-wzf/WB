@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>MerkleForge — 默克尔树构建与证明器：SHA-256 树 + 包含性证明 + 校验</title>
+<meta property="og:title" content="MerkleForge">
+<meta property="og:description" content="默克尔树构建与证明器：SHA-256 树 + 包含性证明 + 校验">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="默克尔树构建与证明器：SHA-256 树 + 包含性证明 + 校验 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>MerkleForge</h1>
+  <p class="sub">默克尔树构建与证明器：SHA-256 树 + 包含性证明 + 校验 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>叶子数据（每行一条记录）</label>
+<textarea id="leaves" rows="6">tx: alice -> bob 10
+tx: bob -> carol 5
+tx: carol -> dave 2
+tx: dave -> alice 1</textarea>
+<label>校验哪一条（行号，从 0 开始）</label>
+<input id="idx" type="number" value="1" min="0">
+<div class="row">
+  <button id="run">构建默克尔树</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">输入叶子后构建</div>
+<script>
+function utf8Bytes(str){
+  var bytes=[];
+  for(var i=0;i<str.length;i++){
+    var c=str.charCodeAt(i);
+    if(c<0x80) bytes.push(c);
+    else if(c<0x800){ bytes.push(0xc0|(c>>6), 0x80|(c&0x3f)); }
+    else if(c>=0xd800 && c<=0xdbff){ var c2=str.charCodeAt(i+1); var cp=0x10000+((c&0x3ff)<<10)+(c2&0x3ff);
+      bytes.push(0xf0|(cp>>18),0x80|((cp>>12)&0x3f),0x80|((cp>>6)&0x3f),0x80|(cp&0x3f)); i++; }
+    else { bytes.push(0xe0|(c>>12),0x80|((c>>6)&0x3f),0x80|(c&0x3f)); }
+  }
+  return bytes;
+}
+var SHA256_K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256(bytes){
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var bitLen=bytes.length*8;
+  var w=bytes.slice(); w.push(0x80);
+  while(w.length%64!==56) w.push(0);
+  w.push(0,0,0,0,(bitLen>>>24)&0xff,(bitLen>>>16)&0xff,(bitLen>>>8)&0xff,bitLen&0xff);
+  function rotr(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }
+  var W=new Array(64);
+  for(var off=0; off<w.length; off+=64){
+    for(var i=0;i<16;i++) W[i]=(w[off+i*4]<<24)|(w[off+i*4+1]<<16)|(w[off+i*4+2]<<8)|w[off+i*4+3];
+    for(var i=16;i<64;i++){ var s0=rotr(W[i-15],7)^rotr(W[i-15],18)^(W[i-15]>>>3);
+      var s1=rotr(W[i-2],17)^rotr(W[i-2],19)^(W[i-2]>>>10); W[i]=(W[i-16]+s0+W[i-7]+s1)>>>0; }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(var i=0;i<64;i++){
+      var S1=rotr(e,6)^rotr(e,11)^rotr(e,25); var ch=(e&f)^((~e)&g);
+      var t1=(h+S1+ch+SHA256_K[i]+W[i])>>>0;
+      var S0=rotr(a,2)^rotr(a,13)^rotr(a,22); var maj=(a&b)^(a&c)^(b&c);
+      var t2=(S0+maj)>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+  }
+  function hx(n){ return ('00000000'+(n>>>0).toString(16)).slice(-8); }
+  return H.map(hx).join('');
+}
+function leafHash(data){ return sha256(utf8Bytes('leaf:'+data)); }
+function nodeHash(l, r){ return sha256(utf8Bytes('node:'+l+r)); }
+function merkleLevels(leaves){
+  if(!leaves.length) throw new Error('EMPTY');
+  var lvl=leaves.map(leafHash), out=[lvl];
+  while(lvl.length>1){
+    var next=[];
+    for(var i=0;i<lvl.length;i+=2){
+      var l=lvl[i], r=(i+1<lvl.length)?lvl[i+1]:lvl[i];
+      next.push(nodeHash(l,r));
+    }
+    lvl=next; out.push(lvl);
+  }
+  return out;
+}
+function merkleRoot(leaves){
+  var lv=merkleLevels(leaves);
+  return lv[lv.length-1][0];
+}
+function merkleProof(leaves, index){
+  if(index<0||index>=leaves.length) throw new Error('INDEX_RANGE');
+  var lv=merkleLevels(leaves), proof=[], idx=index;
+  for(var d=0; d<lv.length-1; d++){
+    var layer=lv[d];
+    var sib=(idx%2===0) ? (idx+1<layer.length?idx+1:idx) : idx-1;
+    proof.push({ hash:layer[sib], right:(idx%2===0) });
+    idx=Math.floor(idx/2);
+  }
+  return proof;
+}
+function merkleVerify(leafData, proof, root){
+  var h=leafHash(leafData);
+  for(var i=0;i<proof.length;i++){
+    h = proof[i].right ? nodeHash(h, proof[i].hash) : nodeHash(proof[i].hash, h);
+  }
+  return h===root;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { leafHash:leafHash, nodeHash:nodeHash, merkleLevels:merkleLevels,
+    merkleRoot:merkleRoot, merkleProof:merkleProof, merkleVerify:merkleVerify, sha256:sha256, utf8Bytes:utf8Bytes };
+}
+if (typeof window !== 'undefined') {
+  window.MerkleForgePure = { leafHash:leafHash, nodeHash:nodeHash, merkleLevels:merkleLevels,
+    merkleRoot:merkleRoot, merkleProof:merkleProof, merkleVerify:merkleVerify };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.MerkleForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      try {
+        var leaves=$('leaves').value.split(/\r?\n/).filter(function(x){return x.trim();});
+        if(!leaves.length) throw new Error('叶子为空');
+        var root=P.merkleRoot(leaves);
+        var idx=Math.min(Number($('idx').value)||0, leaves.length-1);
+        var proof=P.merkleProof(leaves, idx);
+        var okv=P.merkleVerify(leaves[idx], proof, root);
+        var lines=['叶子数: '+leaves.length, 'Merkle Root:', root, '',
+                   '第 '+idx+' 条的证明路径 ('+proof.length+' 步):'];
+        proof.forEach(function(p,i){ lines.push('  '+i+'. '+(p.right?'R':'L')+' '+p.hash.slice(0,16)+'…'); });
+        lines.push('', '校验: '+(okv?'PASS ✓':'FAIL ✗'));
+        $('out').textContent=lines.join('\n');
+      } catch(e){ $('err').textContent=e.message; }
+    });
+    $('clear').addEventListener('click', function(){ $('leaves').value=''; $('out').textContent='输入叶子后构建'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

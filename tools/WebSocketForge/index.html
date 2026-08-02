@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>WebSocketForge — WebSocket 调试台：实时收发与消息模板，外加 RFC 6455 帧开销计算、1000–4999 全量关闭码释义、指数退避重连规划与连接配置体检，断线自愈全过程可见。</title>
+<meta property="og:title" content="WebSocketForge">
+<meta property="og:description" content="WebSocket 调试台：实时收发、子协议协商、模板变量与心跳保活，外加 RFC 6455 帧开销计算、1000–4999 全量关闭码释义、指数退避重连规划与连接配置体检，断线自愈全过程可见，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="WebSocket 调试台：实时收发、子协议协商、模板变量与心跳保活，外加 RFC 6455 帧开销计算、1000–4999 全量关闭码释义、指数退避重连规划与连接配置体检，断线自愈全过程可见，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>WebSocketForge</h1>
+  <p class="sub">WebSocket 调试台 · 帧开销与退避规划</p>
+  <div class="grid">
+    <div><label for="ws_url">连接地址</label><input type="text" id="ws_url" value="wss://echo.websocket.events" spellcheck="false"></div>
+    <div><label for="ws_proto">子协议（逗号分隔，可空）</label><input type="text" id="ws_proto" value="" spellcheck="false"></div>
+  </div>
+  <div class="row">
+    <button id="ws_connect">连接</button>
+    <button id="ws_disconnect" class="ghost">断开</button>
+    <label for="ws_reconnect" style="margin:0"><input type="checkbox" id="ws_reconnect" checked> 自动重连</label>
+    <label for="ws_ping" style="margin:0"><input type="checkbox" id="ws_ping" checked> 心跳 25s</label>
+    <span id="ws_state" class="badge">未连接</span>
+  </div>
+  <div class="err" id="ws_err"></div>
+
+  <label for="ws_msg">发送内容（支持 {{seq}} {{ts}} {{iso}} {{uuid}} {{rand:1-100}}）</label>
+  <textarea id="ws_msg" rows="3" spellcheck="false">{"type":"ping","seq":{{seq}},"at":"{{iso}}"}</textarea>
+  <div class="row">
+    <button id="ws_send">发送</button>
+    <button id="ws_auto" class="ghost">定时发送 1s</button>
+    <button id="ws_clear" class="ghost">清空日志</button>
+    <button id="ws_export" class="ghost">导出 JSON</button>
+  </div>
+
+  <label>消息日志</label>
+  <div class="out" id="ws_log" style="max-height:260px;overflow:auto;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"></div>
+
+  <label>会话统计</label>
+  <div class="grid" id="ws_stats"></div>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <h2 style="font-size:16px;margin:0 0 4px">离线分析器</h2>
+  <p class="sub">下面四块不需要连接，纯本地计算。</p>
+
+  <div class="grid">
+    <div>
+      <label for="ws_fo_size">帧开销：载荷字节数</label>
+      <input type="text" id="ws_fo_size" value="12">
+    </div>
+    <div>
+      <label for="ws_fo_mask" style="margin-top:14px"><input type="checkbox" id="ws_fo_mask" checked> 客户端掩码（浏览器发出的帧必带）</label>
+      <div class="out" id="ws_fo_out"></div>
+    </div>
+  </div>
+
+  <label for="ws_code">关闭码查询（1000–4999）</label>
+  <input type="text" id="ws_code" value="1006">
+  <div class="out" id="ws_code_out"></div>
+
+  <div class="grid">
+    <div><label for="ws_bo_base">退避基数 ms</label><input type="text" id="ws_bo_base" value="500"></div>
+    <div><label for="ws_bo_factor">倍率</label><input type="text" id="ws_bo_factor" value="2"></div>
+    <div><label for="ws_bo_max">上限 ms</label><input type="text" id="ws_bo_max" value="30000"></div>
+    <div><label for="ws_bo_jitter">抖动策略</label><select id="ws_bo_jitter">
+      <option value="full">full（推荐）</option><option value="equal">equal</option>
+      <option value="decorr">decorrelated</option><option value="none">none</option>
+    </select></div>
+  </div>
+  <div class="out" id="ws_bo_out"></div>
+
+  <label>连接配置体检</label>
+  <div class="out" id="ws_lint"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 353 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var CLOSE_CODES = {
+  1000:{name:'Normal Closure', kind:'normal', desc:'正常关闭：连接已完成其目的。'},
+  1001:{name:'Going Away', kind:'normal', desc:'端点离开：服务器关停或浏览器离开页面。'},
+  1002:{name:'Protocol Error', kind:'error', desc:'协议错误：收到不符合 RFC 6455 的帧。'},
+  1003:{name:'Unsupported Data', kind:'error', desc:'数据类型不受支持，例如只收文本却收到二进制帧。'},
+  1004:{name:'Reserved', kind:'reserved', desc:'保留码，规范未定义，不得在实际连接中使用。'},
+  1005:{name:'No Status Received', kind:'reserved', desc:'保留码：对端未给出状态码，不可主动发送。'},
+  1006:{name:'Abnormal Closure', kind:'reserved', desc:'保留码：连接异常中断且无 Close 帧，常见于断网、代理空闲超时、TLS 失败。'},
+  1007:{name:'Invalid Payload Data', kind:'error', desc:'载荷与消息类型不符，例如文本帧不是合法 UTF-8。'},
+  1008:{name:'Policy Violation', kind:'error', desc:'违反策略：通用兜底码，常被用于鉴权失败。'},
+  1009:{name:'Message Too Big', kind:'error', desc:'消息超过端点可处理的大小上限。'},
+  1010:{name:'Mandatory Extension', kind:'error', desc:'客户端要求的扩展未被服务端协商成功。'},
+  1011:{name:'Internal Error', kind:'error', desc:'服务端遇到意外情况，无法完成请求。'},
+  1012:{name:'Service Restart', kind:'error', desc:'服务重启中，建议客户端退避后重连。'},
+  1013:{name:'Try Again Later', kind:'error', desc:'服务过载或限流，建议延迟重连。'},
+  1014:{name:'Bad Gateway', kind:'error', desc:'网关从上游服务器收到无效响应。'},
+  1015:{name:'TLS Handshake', kind:'reserved', desc:'保留码：TLS 握手失败，不可在 Close 帧中发送。'}
+};
+
+function explainClose(code){
+  var c = Number(code);
+  if(!isFinite(c)) return {code:code, name:'Invalid', kind:'error', desc:'不是合法数字。', sendable:false};
+  if(CLOSE_CODES[c]){
+    var e = CLOSE_CODES[c];
+    return {code:c, name:e.name, kind:e.kind, desc:e.desc, sendable:(e.kind!=='reserved' && c!==1004)};
+  }
+  if(c>=3000 && c<=3999) return {code:c, name:'Registered', kind:'app', desc:'3000–3999：向 IANA 注册的库/框架专用状态码。', sendable:true};
+  if(c>=4000 && c<=4999) return {code:c, name:'Private', kind:'app', desc:'4000–4999：应用私有状态码，收发双方自行约定。', sendable:true};
+  if(c>=1016 && c<=2999) return {code:c, name:'Unassigned', kind:'reserved', desc:'1016–2999 为规范保留区间，未分配，不应使用。', sendable:false};
+  return {code:c, name:'Out of range', kind:'error', desc:'超出 WebSocket 状态码有效范围（1000–4999）。', sendable:false};
+}
+
+function parseWsUrl(raw){
+  var s = String(raw==null?'':raw).trim();
+  if(!s) return {ok:false, error:'地址为空'};
+  var m = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(s);
+  if(!m) return {ok:false, error:'缺少协议头，应以 ws:// 或 wss:// 开头'};
+  var scheme = m[1].toLowerCase();
+  var upgraded = null;
+  if(scheme==='http'){ upgraded='ws'; }
+  else if(scheme==='https'){ upgraded='wss'; }
+  else if(scheme!=='ws' && scheme!=='wss'){
+    return {ok:false, error:'不支持的协议 '+scheme+'://，WebSocket 只接受 ws:// 或 wss://'};
+  }
+  var eff = upgraded || scheme;
+  var rest = s.slice(m[0].length);
+  if(!rest) return {ok:false, error:'缺少主机名'};
+  var hash = '';
+  var hi = rest.indexOf('#');
+  if(hi>=0){ hash = rest.slice(hi+1); rest = rest.slice(0,hi); }
+  var query = '';
+  var qi = rest.indexOf('?');
+  if(qi>=0){ query = rest.slice(qi+1); rest = rest.slice(0,qi); }
+  var path = '/';
+  var pi = rest.indexOf('/');
+  if(pi>=0){ path = rest.slice(pi) || '/'; rest = rest.slice(0,pi); }
+  var authority = rest;
+  var userinfo = '';
+  var ai = authority.lastIndexOf('@');
+  if(ai>=0){ userinfo = authority.slice(0,ai); authority = authority.slice(ai+1); }
+  var host = authority, port = null;
+  if(authority.charAt(0)==='['){
+    var rb = authority.indexOf(']');
+    if(rb<0) return {ok:false, error:'IPv6 字面量缺少右方括号'};
+    host = authority.slice(0, rb+1);
+    var tail = authority.slice(rb+1);
+    if(tail){
+      if(tail.charAt(0)!==':') return {ok:false, error:'IPv6 地址后只能跟 :端口'};
+      port = tail.slice(1);
+    }
+  } else {
+    var ci = authority.indexOf(':');
+    if(ci>=0){ host = authority.slice(0,ci); port = authority.slice(ci+1); }
+  }
+  if(!host) return {ok:false, error:'缺少主机名'};
+  if(port!==null && port!==''){
+    if(!/^[0-9]+$/.test(port)) return {ok:false, error:'端口不是数字：'+port};
+    var pn = parseInt(port,10);
+    if(pn<1 || pn>65535) return {ok:false, error:'端口超出范围 1–65535：'+pn};
+    port = pn;
+  } else if(port===''){
+    return {ok:false, error:'冒号后缺少端口号'};
+  }
+  var secure = (eff==='wss');
+  var defPort = secure ? 443 : 80;
+  var effPort = (port===null) ? defPort : port;
+  var normalized = eff+'://'+host+((port===null||port===defPort)?'':(':'+port))+path+(query?('?'+query):'');
+  return {ok:true, scheme:eff, secure:secure, host:host, port:port, effectivePort:effPort,
+          defaultPort:(port===null), path:path, query:query, hash:hash, userinfo:userinfo,
+          normalized:normalized, upgradedFrom:(upgraded?scheme:null)};
+}
+
+function parseSubprotocols(raw){
+  var s = String(raw==null?'':raw).trim();
+  var out = {list:[], invalid:[], duplicates:[]};
+  if(!s) return out;
+  var seen = {};
+  s.split(',').forEach(function(part){
+    var t = part.trim();
+    if(!t) return;
+    if(!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(t)){ out.invalid.push(t); return; }
+    if(seen[t]){ out.duplicates.push(t); return; }
+    seen[t]=1; out.list.push(t);
+  });
+  return out;
+}
+
+function utf8Length(s){
+  var str = String(s==null?'':s), n = 0;
+  for(var i=0;i<str.length;i++){
+    var c = str.charCodeAt(i);
+    if(c<0x80) n+=1;
+    else if(c<0x800) n+=2;
+    else if(c>=0xD800 && c<=0xDBFF && i+1<str.length){
+      var d = str.charCodeAt(i+1);
+      if(d>=0xDC00 && d<=0xDFFF){ n+=4; i++; }
+      else n+=3;
+    }
+    else n+=3;
+  }
+  return n;
+}
+
+function frameOverhead(payloadLen, masked){
+  var n = Math.max(0, Math.floor(Number(payloadLen)||0));
+  var header = 2;
+  var lenField = '7 位内联';
+  if(n>65535){ header += 8; lenField='7+64 位扩展'; }
+  else if(n>125){ header += 2; lenField='7+16 位扩展'; }
+  var mask = masked ? 4 : 0;
+  var total = header + mask + n;
+  return {payload:n, headerBytes:header, maskBytes:mask, overhead:header+mask, total:total,
+          lenField:lenField, ratio:(n>0 ? (header+mask)/n : null)};
+}
+
+function backoff(attempt, opts){
+  var o = opts||{};
+  var base = Number(o.base!==undefined?o.base:500);
+  var factor = Number(o.factor!==undefined?o.factor:2);
+  var max = Number(o.max!==undefined?o.max:30000);
+  var jitter = (o.jitter===undefined) ? 'full' : o.jitter;
+  var a = Math.max(0, Math.floor(Number(attempt)||0));
+  var raw = base * Math.pow(factor, a);
+  var capped = Math.min(max, raw);
+  var lo = capped, hi = capped;
+  if(jitter==='full'){ lo = 0; hi = capped; }
+  else if(jitter==='equal'){ lo = capped/2; hi = capped; }
+  else if(jitter==='decorr'){ lo = base; hi = Math.min(max, capped*3); }
+  return {attempt:a, raw:raw, capped:capped, min:Math.round(lo), max:Math.round(hi),
+          expected:Math.round((lo+hi)/2), jitter:jitter};
+}
+
+function backoffSchedule(count, opts){
+  var n = Math.max(0, Math.floor(Number(count)||0));
+  var out = [], acc = 0;
+  for(var i=0;i<n;i++){
+    var b = backoff(i, opts);
+    acc += b.expected;
+    b.cumulative = acc;
+    out.push(b);
+  }
+  return out;
+}
+
+function applyTemplate(tpl, ctx){
+  var c = ctx||{};
+  var seq = (c.seq===undefined) ? 1 : c.seq;
+  var ts = (c.ts===undefined) ? 0 : c.ts;
+  var rnd = (typeof c.rand === 'function') ? c.rand : function(){ return 0.5; };
+  return String(tpl==null?'':tpl).replace(/\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*(?::\s*([^}]*))?\}\}/g, function(all, key, arg){
+    switch(key){
+      case 'seq': return String(seq);
+      case 'ts': return String(ts);
+      case 'iso': return new Date(ts).toISOString();
+      case 'rand': {
+        var lo = 0, hi = 100;
+        if(arg){ var p = String(arg).split('-'); if(p.length===2){ lo=Number(p[0])||0; hi=Number(p[1])||0; } }
+        return String(Math.floor(lo + rnd()*(hi-lo+1)));
+      }
+      case 'uuid': {
+        var hex = '0123456789abcdef', s = '';
+        for(var i=0;i<32;i++){ s += hex.charAt(Math.floor(rnd()*16)) ; }
+        return s.slice(0,8)+'-'+s.slice(8,12)+'-4'+s.slice(13,16)+'-a'+s.slice(17,20)+'-'+s.slice(20,32);
+      }
+      default: return all;
+    }
+  });
+}
+
+function classifyMessage(data){
+  if(data==null) return {kind:'empty', size:0, pretty:''};
+  if(typeof data !== 'string'){
+    var len = (data.byteLength!==undefined) ? data.byteLength : (data.size!==undefined ? data.size : 0);
+    return {kind:'binary', size:len, pretty:'<binary '+len+' bytes>'};
+  }
+  var size = utf8Length(data);
+  var t = data.trim();
+  if(t && (t.charAt(0)==='{' || t.charAt(0)==='[')){
+    try{
+      var v = JSON.parse(t);
+      return {kind:'json', size:size, pretty:JSON.stringify(v, null, 2), value:v};
+    }catch(e){ /* fallthrough */ }
+  }
+  return {kind:'text', size:size, pretty:data};
+}
+
+function formatBytes(n){
+  var v = Number(n)||0;
+  if(v<1024) return v+' B';
+  if(v<1024*1024) return (v/1024).toFixed(1)+' KB';
+  return (v/1048576).toFixed(2)+' MB';
+}
+
+function pingStats(rtts){
+  var a = (rtts||[]).map(Number).filter(function(x){ return isFinite(x); }).slice().sort(function(x,y){ return x-y; });
+  if(!a.length) return {count:0};
+  var sum = 0; a.forEach(function(x){ sum+=x; });
+  var avg = sum/a.length;
+  var jit = 0;
+  for(var i=1;i<a.length;i++) jit += Math.abs(a[i]-a[i-1]);
+  var idx = Math.min(a.length-1, Math.ceil(a.length*0.95)-1);
+  return {count:a.length, min:a[0], max:a[a.length-1], avg:Math.round(avg*100)/100,
+          p50:a[Math.floor((a.length-1)/2)], p95:a[Math.max(0,idx)],
+          jitter: a.length>1 ? Math.round((jit/(a.length-1))*100)/100 : 0};
+}
+
+function stats(log){
+  var l = log||[];
+  var s = {total:l.length, sent:0, recv:0, sentBytes:0, recvBytes:0, wireBytes:0, errors:0, first:null, last:null};
+  l.forEach(function(e){
+    if(e.dir==='out'){ s.sent++; s.sentBytes += (e.size||0); s.wireBytes += frameOverhead(e.size||0, true).total; }
+    else if(e.dir==='in'){ s.recv++; s.recvBytes += (e.size||0); s.wireBytes += frameOverhead(e.size||0, false).total; }
+    if(e.kind==='error') s.errors++;
+    if(e.t!==undefined){
+      if(s.first===null || e.t<s.first) s.first = e.t;
+      if(s.last===null || e.t>s.last) s.last = e.t;
+    }
+  });
+  s.durationMs = (s.first!==null && s.last!==null) ? (s.last-s.first) : 0;
+  s.msgPerSec = s.durationMs>0 ? Math.round((s.total/(s.durationMs/1000))*100)/100 : 0;
+  s.payloadBytes = s.sentBytes + s.recvBytes;
+  s.overheadBytes = s.wireBytes - s.payloadBytes;
+  return s;
+}
+
+function lint(cfg){
+  var c = cfg||{};
+  var out = [];
+  function add(level, msg){ out.push({level:level, msg:msg}); }
+  var u = parseWsUrl(c.url||'');
+  if(!u.ok){ add('error', '地址无效：'+u.error); }
+  else {
+    if(u.upgradedFrom) add('info', '已自动把 '+u.upgradedFrom+':// 升级为 '+u.scheme+'://。');
+    if(!u.secure){
+      add('warn', '使用明文 ws://：页面若通过 HTTPS 打开，浏览器会以混合内容为由直接拒绝连接。');
+      if(u.host!=='localhost' && u.host!=='127.0.0.1' && u.host!=='[::1]')
+        add('warn', '明文 WebSocket 在公网上可被中间人读取与篡改，建议改用 wss://。');
+    }
+    if(u.userinfo) add('warn', 'URL 中的 user:pass@ 认证信息会被浏览器忽略，且可能泄露到日志，请改用子协议或首条消息鉴权。');
+    if(u.query && /token|key|secret|auth|password/i.test(u.query))
+      add('warn', '查询串里疑似包含凭据：URL 会进入代理与服务端访问日志，建议连上后用消息体传递。');
+  }
+  var sp = parseSubprotocols(c.subprotocols||'');
+  sp.invalid.forEach(function(t){ add('error', '子协议名含非法字符（须为 RFC 7230 token）："'+t+'"'); });
+  sp.duplicates.forEach(function(t){ add('warn', '子协议重复："'+t+'"'); });
+
+  var ka = Number(c.pingInterval||0);
+  if(!ka) add('warn', '未启用心跳：多数反向代理（Nginx 默认 60s、多数云网关 60–350s）会静默切断空闲连接，表现为 1006。');
+  else if(ka>60000) add('warn', '心跳间隔 '+Math.round(ka/1000)+'s 偏长，可能仍会被 60s 空闲超时的代理切断。');
+
+  if(!c.reconnect) add('warn', '未开启自动重连：WebSocket 断开后不会自愈，生产环境应配合指数退避重连。');
+  else {
+    var b = c.backoff||{};
+    if((b.jitter||'full')==='none') add('warn', '退避未加抖动：服务重启后大量客户端会在同一毫秒重连，形成惊群。');
+    if(Number(b.max||0) > 300000) add('info', '退避上限超过 5 分钟，注意与业务可接受的恢复时延对齐。');
+  }
+  var pl = Number(c.payloadSize||0);
+  if(pl > 1048576) add('warn', '单条消息超过 1 MB：许多网关默认帧上限为 1 MB（如 API Gateway 128 KB），易触发 1009。');
+  if(pl > 0 && pl <= 4){
+    var fo = frameOverhead(pl, true);
+    add('info', '载荷仅 '+pl+' 字节，掩码帧头就占 '+fo.overhead+' 字节，开销率 '+Math.round(fo.ratio*100)+'%，高频小包建议合并批量发送。');
+  }
+  return out;
+}
+
+var WebSocketForgePure = {
+  CLOSE_CODES:CLOSE_CODES, explainClose:explainClose, parseWsUrl:parseWsUrl,
+  parseSubprotocols:parseSubprotocols, utf8Length:utf8Length, frameOverhead:frameOverhead,
+  backoff:backoff, backoffSchedule:backoffSchedule, applyTemplate:applyTemplate,
+  classifyMessage:classifyMessage, formatBytes:formatBytes, pingStats:pingStats,
+  stats:stats, lint:lint
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = WebSocketForgePure;
+if (typeof window !== 'undefined') window.WebSocketForgePure = WebSocketForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.WebSocketForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  var sock=null, log=[], seq=0, autoTimer=null, pingTimer=null, reconnTimer=null, attempt=0, manualClose=false;
+  var LEVEL_COLOR={error:'var(--warn)', warn:'var(--warn)', info:'var(--muted)'};
+
+  function setState(txt, cls){
+    var el=$('ws_state'); el.textContent=txt;
+    el.style.background = cls==='on' ? 'var(--ok)' : (cls==='wait' ? 'var(--warn)' : 'var(--surface)');
+    el.style.color = cls ? '#0A0A0B' : 'var(--muted)';
+    el.style.borderColor = cls ? 'transparent' : 'var(--line)';
+  }
+  function push(dir, kind, text, size){
+    log.push({t:Date.now(), dir:dir, kind:kind, text:text, size:size||0});
+    if(log.length>500) log.shift();
+    renderLog(); renderStats();
+  }
+  function renderLog(){
+    var box=$('ws_log');
+    if(!log.length){ box.innerHTML='<span style="color:var(--dim)">暂无消息。连接后收发的每一帧都会带方向、时间与字节数记录在这里。</span>'; return; }
+    var h=log.slice(-200).map(function(e){
+      var time=new Date(e.t).toTimeString().slice(0,8);
+      var color = e.kind==='error' ? 'var(--warn)' : (e.dir==='out' ? 'var(--accent)' : (e.dir==='in' ? 'var(--ok)' : 'var(--dim)'));
+      var arrow = e.dir==='out' ? '&uarr;' : (e.dir==='in' ? '&darr;' : '&bull;');
+      var sz = e.size ? ('  <span style="color:var(--dim)">'+P.formatBytes(e.size)+'</span>') : '';
+      return '<div><span style="color:var(--dim)">'+time+'</span> <span style="color:'+color+'">'+arrow+'</span> '+
+             '<span style="white-space:pre-wrap">'+esc(e.text)+'</span>'+sz+'</div>';
+    }).join('');
+    box.innerHTML=h;
+    box.scrollTop=box.scrollHeight;
+  }
+  function renderStats(){
+    var s=P.stats(log);
+    var rows=[['消息总数',s.total],['发送 / 接收',s.sent+' / '+s.recv],
+      ['载荷合计',P.formatBytes(s.payloadBytes)],['线上字节',P.formatBytes(s.wireBytes)],
+      ['帧头开销',P.formatBytes(s.overheadBytes)],['速率',s.msgPerSec+' 条/秒']];
+    $('ws_stats').innerHTML=rows.map(function(r){
+      return '<div class="kv"><b>'+r[0]+'</b><span>'+esc(String(r[1]))+'</span></div>';
+    }).join('');
+  }
+  function readBackoff(){
+    return {base:Number($('ws_bo_base').value)||500, factor:Number($('ws_bo_factor').value)||2,
+            max:Number($('ws_bo_max').value)||30000, jitter:$('ws_bo_jitter').value};
+  }
+  function renderBackoff(){
+    var sch=P.backoffSchedule(8, readBackoff());
+    $('ws_bo_out').innerHTML='<div class="kv"><b>第 N 次重试</b><span>延迟区间 &rarr; 累计</span></div>'+
+      sch.map(function(b){
+        return '<div class="kv"><b>#'+(b.attempt+1)+'</b><span>'+b.min+'–'+b.max+' ms &rarr; '+(b.cumulative/1000).toFixed(1)+'s</span></div>';
+      }).join('');
+    renderLint();
+  }
+  function renderFrame(){
+    var fo=P.frameOverhead($('ws_fo_size').value, $('ws_fo_mask').checked);
+    $('ws_fo_out').innerHTML=
+      '<div class="kv"><b>帧头</b><span>'+fo.headerBytes+' B（'+fo.lenField+'）</span></div>'+
+      '<div class="kv"><b>掩码键</b><span>'+fo.maskBytes+' B</span></div>'+
+      '<div class="kv"><b>总开销</b><span>'+fo.overhead+' B</span></div>'+
+      '<div class="kv"><b>线上总长</b><span>'+fo.total+' B</span></div>'+
+      '<div class="kv"><b>开销占比</b><span>'+(fo.ratio===null?'—':(Math.round(fo.ratio*1000)/10)+'%')+'</span></div>';
+    renderLint();
+  }
+  function renderCode(){
+    var e=P.explainClose($('ws_code').value);
+    var color = e.kind==='normal' ? 'var(--ok)' : (e.kind==='app' ? 'var(--info)' : 'var(--warn)');
+    $('ws_code_out').innerHTML=
+      '<div class="kv"><b>'+esc(String(e.code))+'</b><span style="color:'+color+'">'+esc(e.name)+'</span></div>'+
+      '<div style="color:var(--muted);font-size:13px;margin-top:6px">'+esc(e.desc)+'</div>'+
+      '<div style="color:var(--dim);font-size:12px;margin-top:4px">端点可主动发送：'+(e.sendable?'是':'否（保留码）')+'</div>';
+  }
+  function renderLint(){
+    var issues=P.lint({url:$('ws_url').value, subprotocols:$('ws_proto').value,
+      pingInterval:$('ws_ping').checked?25000:0, reconnect:$('ws_reconnect').checked,
+      backoff:readBackoff(), payloadSize:P.utf8Length($('ws_msg').value)});
+    if(!issues.length){ $('ws_lint').innerHTML='<span style="color:var(--ok)">配置体检通过，没有发现问题。</span>'; return; }
+    $('ws_lint').innerHTML=issues.map(function(i){
+      var tag = i.level==='error' ? '错误' : (i.level==='warn' ? '警告' : '提示');
+      return '<div style="margin:4px 0;font-size:13px"><span style="color:'+(LEVEL_COLOR[i.level]||'var(--muted)')+'">['+tag+']</span> '+esc(i.msg)+'</div>';
+    }).join('');
+  }
+
+  function connect(){
+    if(sock) try{ sock.close(); }catch(e){}
+    var u=P.parseWsUrl($('ws_url').value);
+    if(!u.ok){ $('ws_err').textContent=u.error; return; }
+    $('ws_err').textContent='';
+    if(u.upgradedFrom) $('ws_url').value=u.normalized;
+    var sp=P.parseSubprotocols($('ws_proto').value);
+    manualClose=false;
+    setState('连接中…','wait');
+    if(typeof WebSocket === 'undefined'){ $('ws_err').textContent='当前环境不支持 WebSocket'; setState('未连接',''); return; }
+    try{
+      sock = sp.list.length ? new WebSocket(u.normalized, sp.list) : new WebSocket(u.normalized);
+    }catch(err){ $('ws_err').textContent='创建连接失败：'+err.message; setState('未连接',''); return; }
+    sock.onopen=function(){
+      attempt=0; setState('已连接'+(sock.protocol?(' · '+sock.protocol):''),'on');
+      push('sys','open','已连接 '+u.normalized, 0);
+      if($('ws_ping').checked){
+        clearInterval(pingTimer);
+        pingTimer=setInterval(function(){ if(sock&&sock.readyState===1) sock.send('ping'); }, 25000);
+      }
+    };
+    sock.onmessage=function(ev){
+      var c=P.classifyMessage(ev.data);
+      push('in', c.kind, c.pretty, c.size);
+    };
+    sock.onerror=function(){ push('sys','error','连接出错（浏览器出于安全不暴露细节，请看随后的关闭码）',0); };
+    sock.onclose=function(ev){
+      clearInterval(pingTimer);
+      var e=P.explainClose(ev.code);
+      push('sys','error','连接关闭 '+ev.code+' '+e.name+(ev.reason?(' · '+ev.reason):'')+' — '+e.desc, 0);
+      setState('未连接','');
+      if(!manualClose && $('ws_reconnect').checked){
+        var b=P.backoff(attempt++, readBackoff());
+        var wait=Math.round(b.min + Math.random()*(b.max-b.min));
+        setState('等待重连 '+wait+'ms','wait');
+        push('sys','info','第 '+attempt+' 次重连将在 '+wait+' ms 后发起（'+b.jitter+' 抖动，区间 '+b.min+'–'+b.max+' ms）',0);
+        clearTimeout(reconnTimer);
+        reconnTimer=setTimeout(connect, wait);
+      }
+    };
+  }
+  function disconnect(){
+    manualClose=true; clearTimeout(reconnTimer); clearInterval(pingTimer); clearInterval(autoTimer); autoTimer=null;
+    $('ws_auto').textContent='定时发送 1s';
+    if(sock){ try{ sock.close(1000,'client done'); }catch(e){} }
+    setState('未连接','');
+  }
+  function send(){
+    var body=P.applyTemplate($('ws_msg').value, {seq:++seq, ts:Date.now(), rand:Math.random});
+    if(!sock || sock.readyState!==1){ push('sys','error','未连接，无法发送',0); return; }
+    sock.send(body);
+    push('out','text',body,P.utf8Length(body));
+  }
+
+  $('ws_connect').addEventListener('click', connect);
+  $('ws_disconnect').addEventListener('click', disconnect);
+  $('ws_send').addEventListener('click', send);
+  $('ws_auto').addEventListener('click', function(){
+    if(autoTimer){ clearInterval(autoTimer); autoTimer=null; this.textContent='定时发送 1s'; }
+    else { autoTimer=setInterval(send,1000); this.textContent='停止定时发送'; }
+  });
+  $('ws_clear').addEventListener('click', function(){ log=[]; renderLog(); renderStats(); });
+  $('ws_export').addEventListener('click', function(){
+    var payload=JSON.stringify({url:$('ws_url').value, stats:P.stats(log), log:log}, null, 2);
+    try{
+      var blob=new Blob([payload],{type:'application/json'});
+      var a=D.createElement('a'); a.href=URL.createObjectURL(blob); a.download='websocket-session.json';
+      D.body.appendChild(a); a.click(); D.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    }catch(e){ $('ws_err').textContent='导出失败：'+e.message; }
+  });
+  ['ws_fo_size','ws_fo_mask'].forEach(function(id){
+    $(id).addEventListener('input', renderFrame); $(id).addEventListener('change', renderFrame);
+  });
+  $('ws_code').addEventListener('input', renderCode);
+  ['ws_bo_base','ws_bo_factor','ws_bo_max','ws_bo_jitter'].forEach(function(id){
+    $(id).addEventListener('input', renderBackoff); $(id).addEventListener('change', renderBackoff);
+  });
+  ['ws_url','ws_proto','ws_msg'].forEach(function(id){ $(id).addEventListener('input', renderLint); });
+  ['ws_reconnect','ws_ping'].forEach(function(id){ $(id).addEventListener('change', renderLint); });
+
+  renderLog(); renderStats(); renderFrame(); renderCode(); renderBackoff();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

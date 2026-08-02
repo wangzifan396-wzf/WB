@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>DepGraphForge — 依赖体检与循环检测：package.json 风险评分 + 模块图拓扑排序。</title>
+<meta property="og:title" content="DepGraphForge">
+<meta property="og:description" content="依赖版本体检与模块循环依赖检测，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="依赖版本体检与模块循环依赖检测，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>DepGraphForge</h1>
+  <p class="sub">依赖分析：package.json 版本范围风险打分（精确/^/~/*）、重复声明检测，模块依赖图循环查找、拓扑排序、扇入扇出与深度指标、Graphviz DOT 导出 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="dgpkg">package.json</label>
+  <textarea id="dgpkg" rows="10">{
+  "name": "demo-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^18.3.1",
+    "lodash": "*",
+    "left-pad": "1.3.0",
+    "some-fork": "git+https://github.com/x/y.git"
+  },
+  "devDependencies": {
+    "vite": "~5.2.0",
+    "react": "^18.3.1"
+  }
+}</textarea>
+  <label for="dggraph">依赖图（每行 <code>模块 -&gt; 依赖1, 依赖2</code>）</label>
+  <textarea id="dggraph" rows="8">app -> ui, api, utils
+ui -> utils, theme
+api -> http, utils
+http -> utils
+theme -> utils
+utils -> logger
+logger -> utils</textarea>
+  <div class="row">
+    <button id="dgrun">分析</button>
+    <button id="dgdot" class="ghost">导出 Graphviz DOT</button>
+  </div>
+  <div class="err" id="dgerr"></div>
+  <div class="out" id="dgout"></div>
+  <div class="out" id="dgtable"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function parseRange(range){
+  var r = String(range == null ? '' : range).trim();
+  if (!r) return { kind:'empty', risk:3, note:'空范围，安装行为不确定' };
+  if (/^(file|link):/.test(r)) return { kind:'file', risk:2, note:'本地路径依赖，CI 上大概率装不上' };
+  if (/^workspace:/.test(r)) return { kind:'workspace', risk:0, note:'工作区内部依赖' };
+  if (/^(git\+|git:|github:|https?:)/.test(r)) return { kind:'git', risk:3, note:'Git 源依赖，无版本锁定与审计' };
+  if (/^npm:/.test(r)) return { kind:'alias', risk:1, note:'别名依赖，注意实际包名' };
+  if (r === '*' || r === 'x' || r === 'latest' || r === '') return { kind:'any', risk:3, note:'任意版本，随时可能被破坏性升级击穿' };
+  if (/^\d+\.\d+\.\d+([-+].*)?$/.test(r)) return { kind:'exact', risk:0, note:'锁定精确版本' };
+  if (/^\^/.test(r)){
+    var m = /^\^(\d+)\./.exec(r);
+    if (m && m[1] === '0') return { kind:'caret0', risk:2, note:'0.x 的 ^ 只锁次版本，社区约定并不可靠' };
+    return { kind:'caret', risk:1, note:'允许次版本与补丁升级' };
+  }
+  if (/^~/.test(r)) return { kind:'tilde', risk:1, note:'仅允许补丁升级' };
+  if (/^\d+\.x$|^\d+$/.test(r)) return { kind:'major', risk:2, note:'只锁主版本，次版本自由跳' };
+  if (/[<>]/.test(r)) return { kind:'range', risk:2, note:'区间范围，解析结果依赖注册表当前状态' };
+  if (/\|\|/.test(r)) return { kind:'union', risk:2, note:'多段并集范围，容易在不同环境解析出不同版本' };
+  return { kind:'other', risk:2, note:'非常规范围表达式' };
+}
+
+function parsePackageJson(text){
+  var obj;
+  try { obj = JSON.parse(String(text == null ? '' : text)); }
+  catch (e){ return { ok:false, error:'JSON 解析失败：' + e.message, deps:[] }; }
+  if (!obj || typeof obj !== 'object') return { ok:false, error:'顶层不是对象', deps:[] };
+  var groups = [['dependencies','runtime'], ['devDependencies','dev'], ['peerDependencies','peer'], ['optionalDependencies','optional']];
+  var deps = [], seen = {};
+  for (var g = 0; g < groups.length; g++){
+    var src = obj[groups[g][0]] || {};
+    for (var k in src){
+      if (!Object.prototype.hasOwnProperty.call(src, k)) continue;
+      var info = parseRange(src[k]);
+      deps.push({ name:k, range:String(src[k]), scope:groups[g][1], kind:info.kind, risk:info.risk, note:info.note });
+      seen[k] = (seen[k] || []).concat(groups[g][1]);
+    }
+  }
+  var dupes = [];
+  for (var n in seen) if (Object.prototype.hasOwnProperty.call(seen, n) && seen[n].length > 1) dupes.push({ name:n, scopes:seen[n] });
+  return {
+    ok:true, error:null, name:obj.name || '', version:obj.version || '',
+    deps:deps, dupes:dupes,
+    hasEngines: !!obj.engines, hasLockScripts: !!(obj.scripts && (obj.scripts.preinstall || obj.scripts.postinstall)),
+    pm: obj.packageManager || ''
+  };
+}
+
+function depReport(pkg){
+  if (!pkg.ok) return { total:0, score:0, buckets:{}, issues:[{level:'bad', msg:pkg.error}] };
+  var deps = pkg.deps, buckets = {}, issues = [], riskSum = 0;
+  for (var i = 0; i < deps.length; i++){
+    buckets[deps[i].kind] = (buckets[deps[i].kind] || 0) + 1;
+    riskSum += deps[i].risk;
+    if (deps[i].risk >= 3) issues.push({ level:'bad', msg:deps[i].name + ' → ' + deps[i].range + '：' + deps[i].note });
+    else if (deps[i].risk === 2) issues.push({ level:'warn', msg:deps[i].name + ' → ' + deps[i].range + '：' + deps[i].note });
+  }
+  for (var d = 0; d < pkg.dupes.length; d++) issues.push({ level:'warn', msg:pkg.dupes[d].name + ' 同时出现在 ' + pkg.dupes[d].scopes.join(' / ') + '，解析优先级容易踩坑' });
+  if (!pkg.pm) issues.push({ level:'warn', msg:'未声明 packageManager 字段，团队成员可能用不同包管理器' });
+  if (pkg.hasLockScripts) issues.push({ level:'warn', msg:'存在 pre/postinstall 脚本，供应链攻击的常见落点' });
+  var runtime = deps.filter(function(x){ return x.scope === 'runtime'; }).length;
+  if (runtime > 40) issues.push({ level:'warn', msg:'运行时依赖 ' + runtime + ' 个，构建体积与审计面都偏大' });
+  var avg = deps.length ? riskSum / deps.length : 0;
+  var score = Math.max(0, Math.round(100 - avg * 22 - pkg.dupes.length * 5 - (pkg.hasLockScripts ? 8 : 0)));
+  return { total:deps.length, runtime:runtime, buckets:buckets, issues:issues, avgRisk:Math.round(avg * 100) / 100, score:score };
+}
+
+function parseGraph(text){
+  var lines = String(text == null ? '' : text).split(/\r?\n/);
+  var edges = [], errors = [];
+  for (var i = 0; i < lines.length; i++){
+    var l = lines[i].trim();
+    if (!l || l.charAt(0) === '#') continue;
+    var parts = l.split(/->|=>/);
+    if (parts.length < 2){ errors.push({ line:i + 1, text:l }); continue; }
+    var from = parts[0].trim();
+    if (!from){ errors.push({ line:i + 1, text:l }); continue; }
+    var tos = parts.slice(1).join('->').split(/[,\s]+/).filter(function(x){ return x; });
+    for (var j = 0; j < tos.length; j++) edges.push({ from:from, to:tos[j] });
+    if (!tos.length) edges.push({ from:from, to:null });
+  }
+  return { edges:edges, errors:errors };
+}
+
+function buildGraph(edges){
+  var adj = {}, indeg = {}, nodes = {};
+  function touch(n){ if (!adj[n]){ adj[n] = []; indeg[n] = 0; nodes[n] = 1; } }
+  for (var i = 0; i < edges.length; i++){
+    var e = edges[i];
+    touch(e.from);
+    if (e.to === null || e.to === undefined) continue;
+    touch(e.to);
+    if (adj[e.from].indexOf(e.to) < 0){ adj[e.from].push(e.to); indeg[e.to]++; }
+  }
+  return { adj:adj, indeg:indeg, names:Object.keys(nodes).sort() };
+}
+
+function findCycles(g){
+  var color = {}, stack = [], cycles = [], seen = {};
+  function dfs(n){
+    color[n] = 1; stack.push(n);
+    var next = g.adj[n] || [];
+    for (var i = 0; i < next.length; i++){
+      var m = next[i];
+      if (color[m] === 1){
+        var idx = stack.indexOf(m);
+        var cyc = stack.slice(idx).concat([m]);
+        var key = cyc.slice().sort().join('|');
+        if (!seen[key]){ seen[key] = 1; cycles.push(cyc); }
+      } else if (!color[m]) dfs(m);
+    }
+    color[n] = 2; stack.pop();
+  }
+  for (var i = 0; i < g.names.length; i++) if (!color[g.names[i]]) dfs(g.names[i]);
+  return cycles;
+}
+
+function topoOrder(g){
+  var indeg = {}, i;
+  for (i = 0; i < g.names.length; i++) indeg[g.names[i]] = g.indeg[g.names[i]] || 0;
+  var queue = g.names.filter(function(n){ return indeg[n] === 0; }).sort(), out = [];
+  while (queue.length){
+    var n = queue.shift();
+    out.push(n);
+    var next = (g.adj[n] || []).slice().sort();
+    for (i = 0; i < next.length; i++){
+      indeg[next[i]]--;
+      if (indeg[next[i]] === 0) queue.push(next[i]);
+    }
+    queue.sort();
+  }
+  return { order:out, complete: out.length === g.names.length };
+}
+
+function depths(g){
+  var memo = {}, guard = {};
+  function walk(n){
+    if (memo[n] !== undefined) return memo[n];
+    if (guard[n]) return 0;
+    guard[n] = 1;
+    var best = 0, next = g.adj[n] || [];
+    for (var i = 0; i < next.length; i++) best = Math.max(best, 1 + walk(next[i]));
+    guard[n] = 0;
+    memo[n] = best;
+    return best;
+  }
+  var out = {};
+  for (var i = 0; i < g.names.length; i++) out[g.names[i]] = walk(g.names[i]);
+  return out;
+}
+
+function metrics(g){
+  var d = depths(g), rows = [];
+  for (var i = 0; i < g.names.length; i++){
+    var n = g.names[i];
+    rows.push({ name:n, fanOut:(g.adj[n] || []).length, fanIn:g.indeg[n] || 0, depth:d[n] });
+  }
+  rows.sort(function(a, b){ return b.fanIn - a.fanIn || b.fanOut - a.fanOut || (a.name < b.name ? -1 : 1); });
+  var maxDepth = 0;
+  for (var k = 0; k < rows.length; k++) maxDepth = Math.max(maxDepth, rows[k].depth);
+  var leaves = rows.filter(function(r){ return r.fanOut === 0; }).length;
+  var roots = rows.filter(function(r){ return r.fanIn === 0; }).length;
+  var edges = rows.reduce(function(s, r){ return s + r.fanOut; }, 0);
+  return { rows:rows, nodes:rows.length, edges:edges, maxDepth:maxDepth, leaves:leaves, roots:roots,
+           density: rows.length > 1 ? Math.round(edges / (rows.length * (rows.length - 1)) * 1000) / 1000 : 0 };
+}
+
+function analyze(graphText){
+  var p = parseGraph(graphText);
+  var g = buildGraph(p.edges);
+  var cyc = findCycles(g);
+  var topo = topoOrder(g);
+  var mt = metrics(g);
+  var health = 100;
+  health -= cyc.length * 20;
+  if (mt.maxDepth > 8) health -= 10;
+  if (mt.nodes && mt.roots === 0) health -= 15;
+  health -= p.errors.length * 5;
+  return { graph:g, cycles:cyc, topo:topo, metrics:mt, errors:p.errors, health:Math.max(0, health) };
+}
+
+function dotOutput(g, cycles){
+  var inCycle = {};
+  for (var c = 0; c < cycles.length; c++) for (var j = 0; j < cycles[c].length; j++) inCycle[cycles[c][j]] = 1;
+  var out = ['digraph deps {', '  rankdir=LR;', '  node [shape=box, style=rounded];'];
+  for (var i = 0; i < g.names.length; i++){
+    var n = g.names[i];
+    out.push('  "' + n + '"' + (inCycle[n] ? ' [color=red]' : '') + ';');
+  }
+  for (var k = 0; k < g.names.length; k++){
+    var f = g.names[k], next = g.adj[f] || [];
+    for (var t = 0; t < next.length; t++) out.push('  "' + f + '" -> "' + next[t] + '";');
+  }
+  out.push('}');
+  return out.join('\n');
+}
+
+var DepGraphForgePure = {
+  parseRange: parseRange, parsePackageJson: parsePackageJson, depReport: depReport,
+  parseGraph: parseGraph, buildGraph: buildGraph, findCycles: findCycles, topoOrder: topoOrder,
+  depths: depths, metrics: metrics, analyze: analyze, dotOutput: dotOutput
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = DepGraphForgePure;
+if (typeof window !== 'undefined') window.DepGraphForgePure = DepGraphForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.DepGraphForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function run(){
+    var pkg = P.parsePackageJson($('dgpkg').value);
+    var rep = P.depReport(pkg);
+    var a = P.analyze($('dggraph').value);
+    $('dgerr').textContent = pkg.ok ? (a.cycles.length ? ('检出 ' + a.cycles.length + ' 个循环依赖') : '') : pkg.error;
+
+    var html = '<div class="kv"><b>包名 / 版本</b><span>' + esc(pkg.name || '—') + ' · ' + esc(pkg.version || '—') + '</span></div>' +
+      '<div class="kv"><b>依赖总数 / 运行时</b><span>' + rep.total + ' / ' + (rep.runtime || 0) + '</span></div>' +
+      '<div class="kv"><b>平均版本风险</b><span style="color:' + (rep.avgRisk < 1 ? 'var(--ok)' : rep.avgRisk < 2 ? 'var(--warn)' : '#EF4444') + '">' + rep.avgRisk + ' / 3 · 评分 ' + rep.score + '</span></div>' +
+      '<div class="kv"><b>图规模</b><span>' + a.metrics.nodes + ' 节点 · ' + a.metrics.edges + ' 边 · 最深 ' + a.metrics.maxDepth + ' 层</span></div>' +
+      '<div class="kv"><b>拓扑可排序</b><span style="color:' + (a.topo.complete ? 'var(--ok)' : 'var(--warn)') + '">' + (a.topo.complete ? '是' : '否（存在环）') + ' · 健康度 ' + a.health + '</span></div>';
+    for (var c = 0; c < a.cycles.length; c++){
+      html += '<div style="color:var(--warn);font-size:13px;margin-top:6px">↺ ' + esc(a.cycles[c].join(' → ')) + '</div>';
+    }
+    for (var i = 0; i < rep.issues.length && i < 20; i++){
+      var it = rep.issues[i];
+      html += '<div style="font-size:13px;margin-top:6px;color:' + (it.level === 'bad' ? 'var(--warn)' : 'var(--muted)') + '">• ' + esc(it.msg) + '</div>';
+    }
+    $('dgout').innerHTML = html;
+
+    var rows = a.metrics.rows, tb = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted)"><th style="text-align:left;padding:4px 0">模块</th><th style="text-align:right">被依赖</th><th style="text-align:right">依赖</th><th style="text-align:right">深度</th></tr>';
+    var maxIn = 1;
+    for (var k = 0; k < rows.length; k++) maxIn = Math.max(maxIn, rows[k].fanIn);
+    for (var r = 0; r < rows.length; r++){
+      var x = rows[r], w = Math.round(x.fanIn / maxIn * 100);
+      tb += '<tr><td style="padding:3px 0"><span style="display:inline-block;width:' + w + '%;max-width:60%;height:3px;background:var(--accent);vertical-align:middle;margin-right:6px;border-radius:2px"></span>' + esc(x.name) + '</td><td style="text-align:right">' + x.fanIn + '</td><td style="text-align:right;color:var(--muted)">' + x.fanOut + '</td><td style="text-align:right;color:var(--dim)">' + x.depth + '</td></tr>';
+    }
+    $('dgtable').innerHTML = tb + '</table>';
+  }
+
+  function dot(){
+    var a = P.analyze($('dggraph').value);
+    $('dgtable').innerHTML = '<pre style="white-space:pre-wrap;margin:0;font-size:12px">' + esc(P.dotOutput(a.graph, a.cycles)) + '</pre>';
+  }
+
+  $('dgrun').addEventListener('click', run);
+  $('dgdot').addEventListener('click', dot);
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

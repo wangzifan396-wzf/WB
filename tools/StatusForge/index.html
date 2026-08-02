@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StatusForge — 离线 HTTP 状态码速查：1xx–5xx 搜索与分类</title>
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.preview{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;justify-content:center;align-items:center;min-height:90px}
+.preview svg{max-width:100%}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.big{font:40px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
+.kv{color:var(--muted);font-size:13px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线 HTTP 状态码速查：覆盖 1xx–5xx 共 60+ 状态码，支持数字 / 关键词搜索与分类筛选。">
+</head>
+<body>
+<div class="app">
+  <h1>StatusForge</h1>
+  <p class="sub">离线 HTTP 状态码速查：1xx–5xx 搜索与分类 · 单文件 · 零依赖 · 本地优先</p>
+
+<style>
+.item{border:1px solid var(--line);border-left-width:3px;border-radius:8px;padding:8px 12px;margin-bottom:8px;cursor:pointer}
+.item:hover{background:var(--surface)}
+.item b{font:15px/1 ui-monospace,Menlo,Consolas,monospace;color:var(--fg)}
+.item .nm{color:var(--muted);margin-left:6px}
+.item .ds{color:var(--dim);font-size:12px}
+.empty{color:var(--dim);font-size:13px;padding:8px}
+#cnt{color:var(--muted);font-size:13px;margin-top:6px}
+</style>
+<label for="q">搜索（状态码数字，或名称 / 含义关键词）</label>
+<input id="q" type="text" placeholder="如 404 / not found / redirect">
+<div class="row">
+  <select id="cat">
+    <option value="全部">全部类别</option>
+    <option value="信息">1xx 信息</option>
+    <option value="成功">2xx 成功</option>
+    <option value="重定向">3xx 重定向</option>
+    <option value="客户端错误">4xx 客户端错误</option>
+    <option value="服务器错误">5xx 服务器错误</option>
+  </select>
+  <span id="cnt"></span>
+</div>
+<label>结果（点击任意条目复制状态码）</label>
+<div id="list"></div>
+<script>
+var STATUS = {
+ 100:{n:'Continue',d:'请求已收到，继续处理'},
+ 101:{n:'Switching Protocols',d:'切换协议（如升级 WebSocket）'},
+ 102:{n:'Processing',d:'WebDAV：正在处理'},
+ 103:{n:'Early Hints',d:'响应头提前推送（103）'},
+ 200:{n:'OK',d:'请求成功'},
+ 201:{n:'Created',d:'已创建资源'},
+ 202:{n:'Accepted',d:'已接受待处理'},
+ 203:{n:'Non-Authoritative',d:'非权威信息'},
+ 204:{n:'No Content',d:'成功但无返回内容'},
+ 205:{n:'Reset Content',d:'重置内容'},
+ 206:{n:'Partial Content',d:'分片下载 / 范围请求'},
+ 207:{n:'Multi-Status',d:'WebDAV：多状态'},
+ 208:{n:'Already Reported',d:'WebDAV：已报告'},
+ 226:{n:'IM Used',d:'实例操作已应用'},
+ 300:{n:'Multiple Choices',d:'多路选择'},
+ 301:{n:'Moved Permanently',d:'永久重定向'},
+ 302:{n:'Found',d:'临时重定向（语义混用）'},
+ 303:{n:'See Other',d:'见其它位置（POST→GET）'},
+ 304:{n:'Not Modified',d:'缓存未变更'},
+ 305:{n:'Use Proxy',d:'已废弃：需经代理'},
+ 307:{n:'Temporary Redirect',d:'临时重定向（方法不变）'},
+ 308:{n:'Permanent Redirect',d:'永久重定向（方法不变）'},
+ 400:{n:'Bad Request',d:'请求语法错误'},
+ 401:{n:'Unauthorized',d:'未认证'},
+ 402:{n:'Payment Required',d:'预留：需付费'},
+ 403:{n:'Forbidden',d:'无权限（已认证但拒绝）'},
+ 404:{n:'Not Found',d:'资源不存在'},
+ 405:{n:'Method Not Allowed',d:'方法不被允许'},
+ 406:{n:'Not Acceptable',d:'无法生成可接受响应'},
+ 407:{n:'Proxy Auth Required',d:'需代理认证'},
+ 408:{n:'Request Timeout',d:'请求超时'},
+ 409:{n:'Conflict',d:'资源冲突（如 PUT 版本）'},
+ 410:{n:'Gone',d:'资源已永久删除'},
+ 411:{n:'Length Required',d:'需 Content-Length'},
+ 412:{n:'Precondition Failed',d:'前置条件失败'},
+ 413:{n:'Payload Too Large',d:'负载过大'},
+ 414:{n:'URI Too Long',d:'URI 过长'},
+ 415:{n:'Unsupported Media',d:'媒体类型不支持'},
+ 416:{n:'Range Not Satisfiable',d:'范围不可满足'},
+ 417:{n:'Expectation Failed',d:'Expect 头不满足'},
+ 418:{n:"I'm a teapot",d:'彩蛋：我是一个茶壶（RFC 2324）'},
+ 421:{n:'Misdirected',d:'请求发错服务器'},
+ 422:{n:'Unprocessable',d:'语义正确但无法处理'},
+ 423:{n:'Locked',d:'WebDAV：已锁定'},
+ 424:{n:'Failed Dependency',d:'WebDAV：依赖失败'},
+ 425:{n:'Too Early',d:'过早（重放风险）'},
+ 426:{n:'Upgrade Required',d:'需升级协议'},
+ 428:{n:'Precondition Required',d:'需前置条件'},
+ 429:{n:'Too Many Requests',d:'限流'},
+ 431:{n:'Unavailable For Legal',d:'因法律不可用'},
+ 451:{n:'Unavailable For Legal (Censored)',d:'因法律原因下线（审查）'},
+ 500:{n:'Internal Server Error',d:'服务器内部错误'},
+ 501:{n:'Not Implemented',d:'未实现'},
+ 502:{n:'Bad Gateway',d:'网关错误'},
+ 503:{n:'Service Unavailable',d:'服务不可用（过载 / 维护）'},
+ 504:{n:'Gateway Timeout',d:'网关超时'},
+ 505:{n:'HTTP Version Not Supported',d:'HTTP 版本不支持'},
+ 506:{n:'Variant Also Negotiates',d:'变体协商错误'},
+ 507:{n:'Insufficient Storage',d:'WebDAV：存储不足'},
+ 508:{n:'Loop Detected',d:'WebDAV：检测到环路'},
+ 510:{n:'Not Extended',d:'需扩展'},
+ 511:{n:'Network Auth Required',d:'需网络认证（captive portal）'}
+};
+function catOf(code){ var d=Math.floor(code/100); return d===1?'信息':d===2?'成功':d===3?'重定向':d===4?'客户端错误':'服务器错误'; }
+function getStatus(code){ var e=STATUS[code]; return e?{code:code,name:e.n,desc:e.d,cat:catOf(code)}:null; }
+function searchStatus(q){
+  q=String(q||'').trim().toLowerCase();
+  var keys=Object.keys(STATUS).map(Number).sort(function(a,b){return a-b;});
+  if(/^\d+$/.test(q)) return keys.filter(function(k){return String(k).indexOf(q)===0;}).map(getStatus);
+  if(!q) return keys.map(getStatus);
+  return keys.filter(function(k){ var e=STATUS[k]; return (e.n.toLowerCase().indexOf(q)>=0)||(e.d.toLowerCase().indexOf(q)>=0); }).map(getStatus);
+}
+function listByCat(cat){ return searchStatus('').filter(function(s){return s.cat===cat;}); }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports={STATUS:STATUS,catOf:catOf,getStatus:getStatus,searchStatus:searchStatus,listByCat:listByCat};
+}
+if (typeof window !== 'undefined') {
+  window.StatusForgePure={STATUS:STATUS,catOf:catOf,getStatus:getStatus,searchStatus:searchStatus,listByCat:listByCat};
+}
+</script>
+<script>
+if (typeof window !== 'undefined' && window.document) {
+  (function(){
+    var $=function(id){return document.getElementById(id);};
+    var P=window.StatusForgePure;
+    var COLORS={'信息':'var(--info)','成功':'var(--ok)','重定向':'#22D3EE','客户端错误':'var(--warn)','服务器错误':'#f87171'};
+    function render(){
+      var q=$('q').value, cat=$('cat').value;
+      var list=P.searchStatus(q);
+      if(cat!=='全部') list=list.filter(function(s){return s.cat===cat;});
+      $('cnt').textContent=list.length+' 条';
+      $('list').innerHTML=list.map(function(s){
+        var c=COLORS[s.cat]||'var(--muted)';
+        return '<div class="item" data-code="'+s.code+'" style="border-left-color:'+c+'"><b>'+s.code+'</b> <span class="nm">'+s.name+'</span><br><span class="ds">'+s.desc+'</span></div>';
+      }).join('') || '<div class="empty">无匹配</div>';
+    }
+    $('list').addEventListener('click',function(e){ var it=e.target.closest('.item'); if(it){ var code=it.getAttribute('data-code'); if(navigator.clipboard&&window.isSecureContext) navigator.clipboard.writeText(code); } });
+    ['q','cat'].forEach(function(id){ $(id).addEventListener('input',render); $(id).addEventListener('change',render); });
+    render();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

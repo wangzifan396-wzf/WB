@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TypingForge — 打字速度测试（WPM / 准确率 / 一致性，离线单文件）</title>
+<meta name="description" content="离线打字速度测试：WPM / CPM / 准确率 / 一致性，逐字符实时高亮，15/30/60 秒模式，种子词表可复现，历史记录与速度曲线。零依赖单文件。">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<script>
+/* ============================================================
+ * TypingForge kernel — pure functions, zero dependencies
+ * ============================================================ */
+var TF = (function () {
+  'use strict';
+
+  /* ---------------- seeded RNG (mulberry32) ---------------- */
+  function makeRng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* ---------------- word lists ---------------- */
+  var WORDS_EN = ('the of and to in is you that it he was for on are as with his they at be this have from or one had by word but not what all were we when your can said there use an each which she do how their if will up other about out many then them these so some her would make like him into time has look two more write go see number no way could people my than first water been call who oil its now find long down day did get come made may part over new sound take only little work know place year live me back give most very after thing our just name good sentence man think say great where help through much before line right too mean old any same tell boy follow came want show also around form three small set put end does another well large must big even such because turn here why ask went men read need land different home us move try kind hand picture again change off play spell air away animal house point page letter mother answer found study still learn should world high every near add food between own below country plant last school father keep tree never start city earth eye light thought head under story saw left few while along might close something seem next hard open example begin life always those both paper together got group often run').split(' ');
+
+  var WORDS_CODE = ('function return const var let if else for while switch case break continue class extends import export default new this typeof instanceof async await try catch throw finally null undefined true false array object string number boolean map set promise callback closure scope prototype module require console window document event listener query select index length push pop shift slice splice concat join split replace match filter reduce foreach parse stringify async fetch response request status header body method static public private interface type enum void never unknown generic template literal spread rest destructure arrow lambda recursion iterate yield generator symbol proxy reflect buffer stream chunk encode decode hash cache token session cookie server client route handler middleware').split(' ');
+
+  function genWords(count, seed, list) {
+    list = list === 'code' ? WORDS_CODE : WORDS_EN;
+    var rng = makeRng(seed == null ? 42 : seed);
+    var out = [], prev = -1;
+    for (var i = 0; i < count; i++) {
+      var idx = Math.floor(rng() * list.length);
+      if (idx === prev) idx = (idx + 1) % list.length;
+      out.push(list[idx]);
+      prev = idx;
+    }
+    return out;
+  }
+  function genText(count, seed, list) { return genWords(count, seed, list).join(' '); }
+
+  /* ---------------- per-char diff ----------------
+   * returns array of {ch, state} state: 'pending'|'correct'|'wrong'
+   * plus extra typed chars beyond target are counted as wrong (not shown) */
+  function diffChars(target, typed) {
+    var out = [], n = target.length, m = typed.length;
+    for (var i = 0; i < n; i++) {
+      if (i >= m) out.push({ ch: target[i], state: 'pending' });
+      else if (typed[i] === target[i]) out.push({ ch: target[i], state: 'correct' });
+      else out.push({ ch: target[i], state: 'wrong' });
+    }
+    return out;
+  }
+
+  function countStats(target, typed) {
+    var correct = 0, wrong = 0, n = Math.min(target.length, typed.length);
+    for (var i = 0; i < n; i++) {
+      if (typed[i] === target[i]) correct++; else wrong++;
+    }
+    if (typed.length > target.length) wrong += typed.length - target.length;
+    return { correct: correct, wrong: wrong, typed: typed.length };
+  }
+
+  /* ---------------- metrics ---------------- */
+  /* WPM standard: (correct chars / 5) / minutes  (net WPM)
+     gross WPM: (all typed chars / 5) / minutes */
+  function wpm(correctChars, ms) {
+    if (ms <= 0) return 0;
+    return Math.round(((correctChars / 5) / (ms / 60000)) * 10) / 10;
+  }
+  function grossWpm(typedChars, ms) {
+    if (ms <= 0) return 0;
+    return Math.round(((typedChars / 5) / (ms / 60000)) * 10) / 10;
+  }
+  function cpm(correctChars, ms) {
+    if (ms <= 0) return 0;
+    return Math.round((correctChars / (ms / 60000)) * 10) / 10;
+  }
+  function accuracy(correct, wrong) {
+    var total = correct + wrong;
+    if (total === 0) return 100;
+    return Math.round((correct / total) * 1000) / 10;
+  }
+  /* consistency: 100 - coefficient of variation of per-second wpm samples, clamped 0..100 */
+  function consistency(samples) {
+    var xs = [];
+    for (var i = 0; i < samples.length; i++) if (samples[i] > 0) xs.push(samples[i]);
+    if (xs.length < 2) return 100;
+    var mean = 0;
+    for (var j = 0; j < xs.length; j++) mean += xs[j];
+    mean /= xs.length;
+    if (mean === 0) return 0;
+    var v = 0;
+    for (var k = 0; k < xs.length; k++) v += (xs[k] - mean) * (xs[k] - mean);
+    v /= xs.length;
+    var cv = Math.sqrt(v) / mean;
+    var c = Math.round((1 - cv) * 1000) / 10;
+    return Math.max(0, Math.min(100, c));
+  }
+
+  /* ---------------- session reducer ----------------
+   * immutable-ish state machine for a typing run */
+  function newSession(text, durationMs) {
+    return {
+      text: text, durationMs: durationMs,
+      typed: '', startedAt: null, endedAt: null,
+      keystrokes: 0, errorsEver: 0,
+      samples: [] /* per-second correct-char snapshots */
+    };
+  }
+  function sessionInput(s, typed, now) {
+    if (s.endedAt) return s;
+    if (s.startedAt == null && typed.length > 0) s.startedAt = now;
+    if (typed.length > s.typed.length) {
+      s.keystrokes += typed.length - s.typed.length;
+      var i = typed.length - 1;
+      if (i < s.text.length && typed[i] !== s.text[i]) s.errorsEver++;
+      else if (i >= s.text.length) s.errorsEver++;
+    }
+    s.typed = typed;
+    if (s.startedAt != null && typed.length >= s.text.length) s.endedAt = now;
+    return s;
+  }
+  function sessionTick(s, now) {
+    if (s.startedAt == null || s.endedAt) return s;
+    var st = countStats(s.text, s.typed);
+    s.samples.push(st.correct);
+    if (now - s.startedAt >= s.durationMs) s.endedAt = now;
+    return s;
+  }
+  function sessionResult(s) {
+    var end = s.endedAt != null ? s.endedAt : Date.now();
+    var ms = s.startedAt != null ? (end - s.startedAt) : 0;
+    var st = countStats(s.text, s.typed);
+    /* per-second wpm series from cumulative samples */
+    var series = [];
+    for (var i = 0; i < s.samples.length; i++) {
+      var delta = s.samples[i] - (i > 0 ? s.samples[i - 1] : 0);
+      series.push(Math.round(((delta / 5) * 60) * 10) / 10);
+    }
+    return {
+      ms: ms,
+      netWpm: wpm(st.correct, ms),
+      grossWpm: grossWpm(st.typed, ms),
+      cpm: cpm(st.correct, ms),
+      accuracy: accuracy(st.correct, st.wrong + (s.errorsEver > st.wrong ? 0 : 0)),
+      rawAccuracy: s.keystrokes === 0 ? 100 : Math.round(((s.keystrokes - s.errorsEver) / s.keystrokes) * 1000) / 10,
+      consistency: consistency(series),
+      correct: st.correct, wrong: st.wrong, keystrokes: s.keystrokes, errorsEver: s.errorsEver,
+      series: series
+    };
+  }
+
+  /* ---------------- sparkline path (SVG) ---------------- */
+  function sparkPath(series, w, h) {
+    if (!series || series.length === 0) return '';
+    if (series.length === 1) return 'M0 ' + (h / 2) + ' L' + w + ' ' + (h / 2);
+    var max = 1;
+    for (var i = 0; i < series.length; i++) if (series[i] > max) max = series[i];
+    var pts = [];
+    for (var j = 0; j < series.length; j++) {
+      var x = (j / (series.length - 1)) * w;
+      var y = h - (series[j] / max) * (h - 4) - 2;
+      pts.push((j === 0 ? 'M' : 'L') + (Math.round(x * 10) / 10) + ' ' + (Math.round(y * 10) / 10));
+    }
+    return pts.join(' ');
+  }
+
+  function grade(netWpm) {
+    if (netWpm >= 80) return 'S';
+    if (netWpm >= 60) return 'A';
+    if (netWpm >= 45) return 'B';
+    if (netWpm >= 30) return 'C';
+    if (netWpm >= 15) return 'D';
+    return 'E';
+  }
+
+  return {
+    makeRng: makeRng, genWords: genWords, genText: genText,
+    diffChars: diffChars, countStats: countStats,
+    wpm: wpm, grossWpm: grossWpm, cpm: cpm, accuracy: accuracy, consistency: consistency,
+    newSession: newSession, sessionInput: sessionInput, sessionTick: sessionTick, sessionResult: sessionResult,
+    sparkPath: sparkPath, grade: grade,
+    WORDS_EN: WORDS_EN, WORDS_CODE: WORDS_CODE
+  };
+})();
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = TF; }
+</script>
+<style>
+:root {
+  --bg: #0A0A0B; --card: #141417; --panel: #1A1B1E;
+  --text: #FFFFFF; --text2: #A1A1AA; --text3: #71717A;
+  --border: rgba(255,255,255,.08); --border-strong: rgba(255,255,255,.14);
+  --accent: #5E6AD2; --ok: #10B981; --warn: #F5A623; --info: #22D3EE; --purple: #A78BFA; --bad: #F87171;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px; display: flex; flex-direction: column; min-height: 100vh;
+}
+header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--card); }
+.logo { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #F5A623, #F87171); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #0A0A0B; }
+h1 { font-size: 16px; font-weight: 600; }
+h1 span { color: var(--text3); font-weight: 400; font-size: 13px; margin-left: 8px; }
+.spacer { flex: 1; }
+.btn { background: var(--panel); color: var(--text2); border: 1px solid var(--border); border-radius: 7px; padding: 6px 12px; font-size: 13px; cursor: pointer; font-family: inherit; transition: all .15s ease; }
+.btn:hover { border-color: var(--border-strong); color: var(--text); }
+.btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+main { flex: 1; max-width: 980px; width: 100%; margin: 0 auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 18px; }
+.modes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.modes .sep { color: var(--text3); margin: 0 4px; }
+.live { display: flex; gap: 24px; justify-content: center; font-size: 15px; color: var(--text3); }
+.live b { color: var(--info); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#textBox {
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+  padding: 26px 30px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 21px; line-height: 1.9; letter-spacing: .3px; min-height: 160px;
+  cursor: text; user-select: none; position: relative; word-break: break-word;
+}
+#textBox.focused { border-color: var(--accent); }
+#textBox span.c-pending { color: var(--text3); }
+#textBox span.c-correct { color: var(--text); }
+#textBox span.c-wrong { color: var(--bad); background: rgba(248,113,113,.12); border-radius: 2px; }
+#textBox span.caret { position: relative; }
+#textBox span.caret::before { content: ''; position: absolute; left: -1px; top: 12%; height: 76%; width: 2px; background: var(--accent); animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+#hiddenInput { position: absolute; opacity: 0; left: -9999px; }
+#overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10,10,11,.55); border-radius: 14px; color: var(--text2); font-family: inherit; font-size: 15px; backdrop-filter: blur(2px); }
+.results { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px 28px; display: none; }
+.results.show { display: block; }
+.res-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 18px; margin-bottom: 18px; }
+.res-item { text-align: center; }
+.res-item .val { font-size: 30px; font-weight: 700; color: var(--info); font-variant-numeric: tabular-nums; }
+.res-item .val.grade { color: var(--warn); }
+.res-item .lbl { font-size: 12px; color: var(--text3); margin-top: 4px; }
+.spark { width: 100%; height: 72px; background: var(--panel); border-radius: 10px; border: 1px solid var(--border); }
+.history { color: var(--text3); font-size: 12px; }
+.history b { color: var(--text2); }
+footer { padding: 12px 20px; border-top: 1px solid var(--border); color: var(--text3); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; }
+footer a { color: var(--text2); text-decoration: none; }
+footer a:hover { color: var(--text); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">TF</div>
+  <h1>TypingForge<span id="subtitle">打字速度测试 · WPM / 准确率 / 一致性 · 离线</span></h1>
+  <div class="spacer"></div>
+  <button class="btn" id="langToggle">EN</button>
+</header>
+<main>
+  <div class="modes">
+    <button class="btn mode-t active" data-t="15">15s</button>
+    <button class="btn mode-t" data-t="30">30s</button>
+    <button class="btn mode-t" data-t="60">60s</button>
+    <span class="sep">·</span>
+    <button class="btn mode-w active" data-w="en" id="btnWordsEn">常用词</button>
+    <button class="btn mode-w" data-w="code" id="btnWordsCode">代码词</button>
+    <span class="sep">·</span>
+    <button class="btn" id="btnRestart">重新开始 (Tab)</button>
+  </div>
+  <div class="live">
+    <div><b id="liveTime">15</b> <span id="lbTime">秒</span></div>
+    <div><b id="liveWpm">0</b> WPM</div>
+    <div><b id="liveAcc">100</b>% <span id="lbAcc">准确率</span></div>
+  </div>
+  <div id="textBox" tabindex="0">
+    <div id="textContent"></div>
+    <div id="overlay"><span id="overlayText">点击此处开始打字</span></div>
+    <input id="hiddenInput" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div class="results" id="results">
+    <div class="res-grid">
+      <div class="res-item"><div class="val" id="rWpm">0</div><div class="lbl">WPM（净）</div></div>
+      <div class="res-item"><div class="val" id="rGross">0</div><div class="lbl">WPM（毛）</div></div>
+      <div class="res-item"><div class="val" id="rCpm">0</div><div class="lbl">CPM</div></div>
+      <div class="res-item"><div class="val" id="rAcc">0</div><div class="lbl" id="lbRAcc">准确率 %</div></div>
+      <div class="res-item"><div class="val" id="rCons">0</div><div class="lbl" id="lbRCons">一致性 %</div></div>
+      <div class="res-item"><div class="val grade" id="rGrade">-</div><div class="lbl" id="lbRGrade">评级</div></div>
+    </div>
+    <svg class="spark" id="spark" viewBox="0 0 600 72" preserveAspectRatio="none">
+      <path id="sparkPath" fill="none" stroke="#22D3EE" stroke-width="2"/>
+    </svg>
+    <p class="history" id="historyLine" style="margin-top:12px"></p>
+  </div>
+</main>
+<footer>
+  <span>TypingForge · 单文件 · 零依赖 · 数据不出本机</span>
+  <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/TypingForge" target="_blank" rel="noopener">GitHub</a>
+  <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">nano-tools</a>
+</footer>
+<script>
+if (typeof window !== 'undefined' && window.document) {
+  (function () {
+    'use strict';
+    var $ = function (id) { return document.getElementById(id); };
+    var LS_KEY = 'typingforge:v1';
+    var uiLang = 'zh', durSec = 15, wordMode = 'en';
+    var session = null, timer = null, best = 0, runs = 0;
+
+    var I18N = {
+      zh: { subtitle: '打字速度测试 · WPM / 准确率 / 一致性 · 离线', sec: '秒', acc: '准确率', restart: '重新开始 (Tab)',
+        wordsEn: '常用词', wordsCode: '代码词', overlay: '点击此处开始打字', overlayDone: '已结束 — Tab 重新开始',
+        rAcc: '准确率 %', rCons: '一致性 %', rGrade: '评级',
+        hist: function (b, r) { return '本机最佳 <b>' + b + ' WPM</b> · 共完成 <b>' + r + '</b> 次测试（仅存本机）'; } },
+      en: { subtitle: 'Typing speed test · WPM / accuracy / consistency · offline', sec: 'sec', acc: 'accuracy', restart: 'Restart (Tab)',
+        wordsEn: 'Common', wordsCode: 'Code', overlay: 'Click here and start typing', overlayDone: 'Finished — press Tab to restart',
+        rAcc: 'Accuracy %', rCons: 'Consistency %', rGrade: 'Grade',
+        hist: function (b, r) { return 'Personal best <b>' + b + ' WPM</b> · <b>' + r + '</b> runs (stored locally)'; } }
+    };
+    function applyLang() {
+      var d = I18N[uiLang];
+      $('subtitle').textContent = d.subtitle;
+      $('lbTime').textContent = d.sec;
+      $('lbAcc').textContent = d.acc;
+      $('btnRestart').textContent = d.restart;
+      $('btnWordsEn').textContent = d.wordsEn;
+      $('btnWordsCode').textContent = d.wordsCode;
+      $('overlayText').textContent = session && session.endedAt ? d.overlayDone : d.overlay;
+      $('lbRAcc').textContent = d.rAcc;
+      $('lbRCons').textContent = d.rCons;
+      $('lbRGrade').textContent = d.rGrade;
+      $('langToggle').textContent = uiLang === 'zh' ? 'EN' : '中';
+      renderHistory();
+    }
+
+    function save() {
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ best: best, runs: runs, ui: uiLang, dur: durSec, words: wordMode })); } catch (e) { /* ignore */ }
+    }
+    function load() {
+      try {
+        var d = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+        if (d) { best = d.best || 0; runs = d.runs || 0; uiLang = d.ui === 'en' ? 'en' : 'zh'; durSec = d.dur || 15; wordMode = d.words === 'code' ? 'code' : 'en'; }
+      } catch (e) { /* ignore */ }
+    }
+
+    function newRun() {
+      if (timer) { clearInterval(timer); timer = null; }
+      var seed = (Date.now() ^ (Math.random() * 0xFFFFFFFF)) >>> 0;
+      var wordCount = Math.max(50, durSec * 4);
+      session = TF.newSession(TF.genText(wordCount, seed, wordMode), durSec * 1000);
+      $('hiddenInput').value = '';
+      $('results').className = 'results';
+      $('liveTime').textContent = durSec;
+      $('liveWpm').textContent = '0';
+      $('liveAcc').textContent = '100';
+      $('overlay').style.display = 'flex';
+      $('overlayText').textContent = I18N[uiLang].overlay;
+      renderText();
+    }
+
+    function renderText() {
+      var diff = TF.diffChars(session.text, session.typed);
+      var caret = session.typed.length;
+      var html = '';
+      var limit = Math.min(diff.length, caret + 240); /* window ahead */
+      for (var i = 0; i < limit; i++) {
+        var d = diff[i];
+        var cls = 'c-' + d.state + (i === caret ? ' caret' : '');
+        var ch = d.ch === '<' ? '&lt;' : d.ch === '&' ? '&amp;' : d.ch;
+        html += '<span class="' + cls + '">' + ch + '</span>';
+      }
+      $('textContent').innerHTML = html;
+    }
+
+    function renderLive() {
+      if (!session || session.startedAt == null) return;
+      var now = Date.now();
+      var elapsed = now - session.startedAt;
+      var left = Math.max(0, Math.ceil((session.durationMs - elapsed) / 1000));
+      $('liveTime').textContent = left;
+      var st = TF.countStats(session.text, session.typed);
+      $('liveWpm').textContent = Math.round(TF.wpm(st.correct, elapsed));
+      $('liveAcc').textContent = TF.accuracy(st.correct, st.wrong);
+    }
+
+    function finish() {
+      if (timer) { clearInterval(timer); timer = null; }
+      var r = TF.sessionResult(session);
+      runs++;
+      if (r.netWpm > best) best = r.netWpm;
+      save();
+      $('rWpm').textContent = r.netWpm;
+      $('rGross').textContent = r.grossWpm;
+      $('rCpm').textContent = r.cpm;
+      $('rAcc').textContent = r.rawAccuracy;
+      $('rCons').textContent = r.consistency;
+      $('rGrade').textContent = TF.grade(r.netWpm);
+      $('sparkPath').setAttribute('d', TF.sparkPath(r.series, 600, 72));
+      $('results').className = 'results show';
+      $('overlay').style.display = 'flex';
+      $('overlayText').textContent = I18N[uiLang].overlayDone;
+      renderHistory();
+    }
+    function renderHistory() {
+      $('historyLine').innerHTML = I18N[uiLang].hist(best, runs);
+    }
+
+    function onInput() {
+      if (!session || session.endedAt) return;
+      var wasStarted = session.startedAt != null;
+      TF.sessionInput(session, $('hiddenInput').value, Date.now());
+      if (!wasStarted && session.startedAt != null) {
+        $('overlay').style.display = 'none';
+        timer = setInterval(function () {
+          TF.sessionTick(session, Date.now());
+          renderLive();
+          if (session.endedAt) finish();
+        }, 1000);
+      }
+      renderText();
+      renderLive();
+      if (session.endedAt) finish();
+    }
+
+    $('hiddenInput').addEventListener('input', onInput);
+    $('textBox').addEventListener('click', function () { $('hiddenInput').focus(); });
+    $('hiddenInput').addEventListener('focus', function () { $('textBox').classList.add('focused'); });
+    $('hiddenInput').addEventListener('blur', function () { $('textBox').classList.remove('focused'); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Tab') { e.preventDefault(); newRun(); $('hiddenInput').focus(); }
+    });
+
+    var tBtns = document.querySelectorAll('.mode-t');
+    for (var i = 0; i < tBtns.length; i++) {
+      tBtns[i].addEventListener('click', function () {
+        for (var j = 0; j < tBtns.length; j++) tBtns[j].classList.remove('active');
+        this.classList.add('active');
+        durSec = parseInt(this.getAttribute('data-t'), 10);
+        save(); newRun();
+      });
+    }
+    var wBtns = document.querySelectorAll('.mode-w');
+    for (var k = 0; k < wBtns.length; k++) {
+      wBtns[k].addEventListener('click', function () {
+        for (var j2 = 0; j2 < wBtns.length; j2++) wBtns[j2].classList.remove('active');
+        this.classList.add('active');
+        wordMode = this.getAttribute('data-w');
+        save(); newRun();
+      });
+    }
+    $('btnRestart').addEventListener('click', function () { newRun(); $('hiddenInput').focus(); });
+    $('langToggle').addEventListener('click', function () { uiLang = uiLang === 'zh' ? 'en' : 'zh'; applyLang(); save(); });
+
+    load();
+    /* restore mode buttons */
+    for (var b = 0; b < tBtns.length; b++) tBtns[b].classList.toggle('active', parseInt(tBtns[b].getAttribute('data-t'), 10) === durSec);
+    for (var b2 = 0; b2 < wBtns.length; b2++) wBtns[b2].classList.toggle('active', wBtns[b2].getAttribute('data-w') === wordMode);
+    applyLang();
+    newRun();
+
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* optional */ });
+    }
+
+    window.__TYPINGFORGE__ = {
+      TF: TF,
+      getSession: function () { return session; },
+      newRun: newRun, onInput: onInput, finish: finish,
+      typeText: function (s) { $('hiddenInput').value = s; onInput(); },
+      getState: function () { return { durSec: durSec, wordMode: wordMode, best: best, runs: runs }; }
+    };
+  })();
+}
+</script>
+</body>
+</html>

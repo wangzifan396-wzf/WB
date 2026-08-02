@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KanbanForge — 离线看板 · 本地优先任务管理</title>
+<meta name="description" content="KanbanForge：单文件离线看板。拖拽卡片、多列管理、优先级标签、搜索筛选，导出 Markdown / JSON，数据永不离机。">
+<style>
+:root{
+  --bg:#0A0A0B;--surf:#141417;--surf2:#1A1B1E;--txt:#FFFFFF;--txt2:#A1A1AA;--txt3:#71717A;
+  --bord:rgba(255,255,255,0.08);--bord2:rgba(255,255,255,0.14);
+  --acc:#5E6AD2;--ok:#10B981;--warn:#F5A623;--info:#22D3EE;--purp:#A78BFA;--red:#EF4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--bord);flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+.logo-mark{width:26px;height:26px;border-radius:7px;background:var(--acc);display:grid;place-items:center}
+.logo-mark svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2}
+.logo b{color:var(--acc)}
+.spacer{flex:1}
+button,input,select,textarea{font-family:inherit;font-size:13px;color:var(--txt)}
+.btn{background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:7px 14px;cursor:pointer;transition:border-color .15s,color .15s}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.primary:hover{filter:brightness(1.1);color:#fff}
+.btn.danger:hover{border-color:var(--red);color:var(--red)}
+#search{background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:7px 12px;width:200px;outline:none}
+#search:focus{border-color:var(--acc)}
+main{flex:1;overflow-x:auto;overflow-y:hidden;padding:18px 20px;display:flex;gap:16px;align-items:flex-start}
+.col{background:var(--surf);border:1px solid var(--bord);border-radius:12px;width:290px;min-width:290px;max-height:100%;display:flex;flex-direction:column}
+.col.drag-over{border-color:var(--acc)}
+.col-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--bord)}
+.col-dot{width:9px;height:9px;border-radius:50%}
+.col-title{font-weight:600;font-size:14px;flex:1;background:transparent;border:none;outline:none;color:var(--txt)}
+.col-count{color:var(--txt3);font-size:12px;background:var(--surf2);border-radius:6px;padding:2px 8px}
+.col-del{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:15px;padding:2px 4px}
+.col-del:hover{color:var(--red)}
+.cards{padding:10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:40px;flex:1}
+.card{background:var(--surf2);border:1px solid var(--bord);border-radius:10px;padding:10px 12px;cursor:grab;transition:border-color .15s}
+.card:hover{border-color:var(--bord2)}
+.card.dragging{opacity:.4}
+.card-title{font-size:13px;line-height:1.45;word-break:break-word}
+.card-meta{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.chip{font-size:11px;border-radius:5px;padding:1px 7px;border:1px solid var(--bord)}
+.pr-high{color:var(--red);border-color:rgba(239,68,68,.35)}
+.pr-mid{color:var(--warn);border-color:rgba(245,166,35,.35)}
+.pr-low{color:var(--ok);border-color:rgba(16,185,129,.35)}
+.tag{color:var(--info);border-color:rgba(34,211,238,.3)}
+.add-card{margin:0 10px 10px;background:none;border:1px dashed var(--bord2);border-radius:8px;color:var(--txt3);padding:8px;cursor:pointer}
+.add-card:hover{color:var(--acc);border-color:var(--acc)}
+#addColBtn{min-width:220px;background:none;border:1px dashed var(--bord2);border-radius:12px;color:var(--txt3);padding:16px;cursor:pointer;font-size:13px}
+#addColBtn:hover{color:var(--acc);border-color:var(--acc)}
+footer{padding:9px 20px;border-top:1px solid var(--bord);color:var(--txt3);font-size:12px;display:flex;gap:14px;flex-wrap:wrap}
+footer b{color:var(--txt2);font-weight:600}
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50}
+.overlay.show{display:flex}
+.modal{background:var(--surf);border:1px solid var(--bord2);border-radius:14px;width:min(480px,92vw);padding:22px}
+.modal h3{font-size:15px;margin-bottom:16px}
+.field{margin-bottom:12px}
+.field label{display:block;color:var(--txt2);font-size:12px;margin-bottom:5px}
+.field input,.field textarea,.field select{width:100%;background:var(--surf2);border:1px solid var(--bord);border-radius:8px;padding:8px 10px;outline:none;resize:vertical}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--acc)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">KanbanForge — 离线看板 · 本地优先任务管理</h1>
+<header>
+  <div class="logo"><span class="logo-mark"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="8" rx="1"/></svg></span>Kanban<b>Forge</b></div>
+  <span style="color:var(--txt3);font-size:12px">离线看板 · 数据永不离机</span>
+  <div class="spacer"></div>
+  <input id="search" type="search" placeholder="搜索卡片 / #标签…">
+  <button class="btn" id="exportMd">导出 Markdown</button>
+  <button class="btn" id="exportJson">导出 JSON</button>
+  <button class="btn" id="importJson">导入 JSON</button>
+  <button class="btn danger" id="clearAll">清空</button>
+</header>
+<main id="board"></main>
+<footer id="stats"> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3 id="modalTitle">编辑卡片</h3>
+    <div class="field"><label>标题</label><input id="mTitle" maxlength="200"></div>
+    <div class="field"><label>描述</label><textarea id="mDesc" rows="3"></textarea></div>
+    <div class="field"><label>优先级</label>
+      <select id="mPriority"><option value="">无</option><option value="high">高</option><option value="mid">中</option><option value="low">低</option></select></div>
+    <div class="field"><label>标签（逗号分隔）</label><input id="mTags" placeholder="设计, 前端"></div>
+    <div class="modal-actions">
+      <button class="btn danger" id="mDelete">删除</button>
+      <div class="spacer"></div>
+      <button class="btn" id="mCancel">取消</button>
+      <button class="btn primary" id="mSave">保存</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="fileInput" accept=".json" style="display:none">
+
+<script>
+/* ================= KanbanForge pure functions (top-level, testable) ================= */
+function esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function uid(){
+  return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+}
+var COL_COLORS = ['#5E6AD2','#F5A623','#10B981','#22D3EE','#A78BFA','#F472B6','#FB923C'];
+function defaultBoard(){
+  return { columns:[
+    { id:'c1', title:'待办', color:COL_COLORS[0], cards:[
+      { id:'k1', title:'双击卡片可以编辑', desc:'', priority:'mid', tags:['上手'] },
+      { id:'k2', title:'拖拽卡片到其他列', desc:'', priority:'', tags:[] }
+    ]},
+    { id:'c2', title:'进行中', color:COL_COLORS[1], cards:[
+      { id:'k3', title:'体验 KanbanForge', desc:'离线看板，数据存在浏览器本地。', priority:'high', tags:['本地优先'] }
+    ]},
+    { id:'c3', title:'已完成', color:COL_COLORS[2], cards:[] }
+  ]};
+}
+function findColumn(board, colId){
+  for (var i=0;i<board.columns.length;i++) if (board.columns[i].id===colId) return board.columns[i];
+  return null;
+}
+function findCard(board, cardId){
+  for (var i=0;i<board.columns.length;i++){
+    var col=board.columns[i];
+    for (var j=0;j<col.cards.length;j++) if (col.cards[j].id===cardId) return { col:col, card:col.cards[j], index:j };
+  }
+  return null;
+}
+function addColumn(board, title){
+  var col={ id:uid(), title:title||'新列', color:COL_COLORS[board.columns.length%COL_COLORS.length], cards:[] };
+  board.columns.push(col);
+  return col;
+}
+function removeColumn(board, colId){
+  var before=board.columns.length;
+  board.columns=board.columns.filter(function(c){return c.id!==colId;});
+  return board.columns.length<before;
+}
+function addCard(board, colId, title){
+  var col=findColumn(board,colId);
+  if(!col) return null;
+  var card={ id:uid(), title:title||'新卡片', desc:'', priority:'', tags:[] };
+  col.cards.push(card);
+  return card;
+}
+function removeCard(board, cardId){
+  var hit=findCard(board,cardId);
+  if(!hit) return false;
+  hit.col.cards.splice(hit.index,1);
+  return true;
+}
+function moveCard(board, cardId, toColId, toIndex){
+  var hit=findCard(board,cardId);
+  var toCol=findColumn(board,toColId);
+  if(!hit||!toCol) return false;
+  hit.col.cards.splice(hit.index,1);
+  var idx=(typeof toIndex==='number'&&toIndex>=0)?Math.min(toIndex,toCol.cards.length):toCol.cards.length;
+  toCol.cards.splice(idx,0,hit.card);
+  return true;
+}
+function parseTags(s){
+  return String(s==null?'':s).split(/[,，]/).map(function(t){return t.trim();}).filter(Boolean);
+}
+function matchCard(card, query){
+  var q=String(query==null?'':query).trim().toLowerCase();
+  if(!q) return true;
+  if(q.charAt(0)==='#'){
+    var tq=q.slice(1);
+    return (card.tags||[]).some(function(t){return t.toLowerCase().indexOf(tq)>=0;});
+  }
+  var hay=(card.title+' '+(card.desc||'')+' '+(card.tags||[]).join(' ')).toLowerCase();
+  return hay.indexOf(q)>=0;
+}
+function boardStats(board){
+  var cols=board.columns.length, cards=0, high=0, done=0;
+  board.columns.forEach(function(c,i){
+    cards+=c.cards.length;
+    c.cards.forEach(function(k){ if(k.priority==='high') high++; });
+    if(i===board.columns.length-1) done=c.cards.length;
+  });
+  return { columns:cols, cards:cards, high:high, lastColCards:done };
+}
+function toMarkdown(board){
+  var out=['# 看板',''];
+  board.columns.forEach(function(c){
+    out.push('## '+c.title+' ('+c.cards.length+')');
+    c.cards.forEach(function(k){
+      var line='- [ ] '+k.title;
+      if(k.priority) line+=' `'+({high:'高',mid:'中',low:'低'})[k.priority]+'`';
+      if(k.tags&&k.tags.length) line+=' '+k.tags.map(function(t){return '#'+t;}).join(' ');
+      out.push(line);
+      if(k.desc) out.push('  - '+k.desc.replace(/\n/g,' '));
+    });
+    out.push('');
+  });
+  return out.join('\n').replace(/\n+$/,'\n');
+}
+function toJSON(board){
+  return JSON.stringify({ app:'KanbanForge', version:1, board:board }, null, 2);
+}
+function fromJSON(text){
+  var data=JSON.parse(text);
+  var b=data&&data.board?data.board:data;
+  if(!b||!Array.isArray(b.columns)) throw new Error('invalid board');
+  b.columns.forEach(function(c){
+    if(typeof c.id!=='string'||typeof c.title!=='string'||!Array.isArray(c.cards)) throw new Error('invalid column');
+    if(!c.color) c.color=COL_COLORS[0];
+    c.cards.forEach(function(k){
+      if(typeof k.id!=='string'||typeof k.title!=='string') throw new Error('invalid card');
+      if(!Array.isArray(k.tags)) k.tags=[];
+      if(typeof k.desc!=='string') k.desc='';
+      if(typeof k.priority!=='string') k.priority='';
+    });
+  });
+  return b;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { esc:esc, uid:uid, defaultBoard:defaultBoard, findColumn:findColumn, findCard:findCard,
+    addColumn:addColumn, removeColumn:removeColumn, addCard:addCard, removeCard:removeCard, moveCard:moveCard,
+    parseTags:parseTags, matchCard:matchCard, boardStats:boardStats, toMarkdown:toMarkdown, toJSON:toJSON, fromJSON:fromJSON };
+}
+if (typeof window !== 'undefined') {
+  window.KanbanForgePure = { esc:esc, uid:uid, defaultBoard:defaultBoard, findColumn:findColumn, findCard:findCard,
+    addColumn:addColumn, removeColumn:removeColumn, addCard:addCard, removeCard:removeCard, moveCard:moveCard,
+    parseTags:parseTags, matchCard:matchCard, boardStats:boardStats, toMarkdown:toMarkdown, toJSON:toJSON, fromJSON:fromJSON };
+}
+</script>
+<script>
+/* ================= UI layer ================= */
+if (typeof window !== 'undefined' && typeof document !== 'undefined') (function(){
+  var P = window.KanbanForgePure;
+  var LS_KEY = 'kanbanforge.board.v1';
+  var board, query='', editingCardId=null;
+
+  function load(){
+    try{
+      var raw=localStorage.getItem(LS_KEY);
+      if(raw){ board=P.fromJSON(raw); return; }
+    }catch(e){}
+    board=P.defaultBoard();
+  }
+  function save(){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify({board:board})); }catch(e){}
+  }
+
+  var boardEl=document.getElementById('board');
+  var statsEl=document.getElementById('stats');
+
+  function render(){
+    var html='';
+    board.columns.forEach(function(col){
+      var visible=col.cards.filter(function(k){return P.matchCard(k,query);});
+      html+='<div class="col" data-col="'+col.id+'">'
+        +'<div class="col-head"><span class="col-dot" style="background:'+col.color+'"></span>'
+        +'<input class="col-title" data-col="'+col.id+'" value="'+P.esc(col.title)+'" maxlength="40">'
+        +'<span class="col-count">'+col.cards.length+'</span>'
+        +'<button class="col-del" data-del-col="'+col.id+'" title="删除列">×</button></div>'
+        +'<div class="cards" data-col="'+col.id+'">';
+      visible.forEach(function(k){
+        var prCls=k.priority==='high'?'pr-high':k.priority==='mid'?'pr-mid':k.priority==='low'?'pr-low':'';
+        var prTxt=k.priority==='high'?'高':k.priority==='mid'?'中':k.priority==='low'?'低':'';
+        html+='<div class="card" draggable="true" data-card="'+k.id+'">'
+          +'<div class="card-title">'+P.esc(k.title)+'</div>';
+        var metas='';
+        if(prTxt) metas+='<span class="chip '+prCls+'">'+prTxt+'</span>';
+        (k.tags||[]).forEach(function(t){ metas+='<span class="chip tag">#'+P.esc(t)+'</span>'; });
+        if(k.desc) metas+='<span class="chip" style="color:var(--txt3)">≡</span>';
+        if(metas) html+='<div class="card-meta">'+metas+'</div>';
+        html+='</div>';
+      });
+      html+='</div><button class="add-card" data-add-card="'+col.id+'">＋ 添加卡片</button></div>';
+    });
+    html+='<button id="addColBtn">＋ 添加列</button>';
+    boardEl.innerHTML=html;
+    var st=P.boardStats(board);
+    statsEl.innerHTML='<span><b>'+st.columns+'</b> 列</span><span><b>'+st.cards+'</b> 张卡片</span>'
+      +'<span><b>'+st.high+'</b> 高优先级</span><span>本地存储 · 单文件 · 零依赖</span>';
+    bind();
+  }
+
+  function bind(){
+    document.getElementById('addColBtn').onclick=function(){ P.addColumn(board,'新列'); save(); render(); };
+    boardEl.querySelectorAll('[data-add-card]').forEach(function(b){
+      b.onclick=function(){
+        var t=prompt('卡片标题：','');
+        if(t&&t.trim()){ P.addCard(board,b.getAttribute('data-add-card'),t.trim()); save(); render(); }
+      };
+    });
+    boardEl.querySelectorAll('[data-del-col]').forEach(function(b){
+      b.onclick=function(){
+        var col=P.findColumn(board,b.getAttribute('data-del-col'));
+        if(col&&(col.cards.length===0||confirm('删除列「'+col.title+'」及其 '+col.cards.length+' 张卡片？'))){
+          P.removeColumn(board,col.id); save(); render();
+        }
+      };
+    });
+    boardEl.querySelectorAll('.col-title').forEach(function(inp){
+      inp.onchange=function(){
+        var col=P.findColumn(board,inp.getAttribute('data-col'));
+        if(col){ col.title=inp.value.trim()||col.title; save(); render(); }
+      };
+    });
+    boardEl.querySelectorAll('.card').forEach(function(el){
+      el.ondblclick=function(){ openModal(el.getAttribute('data-card')); };
+      el.ondragstart=function(ev){
+        el.classList.add('dragging');
+        ev.dataTransfer.setData('text/plain', el.getAttribute('data-card'));
+        ev.dataTransfer.effectAllowed='move';
+      };
+      el.ondragend=function(){ el.classList.remove('dragging'); };
+    });
+    boardEl.querySelectorAll('.cards').forEach(function(zone){
+      zone.ondragover=function(ev){ ev.preventDefault(); zone.closest('.col').classList.add('drag-over'); };
+      zone.ondragleave=function(){ zone.closest('.col').classList.remove('drag-over'); };
+      zone.ondrop=function(ev){
+        ev.preventDefault();
+        zone.closest('.col').classList.remove('drag-over');
+        var cardId=ev.dataTransfer.getData('text/plain');
+        var after=null, idx=0, children=zone.querySelectorAll('.card');
+        for(var i=0;i<children.length;i++){
+          var r=children[i].getBoundingClientRect();
+          if(ev.clientY>r.top+r.height/2) idx=i+1;
+        }
+        P.moveCard(board,cardId,zone.getAttribute('data-col'),idx);
+        save(); render();
+      };
+    });
+  }
+
+  /* modal */
+  var overlay=document.getElementById('overlay');
+  function openModal(cardId){
+    var hit=P.findCard(board,cardId);
+    if(!hit) return;
+    editingCardId=cardId;
+    document.getElementById('mTitle').value=hit.card.title;
+    document.getElementById('mDesc').value=hit.card.desc||'';
+    document.getElementById('mPriority').value=hit.card.priority||'';
+    document.getElementById('mTags').value=(hit.card.tags||[]).join(', ');
+    overlay.classList.add('show');
+  }
+  function closeModal(){ overlay.classList.remove('show'); editingCardId=null; }
+  document.getElementById('mCancel').onclick=closeModal;
+  overlay.onclick=function(e){ if(e.target===overlay) closeModal(); };
+  document.getElementById('mSave').onclick=function(){
+    var hit=P.findCard(board,editingCardId);
+    if(hit){
+      hit.card.title=document.getElementById('mTitle').value.trim()||hit.card.title;
+      hit.card.desc=document.getElementById('mDesc').value;
+      hit.card.priority=document.getElementById('mPriority').value;
+      hit.card.tags=P.parseTags(document.getElementById('mTags').value);
+      save();
+    }
+    closeModal(); render();
+  };
+  document.getElementById('mDelete').onclick=function(){
+    if(editingCardId&&confirm('删除这张卡片？')){ P.removeCard(board,editingCardId); save(); }
+    closeModal(); render();
+  };
+
+  /* toolbar */
+  document.getElementById('search').oninput=function(e){ query=e.target.value; render(); };
+  function download(name,text,mime){
+    var blob=new Blob([text],{type:mime||'text/plain;charset=utf-8'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=name; a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},500);
+  }
+  document.getElementById('exportMd').onclick=function(){ download('kanban.md',P.toMarkdown(board),'text/markdown'); };
+  document.getElementById('exportJson').onclick=function(){ download('kanban.json',P.toJSON(board),'application/json'); };
+  var fileInput=document.getElementById('fileInput');
+  document.getElementById('importJson').onclick=function(){ fileInput.click(); };
+  fileInput.onchange=function(){
+    var f=fileInput.files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){
+      try{ board=P.fromJSON(String(r.result)); save(); render(); }
+      catch(e){ alert('导入失败：'+e.message); }
+    };
+    r.readAsText(f); fileInput.value='';
+  };
+  document.getElementById('clearAll').onclick=function(){
+    if(confirm('清空看板并恢复默认？')){ board=P.defaultBoard(); save(); render(); }
+  };
+
+  load(); render();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

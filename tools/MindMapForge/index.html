@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>MindMapForge — 思维导图：缩进大纲一键生成 SVG 导图，按层级着色</title>
+<meta property="og:title" content="MindMapForge">
+<meta property="og:description" content="思维导图：缩进大纲一键生成 SVG 导图，按层级着色">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="思维导图：缩进大纲一键生成 SVG 导图，按层级着色 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>MindMapForge</h1>
+  <p class="sub">思维导图：缩进大纲一键生成 SVG 导图，按层级着色 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>大纲文本（每级缩进 2 空格，首行为中心主题）</label>
+<textarea id="txt" rows="10">nano-tools 矩阵
+  可视化
+    思维导图
+    词云
+  数据结构
+    排序动画
+    迷宫求解
+  编码加密
+    隐写术</textarea>
+<div class="row">
+  <button id="run">生成导图</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>SVG 思维导图</label>
+<div class="out" id="out" aria-live="polite" style="overflow:auto">生成结果显示在这里</div>
+<script>
+function mmParse(text){
+  if(typeof text!=='string'||!text.trim()) return { value:null, error:'大纲为空' };
+  var lines=text.split('\n').filter(function(l){ return l.trim()!==''; });
+  var items=[];
+  for(var i=0;i<lines.length;i++){
+    var raw=lines[i].replace(/\t/g,'  ');
+    var m=raw.match(/^( *)(.*)$/);
+    var depth=Math.floor(m[1].length/2);
+    items.push({ depth:depth, label:m[2].trim() });
+  }
+  if(items[0].depth!==0) return { value:null, error:'首行必须无缩进（中心主题）' };
+  for(var j=1;j<items.length;j++){
+    if(items[j].depth===0) return { value:null, error:'第 '+(j+1)+' 行: 只允许一个中心主题' };
+    if(items[j].depth>items[j-1].depth+1) return { value:null, error:'第 '+(j+1)+' 行: 缩进跳级' };
+  }
+  var root={ label:items[0].label, children:[] };
+  var stack=[root];
+  for(var k=1;k<items.length;k++){
+    var node={ label:items[k].label, children:[] };
+    stack.length=items[k].depth;
+    stack[stack.length-1].children.push(node);
+    stack.push(node);
+  }
+  return { value:root, error:null };
+}
+function mmCountLeaves(node){
+  if(!node.children.length) return 1;
+  var s=0;
+  for(var i=0;i<node.children.length;i++) s+=mmCountLeaves(node.children[i]);
+  return s;
+}
+function mmLayout(root){
+  var nodes=[], edges=[], ROW=34, COL=170;
+  function place(node, depth, top){
+    var leaves=mmCountLeaves(node);
+    var y=top+leaves*ROW/2;
+    var me={ label:node.label, x:depth*COL+20, y:y, depth:depth };
+    nodes.push(me);
+    var cur=top;
+    for(var i=0;i<node.children.length;i++){
+      var child=place(node.children[i], depth+1, cur);
+      edges.push({ x1:me.x, y1:me.y, x2:child.x, y2:child.y });
+      cur+=mmCountLeaves(node.children[i])*ROW;
+    }
+    return me;
+  }
+  place(root, 0, 0);
+  var w=0,h=0;
+  for(var i=0;i<nodes.length;i++){
+    if(nodes[i].x>w) w=nodes[i].x;
+    if(nodes[i].y>h) h=nodes[i].y;
+  }
+  return { nodes:nodes, edges:edges, width:w+180, height:h+40 };
+}
+function mmEsc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function mmSvg(text){
+  var p=mmParse(text);
+  if(p.error) return { value:null, error:p.error };
+  var L=mmLayout(p.value);
+  var s='<svg xmlns="http://www.w3.org/2000/svg" width="'+L.width+'" height="'+L.height+'" viewBox="0 0 '+L.width+' '+L.height+'">';
+  s+='<rect width="'+L.width+'" height="'+L.height+'" fill="#0A0A0B"/>';
+  for(var i=0;i<L.edges.length;i++){
+    var e=L.edges[i], mx=(e.x1+e.x2)/2;
+    s+='<path d="M'+(e.x1+120)+' '+e.y1+' C'+mx+' '+e.y1+' '+mx+' '+e.y2+' '+e.x2+' '+e.y2+'" fill="none" stroke="rgba(94,106,210,0.55)" stroke-width="1.5"/>';
+  }
+  var PAL=['#5E6AD2','#22D3EE','#10B981','#A78BFA','#F5A623'];
+  for(var j=0;j<L.nodes.length;j++){
+    var n=L.nodes[j], c=PAL[n.depth%PAL.length];
+    s+='<rect x="'+n.x+'" y="'+(n.y-13)+'" width="120" height="26" rx="7" fill="#141417" stroke="'+c+'" stroke-width="1.2"/>';
+    s+='<text x="'+(n.x+60)+'" y="'+(n.y+4)+'" text-anchor="middle" font-size="12" fill="#FFFFFF" font-family="system-ui,sans-serif">'+mmEsc(n.label.length>9?n.label.slice(0,8)+'…':n.label)+'</text>';
+  }
+  s+='</svg>';
+  return { value:s, error:null };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { mmParse:mmParse, mmCountLeaves:mmCountLeaves, mmLayout:mmLayout, mmSvg:mmSvg, mmEsc:mmEsc };
+}
+if (typeof window !== 'undefined') {
+  window.MindMapForgePure = { mmParse:mmParse, mmCountLeaves:mmCountLeaves, mmLayout:mmLayout, mmSvg:mmSvg, mmEsc:mmEsc };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.MindMapForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      var r=P.mmSvg($('txt').value);
+      if(r.error){ $('err').textContent=r.error; return; }
+      $('out').innerHTML=r.value;
+    });
+    $('clear').addEventListener('click', function(){ $('txt').value=''; $('out').textContent='生成结果显示在这里'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

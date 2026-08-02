@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ChatForge · 本地优先 AI 对话</title>
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --card2:#1A1B1E; --line:rgba(255,255,255,0.08);
+    --line2:rgba(255,255,255,0.14); --txt:#FFFFFF; --txt2:#A1A1AA; --txt3:#71717A;
+    --acc:#5E6AD2; --ok:#10B981; --warn:#F5A623; --err:#EF4444;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;font-size:14px;}
+  header{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--line);}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.3px;}
+  .brand .dot{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--acc),#8b94f0);
+    display:flex;align-items:center;justify-content:center;font-size:13px;}
+  .brand small{color:var(--txt3);font-weight:500;}
+  .spacer{flex:1;}
+  .lang-btn{background:var(--card2);border:1px solid var(--line);color:var(--txt2);border-radius:8px;
+    padding:6px 12px;cursor:pointer;font-size:13px;}
+  .lang-btn:hover{border-color:var(--line2);color:var(--txt);}
+
+  .layout{display:flex;height:calc(100% - 56px);min-height:0;}
+  .side{width:300px;flex:none;border-right:1px solid var(--line);padding:16px;overflow:auto;
+    display:flex;flex-direction:column;gap:14px;}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .field label{display:block;font-size:12.5px;color:var(--txt2);margin-bottom:6px;}
+  select,input,textarea{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--txt);
+    border-radius:8px;padding:9px 11px;font-size:13.5px;outline:none;font-family:inherit;}
+  select:focus,input:focus,textarea:focus{border-color:var(--acc);}
+  textarea{resize:vertical;min-height:64px;line-height:1.5;}
+  .key-wrap{display:flex;gap:6px;}
+  .key-wrap input{flex:1;}
+  .mini{font-size:12px;color:var(--txt2);background:var(--card2);border:1px solid var(--line);
+    border-radius:7px;padding:6px 9px;cursor:pointer;white-space:nowrap;}
+  .mini:hover{border-color:var(--line2);color:var(--txt);}
+  .row{display:flex;gap:8px;align-items:center;}
+  .row.between{justify-content:space-between;}
+  .check{display:flex;align-items:center;gap:7px;color:var(--txt2);font-size:13px;cursor:pointer;}
+  .hint{color:var(--txt3);font-size:12px;line-height:1.5;}
+  .pill{font-size:11px;padding:3px 8px;border-radius:999px;background:var(--card2);color:var(--txt3);}
+
+  .msgs{flex:1;overflow:auto;padding:22px;display:flex;flex-direction:column;gap:16px;}
+  .msg{max-width:78%;padding:12px 15px;border-radius:14px;line-height:1.65;font-size:14px;white-space:pre-wrap;
+    word-break:break-word;}
+  .msg.user{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:4px;}
+  .msg.bot{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:4px;}
+  .msg .role{font-size:11px;color:var(--txt3);margin-bottom:5px;display:block;}
+  .msg.err{align-self:flex-start;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;}
+  .typing span{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--txt3);
+    margin-right:3px;animation:blink 1.2s infinite;}
+  .typing span:nth-child(2){animation-delay:.2s;}
+  .typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+
+  .composer{border-top:1px solid var(--line);padding:14px 18px;display:flex;gap:10px;align-items:flex-end;}
+  .composer textarea{flex:1;min-height:48px;max-height:160px;}
+  .btn{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:8px;
+    padding:10px 18px;cursor:pointer;font-size:14px;transition:transform .12s,background .12s,border-color .12s;white-space:nowrap;}
+  .btn:hover{border-color:var(--line2);transform:translateY(-1px);}
+  .btn.primary{background:var(--acc);border-color:var(--acc);}
+  .btn.primary:hover{background:#6b76e0;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--card2);border:1px solid var(--line2);padding:10px 18px;border-radius:10px;
+    opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;font-size:14px;z-index:50;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .statusbar{font-size:12px;color:var(--txt3);padding:6px 18px;border-top:1px solid var(--line);}
+  @media(max-width:820px){.layout{flex-direction:column;}.side{width:auto;border-right:none;border-bottom:1px solid var(--line);max-height:42vh;}}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="本地优先 BYOK AI 对话：自带密钥直连 OpenAI/Anthropic/OpenRouter，流式输出，密钥永不离机。">
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">ChatForge · 本地优先 AI 对话</h1>
+<header>
+  <div class="brand"><span class="dot">💬</span> nano·tools <small>/ ChatForge</small></div>
+  <div class="spacer"></div>
+  <button class="lang-btn" id="langBtn">EN</button>
+</header>
+
+<div class="layout">
+  <aside class="side">
+    <div class="field">
+      <label data-i18n="provider">服务商</label>
+      <select id="provider">
+        <option value="openai">OpenAI</option>
+        <option value="anthropic">Anthropic</option>
+        <option value="openrouter">OpenRouter</option>
+      </select>
+    </div>
+    <div class="field">
+      <label data-i18n="model">模型</label>
+      <input id="model" placeholder="gpt-4o-mini" />
+    </div>
+    <div class="field">
+      <label data-i18n="apiKey">API Key（仅留本地）</label>
+      <div class="key-wrap">
+        <input id="apiKey" type="password" placeholder="sk-…" autocomplete="off" />
+        <button class="mini" id="showKey" data-i18n="show">显示</button>
+      </div>
+      <div class="row between" style="margin-top:8px;">
+        <label class="check"><input type="checkbox" id="saveKey" /> <span data-i18n="saveKey">保存密钥</span></label>
+        <span class="pill" id="keyMask"></span>
+      </div>
+      <div class="hint" id="keyHint" style="margin-top:7px;"></div>
+    </div>
+    <div class="field">
+      <label data-i18n="system">系统提示词（可选）</label>
+      <textarea id="system" placeholder="你是一个乐于助人的助手。"></textarea>
+    </div>
+    <div class="field">
+      <label class="check"><input type="checkbox" id="streamChk" checked /> <span data-i18n="stream">流式输出 (SSE)</span></label>
+    </div>
+    <div class="field">
+      <button class="btn" id="clearBtn" style="width:100%;" data-i18n="clearChat">清空对话</button>
+    </div>
+    <div class="hint" data-i18n="privacy">🔒 密钥只存浏览器 localStorage，请求直达服务商，无中间服务器。</div>
+  </aside>
+
+  <section class="main">
+    <div class="msgs" id="msgs">
+      <div class="msg bot"><span class="role">Assistant</span><span data-i18n="welcome">在左侧填入服务商、模型和 API Key，即可开始对话。密钥不会离开你的浏览器。</span></div>
+    </div>
+    <div class="composer">
+      <textarea id="input" placeholder="输入消息，Enter 发送，Shift+Enter 换行" rows="1"></textarea>
+      <button class="btn primary" id="sendBtn" data-i18n="send">发送</button>
+    </div>
+    <div class="statusbar" id="status" data-i18n="idle">就绪</div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var __LS=(function(){try{var s=(typeof window!=='undefined'&&window.localStorage)?window.localStorage:null;if(!s)throw 0;s.setItem('__lsprobe','1');s.removeItem('__lsprobe');return s;}catch(e){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};},key:function(i){return Object.keys(m)[i]||null;}};}})();
+
+/* ---------- 纯函数（供 node 单测，不依赖浏览器） ---------- */
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+var PROVIDERS = {
+  openai:   {style:'openai',   url:'https://api.openai.com/v1/chat/completions'},
+  anthropic:{style:'anthropic',url:'https://api.anthropic.com/v1/messages'},
+  openrouter:{style:'openai',  url:'https://openrouter.ai/api/v1/chat/completions'}
+};
+var DEFAULT_MODELS = {openai:'gpt-4o-mini', anthropic:'claude-3-5-sonnet-latest', openrouter:'openai/gpt-4o-mini'};
+
+function validateKey(provider, key){
+  key=String(key||'').trim();
+  if(!key) return false;
+  if(provider==='openai'||provider==='openrouter') return /^sk-/.test(key) || key.length>=20;
+  if(provider==='anthropic') return key.length>=20;
+  return key.length>=10;
+}
+
+function maskKey(key){
+  key=String(key||'');
+  if(key.length<=6) return '••••';
+  return key.slice(0,3)+'…'+key.slice(-4);
+}
+
+function normalizeMessages(history, userText){
+  var msgs=(history||[]).map(function(m){return {role:m.role, content:m.content};});
+  msgs.push({role:'user', content:userText});
+  return msgs;
+}
+
+function buildUrl(provider){
+  var p=PROVIDERS[provider];
+  return p ? p.url : '';
+}
+
+function buildHeaders(provider, apiKey){
+  var p=PROVIDERS[provider]; if(!p) return {};
+  if(p.style==='anthropic'){
+    return {'content-type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'};
+  }
+  return {'content-type':'application/json','authorization':'Bearer '+apiKey};
+}
+
+function buildBody(provider, model, messages, system, stream){
+  var p=PROVIDERS[provider]; if(!p) return null;
+  if(p.style==='anthropic'){
+    var body={model:model, messages:messages, stream:!!stream};
+    if(system&&system.trim()) body.system=system.trim();
+    return body;
+  }
+  var msgs=[];
+  if(system&&system.trim()) msgs.push({role:'system', content:system.trim()});
+  msgs=msgs.concat(messages);
+  return {model:model, messages:msgs, stream:!!stream};
+}
+
+// SSE buffer -> {events:[{event,data}], rest}
+function parseSSEBuffer(buf){
+  var parts=String(buf).split('\n\n');
+  var rest=parts.pop()||'';
+  var events=parts.map(function(block){
+    var lines=block.split('\n').filter(function(l){return l.length;});
+    var event='message', data='';
+    lines.forEach(function(l){
+      if(l.indexOf('event:')===0) event=l.slice(6).trim();
+      else if(l.indexOf('data:')===0) data+=(data?'\n':'')+l.slice(5).trim();
+    });
+    return {event:event, data:data};
+  });
+  return {events:events, rest:rest};
+}
+
+// 从 SSE 事件中抽取增量文本
+function extractDelta(style, event, dataObj){
+  try{
+    if(style==='anthropic'){
+      if(event==='content_block_delta' && dataObj.delta && dataObj.delta.text) return dataObj.delta.text;
+      return '';
+    }
+    // openai 风格
+    if(dataObj.choices && dataObj.choices[0] && dataObj.choices[0].delta)
+      return dataObj.choices[0].delta.content||'';
+  }catch(e){}
+  return '';
+}
+
+// 粗略 token 估算（中文按字、英文按词/4）
+function estimateTokens(text){
+  text=String(text||'');
+  if(!text) return 0;
+  var cjk=(text.match(/[一-鿿]/g)||[]).length;
+  var rest=text.replace(/[一-鿿]/g,' ');
+  var words=(rest.trim().match(/\S+/g)||[]).length;
+  return Math.ceil(cjk + words/1.33); // 英文 ~1.33 token/word
+}
+
+/* ---------- 导出（node 单测用） ---------- */
+if(typeof module!=='undefined'&&module.exports){
+  module.exports={escapeHTML,PROVIDERS,DEFAULT_MODELS,validateKey,maskKey,normalizeMessages,
+    buildUrl,buildHeaders,buildBody,parseSSEBuffer,extractDelta,estimateTokens};
+}
+
+/* ---------- 以下仅浏览器执行 ---------- */
+if(typeof window!=='undefined'){
+  var I18N={
+    zh:{provider:'服务商',model:'模型',apiKey:'API Key（仅留本地）',show:'显示',hide:'隐藏',saveKey:'保存密钥',
+        system:'系统提示词（可选）',stream:'流式输出 (SSE)',clearChat:'清空对话',privacy:'🔒 密钥只存浏览器 __LS，请求直达服务商，无中间服务器。',
+        welcome:'在左侧填入服务商、模型和 API Key，即可开始对话。密钥不会离开你的浏览器。',send:'发送',idle:'就绪',
+        saved:'已保存密钥',cleared:'已清空对话',invalidKey:'API Key 无效（格式不符）',needKey:'请先填入 API Key',
+        sending:'请求中…',done:'完成',streamed:'流式输出',errPrefix:'出错了：',tokens:'约 ',tokensUnit:' tokens',copy:'已复制',noKey:'未保存密钥'},
+    en:{provider:'Provider',model:'Model',apiKey:'API Key (local only)',show:'Show',hide:'Hide',saveKey:'Save key',
+        system:'System prompt (optional)',stream:'Streaming (SSE)',clearChat:'Clear chat',privacy:'🔒 Key stays in browser __LS; requests go straight to the provider, no middle server.',
+        welcome:'Pick a provider, model and API key on the left to start chatting. Your key never leaves the browser.',send:'Send',idle:'Ready',
+        saved:'Key saved',cleared:'Chat cleared',invalidKey:'Invalid API key (bad format)',needKey:'Enter an API key first',
+        sending:'Sending…',done:'Done',streamed:'Streamed',errPrefix:'Error: ',tokens:'≈ ',tokensUnit:' tokens',copy:'Copied',noKey:'No key saved'}
+  };
+  var lang=__LS.getItem('chatforge_lang')||'zh';
+  var $=function(id){return document.getElementById(id);};
+  var t=function(k){return (I18N[lang]&&I18N[lang][k])||k;};
+
+  function applyLang(){
+    document.documentElement.lang=lang==='zh'?'zh-CN':'en';
+    document.querySelectorAll('[data-i18n]').forEach(function(el){el.textContent=t(el.dataset.i18n);});
+    $('langBtn').textContent=lang==='zh'?'EN':'中';
+    document.title=lang==='zh'?'ChatForge · 本地优先 AI 对话':'ChatForge · Local-first AI Chat';
+  }
+  var toastTimer;
+  function toast(msg){
+    $('toast').textContent=msg;$('toast').classList.add('show');
+    clearTimeout(toastTimer);toastTimer=setTimeout(function(){$('toast').classList.remove('show');},1900);
+  }
+
+  var history=[]; // [{role,content}]
+  var sending=false;
+
+  function refreshKeyUI(){
+    var key=$('apiKey').value;
+    if($('saveKey').checked && key) $('keyMask').textContent=maskKey(key);
+    else $('keyMask').textContent= key? '' : t('noKey');
+  }
+
+  function addMsg(role, text, isErr){
+    var box=$('msgs');
+    var d=document.createElement('div');
+    d.className='msg '+(role==='user'?'user':(isErr?'err':'bot'));
+    var r=document.createElement('span');r.className='role';
+    r.textContent=role==='user'?'You':(isErr?'Error':'Assistant');
+    d.appendChild(r);
+    var span=document.createElement('span');span.textContent=text;
+    d.appendChild(span);
+    box.appendChild(d);
+    box.scrollTop=box.scrollHeight;
+    return d;
+  }
+  function setStatus(s){ $('status').textContent=s; }
+
+  async function send(){
+    if(sending) return;
+    var provider=$('provider').value;
+    var apiKey=$('apiKey').value.trim();
+    var model=$('model').value.trim()||DEFAULT_MODELS[provider];
+    var sys=$('system').value;
+    var stream=$('streamChk').checked;
+    var text=$('input').value.trim();
+    if(!text) return;
+    if(!validateKey(provider, apiKey)){ toast(t('invalidKey')); return; }
+
+    addMsg('user', text);
+    history.push({role:'user', content:text});
+    $('input').value='';
+    sending=true; $('sendBtn').disabled=true;
+    setStatus(t('sending'));
+
+    var messages=normalizeMessages(history.slice(0,-1), text);
+    var url=buildUrl(provider);
+    var headers=buildHeaders(provider, apiKey);
+    var body=buildBody(provider, model, messages, sys, stream);
+
+    // 流式占位气泡
+    var botEl=addMsg('bot', '');
+    var acc='';
+    var typingEl=document.createElement('span');typingEl.className='typing';
+    typingEl.innerHTML='<span></span><span></span><span></span>';
+    botEl.appendChild(typingEl);
+
+    try{
+      var resp=await fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body)});
+      if(!resp.ok){
+        var errTxt=await resp.text();
+        botEl.removeChild(typingEl);
+        botEl.lastChild.textContent=t('errPrefix')+resp.status+' '+errTxt.slice(0,300);
+        botEl.className='msg err';
+        setStatus('HTTP '+resp.status);
+        sending=false;$('sendBtn').disabled=false;return;
+      }
+      if(stream && resp.body){
+        var reader=resp.body.getReader();
+        var decoder=new TextDecoder();
+        var buf='';
+        while(true){
+          var chunk=await reader.read();
+          if(chunk.done) break;
+          buf+=decoder.decode(chunk.value,{stream:true});
+          var parsed=parseSSEBuffer(buf); buf=parsed.rest;
+          var p=PROVIDERS[provider];
+          for(var i=0;i<parsed.events.length;i++){
+            var ev=parsed.events[i];
+            if(p.style==='openai' && ev.data==='[DONE]') continue;
+            try{
+              var o=JSON.parse(ev.data);
+              var d=extractDelta(p.style, ev.event, o);
+              if(d){ if(typingEl.parentNode) botEl.removeChild(typingEl); acc+=d; botEl.lastChild.textContent=acc; $('msgs').scrollTop=$('msgs').scrollHeight; }
+            }catch(e){}
+          }
+        }
+      } else {
+        var o2=await resp.json();
+        var txt='';
+        if(PROVIDERS[provider].style==='anthropic') txt=(o2.content&&o2.content[0]&&o2.content[0].text)||'';
+        else txt=(o2.choices&&o2.choices[0]&&o2.choices[0].message&&o2.choices[0].message.content)||'';
+        if(typingEl.parentNode) botEl.removeChild(typingEl);
+        botEl.lastChild.textContent=txt; acc=txt;
+      }
+      history.push({role:'assistant', content:acc});
+      setStatus(t('done')+' · '+(p=estimateTokens(acc)));
+    }catch(e){
+      if(typingEl.parentNode) botEl.removeChild(typingEl);
+      botEl.lastChild.textContent=t('errPrefix')+(e&&e.message?e.message:e);
+      botEl.className='msg err';
+      setStatus('ERR');
+    }
+    sending=false;$('sendBtn').disabled=false;
+  }
+
+  // ---- 事件 ----
+  $('langBtn').addEventListener('click',function(){lang=lang==='zh'?'en':'zh';__LS.setItem('chatforge_lang',lang);applyLang();});
+  $('sendBtn').addEventListener('click',send);
+  $('input').addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} });
+  $('apiKey').addEventListener('input',refreshKeyUI);
+  $('saveKey').addEventListener('change',function(){
+    if($('saveKey').checked){ __LS.setItem('chatforge_key', $('apiKey').value); toast(t('saved')); }
+    else { __LS.removeItem('chatforge_key'); }
+    refreshKeyUI();
+  });
+  $('showKey').addEventListener('click',function(){
+    var inp=$('apiKey'); inp.type=inp.type==='password'?'text':'password';
+    $('showKey').textContent=inp.type==='password'?t('show'):t('hide');
+  });
+  $('provider').addEventListener('change',function(){
+    var p=$('provider').value; $('model').placeholder=DEFAULT_MODELS[p];
+    if(!$('model').value) $('model').value=DEFAULT_MODELS[p];
+    $('keyHint').textContent='示例：'+(p==='anthropic'?'sk-ant-…':p==='openrouter'?'sk-or-…':'sk-…');
+  });
+  $('clearBtn').addEventListener('click',function(){ history=[]; $('msgs').innerHTML='';
+    addMsg('bot', lang==='zh'?'在左侧填入服务商、模型和 API Key，即可开始对话。密钥不会离开你的浏览器。':'Pick a provider, model and API key on the left to start chatting. Your key never leaves the browser.');
+    toast(t('cleared')); });
+
+  // ---- 启动 ----
+  applyLang();
+  var saved=__LS.getItem('chatforge_key');
+  if(saved){ $('apiKey').value=saved; $('saveKey').checked=true; }
+  $('provider').value='openai'; $('provider').dispatchEvent(new Event('change'));
+  refreshKeyUI();
+}
+</script>
+<footer style="margin-top:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);color:#71717A;font-size:12px;text-align:center">nano-tools · 单文件 · 零依赖 · 本地优先 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</body>
+</html>

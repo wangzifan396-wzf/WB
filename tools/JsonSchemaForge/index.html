@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>JsonSchemaForge — JSON Schema 校验器：逐字段错误路径定位，支持从数据反推 Schema，离线可用。</title>
+<meta property="og:title" content="JsonSchemaForge">
+<meta property="og:description" content="JSON Schema 校验器：错误路径定位、从数据反推 Schema，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="JSON Schema 校验器：错误路径定位、从数据反推 Schema，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>JsonSchemaForge</h1>
+  <p class="sub">JSON Schema 校验：type / required / enum / pattern / 数值与数组约束，错误精确到路径 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>JSON Schema</label>
+<textarea id="schema" rows="9" spellcheck="false"></textarea>
+<label>待校验数据</label>
+<textarea id="data" rows="7" spellcheck="false"></textarea>
+<div class="row">
+  <button id="run">校验</button>
+  <button id="infer" class="ghost">从数据推断 Schema</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function jsType(v){
+  if(v===null) return 'null';
+  if(Array.isArray(v)) return 'array';
+  if(typeof v==='number') return Number.isInteger(v) ? 'integer' : 'number';
+  return typeof v;
+}
+function jsTypeOk(want, v){
+  var t=jsType(v);
+  if(want==='number') return t==='number'||t==='integer';
+  return want===t;
+}
+function jsValidate(schema, data, pathPrefix){
+  var errs=[], p=pathPrefix||'$';
+  if(!schema || typeof schema!=='object') return errs;
+  if(schema.type){
+    var want=[].concat(schema.type), hit=false;
+    for(var i=0;i<want.length;i++) if(jsTypeOk(want[i],data)) hit=true;
+    if(!hit){ errs.push({ path:p, msg:'类型应为 '+want.join('|')+'，实际 '+jsType(data) }); return errs; }
+  }
+  if(schema.enum && schema.enum.indexOf(data)<0)
+    errs.push({ path:p, msg:'取值应属于 ['+schema.enum.join(', ')+']' });
+  if(typeof data==='number'){
+    if(schema.minimum!==undefined && data<schema.minimum) errs.push({ path:p, msg:'应 >= '+schema.minimum });
+    if(schema.maximum!==undefined && data>schema.maximum) errs.push({ path:p, msg:'应 <= '+schema.maximum });
+  }
+  if(typeof data==='string'){
+    if(schema.minLength!==undefined && data.length<schema.minLength) errs.push({ path:p, msg:'长度应 >= '+schema.minLength });
+    if(schema.maxLength!==undefined && data.length>schema.maxLength) errs.push({ path:p, msg:'长度应 <= '+schema.maxLength });
+    if(schema.pattern && !(new RegExp(schema.pattern)).test(data)) errs.push({ path:p, msg:'不匹配 /'+schema.pattern+'/' });
+  }
+  if(Array.isArray(data)){
+    if(schema.minItems!==undefined && data.length<schema.minItems) errs.push({ path:p, msg:'元素数应 >= '+schema.minItems });
+    if(schema.maxItems!==undefined && data.length>schema.maxItems) errs.push({ path:p, msg:'元素数应 <= '+schema.maxItems });
+    if(schema.items) for(var k=0;k<data.length;k++) errs=errs.concat(jsValidate(schema.items, data[k], p+'['+k+']'));
+  }
+  if(data && typeof data==='object' && !Array.isArray(data)){
+    var req=schema.required||[];
+    for(var r=0;r<req.length;r++)
+      if(!Object.prototype.hasOwnProperty.call(data, req[r])) errs.push({ path:p+'.'+req[r], msg:'缺少必填字段' });
+    var props=schema.properties||{};
+    for(var key in props) if(Object.prototype.hasOwnProperty.call(data,key))
+      errs=errs.concat(jsValidate(props[key], data[key], p+'.'+key));
+    if(schema.additionalProperties===false)
+      for(var dk in data) if(!Object.prototype.hasOwnProperty.call(props,dk))
+        errs.push({ path:p+'.'+dk, msg:'不允许的额外字段' });
+  }
+  return errs;
+}
+function jsInfer(data){
+  var t=jsType(data);
+  if(t==='array'){
+    if(!data.length) return { type:'array' };
+    return { type:'array', items: jsInfer(data[0]) };
+  }
+  if(t==='object'){
+    var props={}, req=[];
+    for(var k in data){ props[k]=jsInfer(data[k]); req.push(k); }
+    return { type:'object', properties:props, required:req };
+  }
+  return { type:t };
+}
+function jsRun(schemaText, dataText){
+  var schema, data;
+  try{ schema=JSON.parse(schemaText); }catch(e){ return { error:'Schema 不是合法 JSON：'+e.message }; }
+  try{ data=JSON.parse(dataText); }catch(e){ return { error:'数据不是合法 JSON：'+e.message }; }
+  var errs=jsValidate(schema, data, '$');
+  return { error:null, valid:errs.length===0, errors:errs };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { jsType:jsType, jsTypeOk:jsTypeOk, jsValidate:jsValidate, jsInfer:jsInfer, jsRun:jsRun };
+}
+if (typeof window !== 'undefined') {
+  window.JsonSchemaForgePure = { jsType:jsType, jsTypeOk:jsTypeOk, jsValidate:jsValidate, jsInfer:jsInfer, jsRun:jsRun };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.JsonSchemaForgePure;
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  function run(){
+    var r=P.jsRun($('schema').value, $('data').value);
+    if(r.error){ $('err').textContent=r.error; $('out').innerHTML=''; return; }
+    $('err').textContent='';
+    if(r.valid){ $('out').innerHTML='<div class="kv"><b>校验结果</b><span style="color:#10B981">通过，0 处错误</span></div>'; return; }
+    var h='<div class="kv"><b>校验结果</b><span style="color:#F5A623">'+r.errors.length+' 处错误</span></div>';
+    for(var i=0;i<r.errors.length;i++)
+      h+='<div class="kv"><b>'+esc(r.errors[i].path)+'</b><span>'+esc(r.errors[i].msg)+'</span></div>';
+    $('out').innerHTML=h;
+  }
+  $('run').addEventListener('click', run);
+  $('infer').addEventListener('click', function(){
+    try{ $('schema').value=JSON.stringify(P.jsInfer(JSON.parse($('data').value)), null, 2); run(); }
+    catch(e){ $('err').textContent='数据不是合法 JSON'; }
+  });
+  $('clear').addEventListener('click', function(){ $('schema').value=''; $('data').value=''; $('out').innerHTML=''; $('err').textContent=''; });
+  $('schema').value='{\n  "type": "object",\n  "required": ["name", "age"],\n  "properties": {\n    "name": { "type": "string", "minLength": 2 },\n    "age": { "type": "integer", "minimum": 0 },\n    "tags": { "type": "array", "items": { "type": "string" } }\n  }\n}';
+  $('data').value='{\n  "name": "n",\n  "tags": ["a", 2]\n}';
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

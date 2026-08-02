@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeckForge · Markdown 一键变幻灯片</title>
+<meta name="description" content="DeckForge — 单文件、离线优先的 Markdown 幻灯片编辑器。左边写 Markdown，右边实时预览，一键导出独立 HTML 或打印成 PDF。">
+<meta name="theme-color" content="#5E6AD2">
+<meta property="og:title" content="DeckForge · Markdown 一键变幻灯片">
+<meta property="og:description" content="单文件、离线优先的 Markdown 幻灯片编辑器 — 零依赖，数据不出本机。">
+<meta property="og:type" content="website">
+<meta property="og:image" content="og.svg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DeckForge · Markdown 一键变幻灯片">
+<meta name="twitter:description" content="单文件、离线优先的 Markdown 幻灯片编辑器 — 零依赖，数据不出本机。">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --bg:#0A0A0B; --surface:#141417; --surface-2:#1A1B1E;
+    --text:#FFFFFF; --text-2:#A1A1AA; --text-3:#71717A;
+    --border:rgba(255,255,255,0.08); --border-strong:rgba(255,255,255,0.14);
+    --accent:#5E6AD2; --accent-soft:rgba(94,106,210,0.14);
+    --radius:10px; --radius-sm:6px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  [data-theme="light"]{
+    --bg:#FFFFFF; --surface:#F7F7F8; --surface-2:#EFEFF1;
+    --text:#18191C; --text-2:#52525B; --text-3:#8E8E96;
+    --border:rgba(0,0,0,0.08); --border-strong:rgba(0,0,0,0.14);
+    --accent:#5E6AD2; --accent-soft:rgba(94,106,210,0.12);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    font-size:14px; line-height:1.5; display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+  button{font-family:inherit; cursor:pointer}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--border-strong); border-radius:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* Top bar */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px; border-bottom:1px solid var(--border);
+    background:var(--surface); flex-shrink:0;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:15px}
+  .brand .logo{
+    width:26px;height:26px;border-radius:7px;background:var(--accent-soft);
+    display:grid;place-items:center;color:var(--accent);
+  }
+  .brand .logo svg{width:16px;height:16px}
+  .brand-sub{color:var(--text-3); font-weight:500; font-size:13px}
+  .top-actions{display:flex; gap:8px}
+  .icon-btn{
+    background:transparent;border:1px solid var(--border);color:var(--text-2);
+    width:32px;height:32px;border-radius:var(--radius-sm);display:grid;place-items:center;
+    transition:.15s;
+  }
+  .icon-btn:hover{border-color:var(--border-strong); color:var(--text)}
+  .icon-btn svg{width:16px;height:16px}
+
+  /* Toolbar */
+  .toolbar{
+    display:flex; align-items:center; gap:8px; padding:8px 16px;
+    border-bottom:1px solid var(--border); background:var(--bg); flex-shrink:0;
+    flex-wrap:wrap;
+  }
+  .btn{
+    display:inline-flex; align-items:center; gap:6px; padding:7px 12px;
+    background:var(--surface); border:1px solid var(--border); color:var(--text);
+    border-radius:var(--radius-sm); font-size:13px; transition:.15s;
+  }
+  .btn:hover{border-color:var(--border-strong)}
+  .btn svg{width:14px;height:14px}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .toolbar .spacer{flex:1}
+  .counter{
+    font-family:var(--mono); font-size:13px; color:var(--text-2);
+    background:var(--surface); border:1px solid var(--border);
+    padding:6px 12px; border-radius:var(--radius-sm); min-width:64px; text-align:center;
+  }
+  .hint{color:var(--text-3); font-size:12px}
+
+  /* Layout */
+  .layout{flex:1; display:grid; grid-template-columns:220px 1fr 1fr; min-height:0}
+  .layout.no-thumbs{grid-template-columns:0 1fr 1fr}
+  .thumbs{
+    border-right:1px solid var(--border); background:var(--surface);
+    display:flex; flex-direction:column; gap:10px; padding:10px; overflow:auto;
+  }
+  .layout.no-thumbs .thumbs{display:none}
+  .editor-pane{
+    display:flex; flex-direction:column; border-right:1px solid var(--border);
+    min-width:0; min-height:0;
+  }
+  .editor-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:6px 12px; color:var(--text-3); font-size:12px; background:var(--surface);
+  }
+  #md{
+    flex:1; width:100%; resize:none; border:none; outline:none;
+    background:var(--bg); color:var(--text); font-family:var(--mono);
+    font-size:13.5px; line-height:1.6; padding:12px; tab-size:2;
+  }
+  .preview-pane{display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--bg)}
+  .stage{
+    flex:1; display:flex; align-items:center; justify-content:center;
+    padding:24px; min-height:0; overflow:auto;
+  }
+  .slide-page{
+    width:100%; max-width:960px; aspect-ratio:16/9;
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:48px; overflow:auto; display:flex; flex-direction:column; justify-content:center;
+  }
+  .slide-page h1{font-size:40px; margin:0 0 16px; line-height:1.2}
+  .slide-page h2{font-size:32px; margin:0 0 14px; line-height:1.2}
+  .slide-page h3{font-size:24px; margin:0 0 12px; line-height:1.2}
+  .slide-page p{margin:0 0 12px}
+  .slide-page ul,.slide-page ol{margin:0 0 12px 26px; padding:0}
+  .slide-page li{margin:6px 0}
+  .slide-page blockquote{
+    border-left:4px solid var(--accent); padding:8px 16px; margin:0 0 12px;
+    color:var(--text-2); background:var(--accent-soft); border-radius:0 6px 6px 0;
+  }
+  .slide-page code{
+    background:var(--accent-soft); padding:2px 6px; border-radius:4px;
+    font-family:var(--mono); font-size:.88em;
+  }
+  .slide-page pre{
+    background:var(--bg); border:1px solid var(--border); padding:14px 16px;
+    border-radius:8px; overflow:auto; margin:0 0 12px;
+  }
+  .slide-page pre code{background:none; padding:0}
+  .slide-page a{color:var(--accent); text-decoration:none}
+  .slide-page a:hover{text-decoration:underline}
+  .slide-page img{max-width:100%; max-height:240px; border-radius:8px; margin:4px 0 12px}
+  .preso{
+    display:flex; align-items:center; justify-content:center; gap:12px;
+    padding:8px; border-top:1px solid var(--border); background:var(--surface); flex-shrink:0;
+  }
+
+  .thumb{
+    position:relative; border:1px solid var(--border); border-radius:8px;
+    overflow:hidden; cursor:pointer; background:var(--surface); aspect-ratio:16/9;
+    flex-shrink:0;
+  }
+  .thumb.active{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent)}
+  .thumb .inner{
+    position:absolute; top:0; left:0; width:640px; height:360px;
+    transform:scale(0.255); transform-origin:top left; padding:24px;
+    overflow:hidden; font-size:18px; color:var(--text);
+  }
+  .thumb .inner h1{font-size:42px;margin:0 0 14px}
+  .thumb .inner h2{font-size:32px;margin:0 0 12px}
+  .thumb .inner h3{font-size:24px;margin:0 0 10px}
+  .thumb .inner p,.thumb .inner li{font-size:16px;margin:4px 0}
+  .thumb .badge{
+    position:absolute; top:4px; left:6px; font-size:10px; color:var(--text-2);
+    z-index:2; font-family:var(--mono);
+  }
+
+  /* Footer brand bar */
+  .brandbar{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:6px; border-top:1px solid var(--border); background:var(--surface);
+    color:var(--text-3); font-size:11px; flex-shrink:0;
+  }
+  .brandbar .nt{color:var(--accent); font-weight:600}
+  .brandbar .gh{color:var(--text-3); text-decoration:none; margin-left:6px}
+  .brandbar .gh:hover{color:var(--accent)}
+
+  .toast{
+    position:fixed; bottom:48px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--surface-2); border:1px solid var(--border-strong); color:var(--text);
+    padding:10px 16px; border-radius:var(--radius); font-size:13px; opacity:0;
+    transition:.2s; pointer-events:none; z-index:50; max-width:80vw;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+  /* Hidden print container */
+  #printRoot{display:none}
+
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr}
+    .thumbs{display:none}
+    .editor-pane{border-right:none; border-bottom:1px solid var(--border)}
+  }
+
+  /* Print: one slide per page */
+  @media print{
+    @page{size:1280px 720px; margin:0}
+    body{display:block; overflow:visible; height:auto}
+    .topbar,.toolbar,.layout,.brandbar,.toast{display:none !important}
+    #printRoot{display:block !important}
+    .slide-page{
+      width:100%; max-width:none; aspect-ratio:16/9; page-break-after:always;
+      break-after:page; border:1px solid var(--border); border-radius:0;
+      padding:48px; display:flex; flex-direction:column; justify-content:center;
+      overflow:hidden;
+    }
+    .slide-page>*{max-width:100%}
+  }
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">DeckForge · Markdown 一键变幻灯片</h1>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M3 20h18M8 9h8M8 13h5"/></svg>
+      </span>
+      <span>DeckForge</span>
+      <span class="brand-sub" data-i18n="subtitle">· Markdown 幻灯片编辑器</span>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="langBtn" title="中 / EN" aria-label="language">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
+      </button>
+      <button class="icon-btn" id="themeBtn" title="theme" aria-label="theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn" id="newBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      <span data-i18n="new">新建</span>
+    </button>
+    <button class="btn" id="prevBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      <span data-i18n="prev">上一张</span>
+    </button>
+    <button class="btn" id="nextBtn">
+      <span data-i18n="next">下一张</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <span class="counter" id="counter">1 / 1</span>
+    <button class="btn" id="thumbsBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      <span data-i18n="thumbs">缩略图</span>
+    </button>
+    <span class="spacer"></span>
+    <span class="hint" data-i18n="navHint">← → / 空格 翻页 · F 全屏</span>
+    <button class="btn" id="printBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
+      <span data-i18n="print">打印 / PDF</span>
+    </button>
+    <button class="btn primary" id="exportBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      <span data-i18n="exportHtml">导出 HTML</span>
+    </button>
+  </div>
+
+  <div class="layout no-thumbs" id="layout">
+    <aside class="thumbs" id="thumbs"></aside>
+
+    <section class="editor-pane">
+      <div class="editor-head">
+        <span data-i18n="editor">Markdown 编辑器</span>
+        <button class="btn" id="sampleBtn" style="padding:3px 9px;font-size:12px">
+          <span data-i18n="sample">载入模板</span>
+        </button>
+      </div>
+      <textarea id="md" spellcheck="false" autocomplete="off"></textarea>
+    </section>
+
+    <section class="preview-pane" id="previewPane">
+      <div class="stage" id="stage">
+        <div class="slide-page" id="slidePage"></div>
+      </div>
+      <div class="preso">
+        <button class="icon-btn" id="pPrev" title="prev">‹</button>
+        <button class="icon-btn" id="pFs" title="fullscreen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+        <button class="icon-btn" id="pNext" title="next">›</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="printRoot"></div>
+
+  <footer class="brandbar">
+    <span class="nt">nano·tools</span>
+    <span>· DeckForge · 单文件 / 离线优先 / 零依赖</span>
+    <a class="gh" href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/DeckForge" target="_blank" rel="noopener">GitHub ↗</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script type="text/plain" id="starter">
+# DeckForge
+## Markdown 一键变幻灯片
+
+左边写 **Markdown**，右边实时预览幻灯片。
+
+- 支持 `#` / `##` / `###` 标题
+- 支持 `-` 无序列表 与 `1.` 有序列表
+- 支持 **加粗**、*斜体*、`代码` 与 [链接](https://github.com/wangzifan396-wzf)
+- 支持 `>` 引用 与 ![Markdown](https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Markdown-mark.svg/64px-Markdown-mark.svg.png)
+
+用一行 `---` 分隔每一页。
+
+---
+
+## 代码块
+
+```js
+function greet(name){
+  return `Hello, ${name}!`;
+}
+```
+
+> 提示：按 `→` 翻页，`F` 全屏，空格下一页。
+
+---
+
+## 导出与分享
+
+1. 点击「打印 / PDF」用浏览器导出 PDF
+2. 点击「导出 HTML」得到单文件独立幻灯片
+3. 完全离线，数据不出本机
+
+**现在就开始制作你自己的幻灯片吧！**
+</script>
+
+  <script>
+var __LS=(function(){try{var s=(typeof window!=='undefined'&&window.localStorage)?window.localStorage:null;if(!s)throw 0;s.setItem('__lsprobe','1');s.removeItem('__lsprobe');return s;}catch(e){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};},key:function(i){return Object.keys(m)[i]||null;}};}})();
+
+  /* ===================== Pure functions (testable in Node) ===================== */
+  function escapeHtml(s){
+    if (s === null || s === undefined) return '';
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // Only allow safe URL schemes (block javascript:, data: except images, etc.)
+  function safeUrl(u){
+    const t = String(u || '').trim().toLowerCase();
+    if (/^javascript:/i.test(t)) return false;
+    if (/^data:/.test(t) && !/^data:image\//i.test(t)) return false;
+    if (/^vbscript:/i.test(t)) return false;
+    return true;
+  }
+
+  // Split markdown into slides on lines that are exactly "---"
+  function parseSlides(md){
+    const text = String(md == null ? '' : md).replace(/\r\n/g, '\n');
+    const lines = text.split('\n');
+    const slides = [];
+    let cur = [];
+    for (const line of lines){
+      if (/^---\s*$/.test(line)){ slides.push(cur.join('\n')); cur = []; }
+      else cur.push(line);
+    }
+    slides.push(cur.join('\n'));
+    let res = slides.map(s => s.trim());
+    while (res.length > 1 && res[0] === '') res.shift();
+    while (res.length > 1 && res[res.length - 1] === '') res.pop();
+    return res;
+  }
+
+  function countSlides(md){ return parseSlides(md).length; }
+
+  // Inline markdown -> HTML (text is escaped first, then formatted)
+  function inlineMd(text){
+    let s = escapeHtml(text);
+    // images: ![alt](src)
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(m0, alt, src){
+      if (!safeUrl(src)) return m0;
+      return '<img src="' + src + '" alt="' + alt + '" />';
+    });
+    // links: [text](url)
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m0, txt, url){
+      if (!safeUrl(url)) return m0;
+      return '<a href="' + url + '" target="_blank" rel="noopener">' + txt + '</a>';
+    });
+    // bold **text**
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // italic *text*
+    s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    // inline code `code`
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return s;
+  }
+
+  // Render a single slide's markdown into an HTML fragment
+  function renderSlide(md){
+    const lines = String(md == null ? '' : md).replace(/\r\n/g, '\n').split('\n');
+    let html = '';
+    let i = 0;
+    let para = [];
+    function flushPara(){
+      if (para.length){ html += '<p>' + inlineMd(para.join(' ')) + '</p>'; para = []; }
+    }
+    while (i < lines.length){
+      const line = lines[i];
+      // fenced code block
+      if (/^```/.test(line)){
+        flushPara();
+        const buf = [];
+        i++;
+        while (i < lines.length && !/^```/.test(lines[i])){ buf.push(lines[i]); i++; }
+        i++; // skip closing fence
+        html += '<pre><code>' + escapeHtml(buf.join('\n')) + '</code></pre>';
+        continue;
+      }
+      // headings
+      let m = line.match(/^(#{1,3})\s+(.*)$/);
+      if (m){ flushPara(); const lvl = m[1].length; html += '<h' + lvl + '>' + inlineMd(m[2]) + '</h' + lvl + '>'; i++; continue; }
+      // blockquote
+      if (/^>\s?/.test(line)){
+        flushPara();
+        const buf = [];
+        while (i < lines.length && /^>\s?/.test(lines[i])){ buf.push(lines[i].replace(/^>\s?/, '')); i++; }
+        html += '<blockquote>' + inlineMd(buf.join(' ')) + '</blockquote>';
+        continue;
+      }
+      // unordered list
+      if (/^[-*]\s+/.test(line)){
+        flushPara();
+        const items = [];
+        while (i < lines.length && /^[-*]\s+/.test(lines[i])){ items.push(lines[i].replace(/^[-*]\s+/, '')); i++; }
+        html += '<ul>' + items.map(it => '<li>' + inlineMd(it) + '</li>').join('') + '</ul>';
+        continue;
+      }
+      // ordered list
+      if (/^\d+\.\s+/.test(line)){
+        flushPara();
+        const items = [];
+        while (i < lines.length && /^\d+\.\s+/.test(lines[i])){ items.push(lines[i].replace(/^\d+\.\s+/, '')); i++; }
+        html += '<ol>' + items.map(it => '<li>' + inlineMd(it) + '</li>').join('') + '</ol>';
+        continue;
+      }
+      // blank line
+      if (/^\s*$/.test(line)){ flushPara(); i++; continue; }
+      // paragraph text
+      para.push(line); i++;
+    }
+    flushPara();
+    return html;
+  }
+
+  function validateMd(md){
+    const slides = parseSlides(md);
+    const nonempty = slides.filter(s => s.trim() !== '').length;
+    const ok = slides.length >= 1 && nonempty >= 1;
+    return {
+      ok: ok,
+      slides: slides.length,
+      note: ok ? ('OK · 共 ' + slides.length + ' 页') : '内容为空或没有有效幻灯片'
+    };
+  }
+
+  // CSS used by the exported standalone deck
+  const DECK_CSS = [
+    ':root{--bg:#0A0A0B;--surface:#141417;--text:#FFFFFF;--text2:#A1A1AA;--accent:#5E6AD2;--border:rgba(255,255,255,.1)}',
+    '*{box-sizing:border-box;margin:0}',
+    'body{background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,"Microsoft YaHei",sans-serif;min-height:100vh}',
+    '[data-theme=light]{--bg:#fff;--surface:#f7f7f8;--text:#18191c;--text2:#52525b;--border:rgba(0,0,0,.1)}',
+    '.deck{display:flex;flex-direction:column;align-items:center;gap:24px;padding:24px}',
+    '.slide{width:100%;max-width:960px;aspect-ratio:16/9;background:var(--surface);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;padding:48px;overflow:auto}',
+    '.slide .page{width:100%;font-size:22px;line-height:1.6}',
+    '.slide h1{font-size:46px;margin:0 0 16px}',
+    '.slide h2{font-size:34px;margin:0 0 14px}',
+    '.slide h3{font-size:26px;margin:0 0 12px}',
+    '.slide p{margin:0 0 12px}',
+    '.slide ul,.slide ol{margin:8px 0 12px 28px;padding:0}',
+    '.slide li{margin:6px 0}',
+    '.slide blockquote{border-left:4px solid var(--accent);padding:8px 16px;color:var(--text2);margin:0 0 12px}',
+    '.slide code{background:rgba(94,106,210,.15);padding:2px 6px;border-radius:4px;font-family:ui-monospace,Menlo,monospace;font-size:.9em}',
+    '.slide pre{background:rgba(0,0,0,.3);padding:16px;border-radius:8px;overflow:auto;margin:0 0 12px}',
+    '.slide pre code{background:none;padding:0}',
+    '.slide a{color:var(--accent)}',
+    '.slide img{max-width:100%;max-height:240px;border-radius:8px;margin:4px 0 12px}',
+    '.bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:8px 16px}',
+    '.bar button{background:none;border:none;color:var(--text);font-size:20px;cursor:pointer}',
+    '.bar span{color:var(--text2);min-width:60px;text-align:center;font-family:ui-monospace,monospace}',
+    '@media print{.bar{display:none}.deck{gap:0;padding:0}.slide{margin:0;border:none;border-radius:0;page-break-after:always;break-after:page;max-width:none}}'
+  ].join('');
+
+  // Minimal nav JS for the exported standalone deck (no closing script tag literal)
+  const DECK_NAV = [
+    "var i=0,s=document.querySelectorAll('.slide'),ct=document.getElementById('ct');",
+    "function show(n){if(n<0)n=0;if(n>=s.length)n=s.length-1;i=n;for(var k=0;k<s.length;k++){s[k].style.display=(k===i)?'flex':'none';}ct.textContent=(i+1)+' / '+s.length;}",
+    "document.getElementById('pv').onclick=function(){show(i-1);};",
+    "document.getElementById('nx').onclick=function(){show(i+1);};",
+    "document.getElementById('fs').onclick=function(){if(!document.fullscreenElement){(document.documentElement.requestFullscreen||function(){})();}else{document.exitFullscreen&&document.exitFullscreen();}};",
+    "document.addEventListener('keydown',function(e){if(e.key==='ArrowRight'||e.key===' '){show(i+1);e.preventDefault();}else if(e.key==='ArrowLeft'){show(i-1);}else if(e.key==='Home'){show(0);}else if(e.key==='End'){show(s.length-1);}});",
+    "show(0);"
+  ].join('');
+
+  // Build a full standalone HTML deck string for export
+  function deckHtml(md, opts){
+    opts = opts || {};
+    const theme = opts.theme || 'dark';
+    const title = opts.title || 'DeckForge 幻灯片';
+    const slides = parseSlides(md);
+    const body = slides.map(function(s){
+      return '<section class="slide"><div class="page">' + renderSlide(s) + '</div></section>';
+    }).join('\n');
+    return '<!DOCTYPE html>\n' +
+      '<html lang="zh" data-theme="' + theme + '">\n' +
+      '<head>\n<meta charset="UTF-8">\n' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">\n' +
+      '<title>' + escapeHtml(title) + '</title>\n' +
+      '<style>' + DECK_CSS + '</style>\n' +
+      '</head>\n<body>\n' +
+      '<div class="deck">' + body + '</div>\n' +
+      '<div class="bar"><button id="pv">‹</button><span id="ct">1 / ' + slides.length + '</span><button id="nx">›</button><button id="fs">⛶</button></div>\n' +
+      '<' + 'script>' + DECK_NAV + '<' + '/script>' +
+      '\n</body>\n</html>';
+  }
+
+  if (typeof module !== 'undefined' && module.exports){
+    module.exports = {
+      escapeHtml, safeUrl, parseSlides, countSlides, inlineMd, renderSlide,
+      validateMd, deckHtml, DECK_CSS, DECK_NAV
+    };
+  }
+
+  /* ===================== Browser app ===================== */
+  if (typeof window !== 'undefined'){
+    const I18N = {
+      zh: {
+        subtitle:'· Markdown 幻灯片编辑器', new:'新建', prev:'上一张', next:'下一张',
+        thumbs:'缩略图', navHint:'← → / 空格 翻页 · F 全屏', print:'打印 / PDF',
+        exportHtml:'导出 HTML', editor:'Markdown 编辑器', sample:'载入模板',
+        exported:'已导出独立 HTML', copied:'已复制', themeSwitched:'主题已切换',
+        slideOf:'第 {n} 页'
+      },
+      en: {
+        subtitle:'· Markdown Slide Editor', new:'New', prev:'Prev', next:'Next',
+        thumbs:'Thumbs', navHint:'← → / Space to navigate · F fullscreen', print:'Print / PDF',
+        exportHtml:'Export HTML', editor:'Markdown Editor', sample:'Load Template',
+        exported:'Standalone HTML exported', copied:'Copied', themeSwitched:'Theme switched',
+        slideOf:'Slide {n}'
+      }
+    };
+
+    const $ = id => document.getElementById(id);
+    let CURRENT = 0;
+    let SLIDES = [];
+    let LANG = (typeof __LS !== 'undefined' && __LS.getItem('deckforge.lang')) || 'zh';
+
+    function t(key){ return (I18N[LANG] && I18N[LANG][key]) || (I18N.zh[key]) || key; }
+    function applyLang(){
+      document.documentElement.lang = (LANG === 'zh') ? 'zh' : 'en';
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (I18N[LANG][k]) el.textContent = I18N[LANG][k];
+      });
+    }
+    function toast(msg){
+      const el = $('toast'); if (!el) return;
+      el.textContent = msg; el.classList.add('show');
+      clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 2000);
+    }
+    function download(filename, content, mime){
+      const blob = new Blob([content], { type: mime || 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function parseAndRender(){
+      const md = $('md').value;
+      SLIDES = parseSlides(md);
+      if (CURRENT >= SLIDES.length) CURRENT = SLIDES.length - 1;
+      if (CURRENT < 0) CURRENT = 0;
+      renderCurrent();
+      renderThumbs();
+      renderPrint();
+      updateCounter();
+    }
+    function renderCurrent(){
+      const el = $('slidePage');
+      el.innerHTML = SLIDES.length ? renderSlide(SLIDES[CURRENT]) : '';
+    }
+    function renderThumbs(){
+      const box = $('thumbs');
+      box.innerHTML = SLIDES.map((s, idx) => {
+        const inner = SLIDES.length ? renderSlide(s) : '';
+        return '<div class="thumb' + (idx === CURRENT ? ' active' : '') + '" data-i="' + idx + '">' +
+          '<span class="badge">' + (idx + 1) + '</span>' +
+          '<div class="inner">' + inner + '</div></div>';
+      }).join('');
+    }
+    function renderPrint(){
+      $('printRoot').innerHTML = SLIDES.map(s => '<div class="slide-page">' + renderSlide(s) + '</div>').join('');
+    }
+    function updateCounter(){
+      $('counter').textContent = (SLIDES.length ? (CURRENT + 1) : 0) + ' / ' + SLIDES.length;
+    }
+    function go(n){
+      CURRENT = Math.max(0, Math.min(SLIDES.length - 1, n));
+      renderCurrent();
+      renderThumbs();
+      updateCounter();
+    }
+    function toggleFs(){
+      const el = $('previewPane');
+      if (!document.fullscreenElement){
+        const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (fn) fn.call(el);
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      applyLang();
+      // theme
+      const savedTheme = (typeof __LS !== 'undefined') && __LS.getItem('deckforge.theme');
+      if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+      // load starter
+      if ($('starter')) $('md').value = $('starter').textContent;
+      // events
+      $('md').addEventListener('input', parseAndRender);
+      $('newBtn').onclick = () => { if ($('starter')) $('md').value = $('starter').textContent; CURRENT = 0; parseAndRender(); };
+      $('sampleBtn').onclick = () => { if ($('starter')) $('md').value = $('starter').textContent; CURRENT = 0; parseAndRender(); };
+      $('prevBtn').onclick = () => go(CURRENT - 1);
+      $('nextBtn').onclick = () => go(CURRENT + 1);
+      $('pPrev').onclick = () => go(CURRENT - 1);
+      $('pNext').onclick = () => go(CURRENT + 1);
+      $('pFs').onclick = toggleFs;
+      $('thumbsBtn').onclick = () => $('layout').classList.toggle('no-thumbs');
+      $('printBtn').onclick = () => window.print();
+      $('exportBtn').onclick = () => {
+        const html = deckHtml($('md').value, {
+          theme: document.documentElement.getAttribute('data-theme') || 'dark',
+          title: 'DeckForge 幻灯片'
+        });
+        download('deckforge-deck.html', html, 'text/html');
+        toast(t('exported'));
+      };
+      $('thumbs').onclick = e => {
+        const tnode = e.target.closest('.thumb');
+        if (tnode) go(parseInt(tnode.dataset.i, 10));
+      };
+      $('themeBtn').onclick = () => {
+        const cur = document.documentElement.getAttribute('data-theme');
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        if (typeof __LS !== 'undefined') __LS.setItem('deckforge.theme', next);
+        toast(t('themeSwitched'));
+      };
+      $('langBtn').onclick = () => {
+        LANG = LANG === 'zh' ? 'en' : 'zh';
+        if (typeof __LS !== 'undefined') __LS.setItem('deckforge.lang', LANG);
+        applyLang();
+      };
+      // keyboard nav (ignore while typing in the editor)
+      document.addEventListener('keydown', e => {
+        if (document.activeElement === $('md')) return;
+        if (e.key === 'ArrowRight' || e.key === ' '){ e.preventDefault(); go(CURRENT + 1); }
+        else if (e.key === 'ArrowLeft'){ e.preventDefault(); go(CURRENT - 1); }
+        else if (e.key === 'Home'){ e.preventDefault(); go(0); }
+        else if (e.key === 'End'){ e.preventDefault(); go(SLIDES.length - 1); }
+        else if (e.key === 'f' || e.key === 'F'){ e.preventDefault(); toggleFs(); }
+      });
+      parseAndRender();
+
+      // PWA: register service worker (offline cache). Guarded for non-browser envs.
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator){
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js').catch(() => {});
+        });
+      }
+    });
+  }
+  </script>
+</body>
+</html>

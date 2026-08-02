@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NanoBox — 单文件工具中枢</title>
+<meta name="description" content="NanoBox 是一个文件装下全部 nano-tools：命令面板模糊搜索 328 款单文件工具，输入表达式直接计算，全部本地优先、零依赖、零外部请求。">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0A0A0B">
+<meta property="og:title" content="NanoBox — 单文件工具中枢">
+<meta property="og:description" content="一个文件装下全部 nano-tools：命令面板搜索 328 款单文件工具 + 直接计算。本地优先 · 零依赖。">
+<meta property="og:image" content="og.svg">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="NanoBox — 单文件工具中枢">
+<meta name="twitter:description" content="一个文件装下全部 nano-tools：命令面板搜索 328 款单文件工具 + 直接计算。">
+<meta name="twitter:image" content="og.svg">
+<link rel="icon" href="favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--bg:#0A0A0B;--surface:#141417;--surface2:#1A1B1E;--text:#FFFFFF;--muted:#A1A1AA;--faint:#71717A;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.14);--accent:#5E6AD2;--ok:#10B981;--warn:#F5A623}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+a{color:var(--accent);text-decoration:none}
+.top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--accent);display:grid;place-items:center;flex:none}
+.bt{font-weight:700;font-size:17px;letter-spacing:.2px}
+.bs{color:var(--muted);font-size:12px}
+.top-meta{color:var(--faint);font-size:12px}
+main{flex:1;display:grid;grid-template-columns:384px 1fr;min-height:0}
+.panel{display:flex;flex-direction:column;border-right:1px solid var(--border);min-height:0}
+.search{display:flex;align-items:center;gap:8px;margin:14px;padding:0 12px;height:46px;background:var(--surface);border:1px solid var(--border);border-radius:11px}
+.search:focus-within{border-color:var(--accent)}
+.search input{flex:1;background:none;border:0;outline:0;color:var(--text);font-size:14px;min-width:0}
+.search kbd{font:600 11px system-ui;color:var(--faint);border:1px solid var(--border);border-radius:6px;padding:2px 6px}
+.results{flex:1;overflow:auto;padding:0 14px 8px}
+.row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+.row:hover{background:var(--surface2)}
+.row.sel{background:var(--surface2);border-color:var(--border2);box-shadow:inset 2px 0 0 var(--accent)}
+.dot{width:9px;height:9px;border-radius:3px;flex:none}
+.nm{font-weight:600;white-space:nowrap}
+.ds{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:auto;text-align:right;max-width:62%}
+.row.calc{background:rgba(94,106,210,0.10);border-color:rgba(94,106,210,0.28)}
+.calc-eq{color:var(--muted);font-variant-numeric:tabular-nums}
+.calc-val{font-weight:700;font-size:16px;color:#fff;font-variant-numeric:tabular-nums;margin:0 4px}
+.copy{color:var(--accent);font-size:12px;margin-left:auto}
+.empty{color:var(--faint);padding:26px 12px;text-align:center}
+.hint{color:var(--faint);font-size:11px;text-align:center;padding:9px}
+.stage{display:flex;flex-direction:column;min-height:0}
+.stage-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.stage-head a{font-size:12px}
+#frame{flex:1;width:100%;border:0;background:#0e0e10}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-top:1px solid var(--border);color:var(--faint);font-size:12px}
+@media(max-width:760px){main{grid-template-columns:1fr;grid-template-rows:46vh 1fr}.panel{border-right:0;border-bottom:1px solid var(--border)}}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">NanoBox — 单文件工具中枢</h1>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    </span>
+    <div>
+      <div class="bt" data-i18n="NanoBox">NanoBox</div>
+      <div class="bs" data-i18n="一个文件，装下全部 nano-tools">一个文件，装下全部 nano-tools</div>
+    </div>
+  </div>
+  <div class="top-meta" id="countMeta" data-i18n="328 款工具 · 1 个文件">328 款工具 · 1 个文件</div>
+</header>
+<main>
+  <section class="panel">
+    <div class="search">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input id="q" type="text" autocomplete="off" spellcheck="false" placeholder="搜索工具，或直接计算 2+2*3 …">
+      <kbd>⌘K</kbd>
+    </div>
+    <div id="results" class="results"></div>
+    <div class="hint" data-i18n="回车打开 · ↑↓ 选择 · Esc 清空">回车打开 · ↑↓ 选择 · Esc 清空</div>
+  </section>
+  <section class="stage">
+    <div class="stage-head">
+      <span id="stageTitle" data-i18n="预览">预览</span>
+      <a id="stageLink" target="_blank" rel="noopener" data-i18n="新标签打开">新标签打开 ↗</a>
+    </div>
+    <iframe id="frame" title="nano-tools preview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>
+  </section>
+</main>
+<footer class="foot">
+  <span data-i18n="本地优先 · 单文件 · 零依赖">本地优先 · 单文件 · 零依赖</span>
+  <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" data-i18n="访问 nano-tools 门户">访问 nano-tools 门户 →</a>
+</footer>
+<script>
+(function(){
+  var TOOLS = [
+    {id:"RegexLab", name:"RegexLab", cat:"文本处理", desc:"正则表达式实时测试器：匹配高亮、捕获组、替换预览、14 组常用正则库与速查表。", tags:["regex","testing","cheatsheet"]},
+    {id:"CronText", name:"CronText", cat:"开发辅助", desc:"Cron 表达式翻译成人话，并预测未来 8 次运行时间；内置常见调度示例库。", tags:["cron","scheduler","parser"]},
+    {id:"DiffLens", name:"DiffLens", cat:"文本处理", desc:"基于 LCS 的文本 / JSON 差异对比，并排与内联双视图，JSON 规范化后按结构比对。", tags:["diff","json","lcs"]},
+    {id:"ContextLens", name:"ContextLens", cat:"AI 工具", desc:"LLM 上下文与成本可视化器：token 估算、多模型价格对比、上下文窗口占用分析。", tags:["llm","token","cost"]},
+    {id:"BoxKit", name:"BoxKit", cat:"开发辅助", desc:"19 合 1 离线开发者工具箱：JSON/YAML、Base64、哈希、时间戳、正则、颜色等一站搞定。", tags:["toolbox","json","utility"]},
+    {id:"Inkwell", name:"Inkwell", cat:"效率笔记", desc:"本地优先 Markdown 知识库：双向链接、力导向关系图、实时预览，数据全存本地。", tags:["markdown","wiki","notes"]},
+    {id:"Graphite", name:"Graphite", cat:"可视化", desc:"SVG 可视化节点编辑器：拖拽连线、自动布局，导出 SVG / PNG / JSON / Markdown。", tags:["node-editor","svg","graph"]},
+    {id:"Chartify", name:"Chartify", cat:"可视化", desc:"CSV / JSON 秒变 SVG 图表：柱状、折线、饼图，可导出矢量图，纯前端渲染。", tags:["chart","csv","svg"]},
+    {id:"UniConvert", name:"UniConvert", cat:"实用计算", desc:"12 类万能单位换算：长度、重量、温度、数据、时间、货币格式等，实时联动。", tags:["converter","calculator","units"]},
+    {id:"SnapCompress", name:"SnapCompress", cat:"图像工具", desc:"纯 Canvas 图片压缩：JPEG/PNG/WebP、质量与最大宽度可调、压缩前后实时对比。", tags:["image","compress","canvas"]},
+    {id:"PalettePro", name:"PalettePro", cat:"设计工具", desc:"颜色 / 配色工作台：WCAG 对比度检测、和谐配色生成、渐变构造、取色板管理。", tags:["color","wcag","palette"]},
+    {id:"HashKit", name:"HashKit", cat:"编码加密", desc:"编码与哈希工具箱：Base64/URL/HTML 编解码、SHA 哈希、JWT 解码、UUID 与密码生成。", tags:["encode","hash","jwt"]},
+    {id:"JsonForge", name:"JsonForge", cat:"文本处理", desc:"JSON 工作台：格式化 / 压缩 / 校验、转 TypeScript 类型、JSONPath 查询、树形浏览。", tags:["json","typescript","jsonpath"]},
+    {id:"RESTKit", name:"RESTKit", cat:"开发辅助", desc:"离线 REST 客户端：请求构建、查询参数 / 头 / Body、Bearer/Basic 鉴权、响应计时与历史记录。", tags:["rest","http","api-client"]},
+    {id:"DataForge", name:"DataForge", cat:"文本处理", desc:"JSON / CSV / TOML 三格式互转：嵌套表、数组表、标量数组均保留，实时转换、一键交换。", tags:["json","csv","toml"]},
+    {id:"MarkForge", name:"MarkForge", cat:"效率笔记", desc:"Markdown 实时编辑器：边写边预览、快捷工具栏、导出独立 HTML、中英文字数统计。", tags:["markdown","editor","export"]},
+    {id:"MockForge", name:"MockForge", cat:"开发辅助", desc:"假数据 / Mock 生成器：14 种字段类型、可复现种子，一键导出 JSON / CSV / SQL。", tags:["mock","fake-data","generator"]},
+    {id:"CSSKit", name:"CSSKit", cat:"设计工具", desc:"CSS 游乐场：渐变、box-shadow、cubic-bezier 缓动曲线、Flex 布局，实时预览可复制。", tags:["css","gradient","flexbox"]},
+    {id:"SVGForge", name:"SVGForge", cat:"图像工具", desc:"SVG 压缩优化器：去元数据、精简小数、实时预览体积对比，转 Data URI / CSS background。", tags:["svg","optimize","data-uri"]},
+    {id:"ColorForge", name:"ColorForge", cat:"设计工具", desc:"颜色工作台：HEX/RGB/HSL 互转、和谐配色生成、WCAG 对比度检测与实时预览。", tags:["color","wcag","harmony"]},
+    {id:"PassForge", name:"PassForge", cat:"编码加密", desc:"密码 / 口令生成器：字符集与长度可调、Diceware 助记短语、熵值与强度评估。", tags:["password","passphrase","entropy"]},
+    {id:"IconForge", name:"IconForge", cat:"设计工具", desc:"线性图标工作台：17 款描边图标、可调描边色/粗细/尺寸/填充，一键复制或下载 SVG。", tags:["icon","svg","stroke"]},
+    {id:"CronForge", name:"CronForge", cat:"开发辅助", desc:"Crontab 可视化：表达式解析成人话、预测未来 5 次运行、24 小时 + 7 天时刻表。", tags:["cron","crontab","scheduler"]},
+    {id:"BaseForge", name:"BaseForge", cat:"实用计算", desc:"进制转换增强版：大整数（BigInt）、小数部分、自定义字符表（base62/58）、2–36 进制。", tags:["base","radix","bigint"]},
+    {id:"DrawForge", name:"DrawForge", cat:"可视化", desc:"离线白板：手绘风画笔、矩形、椭圆、箭头、文本，自由平移缩放，一键导出 PNG/SVG，自动本地保存。", tags:["whiteboard","canvas","draw"]},
+    {id:"GraphForge", name:"GraphForge", cat:"可视化", desc:"离线 Mermaid 图表编辑器：写 DSL 实时预览，一键导出 SVG/PNG，零依赖、数据永不离机。", tags:["mermaid","diagram","svg","offline"]},
+    {id:"APIForge", name:"APIForge", cat:"开发辅助", desc:"离线 REST / GraphQL 客户端：请求构建、Bearer/Basic 鉴权、响应计时与体积、历史记录，零依赖。", tags:["rest","graphql","http","api-client","offline"]},
+    {id:"ChatForge", name:"ChatForge", cat:"AI 效率", desc:"本地优先 BYOK AI 分支：自带密钥直连 OpenAI/Anthropic/OpenRouter，流式输出，密钥永不离机。", tags:["ai","chat","llm","byok"]},
+    {id:"FlowForge", name:"FlowForge", cat:"任务管理", desc:"本地优先离线看板：多看板、拖拽排序、标签/优先级/截止、清单子任务，数据留在浏览器。", tags:["kanban","task","productivity","offline"]},
+    {id:"FormForge", name:"FormForge", cat:"效率工具", desc:"本地优先离线表单构建器：拖拽式字段、实时预览，一键导出独立 HTML 或 JSON Schema。", tags:["form","builder","survey","offline"]},
+    {id:"FocusForge", name:"FocusForge", cat:"效率工具", desc:"本地优先的专注与计时工具箱：番茄钟、倒计时、秒表、世界时钟，数据留在浏览器。", tags:["pomodoro","timer","stopwatch","world-clock","productivity"]}
+  ];
+  var CAT_COLORS = {
+    "文本处理":"#10B981","AI 工具":"#5E6AD2","AI 效率":"#5E6AD2","开发辅助":"#5E6AD2",
+    "效率笔记":"#10B981","可视化":"#22D3EE","实用计算":"#F5A623","图像工具":"#22D3EE",
+    "设计工具":"#22D3EE","编码加密":"#F5A623","任务管理":"#10B981","效率工具":"#10B981"
+  };
+
+  // ---------------- pure functions ----------------
+  function normalize(s){ return (s||'').toLowerCase(); }
+  function fuzzyScore(q, text){
+    q = normalize(q); text = normalize(text);
+    if(!q) return 0;
+    var idx = text.indexOf(q);
+    if(idx >= 0) return 1000 - idx;
+    var qi=0, score=0, prev=-2;
+    for(var i=0; i<text.length && qi<q.length; i++){
+      if(text[i]===q[qi]){ if(prev>=0) score += (i-prev); prev=i; qi++; }
+    }
+    if(qi===q.length) return Math.max(1, 220 - score);
+    return 0;
+  }
+  function filterTools(list, q, max){
+    q = (q||'').trim(); if(!q) return [];
+    var scored = list.map(function(t){
+      var hay = t.name + ' ' + t.cat + ' ' + t.desc + ' ' + ((t.tags||[]).join(' '));
+      return { tool:t, score: fuzzyScore(q, hay) };
+    }).filter(function(x){ return x.score>0; });
+    scored.sort(function(a,b){ return b.score - a.score; });
+    if(max) scored = scored.slice(0, max);
+    return scored;
+  }
+  var FUNCS = { sqrt:Math.sqrt, cbrt:Math.cbrt, sin:Math.sin, cos:Math.cos, tan:Math.tan, asin:Math.asin, acos:Math.acos, atan:Math.atan, ln:Math.log, log:Math.log10, log2:Math.log2, abs:Math.abs, floor:Math.floor, ceil:Math.ceil, round:Math.round, exp:Math.exp, sign:Math.sign };
+  var CONSTS = { pi:Math.PI, e:Math.E, tau:Math.PI*2 };
+  function tokenize(s){
+    var toks=[], i=0;
+    while(i<s.length){
+      var c=s[i];
+      if(c===' '||c==='\t'||c==='\n'){ i++; continue; }
+      if((c>='0'&&c<='9')||c==='.'){
+        var j=i+1; while(j<s.length && ((s[j]>='0'&&s[j]<='9')||s[j]==='.')) j++;
+        var num=s.slice(i,j);
+        if((num.split('.').length-1)>1) throw new Error('bad number '+num);
+        toks.push({t:'num', v:parseFloat(num)}); i=j; continue;
+      }
+      if((c>='a'&&c<='z')||(c>='A'&&c<='Z')||c==='_'){
+        var k=i+1; while(k<s.length && ((s[k]>='a'&&s[k]<='z')||(s[k]>='A'&&s[k]<='Z')||(s[k]>='0'&&s[k]<='9')||s[k]==='_')) k++;
+        toks.push({t:'id', v:s.slice(i,k).toLowerCase()}); i=k; continue;
+      }
+      if('+-*/%^()'.indexOf(c)>=0){ toks.push({t:'op', v:c}); i++; continue; }
+      throw new Error('invalid char '+c);
+    }
+    return toks;
+  }
+  function toRPN(toks){
+    var out=[], ops=[];
+    var PREC={'+':2,'-':2,'*':3,'/':3,'%':3,'^':4,'u-':3.5,'f':6};
+    var RIGHT={'^':true,'u-':true};
+    var prev=null;
+    for(var x=0;x<toks.length;x++){
+      var tk=toks[x];
+      if(tk.t==='num'){ out.push(tk); }
+      else if(tk.t==='id'){
+        if(CONSTS.hasOwnProperty(tk.v)){ out.push({t:'num', v:CONSTS[tk.v]}); }
+        else if(FUNCS.hasOwnProperty(tk.v)){ ops.push({t:'op', v:tk.v, func:true}); }
+        else throw new Error('unknown identifier '+tk.v);
+      } else {
+        var v=tk.v;
+        if(v==='('){ ops.push(tk); }
+        else if(v===')'){
+          while(ops.length && ops[ops.length-1].v!=='('){ out.push(ops.pop()); }
+          if(!ops.length) throw new Error('mismatched parentheses');
+          ops.pop();
+          if(ops.length && ops[ops.length-1].func){ out.push(ops.pop()); }
+        } else {
+          var opv=v;
+          var unary = (prev===null) || (prev.t==='op' && prev.v!==')');
+          if(v==='-' && unary){ opv='u-'; }
+          else if(v==='+' && unary){ prev=tk; continue; }
+          var opvP = (opv==='u-')?PREC['u-']:PREC[opv];
+          while(ops.length && ops[ops.length-1].v!=='('){
+            var top=ops[ops.length-1];
+            var tp = top.func?PREC['f']:PREC[top.v];
+            if(tp > opvP || (tp===opvP && !RIGHT[opv])){ out.push(ops.pop()); }
+            else break;
+          }
+          ops.push({t:'op', v:opv});
+        }
+      }
+      prev=tk;
+    }
+    while(ops.length){ var o=ops.pop(); if(o.v==='(') throw new Error('mismatched parentheses'); out.push(o); }
+    return out;
+  }
+  function evalRPN(rpn){
+    var st=[];
+    for(var i=0;i<rpn.length;i++){
+      var tk=rpn[i];
+      if(tk.t==='num'){ st.push(tk.v); }
+      else if(tk.func){
+        if(!st.length) throw new Error('bad expression');
+        var a=st.pop(); st.push(FUNCS[tk.v](a));
+      }       else if(tk.v==='u-'){
+        if(!st.length) throw new Error('bad expression');
+        st.push(-st.pop());
+      }
+      else {
+        if(st.length<2) throw new Error('bad expression');
+        var b=st.pop(), a2=st.pop(), r;
+        switch(tk.v){
+          case '+': r=a2+b; break;
+          case '-': r=a2-b; break;
+          case '*': r=a2*b; break;
+          case '/': if(b===0) throw new Error('division by zero'); r=a2/b; break;
+          case '%': if(b===0) throw new Error('modulo by zero'); r=a2%b; break;
+          case '^': r=Math.pow(a2,b); break;
+          default: throw new Error('bad op '+tk.v);
+        }
+        st.push(r);
+      }
+    }
+    if(st.length!==1) throw new Error('bad expression');
+    return st[0];
+  }
+  function evalExpr(s){ return evalRPN(toRPN(tokenize(s))); }
+  function fmtNum(r){
+    if(typeof r!=='number' || isNaN(r)) return '—';
+    if(!isFinite(r)) return r>0?'∞':'-∞';
+    if(Number.isInteger(r)) return String(r);
+    return parseFloat(r.toPrecision(12)).toString();
+  }
+  function isMathExpr(s){
+    s=(s||'').trim();
+    if(!s) return false;
+    if(!/^[\d\s+\-*/%^().a-zA-Z_]+$/.test(s)) return false;
+    if(!/[\d.]/.test(s)) return false;
+    try{ var r=evalExpr(s); return typeof r==='number' && isFinite(r); }catch(e){ return false; }
+  }
+  function buildDemoUrl(id){ return 'https://wangzifan396-wzf.github.io/'+id+'/'; }
+  function recentAdd(state, id, max){
+    max = max||6;
+    var rec = (state.recent||[]).filter(function(x){ return x!==id; });
+    rec.unshift(id);
+    if(rec.length>max) rec = rec.slice(0,max);
+    state.recent = rec; return state;
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function defaultState(){ return {recent:[]}; }
+  function loadState(){
+    try{
+      var raw=localStorage.getItem('nanobox.state.v1');
+      if(raw){ var o=JSON.parse(raw); if(o && Array.isArray(o.recent)) return {recent:o.recent}; }
+    }catch(e){}
+    return defaultState();
+  }
+  function saveState(st){ try{ localStorage.setItem('nanobox.state.v1', JSON.stringify(st)); }catch(e){} }
+
+  if(typeof module!=='undefined' && module.exports){
+    module.exports = {
+      TOOLS, CAT_COLORS, normalize, fuzzyScore, filterTools, tokenize, toRPN, evalRPN,
+      evalExpr, fmtNum, isMathExpr, buildDemoUrl, recentAdd, escapeHtml, defaultState, loadState, saveState
+    };
+  }
+  if(typeof window==='undefined' || !window.document) return;
+
+  // ---------------- UI ----------------
+  function $(s){ return document.querySelector(s); }
+  function curLang(){ return (document.documentElement.getAttribute('data-lang')||'zh')==='en'; }
+  function tr(s){ return curLang() ? ((window.NANO_I18N_EXTRA||{})[s]||s) : s; }
+  var qEl=$('#q'), resultsEl=$('#results'), frameEl=$('#frame'),
+      stageTitleEl=$('#stageTitle'), stageLinkEl=$('#stageLink');
+  var state = defaultState();
+  var sel = 0, curItems = [];
+
+  function computeItems(q){
+    if(!q){
+      var rec = state.recent.map(function(id){ return TOOLS.filter(function(t){return t.id===id;})[0]; }).filter(Boolean);
+      return rec.map(function(t){ return {type:'tool', tool:t}; });
+    }
+    var items=[];
+    if(isMathExpr(q)){
+      try{ var r=evalExpr(q); if(isFinite(r)) items.push({type:'calc', expr:q, result:r}); }catch(e){}
+    }
+    var matches = filterTools(TOOLS, q, 8).map(function(m){ return {type:'tool', tool:m.tool}; });
+    return items.concat(matches);
+  }
+  function render(){
+    var q = (qEl.value||'').trim();
+    var items = computeItems(q);
+    if(items.length===0){
+      resultsEl.innerHTML = '<div class="empty">'+(q ? tr('没有匹配的工具。') : tr('输入表达式可直接计算，例如 2+2*3'))+'</div>';
+      curItems = items; sel = 0; return;
+    }
+    sel = Math.max(0, Math.min(sel, items.length-1));
+    resultsEl.innerHTML = items.map(function(it,i){
+      if(it.type==='calc'){
+        return '<div class="row calc'+(i===sel?' sel':'')+'" data-i="'+i+'">'+
+          '<span class="calc-eq">'+escapeHtml(it.expr)+' =</span>'+
+          '<span class="calc-val">'+fmtNum(it.result)+'</span>'+
+          '<span class="copy" data-act="copy">'+tr('复制')+'</span></div>';
+      }
+      var t=it.tool, col=CAT_COLORS[t.cat]||'#5E6AD2';
+      return '<div class="row'+(i===sel?' sel':'')+'" data-i="'+i+'">'+
+        '<span class="dot" style="background:'+col+'"></span>'+
+        '<span class="nm">'+escapeHtml(t.name)+'</span>'+
+        '<span class="ds">'+escapeHtml(t.desc)+'</span></div>';
+    }).join('');
+    curItems = items;
+  }
+  function copyText(s){
+    try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(s); return; } }catch(e){}
+    try{ var ta=document.createElement('textarea'); ta.value=s; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }catch(e){}
+  }
+  function openTool(t){
+    frameEl.src = buildDemoUrl(t.id);
+    stageTitleEl.textContent = t.name;
+    stageLinkEl.href = buildDemoUrl(t.id);
+    state = recentAdd(state, t.id);
+    saveState(state);
+  }
+  function activate(it){
+    if(!it) return;
+    if(it.type==='calc'){ copyText(fmtNum(it.result)); return; }
+    openTool(it.tool);
+  }
+  qEl.addEventListener('input', function(){ sel=[]; sel=0; render(); });
+  qEl.addEventListener('keydown', function(e){
+    if(e.key==='ArrowDown'){ e.preventDefault(); sel=Math.min(sel+1, curItems.length-1); render(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); sel=Math.max(sel-1,0); render(); }
+    else if(e.key==='Enter'){ e.preventDefault(); activate(curItems[sel]); }
+    else if(e.key==='Escape'){ if(qEl.value){ qEl.value=''; sel=0; render(); } else { qEl.blur(); } }
+  });
+  resultsEl.addEventListener('click', function(e){
+    var row=e.target.closest('.row'); if(!row) return;
+    var i=parseInt(row.getAttribute('data-i'),10); activate(curItems[i]);
+  });
+  document.addEventListener('keydown', function(e){
+    if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); qEl.focus(); qEl.select(); }
+  });
+  function init(){
+    state = loadState();
+    frameEl.src = buildDemoUrl('WB');
+    stageLinkEl.href = buildDemoUrl('WB');
+    render();
+    try{
+      var obs=new MutationObserver(function(){ render(); });
+      obs.observe(document.documentElement, {attributes:true, attributeFilter:['data-lang']});
+    }catch(e){}
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+<script>window.NANO_I18N_EXTRA={
+"NanoBox — 单文件工具中枢":"NanoBox — single-file tool hub",
+"一个文件，装下全部 nano-tools":"One file. Every nano-tool.",
+"328 款工具 · 1 个文件":"31 tools · 1 file",
+"回车打开 · ↑↓ 选择 · Esc 清空":"Enter to open · ↑↓ to select · Esc to clear",
+"预览":"Preview","新标签打开":"Open in new tab",
+"本地优先 · 单文件 · 零依赖":"Local-first · single-file · zero-dependency",
+"访问 nano-tools 门户":"Visit the nano-tools portal →",
+"没有匹配的工具。":"No matching tool.",
+"输入表达式可直接计算，例如 2+2*3":"Type an expression to calculate, e.g. 2+2*3",
+"复制":"Copy","已复制":"Copied","NanoBox":"NanoBox"
+};</script>
+<script>
+/* NANO_I18N_RUNTIME */
+(function(){
+  var COMMON = {
+    "复制":"Copy","清空":"Clear","搜索":"Search","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","导出":"Export","导入":"Import",
+    "保存":"Save","删除":"Delete","添加":"Add","重置":"Reset","关闭":"Close","输入":"Input",
+    "输出":"Output","历史":"History","帮助":"Help","更多":"More","示例":"Example",
+    "全选":"Select all","展开":"Expand","折叠":"Collapse","开始":"Start","随机":"Random",
+    "全部":"All","中文":"中文","English":"English","浅色":"Light","深色":"Dark",
+    "复制成功":"Copied","已复制":"Copied","加载中":"Loading…","暂无数据":"No data",
+    "请输入":"Please enter","或":"or","字数":"Words","字符":"Characters",
+    "复制链接":"Copy link","复制代码":"Copy code","复制结果":"Copy result",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh",
+    "应用":"Apply","成功":"Success","失败":"Failed","完成":"Done","下一步":"Next",
+    "当前":"Current","总计":"Total","打开文件":"Open file","保存文件":"Save file"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p=node.parentElement;
+    while(p){
+      var t=p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p=p.parentElement;
+    }
+    return false;
+  }
+  var current='zh';
+  function applyLang(lang){
+    var d=full();
+    var root=document.documentElement;
+    current=lang;
+    var rawTitle=document.title;
+    if(lang==='en'){ if(d[rawTitle]) document.title=d[rawTitle]; }
+    else{
+      var ex=window.NANO_I18N_EXTRA||{};
+      for(var _k in ex){ if(ex[_k]===rawTitle){ document.title=_k; break; } }
+    }
+    if(lang==='en'){
+      var w=document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode:function(n){
+          if(!n.nodeValue||!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n=w.nextNode()){ n.__zh=n.nodeValue; n.nodeValue=d[n.nodeValue.trim()]; }
+    } else {
+      var w2=document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode:function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m=w2.nextNode()){ m.nodeValue=m.__zh; m.__zh=undefined; }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en'?'zh':'en');
+    var b=document.getElementById('nano-lang-btn');
+    if(b) b.textContent=(current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar=document.createElement('div');
+    bar.id='nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand=document.createElement('a');
+    brand.id='nano-brand';
+    brand.href='https://wangzifan396-wzf.github.io/WB/';
+    brand.target='_blank'; brand.rel='noopener'; brand.textContent='nano·tools';
+    brand.title='nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter=function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave=function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b=document.createElement('button');
+    b.id='nano-lang-btn'; b.title='Switch language / 切换语言';
+    b.textContent='EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter=function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave=function(){ b.style.transform='none'; };
+    b.onclick=toggle;
+    bar.appendChild(brand); bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved=localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved=((navigator.language||'zh').slice(0,2).toLowerCase()==='en')?'en':'zh'; }
+    applyLang(saved); mountBtn();
+    var b=document.getElementById('nano-lang-btn');
+    if(b) b.textContent=(saved==='en'?'中':'EN');
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

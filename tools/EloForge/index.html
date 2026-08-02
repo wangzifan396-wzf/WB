@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>EloForge — Elo 等级分：期望胜率 + K 因子单局更新 + 批量对局推演</title>
+<meta property="og:title" content="EloForge">
+<meta property="og:description" content="Elo 等级分：期望胜率 + K 因子单局更新 + 批量对局推演">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Elo 等级分：期望胜率 + K 因子单局更新 + 批量对局推演 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>EloForge</h1>
+  <p class="sub">Elo 等级分：期望胜率 + K 因子单局更新 + 批量对局推演 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="opt">
+  <label>A 等级分 <input id="ra" type="number" value="1500" style="width:90px"></label>
+  <label>B 等级分 <input id="rb" type="number" value="1650" style="width:90px"></label>
+  <label>K 因子
+    <select id="kf">
+      <option value="32">32（新手/普通）</option>
+      <option value="24">24（中级）</option>
+      <option value="16">16（大师）</option>
+      <option value="10">10（顶级）</option>
+    </select>
+  </label>
+</div>
+<label>对局序列（每行一局：1 = A 胜，0 = A 负，0.5 = 和棋）</label>
+<textarea id="txt" rows="4">1
+0.5
+0</textarea>
+<div class="row">
+  <button id="run">推演</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>推演结果</label>
+<div class="out" id="out" aria-live="polite">期望胜率与逐局分数变化</div>
+<script>
+function eloExpect(ra, rb){
+  if(typeof ra!=='number'||typeof rb!=='number'||!isFinite(ra)||!isFinite(rb))
+    return { value:null, error:'等级分必须是有限数' };
+  return { value: 1/(1+Math.pow(10,(rb-ra)/400)), error:null };
+}
+function eloUpdate(ra, rb, scoreA, k){
+  var e=eloExpect(ra,rb);
+  if(e.error) return { value:null, error:e.error };
+  if(scoreA!==0&&scoreA!==1&&scoreA!==0.5) return { value:null, error:'比分必须是 0 / 0.5 / 1' };
+  var kk=(typeof k==='number'&&k>0)?k:32;
+  var ea=e.value;
+  var na=ra+kk*(scoreA-ea);
+  var nb=rb+kk*((1-scoreA)-(1-ea));
+  return { value:{ ra:Math.round(na*100)/100, rb:Math.round(nb*100)/100,
+    expectA:Math.round(ea*10000)/10000, deltaA:Math.round(kk*(scoreA-ea)*100)/100 }, error:null };
+}
+function eloSeries(ra, rb, scores, k){
+  if(!Array.isArray(scores)||!scores.length) return { value:null, error:'对局序列为空' };
+  var hist=[], a=ra, b=rb;
+  for(var i=0;i<scores.length;i++){
+    var r=eloUpdate(a,b,scores[i],k);
+    if(r.error) return { value:null, error:'第 '+(i+1)+' 局: '+r.error };
+    hist.push({ game:i+1, score:scores[i], expectA:r.value.expectA, deltaA:r.value.deltaA,
+      ra:r.value.ra, rb:r.value.rb });
+    a=r.value.ra; b=r.value.rb;
+  }
+  return { value:{ history:hist, finalA:a, finalB:b }, error:null };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { eloExpect:eloExpect, eloUpdate:eloUpdate, eloSeries:eloSeries };
+}
+if (typeof window !== 'undefined') {
+  window.EloForgePure = { eloExpect:eloExpect, eloUpdate:eloUpdate, eloSeries:eloSeries };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.EloForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      var ra=Number($('ra').value), rb=Number($('rb').value), k=Number($('kf').value);
+      var scores=$('txt').value.split('\n').map(function(s){ return Number(s.trim()); })
+        .filter(function(x){ return !isNaN(x); });
+      var r=P.eloSeries(ra, rb, scores, k);
+      if(r.error){ $('err').textContent=r.error; return; }
+      var e0=P.eloExpect(ra,rb);
+      var lines=['初始: A='+ra+' B='+rb+' | A 期望胜率 '+(e0.value*100).toFixed(1)+'% | K='+k, ''];
+      r.value.history.forEach(function(h){
+        var tag=h.score===1?'A胜':h.score===0?'A负':'和棋';
+        lines.push('第'+h.game+'局 '+tag+' (期望'+(h.expectA*100).toFixed(1)+'%) ΔA='+(h.deltaA>0?'+':'')+h.deltaA+' → A='+h.ra+' B='+h.rb);
+      });
+      lines.push('', '终局: A='+r.value.finalA+' ('+(r.value.finalA>ra?'+':'')+Math.round((r.value.finalA-ra)*100)/100+')  B='+r.value.finalB);
+      $('out').textContent=lines.join('\n');
+    });
+    $('clear').addEventListener('click', function(){ $('txt').value=''; $('out').textContent='期望胜率与逐局分数变化'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

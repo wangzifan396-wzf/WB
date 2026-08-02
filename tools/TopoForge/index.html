@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>TopoForge — 拓扑排序 / DAG 编排器：Kahn 算法 + 并行批次分层 + 环检测</title>
+<meta property="og:title" content="TopoForge">
+<meta property="og:description" content="拓扑排序 / DAG 编排器：Kahn 算法 + 并行批次分层 + 环检测">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="拓扑排序 / DAG 编排器：Kahn 算法 + 并行批次分层 + 环检测 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>TopoForge</h1>
+  <p class="sub">拓扑排序 / DAG 编排器：Kahn 算法 + 并行批次分层 + 环检测 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>依赖边（每行一条 a -> b，表示 a 先于 b）</label>
+<textarea id="edges" rows="6">build -> test
+test -> deploy
+lint -> test
+fetch -> build</textarea>
+<div class="row">
+  <button id="run">拓扑排序</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">输入依赖边后排序</div>
+<script>
+function parseEdges(text){
+  var nodes={}, edges=[];
+  var lines=String(text||'').split(/\r?\n/);
+  for(var i=0;i<lines.length;i++){
+    var ln=lines[i].trim();
+    if(!ln) continue;
+    var m=ln.split(/\s*(?:->|=>)\s*/);
+    if(m.length!==2 || !m[0] || !m[1]) return { nodes:null, edges:null, error:'第 '+(i+1)+' 行格式错误（需 a -> b）' };
+    nodes[m[0]]=1; nodes[m[1]]=1;
+    edges.push([m[0], m[1]]);
+  }
+  return { nodes:Object.keys(nodes), edges:edges, error:null };
+}
+function topoSort(nodes, edges){
+  var indeg={}, adj={};
+  nodes.forEach(function(n){ indeg[n]=0; adj[n]=[]; });
+  edges.forEach(function(e){
+    if(!(e[0] in indeg) || !(e[1] in indeg)) throw new Error('UNKNOWN_NODE');
+    adj[e[0]].push(e[1]); indeg[e[1]]++;
+  });
+  var q=nodes.filter(function(n){ return indeg[n]===0; }).sort();
+  var order=[];
+  while(q.length){
+    var n=q.shift(); order.push(n);
+    adj[n].sort().forEach(function(m){ indeg[m]--; if(indeg[m]===0){ q.push(m); q.sort(); } });
+  }
+  if(order.length!==nodes.length){
+    var cyc=nodes.filter(function(n){ return order.indexOf(n)<0; });
+    return { order:null, cycle:cyc };
+  }
+  return { order:order, cycle:null };
+}
+function levels(nodes, edges){
+  var indeg={}, adj={};
+  nodes.forEach(function(n){ indeg[n]=0; adj[n]=[]; });
+  edges.forEach(function(e){ adj[e[0]].push(e[1]); indeg[e[1]]++; });
+  var out=[], cur=nodes.filter(function(n){ return indeg[n]===0; }).sort();
+  var seen=0;
+  while(cur.length){
+    out.push(cur);
+    seen+=cur.length;
+    var next={};
+    cur.forEach(function(n){ adj[n].forEach(function(m){ indeg[m]--; if(indeg[m]===0) next[m]=1; }); });
+    cur=Object.keys(next).sort();
+  }
+  if(seen!==nodes.length) return null;
+  return out;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { parseEdges:parseEdges, topoSort:topoSort, levels:levels };
+}
+if (typeof window !== 'undefined') {
+  window.TopoForgePure = { parseEdges:parseEdges, topoSort:topoSort, levels:levels };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.TopoForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      try {
+        var p=P.parseEdges($('edges').value);
+        if(p.error) throw new Error(p.error);
+        var r=P.topoSort(p.nodes, p.edges);
+        if(r.cycle){ $('out').textContent='存在环，无法排序。环上节点: '+r.cycle.join(', '); return; }
+        var lv=P.levels(p.nodes, p.edges);
+        var lines=['执行顺序: '+r.order.join(' → '), '', '并行批次:'];
+        lv.forEach(function(g,i){ lines.push('  阶段 '+(i+1)+': '+g.join(', ')); });
+        $('out').textContent=lines.join('\n');
+      } catch(e){ $('err').textContent=e.message; }
+    });
+    $('clear').addEventListener('click', function(){ $('edges').value=''; $('out').textContent='输入依赖边后排序'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KeyForge — 离线键盘按键侦测：key / code / keyCode / 修饰键实时显示与键码反查</title>
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.preview{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;justify-content:center;align-items:center;min-height:90px}
+.preview svg{max-width:100%}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.big{font:40px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
+.kv{color:var(--muted);font-size:13px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线键盘按键侦测：实时显示 key / code / keyCode / 修饰键组合，支持键码反查。">
+</head>
+<body>
+<div class="app">
+  <h1>KeyForge</h1>
+  <p class="sub">离线键盘按键侦测：key / code / keyCode / 修饰键实时显示与键码反查 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>按下任意键，实时显示按键信息（点击下方区域获得焦点）</label>
+<div class="preview" id="stage" tabindex="0" style="text-align:center;padding:36px 12px;cursor:pointer">
+  <div class="big" id="bigkey">按任意键</div>
+  <div class="sub" id="subkey">event.key / event.code / keyCode / 修饰键</div>
+</div>
+<div class="kv" id="kv"></div>
+<div class="row">
+  <label for="lookup" style="margin:0">keyCode 反查</label>
+  <input id="lookup" type="number" value="13" style="max-width:120px">
+  <button id="run">查询</button>
+  <button id="copy" class="ghost">复制 JSON</button>
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="out" aria-live="polite">查询结果会显示在这里</div>
+<script>
+var KEYCODE_TABLE={
+  8:'Backspace',9:'Tab',13:'Enter',16:'Shift',17:'Control',18:'Alt',19:'Pause',20:'CapsLock',
+  27:'Escape',32:'Space',33:'PageUp',34:'PageDown',35:'End',36:'Home',
+  37:'ArrowLeft',38:'ArrowUp',39:'ArrowRight',40:'ArrowDown',
+  45:'Insert',46:'Delete',
+  48:'0',49:'1',50:'2',51:'3',52:'4',53:'5',54:'6',55:'7',56:'8',57:'9',
+  65:'A',66:'B',67:'C',68:'D',69:'E',70:'F',71:'G',72:'H',73:'I',74:'J',75:'K',76:'L',77:'M',
+  78:'N',79:'O',80:'P',81:'Q',82:'R',83:'S',84:'T',85:'U',86:'V',87:'W',88:'X',89:'Y',90:'Z',
+  91:'Meta (left)',92:'Meta (right)',93:'ContextMenu',
+  96:'Numpad 0',97:'Numpad 1',98:'Numpad 2',99:'Numpad 3',100:'Numpad 4',
+  101:'Numpad 5',102:'Numpad 6',103:'Numpad 7',104:'Numpad 8',105:'Numpad 9',
+  106:'Numpad *',107:'Numpad +',109:'Numpad -',110:'Numpad .',111:'Numpad /',
+  112:'F1',113:'F2',114:'F3',115:'F4',116:'F5',117:'F6',118:'F7',119:'F8',
+  120:'F9',121:'F10',122:'F11',123:'F12',
+  144:'NumLock',145:'ScrollLock',
+  186:'; :',187:'= +',188:', <',189:'- _',190:'. >',191:'/ ?',192:'` ~',
+  219:'[ {',220:'\\ |',221:'] }',222:"' \""
+};
+function lookupKeyCode(code){
+  code=Math.floor(Number(code));
+  if(isNaN(code)||code<0||code>255) throw new Error('keyCode 范围 0-255');
+  return { keyCode:code, name:KEYCODE_TABLE[code]||'(未知/厂商相关)', known:!!KEYCODE_TABLE[code] };
+}
+function describeKey(ev){
+  var mods=[];
+  if(ev.ctrlKey) mods.push('Ctrl');
+  if(ev.shiftKey) mods.push('Shift');
+  if(ev.altKey) mods.push('Alt');
+  if(ev.metaKey) mods.push('Meta');
+  return {
+    key: ev.key===' ' ? 'Space' : String(ev.key),
+    code: String(ev.code||''),
+    keyCode: Number(ev.keyCode||ev.which||0),
+    modifiers: mods,
+    combo: mods.concat([ev.key===' '?'Space':String(ev.key)]).join(' + ')
+  };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { lookupKeyCode:lookupKeyCode, describeKey:describeKey, KEYCODE_TABLE:KEYCODE_TABLE };
+}
+if (typeof window !== 'undefined') {
+  window.KeyForgePure = { lookupKeyCode:lookupKeyCode, describeKey:describeKey, KEYCODE_TABLE:KEYCODE_TABLE };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.KeyForgePure, last=null;
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+    function show(info){
+      last=info;
+      $('bigkey').textContent=info.combo||info.key;
+      $('subkey').textContent='key: '+info.key+' · code: '+info.code+' · keyCode: '+info.keyCode;
+      $('kv').innerHTML=
+        '<div><b>event.key</b><span>'+esc(info.key)+'</span></div>'+
+        '<div><b>event.code</b><span>'+esc(info.code)+'</span></div>'+
+        '<div><b>keyCode</b><span>'+info.keyCode+'</span></div>'+
+        '<div><b>修饰键</b><span>'+(info.modifiers.length?esc(info.modifiers.join(' + ')):'无')+'</span></div>';
+    }
+    window.addEventListener('keydown', function(e){
+      if(e.target && (e.target.id==='lookup')) return;
+      e.preventDefault();
+      show(P.describeKey(e));
+    });
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      try {
+        var r=P.lookupKeyCode($('lookup').value);
+        $('out').textContent='keyCode '+r.keyCode+' = '+r.name;
+      } catch(e){ $('err').textContent=e.message; }
+    });
+    $('copy').addEventListener('click', function(){
+      copyText(last?JSON.stringify(last,null,2):'{}');
+    });
+    $('stage').addEventListener('click', function(){ $('stage').focus(); });
+    $('run').click();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

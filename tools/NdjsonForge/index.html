@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>NdjsonForge — NDJSON / JSON Lines 处理：逐行校验、字段画像、CSV 互转与表达式过滤。</title>
+<meta property="og:title" content="NdjsonForge">
+<meta property="og:description" content="NDJSON/JSONL 校验、画像与格式互转，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="NDJSON/JSONL 校验、画像与格式互转，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>NdjsonForge</h1>
+  <p class="sub">NDJSON 工具：逐行解析与错误定位、嵌套字段扁平化画像、类型一致性体检、JSON 数组/CSV 互转、field op value 表达式过滤 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="grid">
+  <section class="panel">
+    <h2>NDJSON 输入</h2>
+    <textarea id="src" rows="10">{"id":1,"name":"alpha","tags":["a"],"meta":{"score":9.5}}
+{"id":2,"name":"beta","meta":{"score":7}}
+{"id":3,"name":"gamma","tags":[],"meta":{"score":"high"}}</textarea>
+    <div class="row">
+      <button id="toArr" class="btn">转 JSON 数组</button>
+      <button id="fromArr" class="btn">数组转 NDJSON</button>
+      <button id="csv" class="btn">转 CSV</button>
+      <button id="copy" class="btn">复制输出</button>
+    </div>
+    <div class="row"><label>过滤</label><input id="flt" placeholder="meta.score > 8" style="flex:1"></div>
+    <pre id="out" class="out"></pre>
+  </section>
+  <section class="panel">
+    <h2>统计</h2>
+    <div id="stat" class="out"></div>
+    <h2 style="margin-top:18px">字段画像</h2>
+    <div id="schema" class="list"></div>
+    <h2 style="margin-top:18px">一致性体检</h2>
+    <div id="issues" class="list"></div>
+  </section>
+</div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function parseNdjson(text){
+  var src = String(text===undefined?'':text);
+  var lines = src.split(/\r?\n/);
+  var rows=[], errors=[], blank=0;
+  for(var i=0;i<lines.length;i++){
+    var raw=lines[i];
+    if(!raw.trim()){ blank++; continue; }
+    try {
+      rows.push({line:i+1, value: JSON.parse(raw)});
+    } catch(e){
+      errors.push({line:i+1, message: String(e.message||e), preview: raw.length>80 ? raw.slice(0,80)+'…' : raw});
+    }
+  }
+  return {rows:rows, errors:errors, blank:blank, totalLines:lines.length, ok: errors.length===0};
+}
+function stringifyNdjson(arr, pretty){
+  if(!Array.isArray(arr)) return {text:'', count:0, error:'输入必须是数组'};
+  var out=[];
+  for(var i=0;i<arr.length;i++) out.push(JSON.stringify(arr[i]));
+  return {text: out.join('\n'), count: out.length, error:null};
+}
+function fromJsonArray(text){
+  var v;
+  try { v = JSON.parse(String(text||'')); } catch(e){ return {text:'', count:0, error:'JSON 解析失败: '+e.message}; }
+  if(!Array.isArray(v)){
+    if(v && typeof v==='object') return stringifyNdjson([v]);
+    return {text:'', count:0, error:'顶层不是数组，无法逐行展开'};
+  }
+  return stringifyNdjson(v);
+}
+function toJsonArray(text, pretty){
+  var p=parseNdjson(text);
+  var vals=[];
+  for(var i=0;i<p.rows.length;i++) vals.push(p.rows[i].value);
+  return {text: pretty ? JSON.stringify(vals, null, 2) : JSON.stringify(vals), count: vals.length, errors: p.errors};
+}
+function typeOf(v){
+  if(v===null) return 'null';
+  if(Array.isArray(v)) return 'array';
+  var t=typeof v;
+  if(t==='number') return Number.isInteger(v) ? 'integer' : 'number';
+  return t;
+}
+function flattenObject(obj, prefix, out, depth){
+  out = out || {};
+  depth = depth===undefined ? 0 : depth;
+  prefix = prefix || '';
+  if(depth>8) { out[prefix||'$']=obj; return out; }
+  if(obj===null || typeof obj!=='object' || Array.isArray(obj)){
+    out[prefix||'$']=obj;
+    return out;
+  }
+  var keys=Object.keys(obj);
+  if(!keys.length){ out[prefix||'$']={}; return out; }
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i], key = prefix ? prefix+'.'+k : k, v=obj[k];
+    if(v && typeof v==='object' && !Array.isArray(v)) flattenObject(v, key, out, depth+1);
+    else out[key]=v;
+  }
+  return out;
+}
+function profileSchema(text){
+  var p=parseNdjson(text);
+  var fields={}, order=[], total=p.rows.length;
+  for(var i=0;i<p.rows.length;i++){
+    var flat=flattenObject(p.rows[i].value);
+    for(var k in flat){
+      if(!flat.hasOwnProperty(k)) continue;
+      if(!fields[k]){ fields[k]={name:k, count:0, types:{}, nulls:0, samples:[]}; order.push(k); }
+      var f=fields[k];
+      f.count++;
+      var t=typeOf(flat[k]);
+      if(t==='null') f.nulls++;
+      f.types[t]=(f.types[t]||0)+1;
+      if(f.samples.length<3 && t!=='null') f.samples.push(flat[k]);
+    }
+  }
+  var list=[];
+  for(var j=0;j<order.length;j++){
+    var g=fields[order[j]];
+    var tk=Object.keys(g.types);
+    tk.sort(function(a,b){ return g.types[b]-g.types[a]; });
+    list.push({
+      name:g.name, count:g.count, presence: total? Math.round(g.count/total*100) : 0,
+      types:tk, primaryType: tk[0]||'unknown', mixed: tk.filter(function(x){return x!=='null';}).length>1,
+      nulls:g.nulls, samples:g.samples
+    });
+  }
+  return {fields:list, records:total, errors:p.errors, fieldCount:list.length};
+}
+function validateShape(text){
+  var prof=profileSchema(text), issues=[];
+  for(var i=0;i<prof.fields.length;i++){
+    var f=prof.fields[i];
+    if(f.presence<100 && prof.records>1) issues.push({level:'warn', field:f.name, msg:'字段仅在 '+f.presence+'% 的记录中出现'});
+    if(f.mixed) issues.push({level:'error', field:f.name, msg:'类型不一致: '+f.types.join(' / ')});
+  }
+  for(var j=0;j<prof.errors.length;j++) issues.push({level:'error', field:'第 '+prof.errors[j].line+' 行', msg:prof.errors[j].message});
+  var errors=0, warnings=0;
+  for(var k=0;k<issues.length;k++){ if(issues[k].level==='error') errors++; else warnings++; }
+  return {issues:issues, errors:errors, warnings:warnings, ok: errors===0, records:prof.records, fieldCount:prof.fieldCount};
+}
+function csvEscape(v){
+  if(v===null || v===undefined) return '';
+  var s = (typeof v==='object') ? JSON.stringify(v) : String(v);
+  if(/[",\n\r]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+function toCsv(text, delimiter){
+  var d = delimiter || ',';
+  var p=parseNdjson(text);
+  if(!p.rows.length) return {text:'', rows:0, columns:[], error:'无有效记录'};
+  var cols=[], seen={};
+  var flats=[];
+  for(var i=0;i<p.rows.length;i++){
+    var f=flattenObject(p.rows[i].value);
+    flats.push(f);
+    for(var k in f){ if(f.hasOwnProperty(k) && !seen[k]){ seen[k]=1; cols.push(k); } }
+  }
+  var out=[cols.map(csvEscape).join(d)];
+  for(var j=0;j<flats.length;j++){
+    var row=[];
+    for(var c=0;c<cols.length;c++) row.push(csvEscape(flats[j][cols[c]]));
+    out.push(row.join(d));
+  }
+  return {text: out.join('\n'), rows: flats.length, columns: cols, error:null};
+}
+function filterLines(text, expr){
+  var p=parseNdjson(text);
+  var q=String(expr||'').trim();
+  if(!q) return {text: p.rows.map(function(r){return JSON.stringify(r.value);}).join('\n'), matched:p.rows.length, total:p.rows.length, error:null};
+  var m = q.match(/^([A-Za-z0-9_.$[\]]+)\s*(==|!=|>=|<=|>|<|~)\s*(.+)$/);
+  if(!m) return {text:'', matched:0, total:p.rows.length, error:'表达式格式: field op value（op 为 == != > < >= <= ~）'};
+  var field=m[1], op=m[2], rhs=m[3].trim().replace(/^["']|["']$/g,'');
+  var num=parseFloat(rhs), isNum=!isNaN(num) && /^-?\d+(\.\d+)?$/.test(rhs);
+  var kept=[];
+  for(var i=0;i<p.rows.length;i++){
+    var flat=flattenObject(p.rows[i].value);
+    var v=flat[field];
+    var pass=false;
+    if(op==='~') pass = v!==undefined && String(v).indexOf(rhs)>-1;
+    else if(op==='==') pass = String(v)===rhs || (isNum && v===num);
+    else if(op==='!=') pass = !(String(v)===rhs || (isNum && v===num));
+    else {
+      var lv = typeof v==='number' ? v : parseFloat(v);
+      if(isNaN(lv) || !isNum) pass=false;
+      else if(op==='>') pass = lv>num;
+      else if(op==='<') pass = lv<num;
+      else if(op==='>=') pass = lv>=num;
+      else if(op==='<=') pass = lv<=num;
+    }
+    if(pass) kept.push(JSON.stringify(p.rows[i].value));
+  }
+  return {text: kept.join('\n'), matched: kept.length, total: p.rows.length, error:null};
+}
+function stats(text){
+  var p=parseNdjson(text);
+  var bytes=0, maxLine=0, types={};
+  var src=String(text||'').split(/\r?\n/);
+  for(var i=0;i<src.length;i++){
+    bytes += src[i].length + 1;
+    if(src[i].length>maxLine) maxLine=src[i].length;
+  }
+  for(var j=0;j<p.rows.length;j++){
+    var t=typeOf(p.rows[j].value);
+    types[t]=(types[t]||0)+1;
+  }
+  return {
+    records:p.rows.length, invalid:p.errors.length, blank:p.blank,
+    bytes: bytes>0 ? bytes-1 : 0,
+    avgBytes: p.rows.length ? Math.round((bytes-1)/p.rows.length) : 0,
+    maxLineLength:maxLine, valueTypes:types
+  };
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { parseNdjson:parseNdjson, stringifyNdjson:stringifyNdjson, fromJsonArray:fromJsonArray, toJsonArray:toJsonArray, typeOf:typeOf, flattenObject:flattenObject, profileSchema:profileSchema, validateShape:validateShape, csvEscape:csvEscape, toCsv:toCsv, filterLines:filterLines, stats:stats }; }
+if (typeof window !== 'undefined') { window.NdjsonForgePure = { parseNdjson:parseNdjson, stringifyNdjson:stringifyNdjson, fromJsonArray:fromJsonArray, toJsonArray:toJsonArray, typeOf:typeOf, flattenObject:flattenObject, profileSchema:profileSchema, validateShape:validateShape, csvEscape:csvEscape, toCsv:toCsv, filterLines:filterLines, stats:stats }; }
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var $=function(id){return document.getElementById(id);};
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  function analyse(){
+    var t=$('src').value;
+    var s=stats(t);
+    $('stat').textContent = s.records+' 条有效 · '+s.invalid+' 条解析失败 · '+s.blank+' 空行 · '
+      + s.bytes+' 字节 · 平均 '+s.avgBytes+' B/条 · 最长行 '+s.maxLineLength;
+    var prof=profileSchema(t);
+    $('schema').innerHTML = prof.fields.length ? prof.fields.map(function(f){
+      var cls = f.mixed ? 'e' : f.presence<100 ? 'w' : 'ok';
+      return '<div class="item"><div class="hd"><b>'+esc(f.name)+'</b><span class="tag '+cls+'">'+esc(f.primaryType)+'</span></div>'
+        +'<div class="meta">出现 '+f.presence+'% · '+f.count+'/'+prof.records+(f.mixed?(' · 混合类型 '+f.types.join('/')):'')
+        +(f.samples.length? (' · 例: '+esc(f.samples.map(function(x){return JSON.stringify(x);}).join(', '))) : '')+'</div></div>';
+    }).join('') : '<div class="meta">无字段</div>';
+    var v=validateShape(t);
+    $('issues').innerHTML = v.issues.length ? v.issues.map(function(i){
+      return '<div class="item"><span class="tag '+(i.level==='error'?'e':'w')+'">'+i.level.toUpperCase()+'</span> '+esc(i.field)+': '+esc(i.msg)+'</div>';
+    }).join('') : '<div class="okmsg">结构一致，无问题</div>';
+    var f=$('flt').value.trim();
+    if(f){
+      var r=filterLines(t, f);
+      $('out').textContent = r.error ? r.error : (r.text + '\n\n— 匹配 '+r.matched+'/'+r.total+' 条');
+    }
+  }
+  $('src').addEventListener('input', analyse);
+  $('flt').addEventListener('input', analyse);
+  $('toArr').addEventListener('click', function(){
+    var r=toJsonArray($('src').value, true);
+    $('out').textContent = r.text + (r.errors.length? ('\n\n跳过 '+r.errors.length+' 行解析失败') : '');
+  });
+  $('fromArr').addEventListener('click', function(){
+    var r=fromJsonArray($('src').value);
+    $('out').textContent = r.error || r.text;
+  });
+  $('csv').addEventListener('click', function(){
+    var r=toCsv($('src').value);
+    $('out').textContent = r.error || r.text;
+  });
+  $('copy').addEventListener('click', function(){ if(navigator.clipboard) navigator.clipboard.writeText($('out').textContent||''); });
+  analyse();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

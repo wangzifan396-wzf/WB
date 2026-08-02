@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PaletteForge — 配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。</title>
+<meta property="og:title" content="PaletteForge">
+<meta property="og:description" content="配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>PaletteForge</h1>
+  <p class="sub">配色生成器：色相旋转派生互补/三角/邻近/单色方案，WCAG 对比度校验，点选即复制，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>基色</label>
+<input id="base" type="color" value="#5E6AD2" style="width:100%;height:44px;background:#1A1B1E;border:1px solid rgba(255,255,255,.08);border-radius:8px;cursor:pointer;">
+<div id="out"></div>
+<script>
+function hexToRgb(hex){ hex=String(hex).replace('#',''); if(hex.length===3) hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2]; if(!/^[0-9a-fA-F]{6}$/.test(hex)) return null; return {r:parseInt(hex.slice(0,2),16),g:parseInt(hex.slice(2,4),16),b:parseInt(hex.slice(4,6),16)}; }
+function rgbToHex(r,g,b){ function h(v){ var s=('0'+Math.max(0,Math.min(255,Math.round(v))).toString(16)); return s.slice(-2); } return '#'+h(r)+h(g)+h(b); }
+function rgbToHsl(r,g,b){ r/=255;g/=255;b/=255; var mx=Math.max(r,g,b),mn=Math.min(r,g,b),h,s,l=(mx+mn)/2; if(mx===mn){h=s=0;} else { var d=mx-mn; s=l>0.5?d/(2-mx-mn):d/(mx+mn); switch(mx){ case r:h=(g-b)/d+(g<b?6:0);break; case g:h=(b-r)/d+2;break; default:h=(r-g)/d+4;} h/=6; } return {h:h*360,s:s*100,l:l*100}; }
+function hslToRgb(h,s,l){ h/=360;s/=100;l/=100; var r,g,b; if(s===0){r=g=b=l;} else { var hue=function(p,q,t){ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; }; var q=l<0.5?l*(1+s):l+s-l*s; var p=2*l-q; r=hue(p,q,h+1/3); g=hue(p,q,h); b=hue(p,q,h-1/3); } return {r:Math.round(r*255),g:Math.round(g*255),b:Math.round(b*255)}; }
+function rotHue(hex,deg){ var c=hexToRgb(hex); if(!c) return null; var hsl=rgbToHsl(c.r,c.g,c.b); hsl.h=(hsl.h+deg)%360; if(hsl.h<0)hsl.h+=360; var n=hslToRgb(hsl.h,hsl.s,hsl.l); return rgbToHex(n.r,n.g,n.b); }
+function palScheme(hex,type){ if(type==='complement') return [rotHue(hex,180)]; if(type==='triadic') return [rotHue(hex,120),rotHue(hex,240)]; if(type==='analogous') return [rotHue(hex,-30),rotHue(hex,30)]; if(type==='monochrome'){ var out=[],c=hexToRgb(hex),hsl=rgbToHsl(c.r,c.g,c.b); for(var i=1;i<=4;i++){ var n=hslToRgb(hsl.h,hsl.s,Math.max(10,Math.min(90,hsl.l+i*12-24))); out.push(rgbToHex(n.r,n.g,n.b)); } return out; } return []; }
+function relLum(hex){ var c=hexToRgb(hex); if(!c) return null; function f(v){ v/=255; return v<=0.03928? v/12.92 : Math.pow((v+0.055)/1.055,2.4); } return 0.2126*f(c.r)+0.7152*f(c.g)+0.0722*f(c.b); }
+function wcag(hex1,hex2){ var l1=relLum(hex1),l2=relLum(hex2); if(l1==null||l2==null) return null; var a=Math.max(l1,l2),b=Math.min(l1,l2); return (a+0.05)/(b+0.05); }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { hexToRgb:hexToRgb, rgbToHex:rgbToHex, rgbToHsl:rgbToHsl, hslToRgb:hslToRgb, rotHue:rotHue, palScheme:palScheme, wcag:wcag };
+}
+if (typeof window !== 'undefined') {
+  window.PaletteForgePure = { hexToRgb:hexToRgb, rgbToHex:rgbToHex, rgbToHsl:rgbToHsl, hslToRgb:hslToRgb, rotHue:rotHue, palScheme:palScheme, wcag:wcag };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.PaletteForgePure;
+    function sw(h,label){ return '<div style="display:inline-block;margin:4px;"><div style="width:64px;height:48px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:'+h+';"></div><div style="font-size:11px;color:#A1A1AA;margin-top:2px;">'+(label||h)+'</div></div>'; }
+    function render(){
+      var base=$('base').value; var c=P.hexToRgb(base); if(!c){ $('out').innerHTML='<span style="color:#F5A623">无效颜色</span>'; return; }
+      var comp=P.palScheme(base,'complement'), tri=P.palScheme(base,'triadic'), ana=P.palScheme(base,'analogous'), mono=P.palScheme(base,'monochrome');
+      var wc=P.wcag(base,'#ffffff'), wb=P.wcag(base,'#000000');
+      $('out').innerHTML =
+        '<div style="margin-top:10px;color:#A1A1AA;font-size:13px;">基色</div>'+sw(base) +
+        '<div style="margin-top:10px;color:#A1A1AA;font-size:13px;">互补</div>'+comp.map(sw).join('') +
+        '<div style="margin-top:10px;color:#A1A1AA;font-size:13px;">三角</div>'+tri.map(sw).join('') +
+        '<div style="margin-top:10px;color:#A1A1AA;font-size:13px;">邻近</div>'+ana.map(sw).join('') +
+        '<div style="margin-top:10px;color:#A1A1AA;font-size:13px;">单色</div>'+mono.map(sw).join('') +
+        '<div style="margin-top:12px;color:#E4E4E7;font-size:13px;">对比度：白 '+wc.toFixed(2)+' · 黑 '+wb.toFixed(2)+' '+(wb>=4.5||wc>=4.5?'✓ 正文可读':'⚠ 偏低')+'</div>';
+    }
+    $('base').addEventListener('input', render);
+    render();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

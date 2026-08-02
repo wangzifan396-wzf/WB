@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>TreemapForge — 矩形树图：squarified 算法按比例布局，面积映射数值。</title>
+<meta property="og:title" content="TreemapForge">
+<meta property="og:description" content="矩形树图生成器：squarified 布局按数值映射面积，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="矩形树图生成器：squarified 布局按数值映射面积，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>TreemapForge</h1>
+  <p class="sub">矩形树图：squarified 算法将数值映射为面积、紧凑布局、SVG 导出 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>数据（每行：名称,数值）</label>
+<textarea id="data" rows="6" spellcheck="false" style="font:13px ui-monospace,Consolas,monospace"></textarea>
+<div class="row">
+  <button id="run">生成区块图</button>
+  <button id="sample" class="ghost">示例</button>
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="stat"></div>
+<div class="out" id="svg" style="overflow:auto"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function tmSquarify(values, x, y, w, h){
+  var i, total=0;
+  for(i=0;i<values.length;i++) if(values[i]>0) total+=values[i];
+  if(total<=0 || w<=0 || h<=0) return [];
+  var scale=(w*h)/total;
+  var items=[]; for(i=0;i<values.length;i++) if(values[i]>0) items.push({area:values[i]*scale, idx:i});
+  var rects=[], rx=x, ry=y, rw=w, rh=h;
+  function worst(row, len){
+    var s=0, mx=0, mn=1e18;
+    for(var k=0;k<row.length;k++){ s+=row[k].area; if(row[k].area>mx)mx=row[k].area; if(row[k].area<mn)mn=row[k].area; }
+    if(mn<=0) return 1e18;
+    var s2=s*s, l2=len*len;
+    return Math.max((l2*mx)/s2, s2/(l2*mn));
+  }
+  var idx=0;
+  while(idx<items.length){
+    var row=[items[idx]];
+    var len=Math.min(rw, rh);
+    while(idx+1<items.length){
+      var cand=items[idx+1];
+      if(worst(row.concat([cand]), len) <= worst(row, len)){ row.push(cand); idx++; }
+      else break;
+    }
+    var rowArea=0; for(var r=0;r<row.length;r++) rowArea+=row[r].area;
+    if(rw>=rh){
+      var colW = rowArea/rh;
+      var cy=ry;
+      for(var a2=0;a2<row.length;a2++){ var hh=row[a2].area/colW; rects.push({idx:row[a2].idx, x:rx, y:cy, w:colW, h:hh}); cy+=hh; }
+      rx+=colW; rw-=colW;
+    } else {
+      var rowH = rowArea/rw;
+      var cx=rx;
+      for(var a3=0;a3<row.length;a3++){ var ww=row[a3].area/rowH; rects.push({idx:row[a3].idx, x:cx, y:ry, w:ww, h:rowH}); cx+=ww; }
+      ry+=rowH; rh-=rowH;
+    }
+    idx++;
+  }
+  return rects;
+}
+function tmAreaSum(rects){
+  var s=0; for(var i=0;i<rects.length;i++) s+=rects[i].w*rects[i].h; return Math.round(s); return s;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { tmSquarify:tmSquarify, tmAreaSum:tmAreaSum };
+}
+if (typeof window !== 'undefined') {
+  window.TreemapForgePure = { tmSquarify:tmSquarify, tmAreaSum:tmAreaSum };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.TreemapForgePure;
+  var SAMPLE='苹果,40\n香蕉,25\n樱桃,15\n葡萄,12\n芒果,8';
+  function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }); }
+  function run(){
+    var lines=$('data').value.split('\n'), items=[], labels=[];
+    for(var i=0;i<lines.length;i++){
+      var ln=lines[i].trim(); if(!ln) continue;
+      var cm=ln.indexOf(','); if(cm<0) continue;
+      var name=ln.slice(0,cm).trim(), val=parseFloat(ln.slice(cm+1));
+      if(!(val>0)) continue;
+      labels.push(name); items.push(val);
+    }
+    if(!items.length){ $('err').textContent='请输入有效的 名称,数值 行'; return; }
+    var W=720, H=360, rects=P.tmSquarify(items, 0, 0, W, H);
+    $('err').textContent='';
+    $('stat').innerHTML='<div class="grid"><div class="kv"><b>区块</b><span>'+rects.length+'</span></div><div class="kv"><b>总面积</b><span>'+P.tmAreaSum(rects)+'</span></div></div>';
+    var svg='<svg viewBox="0 0 '+W+' '+H+'" width="100%" xmlns="http://www.w3.org/2000/svg">';
+    for(var r=0;r<rects.length;r++){
+      var q=rects[r];
+      svg+='<rect x="'+q.x.toFixed(1)+'" y="'+q.y.toFixed(1)+'" width="'+Math.max(0,q.w).toFixed(1)+'" height="'+Math.max(0,q.h).toFixed(1)+'" fill="#5E6AD2" stroke="#0A0A0B" opacity="'+(0.45+0.5*items[r]/Math.max.apply(null,items))+'" rx="2"/>';
+      if(q.w>42 && q.h>22) svg+='<text x="'+(q.x+6).toFixed(1)+'" y="'+(q.y+18).toFixed(1)+'" fill="#fff" font-size="12">'+esc(labels[r])+'</text>';
+    }
+    $('svg').innerHTML=svg+'</svg>';
+  }
+  $('run').addEventListener('click', run);
+  $('sample').addEventListener('click', function(){ $('data').value=SAMPLE; run(); });
+  $('data').value=SAMPLE; run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

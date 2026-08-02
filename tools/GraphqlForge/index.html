@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>GraphqlForge — GraphQL 查询分析：变量与片段体检、变量模板生成、查询复杂度评分。</title>
+<meta property="og:title" content="GraphqlForge">
+<meta property="og:description" content="GraphQL 查询分析：变量片段体检、变量模板生成、复杂度评分，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="GraphQL 查询分析：变量片段体检、变量模板生成、复杂度评分，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>GraphqlForge</h1>
+  <p class="sub">GraphQL 查询：括号平衡校验、变量与片段引用体检、变量 JSON 模板生成、深度与复杂度评分 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>GraphQL 查询 / 变更</label>
+<textarea id="src" rows="10" spellcheck="false"></textarea>
+<div class="row">
+  <button id="run">解析查询</button>
+  <button id="stub" class="ghost">生成变量模板</button>
+  <button id="copy" class="ghost">复制变量</button>
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="out"></div>
+<div class="out" id="detail"></div>
+<label>变量 JSON</label>
+<textarea id="dst" rows="6" spellcheck="false"></textarea>
+<div class="out" id="lint"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function gqStrip(src){
+  return String(src||'').replace(/#[^\n]*/g,'');
+}
+function gqTokens(src){
+  var s=gqStrip(src), out=[], re=/"(?:[^"\\]|\\.)*"|[\{\}\(\)\[\]:,=@\$!]|\.\.\.|[A-Za-z_][\w]*|\S/g, m;
+  while((m=re.exec(s))!==null) out.push(m[0]);
+  return out;
+}
+function gqBalance(src){
+  var t=gqTokens(src), stack=[], pairs={'}':'{',')':'(',']':'['};
+  for(var i=0;i<t.length;i++){
+    if('{(['.indexOf(t[i])>=0 && t[i].length===1) stack.push(t[i]);
+    else if(pairs[t[i]]){
+      if(stack.pop()!==pairs[t[i]]) return { ok:false, msg:'第 '+(i+1)+' 个 token 处括号不匹配：'+t[i] };
+    }
+  }
+  if(stack.length) return { ok:false, msg:'有 '+stack.length+' 个括号未闭合' };
+  return { ok:true, msg:'' };
+}
+function gqParse(src){
+  var text=gqStrip(src);
+  if(!text.trim()) return { error:'请输入 GraphQL 查询' };
+  var bal=gqBalance(text);
+  if(!bal.ok) return { error:bal.msg };
+  var head=text.match(/^\s*(query|mutation|subscription)?\s*([A-Za-z_]\w*)?\s*(\(([\s\S]*?)\))?\s*\{/);
+  if(!head) return { error:'未找到操作体，查询应包含 { ... }' };
+  var op=head[1]||'query', name=head[2]||null, varsRaw=head[4]||'';
+  var vars=[], vre=/\$([A-Za-z_]\w*)\s*:\s*(\[?\s*[A-Za-z_][\w!]*\s*\]?!?)\s*(?:=\s*([^,)]+))?/g, vm;
+  while((vm=vre.exec(varsRaw))!==null)
+    vars.push({ name:vm[1], type:vm[2], required:/!$/.test(vm[2]), def: vm[3]? vm[3].trim() : null });
+  var used={}, ure=/\$([A-Za-z_]\w*)/g, um;
+  var bodyStart=text.indexOf('{', head.index);
+  var body=text.slice(bodyStart);
+  while((um=ure.exec(body))!==null) used[um[1]]=(used[um[1]]||0)+1;
+  var frags=[], fre=/fragment\s+([A-Za-z_]\w*)\s+on\s+([A-Za-z_]\w*)/g, fm;
+  while((fm=fre.exec(text))!==null) frags.push({ name:fm[1], on:fm[2] });
+  var spreads=[], sre=/\.\.\.\s*([A-Za-z_]\w*)/g, sm;
+  while((sm=sre.exec(text))!==null) if(sm[1]!=='on') spreads.push(sm[1]);
+  var directives=[], dre=/@([A-Za-z_]\w*)/g, dm;
+  while((dm=dre.exec(text))!==null) directives.push(dm[1]);
+  return { error:null, op:op, name:name, vars:vars, used:used, frags:frags,
+           spreads:spreads, directives:directives, body:body };
+}
+var GQ_KEYWORDS = ['query','mutation','subscription','fragment','on','true','false','null'];
+function gqFields(body){
+  var s=gqStrip(body||''), out=[], depth=0, maxDepth=0, paren=0;
+  var re=/"(?:[^"\\]|\\.)*"|\.\.\.|@[A-Za-z_]\w*|\$[A-Za-z_]\w*|[A-Za-z_]\w*|\S/g, m, toks=[];
+  while((m=re.exec(s))!==null) toks.push(m[0]);
+  for(var i=0;i<toks.length;i++){
+    var t=toks[i];
+    if(t==='('){ paren++; continue; }
+    if(t===')'){ if(paren>0) paren--; continue; }
+    if(paren>0) continue;
+    if(t==='{'){ depth++; if(depth>maxDepth) maxDepth=depth; continue; }
+    if(t==='}'){ if(depth>0) depth--; continue; }
+    if(t==='...'){ i++; continue; }
+    if(t.charAt(0)==='@' || t.charAt(0)==='$' || t.charAt(0)==='"') continue;
+    if(!/^[A-Za-z_]\w*$/.test(t)) continue;
+    if(GQ_KEYWORDS.indexOf(t)>=0) continue;
+    var alias=null, name=t;
+    if(toks[i+1]===':' && /^[A-Za-z_]\w*$/.test(toks[i+2]||'')){ alias=t; name=toks[i+2]; i+=2; }
+    out.push({ name:name, alias:alias, depth:depth });
+  }
+  return { fields:out, maxDepth:maxDepth };
+}
+function gqLint(p){
+  if(!p || p.error) return [];
+  var out=[];
+  for(var i=0;i<p.vars.length;i++)
+    if(!p.used[p.vars[i].name]) out.push('变量 $'+p.vars[i].name+' 声明后未被使用');
+  var declared={};
+  for(var j=0;j<p.vars.length;j++) declared[p.vars[j].name]=1;
+  for(var k in p.used)
+    if(!declared[k]) out.push('变量 $'+k+' 在查询体中使用但未声明');
+  var fnames={};
+  for(var f=0;f<p.frags.length;f++) fnames[p.frags[f].name]=1;
+  for(var s=0;s<p.spreads.length;s++)
+    if(!fnames[p.spreads[s]]) out.push('展开了未定义的片段 ...'+p.spreads[s]);
+  for(var g=0;g<p.frags.length;g++)
+    if(p.spreads.indexOf(p.frags[g].name)<0) out.push('片段 '+p.frags[g].name+' 定义后未被使用');
+  if(!p.name && p.op!=='query') out.push('建议为 '+p.op+' 操作命名，便于服务端日志与缓存定位');
+  return out;
+}
+function gqVarStub(p){
+  if(!p || p.error) return '{}';
+  var o={};
+  for(var i=0;i<p.vars.length;i++){
+    var v=p.vars[i], t=v.type.replace(/[!\[\]]/g,''), arr=/\[/.test(v.type);
+    var sample = t==='Int' ? 0 : t==='Float' ? 0.0 : t==='Boolean' ? false : t==='ID' ? '1' : 'TODO_'+t;
+    if(v.def!==null){
+      try { sample = JSON.parse(v.def); } catch(e){ sample = v.def.replace(/^"|"$/g,''); }
+    }
+    o[v.name] = arr ? [sample] : sample;
+  }
+  return JSON.stringify(o, null, 2);
+}
+function gqCost(p){
+  if(!p || p.error) return { fields:0, depth:0, score:0, level:'-' };
+  var f=gqFields(p.body);
+  var score = f.fields.length * 1 + f.maxDepth * f.maxDepth * 3;
+  var level = score<20 ? '低' : score<60 ? '中' : score<120 ? '高' : '很高';
+  return { fields:f.fields.length, depth:f.maxDepth, score:score, level:level };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { gqStrip:gqStrip, gqTokens:gqTokens, gqBalance:gqBalance, gqParse:gqParse,
+    gqFields:gqFields, gqLint:gqLint, gqVarStub:gqVarStub, gqCost:gqCost };
+}
+if (typeof window !== 'undefined') {
+  window.GraphqlForgePure = { gqStrip:gqStrip, gqTokens:gqTokens, gqBalance:gqBalance, gqParse:gqParse,
+    gqFields:gqFields, gqLint:gqLint, gqVarStub:gqVarStub, gqCost:gqCost };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.GraphqlForgePure;
+  function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }); }
+  function run(){
+    var p=P.gqParse($('src').value);
+    if(p.error){ $('err').textContent=p.error; $('out').innerHTML=''; $('detail').innerHTML=''; $('lint').innerHTML=''; return; }
+    $('err').textContent='';
+    var c=P.gqCost(p);
+    $('out').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>操作类型</b><span>'+p.op+(p.name?' · '+esc(p.name):'')+'</span></div>'+
+      '<div class="kv"><b>变量 / 片段</b><span>'+p.vars.length+' / '+p.frags.length+'</span></div>'+
+      '<div class="kv"><b>字段数 / 最大深度</b><span>'+c.fields+' / '+c.depth+'</span></div>'+
+      '<div class="kv"><b>复杂度评分</b><span>'+c.score+'（'+c.level+'）</span></div></div>';
+    var h='';
+    for(var i=0;i<p.vars.length;i++){
+      var v=p.vars[i];
+      h+='<div class="kv"><b>$'+esc(v.name)+'</b><span>'+esc(v.type)+(v.required?' · 必填':'')+
+         (v.def?' · 默认 '+esc(v.def):'')+' · 引用 '+(p.used[v.name]||0)+' 次</span></div>';
+    }
+    for(var j=0;j<p.frags.length;j++)
+      h+='<div class="kv"><b>片段 '+esc(p.frags[j].name)+'</b><span>on '+esc(p.frags[j].on)+'</span></div>';
+    if(p.directives.length) h+='<div class="kv"><b>指令</b><span>@'+esc(p.directives.join(' @'))+'</span></div>';
+    $('detail').innerHTML=h || '<div class="kv"><b>变量</b><span>无</span></div>';
+    $('dst').value=P.gqVarStub(p);
+    var l=P.gqLint(p), t='';
+    if(!l.length) t='<div class="kv"><b>体检</b><span>未发现问题</span></div>';
+    else for(var k=0;k<l.length;k++) t+='<div class="kv"><b>提醒 '+(k+1)+'</b><span>'+esc(l[k])+'</span></div>';
+    $('lint').innerHTML=t;
+  }
+  $('run').addEventListener('click', run);
+  $('stub').addEventListener('click', run);
+  $('copy').addEventListener('click', function(){ if(navigator.clipboard) navigator.clipboard.writeText($('dst').value); });
+  $('src').value='query GetUser($id: ID!, $first: Int = 10) {\n  user(id: $id) {\n    id\n    name\n    posts(first: $first) {\n      edges {\n        node { id title }\n      }\n    }\n  }\n}';
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

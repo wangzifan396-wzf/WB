@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>CvssForge — CVSS 评分计算器：按 CVSS v3.1 / v4.0 指标实时计算基础分、临时分与严重等级，并生成可复用的向量串，离线可用。</title>
+<meta property="og:title" content="CvssForge">
+<meta property="og:description" content="CVSS 评分计算器：按 CVSS v3.1 / v4.0 指标（AV/AC/PR/UI/S/C/I/A 与 v4 新增的 MSI/CR 等）实时计算基础分、临时分与严重等级（无/低/中/高/严重），并生成可复用的向量串。评估漏洞优先级、撰写安全报告时一目了然，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="CVSS 评分计算器：按 CVSS v3.1 / v4.0 指标（AV/AC/PR/UI/S/C/I/A 与 v4 新增的 MSI/CR 等）实时计算基础分、临时分与严重等级（无/低/中/高/严重），并生成可复用的向量串。评估漏洞优先级、撰写安全报告时一目了然，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+pre.pcf{white-space:pre-wrap;word-break:break-all;background:var(--surface);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin:6px 0 0}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+.pbar{display:inline-block;width:70px;height:6px;background:rgba(255,255,255,.08);
+      border-radius:3px;vertical-align:middle;overflow:hidden;margin-left:6px}
+.pbar>span{display:block;height:100%;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>CvssForge</h1>
+  <p class="sub">CVSS · 漏洞评分 · 安全</p>
+
+<label for="cvss-vec">CVSS 向量串（支持 v3.1 / v2.0 / v4.0 语法体检）</label>
+<textarea id="cvss-vec" rows="3" placeholder="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H"></textarea>
+<div class="row">
+  <button id="cvss-go">计算</button>
+  <button class="ghost" id="cvss-log4j">Log4Shell 示例</button>
+  <button class="ghost" id="cvss-env">带环境分示例</button>
+  <button class="ghost" id="cvss-v2">v2.0 示例</button>
+  <button class="ghost" id="cvss-clr">清空</button>
+</div>
+<div class="err" id="cvss-err"></div>
+<div class="out" id="cvss-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 373 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function CvssForgePure(){
+  // ============ CVSS v3.1 权重表（FIRST.org 官方规范 §7）============
+  var W31 = {
+    AV:{N:0.85, A:0.62, L:0.55, P:0.2},
+    AC:{L:0.77, H:0.44},
+    PR_U:{N:0.85, L:0.62, H:0.27},
+    PR_C:{N:0.85, L:0.68, H:0.50},
+    UI:{N:0.85, R:0.62},
+    CIA:{H:0.56, L:0.22, N:0},
+    E:{X:1, H:1, F:0.97, P:0.94, U:0.91},
+    RL:{X:1, U:1, W:0.97, T:0.96, O:0.95},
+    RC:{X:1, C:1, R:0.96, U:0.92},
+    CIAR:{X:1, H:1.5, M:1, L:0.5}
+  };
+  var LABEL31 = {
+    AV:{N:'网络 Network', A:'邻接网络 Adjacent', L:'本地 Local', P:'物理 Physical'},
+    AC:{L:'低 Low', H:'高 High'},
+    PR:{N:'无 None', L:'低 Low', H:'高 High'},
+    UI:{N:'无需交互 None', R:'需要交互 Required'},
+    S:{U:'未改变 Unchanged', C:'已改变 Changed'},
+    C:{H:'高 High', L:'低 Low', N:'无 None'},
+    I:{H:'高 High', L:'低 Low', N:'无 None'},
+    A:{H:'高 High', L:'低 Low', N:'无 None'},
+    E:{X:'未定义', H:'已成熟 High', F:'功能性 Functional', P:'概念验证 PoC', U:'未证实 Unproven'},
+    RL:{X:'未定义', U:'不可用 Unavailable', W:'临时方案 Workaround', T:'临时补丁 Temporary', O:'官方补丁 Official'},
+    RC:{X:'未定义', C:'已确认 Confirmed', R:'有理有据 Reasonable', U:'未知 Unknown'},
+    CR:{X:'未定义', H:'高', M:'中', L:'低'}
+  };
+  var BASE_KEYS = ['AV','AC','PR','UI','S','C','I','A'];
+  var ALLOWED31 = {
+    AV:'NALP', AC:'LH', PR:'NLH', UI:'NR', S:'UC', C:'HLN', I:'HLN', A:'HLN',
+    E:'XHFPU', RL:'XUWTO', RC:'XCRU',
+    CR:'XHML', IR:'XHML', AR:'XHML',
+    MAV:'XNALP', MAC:'XLH', MPR:'XNLH', MUI:'XNR', MS:'XUC', MC:'XHLN', MI:'XHLN', MA:'XHLN'
+  };
+
+  // CVSS v3.1 官方 Roundup：避免二进制浮点导致的边界误差
+  function roundup(x){
+    var i = Math.round(x * 100000);
+    if (i % 10000 === 0) return i / 100000.0;
+    return (Math.floor(i / 10000) + 1) / 10.0;
+  }
+  function round1(x){ return Math.round(x * 10) / 10; }
+
+  function severity(score){
+    if (score <= 0) return '无 None';
+    if (score < 4) return '低 Low';
+    if (score < 7) return '中 Medium';
+    if (score < 9) return '高 High';
+    return '严重 Critical';
+  }
+
+  function parseVector(vec){
+    var s = String(vec || '').trim();
+    if (!s) return {error:'请输入 CVSS 向量串'};
+    var parts = s.split('/').filter(function(x){ return x !== ''; });
+    var version = null, m = {};
+    for (var i = 0; i < parts.length; i++){
+      var kv = parts[i].split(':');
+      if (kv.length !== 2) return {error:'片段格式错误：' + parts[i] + '（应为 KEY:VALUE）'};
+      var k = kv[0], v = kv[1];
+      if (k === 'CVSS'){ version = v; continue; }
+      if (m.hasOwnProperty(k)) return {error:'重复的指标：' + k};
+      m[k] = v;
+    }
+    return {error:null, version:version, metrics:m};
+  }
+
+  // ---------------- v3.1 ----------------
+  function score31(m){
+    for (var i = 0; i < BASE_KEYS.length; i++){
+      var k = BASE_KEYS[i];
+      if (!m[k]) return {error:'缺少必需的基础指标：' + k};
+      if (ALLOWED31[k].indexOf(m[k]) < 0) return {error:'指标 ' + k + ' 的取值非法：' + m[k]};
+    }
+    var opt = ['E','RL','RC','CR','IR','AR','MAV','MAC','MPR','MUI','MS','MC','MI','MA'];
+    for (var j = 0; j < opt.length; j++){
+      var ok = opt[j];
+      if (m[ok] && ALLOWED31[ok].indexOf(m[ok]) < 0)
+        return {error:'指标 ' + ok + ' 的取值非法：' + m[ok]};
+    }
+    var scopeChanged = (m.S === 'C');
+    var prTable = scopeChanged ? W31.PR_C : W31.PR_U;
+
+    var iscBase = 1 - ((1 - W31.CIA[m.C]) * (1 - W31.CIA[m.I]) * (1 - W31.CIA[m.A]));
+    var impact = scopeChanged
+      ? (7.52 * (iscBase - 0.029) - 3.25 * Math.pow(iscBase - 0.02, 15))
+      : (6.42 * iscBase);
+    var expl = 8.22 * W31.AV[m.AV] * W31.AC[m.AC] * prTable[m.PR] * W31.UI[m.UI];
+
+    var base;
+    if (impact <= 0) base = 0;
+    else base = roundup(Math.min(scopeChanged ? 1.08 * (impact + expl) : (impact + expl), 10));
+
+    var e = W31.E[m.E || 'X'], rl = W31.RL[m.RL || 'X'], rc = W31.RC[m.RC || 'X'];
+    var temporal = roundup(base * e * rl * rc);
+
+    // 环境分：未定义（X）的修正指标回落到对应基础指标
+    function md(key, baseKey){
+      var v = m['M' + key];
+      if (!v || v === 'X') return m[baseKey || key];
+      return v;
+    }
+    var mAV = md('AV'), mAC = md('AC'), mPR = md('PR'), mUI = md('UI'), mS = md('S');
+    var mC = md('C'), mI = md('I'), mA = md('A');
+    var cr = W31.CIAR[m.CR || 'X'], ir = W31.CIAR[m.IR || 'X'], ar = W31.CIAR[m.AR || 'X'];
+    var mScopeChanged = (mS === 'C');
+    var mPrTable = mScopeChanged ? W31.PR_C : W31.PR_U;
+
+    var mIscBase = Math.min(
+      1 - ((1 - W31.CIA[mC] * cr) * (1 - W31.CIA[mI] * ir) * (1 - W31.CIA[mA] * ar)), 0.915);
+    var mImpact = mScopeChanged
+      ? (7.52 * (mIscBase - 0.029) - 3.25 * Math.pow(mIscBase * 0.9731 - 0.02, 13))
+      : (6.42 * mIscBase);
+    var mExpl = 8.22 * W31.AV[mAV] * W31.AC[mAC] * mPrTable[mPR] * W31.UI[mUI];
+
+    var env;
+    if (mImpact <= 0) env = 0;
+    else {
+      var raw = roundup(Math.min(mScopeChanged ? 1.08 * (mImpact + mExpl) : (mImpact + mExpl), 10));
+      env = roundup(raw * e * rl * rc);
+    }
+
+    return {
+      error:null, version:'3.1',
+      base:base, temporal:temporal, environmental:env,
+      impactSub:round1(impact < 0 ? 0 : impact), exploitability:round1(expl),
+      baseSeverity:severity(base), temporalSeverity:severity(temporal), envSeverity:severity(env),
+      scopeChanged:scopeChanged, metrics:m
+    };
+  }
+
+  // ---------------- v2.0（NVD 遗留数据仍在广泛使用）----------------
+  var W20 = {
+    AV:{L:0.395, A:0.646, N:1.0},
+    AC:{H:0.35, M:0.61, L:0.71},
+    Au:{M:0.45, S:0.56, N:0.704},
+    CIA:{N:0, P:0.275, C:0.660}
+  };
+  function score20(m){
+    var need = ['AV','AC','Au','C','I','A'];
+    for (var i = 0; i < need.length; i++){
+      if (!m[need[i]]) return {error:'CVSS v2 缺少必需指标：' + need[i]};
+    }
+    if (!W20.AV[m.AV] && W20.AV[m.AV] !== 0) return {error:'AV 取值非法：' + m.AV};
+    if (!W20.AC[m.AC]) return {error:'AC 取值非法：' + m.AC};
+    if (!W20.Au[m.Au]) return {error:'Au 取值非法：' + m.Au};
+    var cc = W20.CIA[m.C], ii = W20.CIA[m.I], aa = W20.CIA[m.A];
+    if (cc === undefined || ii === undefined || aa === undefined)
+      return {error:'C/I/A 取值非法（应为 N/P/C）'};
+    var impact = 10.41 * (1 - (1 - cc) * (1 - ii) * (1 - aa));
+    var expl = 20 * W20.AV[m.AV] * W20.AC[m.AC] * W20.Au[m.Au];
+    var f = (impact === 0) ? 0 : 1.176;
+    var base = round1(((0.6 * impact) + (0.4 * expl) - 1.5) * f);
+    return {
+      error:null, version:'2.0', base:base,
+      impactSub:round1(impact), exploitability:round1(expl),
+      baseSeverity:(base < 4 ? '低 Low' : base < 7 ? '中 Medium' : '高 High'),
+      metrics:m
+    };
+  }
+
+  // ---------------- v4.0 向量语法校验（评分表未内置，仅做结构体检）----------------
+  var V40_BASE = ['AV','AC','AT','PR','UI','VC','VI','VA','SC','SI','SA'];
+  var V40_ALLOWED = {
+    AV:'NALP', AC:'LH', AT:'NP', PR:'NLH', UI:'NPA',
+    VC:'HLN', VI:'HLN', VA:'HLN', SC:'HLN', SI:'HLN', SA:'HLN',
+    E:'XAPU', CR:'XHML', IR:'XHML', AR:'XHML',
+    MAV:'XNALP', MAC:'XLH', MAT:'XNP', MPR:'XNLH', MUI:'XNPA',
+    MVC:'XHLN', MVI:'XHLN', MVA:'XHLN', MSC:'XHLN', MSI:'XHLNS', MSA:'XHLNS',
+    S:'XNP', AU:'XNY', R:'XAUI', V:'XDC', RE:'XLMH', U:'X,Clear,Green,Amber,Red'
+  };
+  function check40(m){
+    var issues = [];
+    for (var i = 0; i < V40_BASE.length; i++){
+      if (!m[V40_BASE[i]]) issues.push({level:'err', text:'缺少 v4.0 必需基础指标：' + V40_BASE[i]});
+    }
+    for (var k in m){
+      if (!m.hasOwnProperty(k)) continue;
+      var al = V40_ALLOWED[k];
+      if (!al){ issues.push({level:'warn', text:'未知的 v4.0 指标：' + k}); continue; }
+      if (al.indexOf(',') >= 0){
+        if (al.split(',').indexOf(m[k]) < 0) issues.push({level:'err', text:k + ' 取值非法：' + m[k]});
+      } else if (al.indexOf(m[k]) < 0){
+        issues.push({level:'err', text:k + ' 取值非法：' + m[k]});
+      }
+    }
+    // 命名法（CVSS-B / BT / BE / BTE）
+    var hasT = !!(m.E && m.E !== 'X');
+    var envKeys = ['CR','IR','AR','MAV','MAC','MAT','MPR','MUI','MVC','MVI','MVA','MSC','MSI','MSA'];
+    var hasE = false;
+    for (var j = 0; j < envKeys.length; j++){ if (m[envKeys[j]] && m[envKeys[j]] !== 'X') hasE = true; }
+    var nomen = 'CVSS-B';
+    if (hasT && hasE) nomen = 'CVSS-BTE';
+    else if (hasT) nomen = 'CVSS-BT';
+    else if (hasE) nomen = 'CVSS-BE';
+    return {error:null, version:'4.0', nomenclature:nomen, issues:issues, metrics:m};
+  }
+
+  function buildVector(m, version){
+    var order = (version === '2.0')
+      ? ['AV','AC','Au','C','I','A','E','RL','RC','CDP','TD','CR','IR','AR']
+      : ['AV','AC','PR','UI','S','C','I','A','E','RL','RC','CR','IR','AR',
+         'MAV','MAC','MPR','MUI','MS','MC','MI','MA'];
+    var out = (version === '2.0') ? [] : ['CVSS:' + (version || '3.1')];
+    for (var i = 0; i < order.length; i++){
+      var k = order[i];
+      if (m[k] && m[k] !== 'X') out.push(k + ':' + m[k]);
+    }
+    return out.join('/');
+  }
+
+  function analyze(vec){
+    var p = parseVector(vec);
+    if (p.error) return {error:p.error};
+    var m = p.metrics, v = p.version;
+    var r;
+    if (v === '4.0') r = check40(m);
+    else if (v === '2.0' || (!v && m.Au)) r = score20(m);
+    else r = score31(m);
+    if (r.error) return {error:r.error};
+    r.vector = buildVector(m, r.version);
+    r.labels = LABEL31;
+    return r;
+  }
+
+  var api = {parseVector:parseVector, score31:score31, score20:score20, check40:check40,
+             analyze:analyze, buildVector:buildVector, roundup:roundup, severity:severity,
+             LABEL31:LABEL31, W31:W31};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {CvssForgePure:CvssForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = CvssForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function band(score){
+    if (score <= 0) return 'var(--dim)';
+    if (score < 4) return 'var(--ok)';
+    if (score < 7) return 'var(--warn)';
+    return '#EF4444';
+  }
+  function run(){
+    var r = P.analyze(document.getElementById('cvss-vec').value);
+    var $e = document.getElementById('cvss-err'), $o = document.getElementById('cvss-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var h = '';
+    if (r.version === '4.0'){
+      h += '<div class="kv"><b>版本</b><span>CVSS v4.0（' + esc(r.nomenclature) + '）</span></div>';
+      if (!r.issues.length){
+        h += '<div class="kv"><b>语法体检</b><span style="color:var(--ok)">通过，未发现问题</span></div>';
+      } else {
+        for (var i = 0; i < r.issues.length; i++){
+          var it = r.issues[i];
+          h += '<div class="kv"><b>' + (it.level === 'err' ? '错误' : '提示') + '</b><span style="color:' +
+               (it.level === 'err' ? '#EF4444' : 'var(--warn)') + '">' + esc(it.text) + '</span></div>';
+        }
+      }
+      h += '<div class="kv"><b>说明</b><span style="color:var(--muted)">v4.0 采用 MacroVector 查表评分，本工具仅做向量语法与命名法体检</span></div>';
+      $o.innerHTML = h;
+      return;
+    }
+    h += '<div class="kv"><b>版本</b><span>CVSS v' + esc(r.version) + '</span></div>';
+    h += '<div class="kv"><b>基础分 Base</b><span style="color:' + band(r.base) + ';font-weight:700">' +
+         r.base.toFixed(1) + ' &nbsp;' + esc(r.baseSeverity) + '</span></div>';
+    if (r.version === '3.1'){
+      h += '<div class="kv"><b>时间分 Temporal</b><span style="color:' + band(r.temporal) + '">' +
+           r.temporal.toFixed(1) + ' &nbsp;' + esc(r.temporalSeverity) + '</span></div>';
+      h += '<div class="kv"><b>环境分 Environmental</b><span style="color:' + band(r.environmental) + '">' +
+           r.environmental.toFixed(1) + ' &nbsp;' + esc(r.envSeverity) + '</span></div>';
+      h += '<div class="kv"><b>影响子分 Impact</b><span>' + r.impactSub.toFixed(1) + '</span></div>';
+      h += '<div class="kv"><b>可利用子分 Exploitability</b><span>' + r.exploitability.toFixed(1) + '</span></div>';
+      h += '<div class="kv"><b>作用域 Scope</b><span>' + (r.scopeChanged ? '已改变（可越权影响其他组件）' : '未改变') + '</span></div>';
+    } else {
+      h += '<div class="kv"><b>影响子分</b><span>' + r.impactSub.toFixed(1) + '</span></div>';
+      h += '<div class="kv"><b>可利用子分</b><span>' + r.exploitability.toFixed(1) + '</span></div>';
+    }
+    h += '<div class="kv"><b>规范化向量</b><span>' + esc(r.vector) + '</span></div>';
+    var L = r.labels, m = r.metrics;
+    var keys = (r.version === '3.1')
+      ? ['AV','AC','PR','UI','S','C','I','A','E','RL','RC','CR','IR','AR']
+      : ['AV','AC','Au','C','I','A'];
+    var rows = '';
+    for (var k = 0; k < keys.length; k++){
+      var key = keys[k];
+      if (!m[key]) continue;
+      var lab = (L[key] && L[key][m[key]]) ? L[key][m[key]] : m[key];
+      rows += '<div class="kv"><b>' + key + '</b><span>' + esc(lab) + '</span></div>';
+    }
+    if (rows) h += '<div style="margin-top:12px;color:var(--dim);font-size:12px">指标明细</div>' + rows;
+    $o.innerHTML = h;
+  }
+  document.getElementById('cvss-go').addEventListener('click', run);
+  document.getElementById('cvss-log4j').addEventListener('click', function(){
+    document.getElementById('cvss-vec').value = 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H';
+    run();
+  });
+  document.getElementById('cvss-env').addEventListener('click', function(){
+    document.getElementById('cvss-vec').value =
+      'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:P/RL:T/RC:C/CR:H/IR:H/AR:L/MAV:L/MC:L';
+    run();
+  });
+  document.getElementById('cvss-v2').addEventListener('click', function(){
+    document.getElementById('cvss-vec').value = 'AV:N/AC:L/Au:N/C:C/I:C/A:C';
+    run();
+  });
+  document.getElementById('cvss-clr').addEventListener('click', function(){
+    document.getElementById('cvss-vec').value = '';
+    document.getElementById('cvss-out').innerHTML = '';
+    document.getElementById('cvss-err').textContent = '';
+  });
+  document.getElementById('cvss-vec').value = 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H';
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

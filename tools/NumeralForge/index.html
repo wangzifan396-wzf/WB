@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>NumeralForge — 数字转英文单词与人民币大写金额，支持负数与小数</title>
+<meta property="og:title" content="NumeralForge">
+<meta property="og:description" content="数字转英文单词与人民币大写金额，支持负数与小数">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="数字转英文单词与人民币大写金额，支持负数与小数 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:140px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+svg.out{background:var(--bg)}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.flag-ok{color:var(--ok)} .flag-bad{color:var(--warn)} .flag-info{color:var(--info)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>NumeralForge</h1>
+  <p class="sub">数字转英文单词与人民币大写金额，支持负数与小数 · 单文件 · 零依赖 · 本地优先</p>
+
+<label for="nval">数字（支持负数与小数）</label>
+<input id="nval" type="text" value="1234.56" placeholder="如 1234567 或 -50 或 0">
+<div class="row">
+  <button id="en">英文单词</button>
+  <button id="cn">人民币大写</button>
+  <button id="copy" class="ghost">复制结果</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">选择一种转换</div>
+<script>
+function nfToEnglish(n){
+  if(typeof n==='string'){ n = n.trim().replace(/,/g,''); }
+  var neg=false;
+  if(typeof n==='string'){ if(n.charAt(0)==='-'){ neg=true; n=n.slice(1); } }
+  else if(typeof n==='number'){ if(n<0){ neg=true; n=-n; } }
+  var parts=String(n).split('.');
+  var intPart=parts[0]; var decPart=parts[1];
+  if(!/^[0-9]+$/.test(intPart)) return {error:'Invalid number'};
+  var ones=['','one','two','three','four','five','six','seven','eight','nine','ten',
+            'eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  var tens=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  var scales=['','thousand','million','billion','trillion','quadrillion','quintillion'];
+  function chunkToWords(num){
+    if(num===0) return '';
+    var s='';
+    var h=Math.floor(num/100);
+    if(h>0){ s+=ones[h]+' hundred'; }
+    var r=num%100;
+    if(r>0){
+      if(s!=='') s+=' ';
+      if(r<20) s+=ones[r];
+      else { s+=tens[Math.floor(r/10)]; if(r%10>0) s+='-'+ones[r%10]; }
+    }
+    return s;
+  }
+  function groupWords(intStr){
+    if(intStr==='0') return 'zero';
+    var groups=[];
+    while(intStr.length>0){ groups.unshift(intStr.slice(-3)); intStr=intStr.slice(0,-3); }
+    var words=[];
+    for(var g=0;g<groups.length;g++){
+      var v=parseInt(groups[g],10);
+      if(v===0) continue;
+      var w=chunkToWords(v);
+      if(scales[groups.length-1-g]!=='') w+=' '+scales[groups.length-1-g];
+      words.push(w);
+    }
+    return words.join(' ');
+  }
+  var res=groupWords(intPart);
+  if(decPart){
+    var decWords=[];
+    for(var i=0;i<decPart.length;i++){ var d=parseInt(decPart.charAt(i),10); decWords.push(ones[d]||String(d)); }
+    res+=' point '+decWords.join(' ');
+  }
+  if(neg) res='negative '+res;
+  return {value:res, error:null};
+}
+function nfToChineseCapital(n){
+  if(typeof n==='string'){ n=n.trim().replace(/,/g,''); }
+  var neg=false;
+  if(typeof n==='string'){ if(n.charAt(0)==='-'){ neg=true; n=n.slice(1); } }
+  else if(typeof n==='number'){ if(n<0){ neg=true; n=-n; } }
+  if(typeof n==='number') n=String(n);
+  if(!/^[0-9]+(\.[0-9]{1,2})?$/.test(n)) return {error:'Invalid number'};
+  var digits='\u96f6\u58f9\u8d30\u53c1\u8086\u4f0d\u9646\u67d2\u634c\u7396';
+  var units=['','\u62fe','\u4f70','\u4edf'];
+  var bigUnits=['','\u4e07','\u4ebf'];
+  var intStr=n.split('.')[0];
+  var decStr=n.split('.')[1]||'';
+  function intToCap(s){
+    if(s==='0') return '\u96f6';
+    s=s.replace(/^0+/,'')||'0';
+    var len=s.length;
+    var secs=[];
+    while(s.length>0){ secs.unshift(s.slice(-4)); s=s.slice(0,-4); }
+    var out='';
+    for(var i=0;i<secs.length;i++){
+      var sec=secs[i];
+      var secWords='';
+      var started=false;
+      for(var p=0;p<sec.length;p++){
+        var d=parseInt(sec.charAt(p),10);
+        var pos=sec.length-1-p;
+        if(d===0){
+          if(started && !out.endsWith('\u96f6') && sectionHasNonZero(sec,p)){ /* handled below */ }
+        } else { started=true; }
+      }
+      // straightforward per-digit with 零 handling
+      var secStr=''; var zeroPending=false;
+      for(var q=0;q<sec.length;q++){
+        var dd=parseInt(sec.charAt(q),10);
+        var pp=sec.length-1-q;
+        if(dd===0){
+          if(!zeroPending && (sectionHasNonZero(sec,q))) zeroPending=true;
+        } else {
+          if(zeroPending){ secStr+='\u96f6'; zeroPending=false; }
+          secStr+=digits.charAt(dd)+units[pp];
+        }
+      }
+      if(secStr!=='') out+=secStr+bigUnits[secs.length-1-i];
+    }
+    out=out.replace(/\u96f6+/g,'\u96f6').replace(/\u96f6\u4e07/g,'\u4e07').replace(/\u96f6\u4ebf/g,'\u4ebf');
+    return out;
+  }
+  function sectionHasNonZero(sec, beforeIdx){
+    for(var i=beforeIdx+1;i<sec.length;i++){ if(sec.charAt(i)!=='0') return true; }
+    return false;
+  }
+  if(intStr==='0' && decStr==='') return {value:'\u96f6\u5143\u6574', error:null};
+  var cap=intToCap(intStr);
+  var tail='\u5143';
+  if(decStr===''){ tail+='\u6574'; }
+  else {
+    var jiao=parseInt(decStr.charAt(0),10);
+    var fen=decStr.length>1?parseInt(decStr.charAt(1),10):0;
+    if(jiao>0) tail+=digits.charAt(jiao)+'\u89d2';
+    else if(fen>0) tail+='\u96f6';
+    if(fen>0) tail+=digits.charAt(fen)+'\u5206';
+    if(fen===0) tail+='\u6574';
+  }
+  var val=(neg?'\u8d1f':'')+cap+tail;
+  return {value:val, error:null};
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { toEnglish:nfToEnglish, toChineseCapital:nfToChineseCapital };
+}
+if (typeof window !== 'undefined') {
+  window.NumeralForgePure = { toEnglish:nfToEnglish, toChineseCapital:nfToChineseCapital };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.NumeralForgePure;
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function run(fn){
+      $('err').textContent='';
+      try {
+        var r=fn($('nval').value);
+        if(r.error){ $('out').textContent='错误：'+r.error; return; }
+        $('out').textContent=r.value;
+      } catch(e){ $('err').textContent=e.message; }
+    }
+    $('en').addEventListener('click', function(){ run(P.toEnglish); });
+    $('cn').addEventListener('click', function(){ run(P.toChineseCapital); });
+    $('copy').addEventListener('click', function(){ copyText($('out').textContent); });
+    $('clear').addEventListener('click', function(){ $('nval').value=''; $('out').textContent='\u9009\u62e9\u4e00\u79cd\u8f6c\u6362'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>StatForge — 统计与线性回归：均值/中位数/众数、方差/标准差、四分位与 IQR、线性拟合（斜率/截距/R²），一键出直方图，离线可用。</title>
+<meta property="og:title" content="StatForge">
+<meta property="og:description" content="统计与线性回归：均值/中位数/众数、方差/标准差、四分位与 IQR、线性拟合（斜率/截距/R²），一键出直方图，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="统计与线性回归：均值/中位数/众数、方差/标准差、四分位与 IQR、线性拟合（斜率/截距/R²），一键出直方图 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text]{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>StatForge</h1>
+  <p class="sub">统计与线性回归：均值/中位数/众数、方差/标准差、四分位与 IQR、线性拟合（斜率/截距/R²），一键出直方图 · 单文件 · 零依赖 · 本地优先</p>
+
+  <label>数据（每行一个数字，或逗号分隔）</label>
+  <textarea id="src" rows="6" spellcheck="false" placeholder="12&#10;7&#10;9&#10;15&#10;8&#10;11&#10;10&#10;6"></textarea>
+  <div class="row">
+    <button id="run">计算统计</button>
+    <button id="demo" class="ghost">示例</button>
+    <button id="clear" class="ghost">清空</button>
+  </div>
+  <div class="err" id="err"></div>
+  <div class="out" id="out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+function statParse(text){
+  var nums=[], toks=String(text||'').split(/[\s,;]+/);
+  for(var i=0;i<toks.length;i++){
+    var t=toks[i].trim(); if(!t) continue;
+    var n=Number(t);
+    if(t!=='' && !isFinite(n)) return { error:'非法数字：'+t };
+    nums.push(n);
+  }
+  if(nums.length<1) return { error:'至少需要 1 个数字' };
+  return { error:null, nums:nums };
+}
+function statMean(a){ var s=0; for(var i=0;i<a.length;i++) s+=a[i]; return s/a.length; }
+function statMedian(a){
+  var b=a.slice().sort(function(x,y){ return x-y; });
+  var n=b.length, m=Math.floor(n/2);
+  return n%2 ? b[m] : (b[m-1]+b[m])/2;
+}
+function statQuantile(a,p){
+  var b=a.slice().sort(function(x,y){ return x-y; });
+  if(b.length===1) return b[0];
+  var idx=p*(b.length-1), lo=Math.floor(idx), hi=Math.ceil(idx);
+  if(lo===hi) return b[lo];
+  return b[lo]+(b[hi]-b[lo])*(idx-lo);
+}
+function statMode(a){
+  var f={}, max=0;
+  for(var i=0;i<a.length;i++){ var k=a[i]; f[k]=(f[k]||0)+1; if(f[k]>max) max=f[k]; }
+  var modes=[]; for(var k in f){ if(f[k]===max) modes.push(Number(k)); }
+  return { modes:modes, freq:max };
+}
+function statVariance(a,sample){
+  var m=statMean(a), s=0;
+  for(var i=0;i<a.length;i++){ var d=a[i]-m; s+=d*d; }
+  return s/((sample===false? a.length : a.length-1)||1);
+}
+function statStd(a,sample){ return Math.sqrt(statVariance(a,sample)); }
+function statSummary(a){
+  var q1=statQuantile(a,0.25), q2=statQuantile(a,0.5), q3=statQuantile(a,0.75);
+  var mo=statMode(a);
+  return {
+    n:a.length, min:Math.min.apply(null,a), max:Math.max.apply(null,a),
+    sum:a.reduce(function(x,y){ return x+y; },0),
+    mean:statMean(a), median:q2, mode:mo.modes, modeFreq:mo.freq,
+    variance:statVariance(a,true), std:statStd(a,true),
+    q1:q1, q2:q2, q3:q3, iqr:q3-q1
+  };
+}
+function statRegression(pts){
+  if(pts.length<2) return { error:'至少需要 2 个点' };
+  var n=pts.length, sx=0, sy=0, sxx=0, syy=0, sxy=0;
+  for(var i=0;i<n;i++){ var x=pts[i][0], y=pts[i][1]; sx+=x; sy+=y; sxx+=x*x; syy+=y*y; sxy+=x*y; }
+  var denom=n*sxx-sx*sx;
+  if(denom===0) return { error:'x 方差为零，无法拟合' };
+  var slope=(n*sxy-sx*sy)/denom;
+  var intercept=(sy-slope*sx)/n;
+  var rNum=n*sxy-sx*sy, rDen=Math.sqrt((n*sxx-sx*sx)*(n*syy-sy*sy));
+  var r=(rDen===0)?0:rNum/rDen;
+  return { slope:slope, intercept:intercept, r:r, r2:r*r };
+}
+function statHistogram(a,bins){
+  bins=bins||Math.min(10,Math.max(2,a.length));
+  var mn=Math.min.apply(null,a), mx=Math.max.apply(null,a);
+  if(mx===mn) return [{ x0:mn, x1:mn, count:a.length }];
+  var w=(mx-mn)/bins, out=[];
+  for(var i=0;i<bins;i++) out.push({ x0:mn+i*w, x1:mn+(i+1)*w, count:0 });
+  for(var j=0;j<a.length;j++){
+    var k=Math.floor((a[j]-mn)/w);
+    if(k>=bins) k=bins-1; if(k<0) k=0; out[k].count++;
+  }
+  return out;
+}
+function statEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function statHistSvg(a,bins){
+  var h=statHistogram(a,bins), maxC=0;
+  for(var i=0;i<h.length;i++) if(h[i].count>maxC) maxC=h[i].count;
+  var W=680, H=180, PAD=24, bw=(W-PAD*2)/h.length, maxH=H-PAD*2;
+  var s='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">';
+  s+='<rect width="'+W+'" height="'+H+'" fill="#0A0A0B"/>';
+  for(var i=0;i<h.length;i++){
+    var bh=maxC? maxH*h[i].count/maxC : 0;
+    var x=PAD+i*bw, y=H-PAD-bh;
+    s+='<rect x="'+(x+2)+'" y="'+y+'" width="'+(bw-4)+'" height="'+bh+'" rx="3" fill="#5E6AD2"/>';
+    s+='<text x="'+(x+bw/2)+'" y="'+(H-PAD+14)+'" font-family="system-ui,sans-serif" font-size="10" fill="#71717A" text-anchor="middle">'+statEsc(h[i].count)+'</text>';
+  }
+  s+='</svg>';
+  return s;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { statParse:statParse, statMean:statMean, statMedian:statMedian, statQuantile:statQuantile,
+    statMode:statMode, statVariance:statVariance, statStd:statStd, statSummary:statSummary,
+    statRegression:statRegression, statHistogram:statHistogram, statHistSvg:statHistSvg, statEsc:statEsc };
+}
+if (typeof window !== 'undefined') {
+  window.StatForgePure = { statParse:statParse, statMean:statMean, statMedian:statMedian, statQuantile:statQuantile,
+    statMode:statMode, statVariance:statVariance, statStd:statStd, statSummary:statSummary,
+    statRegression:statRegression, statHistogram:statHistogram, statHistSvg:statHistSvg, statEsc:statEsc };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.StatForgePure;
+    var DEMO='12\n7\n9\n15\n8\n11\n10\n6\n13\n14\n5';
+    function fmt(x){ return (Math.round(x*1e6)/1e6).toString(); }
+    function run(){
+      var p=StatForgeParse($('src').value);
+      if(p.error){ $('err').textContent=p.error; $('out').innerHTML=''; return; }
+      $('err').textContent='';
+      var s=P.statSummary(p.nums);
+      var html='<div class="grid">';
+      html+='<div class="kv"><b>样本数 n</b><span>'+s.n+'</span></div>';
+      html+='<div class="kv"><b>总和</b><span>'+fmt(s.sum)+'</span></div>';
+      html+='<div class="kv"><b>最小值</b><span>'+fmt(s.min)+'</span></div>';
+      html+='<div class="kv"><b>最大值</b><span>'+fmt(s.max)+'</span></div>';
+      html+='<div class="kv"><b>均值</b><span>'+fmt(s.mean)+'</span></div>';
+      html+='<div class="kv"><b>中位数</b><span>'+fmt(s.median)+'</span></div>';
+      html+='<div class="kv"><b>众数</b><span>'+s.mode.map(fmt).join(', ')+' (×'+s.modeFreq+')</span></div>';
+      html+='<div class="kv"><b>标准差 σ</b><span>'+fmt(s.std)+'</span></div>';
+      html+='<div class="kv"><b>方差 s²</b><span>'+fmt(s.variance)+'</span></div>';
+      html+='<div class="kv"><b>Q1 / Q3</b><span>'+fmt(s.q1)+' / '+fmt(s.q3)+'</span></div>';
+      html+='<div class="kv"><b>IQR</b><span>'+fmt(s.iqr)+'</span></div>';
+      html+='<div class="kv"><b>极差</b><span>'+fmt(s.max-s.min)+'</span></div>';
+      html+='</div>';
+      html+='<div style="margin-top:14px"><b style="color:var(--muted);font-weight:500">直方图</b>'+P.statHistSvg(p.nums,8)+'</div>';
+      $('out').innerHTML=html;
+    }
+    function StatForgeParse(v){ return P.statParse(v); }
+    $('run').addEventListener('click', run);
+    $('demo').addEventListener('click', function(){ $('src').value=DEMO; run(); });
+    $('clear').addEventListener('click', function(){ $('src').value=''; $('out').innerHTML=''; $('err').textContent=''; });
+    $('src').value=DEMO; run();
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

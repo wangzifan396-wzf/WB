@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>IcsForge — 把纯文本排期变成可导入的 .ics 日历：75 字节折叠、UID、RRULE 与冲突检测。</title>
+<meta property="og:title" content="IcsForge">
+<meta property="og:description" content="iCalendar 生成、折叠与冲突检测，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="iCalendar 生成、折叠与冲突检测，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>IcsForge</h1>
+  <p class="sub">日历工具：一行一个事件自动折叠 75 字节、生成 UID 与 RRULE，UTC / 浮动 / 全天三种时间模式，导出前检测时间冲突与结构性错误并给出体检评分 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="icsin">事件（<code>#</code> 起一个事件，随后写 start / end / repeat / loc / desc）</label>
+  <textarea id="icsin" rows="14"># 项目周会
+start: 2026-08-03 10:00 +08:00
+end: 2026-08-03 11:00 +08:00
+repeat: weekly
+loc: 线上会议室
+desc: 每周同步进度，记得提前发 agenda。
+
+# 版本发布窗口
+start: 2026-08-05 14:00 +08:00
+end: 2026-08-05 15:00 +08:00
+loc: 生产环境
+desc: 灰度发布 + 监控观察。
+
+# 全员大会
+start: 2026-08-07 09:30 +08:00
+end: 2026-08-07 11:00 +08:00
+loc: 报告厅
+desc: 半年度复盘，时间可能和发布窗口冲突，工具会自动标出。</textarea>
+  <div class="grid">
+    <div><label for="icsstamp">DTSTAMP（留空用当前时间）</label><input type="text" id="icsstamp" value="2026-07-31 12:00 +08:00"></div>
+    <button id="icsbuild" class="ghost" style="align-self:flex-end">生成 .ics</button>
+  </div>
+  <div class="err" id="icserr"></div>
+  <div class="out" id="icsstat"></div>
+  <div class="out" id="icsout"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function utf8Bytes(str){
+  var out=[], s=String(str===undefined?'':str);
+  for(var i=0;i<s.length;i++){
+    var c=s.charCodeAt(i);
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xc0|(c>>6), 0x80|(c&63)); }
+    else if(c>=0xd800 && c<=0xdbff && i+1<s.length){
+      var c2=s.charCodeAt(i+1);
+      var cp=0x10000+((c-0xd800)<<10)+(c2-0xdc00); i++;
+      out.push(0xf0|(cp>>18), 0x80|((cp>>12)&63), 0x80|((cp>>6)&63), 0x80|(cp&63));
+    } else { out.push(0xe0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }
+  }
+  return out;
+}
+function rotr32(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }
+var SHA256_K=[
+0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256Bytes(bytes){
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var msg=bytes.slice(), bitLen=msg.length*8;
+  msg.push(0x80);
+  while(msg.length%64!==56) msg.push(0);
+  var hi=Math.floor(bitLen/4294967296)>>>0, lo=(bitLen>>>0);
+  msg.push((hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255);
+  msg.push((lo>>>24)&255,(lo>>>16)&255,(lo>>>8)&255,lo&255);
+  var w=new Array(64);
+  for(var i=0;i<msg.length;i+=64){
+    for(var t=0;t<16;t++) w[t]=((msg[i+t*4]<<24)|(msg[i+t*4+1]<<16)|(msg[i+t*4+2]<<8)|msg[i+t*4+3])>>>0;
+    for(t=16;t<64;t++){
+      var s0=(rotr32(w[t-15],7)^rotr32(w[t-15],18)^(w[t-15]>>>3))>>>0;
+      var s1=(rotr32(w[t-2],17)^rotr32(w[t-2],19)^(w[t-2]>>>10))>>>0;
+      w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(t=0;t<64;t++){
+      var S1=(rotr32(e,6)^rotr32(e,11)^rotr32(e,25))>>>0;
+      var ch=((e&f)^((~e)&g))>>>0;
+      var t1=(h+S1+ch+SHA256_K[t]+w[t])>>>0;
+      var S0=(rotr32(a,2)^rotr32(a,13)^rotr32(a,22))>>>0;
+      var maj=((a&b)^(a&c)^(b&c))>>>0;
+      var t2=(S0+maj)>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+  }
+  var out=[];
+  for(var j=0;j<8;j++) out.push((H[j]>>>24)&255,(H[j]>>>16)&255,(H[j]>>>8)&255,H[j]&255);
+  return out;
+}
+function bytesToHex(bytes){
+  var s='';
+  for(var i=0;i<bytes.length;i++) s += ('0'+(bytes[i]&255).toString(16)).slice(-2);
+  return s;
+}
+
+var ICS_FREQ = { daily:'DAILY', weekly:'WEEKLY', monthly:'MONTHLY', yearly:'YEARLY', day:'DAILY', week:'WEEKLY', month:'MONTHLY', year:'YEARLY' };
+
+function p2(n){ return (n < 10 ? '0' : '') + n; }
+
+function escapeText(s){
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+function hashHex(s){
+  var b = utf8Bytes(String(s == null ? '' : s)), h = 0x811c9dc5;
+  for (var i = 0; i < b.length; i++){ h ^= b[i]; h = (h * 16777619) >>> 0; }
+  return ('0000000' + h.toString(16)).slice(-8);
+}
+
+function makeUid(title, stamp){
+  return 'nano-' + hashHex(String(title || 'event') + ':' + (stamp || '')) + '@icsforge';
+}
+
+function stampUtc(d){
+  if (!d) return '';
+  return d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate()) + 'T' +
+         p2(d.getUTCHours()) + p2(d.getUTCMinutes()) + p2(d.getUTCSeconds()) + 'Z';
+}
+
+function dateOnly(d){
+  if (!d) return '';
+  return d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate());
+}
+
+function parseDateTz(s){
+  var t = String(s == null ? '' : s).trim();
+  if (!t) return null;
+  var m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?\s*(Z|[+-]\d{2}:?\d{2})?$/.exec(t);
+  if (!m) return null;
+  var y = +m[1], mo = +m[2], da = +m[3];
+  var hh = +(m[4] || 0), mm = +(m[5] || 0), ss = +(m[6] || 0);
+  var tz = m[7];
+  if (!m[4]) return { ms: Date.UTC(y, mo - 1, da), kind: 'date' };
+  if (!tz){
+    // floating local time: keep the literal components, no Z, no offset
+    return { ms: Date.UTC(y, mo - 1, da, hh, mm, ss), kind: 'float', comps: [y, mo, da, hh, mm, ss] };
+  }
+  var ms = Date.UTC(y, mo - 1, da, hh, mm, ss);
+  if (tz !== 'Z'){
+    var sign = tz.charAt(0) === '-' ? -1 : 1;
+    var dig = tz.slice(1).replace(':', '');
+    ms -= sign * (parseInt(dig.slice(0, 2), 10) * 60 + parseInt(dig.slice(2, 4), 10)) * 60000;
+  }
+  return { ms: ms, kind: 'utc' };
+}
+
+function rruleOf(ev){
+  if (!ev.repeat) return '';
+  var freq = ICS_FREQ[String(ev.repeat).toLowerCase()];
+  if (!freq) return '';
+  var parts = ['FREQ=' + freq];
+  if (ev.interval && +ev.interval > 1) parts.push('INTERVAL=' + (+ev.interval));
+  if (ev.until){
+    var u = parseDateTz(ev.until);
+    if (u) parts.push('UNTIL=' + (u.kind === 'date' ? dateOnly(new Date(u.ms)) : stampUtc(new Date(u.ms))));
+  }
+  if (ev.count) parts.push('COUNT=' + (+ev.count));
+  return parts.join(';');
+}
+
+function foldLine(line){
+  var s = String(line), bytesPerChar = [], total = 0;
+  for (var i = 0; i < s.length; i++){ var b = utf8Bytes(s[i]).length; bytesPerChar.push(b); total += b; }
+  if (total <= 75) return s;
+  var segs = [], cur = '', curBytes = 0, first = true;
+  for (var j = 0; j < s.length; j++){
+    var bl = bytesPerChar[j], limit = first ? 75 : 74;
+    if (curBytes + bl > limit){
+      segs.push(cur); cur = s[j]; curBytes = bl + 1; first = false;
+    } else { cur += s[j]; curBytes += bl; }
+  }
+  segs.push(cur);
+  var out = segs[0];
+  for (var k = 1; k < segs.length; k++) out += '\r\n ' + segs[k];
+  return out;
+}
+
+function buildEvent(ev, opts){
+  opts = opts || {};
+  var stamp = opts.stamp ? new Date(opts.stamp) : new Date();
+  var sd = parseDateTz(ev.start);
+  if (!sd) return null;
+  var ed = ev.end ? parseDateTz(ev.end) : null;
+  var allDay = sd.kind === 'date';
+  var uid = ev.uid || makeUid(ev.title, stampUtc(stamp));
+
+  var L = ['BEGIN:VEVENT'];
+  L.push('UID:' + uid);
+  L.push('DTSTAMP:' + stampUtc(stamp));
+  if (allDay){
+    L.push('DTSTART;VALUE=DATE:' + dateOnly(new Date(sd.ms)));
+    var endMs = ed ? ed.ms : sd.ms + 86400000;
+    L.push('DTEND;VALUE=DATE:' + dateOnly(new Date(endMs)));
+  } else if (sd.kind === 'utc'){
+    L.push('DTSTART:' + stampUtc(new Date(sd.ms)));
+    L.push('DTEND:' + stampUtc(new Date(ed ? ed.ms : sd.ms + 3600000)));
+  } else {
+    var c = sd.comps;
+    L.push('DTSTART:' + c[0] + p2(c[1]) + p2(c[2]) + 'T' + p2(c[3]) + p2(c[4]) + p2(c[5]));
+    if (ed && ed.kind === 'float'){ var ec = ed.comps; L.push('DTEND:' + ec[0] + p2(ec[1]) + p2(ec[2]) + 'T' + p2(ec[3]) + p2(ec[4]) + p2(ec[5])); }
+    else if (ed && ed.kind === 'utc'){ L.push('DTEND:' + stampUtc(new Date(ed.ms))); }
+    else { L.push('DTEND:' + c[0] + p2(c[1]) + p2(c[2]) + 'T' + p2(c[3] + 1) + p2(c[4]) + p2(c[5])); }
+  }
+  if (ev.title) L.push('SUMMARY:' + escapeText(ev.title));
+  if (ev.loc) L.push('LOCATION:' + escapeText(ev.loc));
+  if (ev.desc) L.push('DESCRIPTION:' + escapeText(ev.desc));
+  var rr = rruleOf(ev);
+  if (rr) L.push('RRULE:' + rr);
+  L.push('END:VEVENT');
+  // fold every line at 75 octets
+  var out = [];
+  for (var i = 0; i < L.length; i++) out.push(foldLine(L[i]));
+  return out.join('\r\n');
+}
+
+function buildCalendar(events, opts){
+  opts = opts || {};
+  if (!events) events = [];
+  var L = [];
+  L.push('BEGIN:VCALENDAR');
+  L.push('VERSION:2.0');
+  L.push('PRODID:-//nano-tools//IcsForge//EN');
+  L.push('CALSCALE:GREGORIAN');
+  L.push('METHOD:PUBLISH');
+  for (var i = 0; i < events.length; i++){
+    var ev = buildEvent(events[i], opts);
+    if (ev) L.push(ev);
+  }
+  L.push('END:VCALENDAR');
+  return L.join('\r\n');
+}
+
+function parseEvents(text){
+  var lines = String(text == null ? '' : text).split(/\r?\n/);
+  var events = [], cur = null;
+  for (var i = 0; i < lines.length; i++){
+    var ln = lines[i];
+    var h = /^#\s+(.*)$/.exec(ln);
+    if (h){
+      if (cur) events.push(cur);
+      cur = { title: h[1].replace(/^\s+|\s+$/g, '') };
+      continue;
+    }
+    if (!cur) continue;
+    var kv = /^\s*(start|end|repeat|interval|until|count|loc|location|desc|description|uid)\s*:\s*(.*)$/i.exec(ln);
+    if (kv){
+      var k = kv[1].toLowerCase(), v = kv[2].replace(/^\s+|\s+$/g, '');
+      if (k === 'location') k = 'loc';
+      if (k === 'description') k = 'desc';
+      cur[k] = v;
+      continue;
+    }
+    // free-form description lines after a blank line
+    if (/^\s*$/.test(ln)) continue;
+    if (cur.desc) cur.desc += '\n' + ln; else cur.desc = ln;
+  }
+  if (cur) events.push(cur);
+  return events;
+}
+
+function detectConflicts(events){
+  events = events || [];
+  var timed = [];
+  for (var i = 0; i < events.length; i++){
+    var e = events[i];
+    var s = parseDateTz(e.start), en = e.end ? parseDateTz(e.end) : null;
+    if (!s || s.kind !== 'utc' || !en || en.kind !== 'utc') continue; // only comparable for UTC timed events
+    if (e.repeat) continue; // skip recurring for base-instance check
+    timed.push({ i: i, title: e.title, s: s.ms, e: en.ms });
+  }
+  var pairs = [];
+  for (var a = 0; a < timed.length; a++){
+    for (var b = a + 1; b < timed.length; b++){
+      var x = timed[a], y = timed[b];
+      if (x.s < y.e && y.s < x.e) pairs.push({ a: x.i, b: y.i, titleA: x.title, titleB: y.title });
+    }
+  }
+  return pairs;
+}
+
+function lintCalendar(events){
+  events = events || [];
+  var issues = [];
+  if (!events.length) issues.push({ level:'bad', msg:'没有任何事件' });
+  for (var i = 0; i < events.length; i++){
+    var e = events[i];
+    if (!e.title) issues.push({ level:'bad', msg:'第 ' + (i + 1) + ' 个事件缺少标题' });
+    if (!e.start) issues.push({ level:'bad', msg:'事件「' + (e.title || '未命名') + '」缺少 start 时间' });
+    else {
+      var s = parseDateTz(e.start), en = e.end ? parseDateTz(e.end) : null;
+      if (s && en && s.kind === en.kind && en.ms <= s.ms) issues.push({ level:'bad', msg:'事件「' + e.title + '」的结束时间不晚于开始时间' });
+    }
+    if (e.repeat && !ICS_FREQ[String(e.repeat).toLowerCase()]) issues.push({ level:'warn', msg:'事件「' + e.title + '」的 repeat 取值不被识别' });
+  }
+  var conflicts = detectConflicts(events);
+  for (var c = 0; c < conflicts.length; c++){
+    issues.push({ level:'warn', msg:'时间冲突：「' + conflicts[c].titleA + '」与「' + conflicts[c].titleB + '」重叠' });
+  }
+  var score = 100;
+  for (var j = 0; j < issues.length; j++) score -= (issues[j].level === 'bad' ? 20 : 8);
+  score = Math.max(0, score);
+  return { issues: issues, conflicts: conflicts, score: score, grade: gradeOf(score) };
+}
+
+function gradeOf(score){
+  if (score >= 90) return 'A';
+  if (score >= 75) return 'B';
+  if (score >= 60) return 'C';
+  if (score >= 40) return 'D';
+  return 'F';
+}
+
+var IcsForgePure = {
+  escapeText: escapeText, parseDateTz: parseDateTz, parseEvents: parseEvents,
+  buildEvent: buildEvent, buildCalendar: buildCalendar, detectConflicts: detectConflicts,
+  lintCalendar: lintCalendar, foldLine: foldLine, makeUid: makeUid, rruleOf: rruleOf,
+  stampUtc: stampUtc, gradeOf: gradeOf
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = IcsForgePure;
+if (typeof window !== 'undefined') window.IcsForgePure = IcsForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.IcsForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function col(l){ return l === 'bad' ? 'var(--warn)' : l === 'warn' ? 'var(--info)' : 'var(--ok)'; }
+
+  function parseStamp(){
+    var v = $('icsstamp').value.trim();
+    if (!v) return undefined;
+    var p = P.parseDateTz(v);
+    return p ? p.ms : undefined;
+  }
+
+  function render(){
+    var events = P.parseEvents($('icsin').value);
+    var opts = { stamp: parseStamp() };
+    var cal = P.buildCalendar(events, opts);
+    var lint = P.lintCalendar(events);
+    var html = '<div class="kv"><b>事件数</b><span>' + events.length + ' 个</span></div>';
+    html += '<div class="kv"><b>体检</b><span>评分 ' + lint.score + ' · 等级 ' + lint.grade + '</span></div>';
+    if (lint.conflicts.length){
+      html += '<div style="color:var(--warn);font-size:13px;margin-top:6px">• 检测到 ' + lint.conflicts.length + ' 处时间冲突</div>';
+    }
+    for (var i = 0; i < lint.issues.length; i++){
+      html += '<div style="color:' + col(lint.issues[i].level) + ';font-size:13px;margin-top:6px">• ' + esc(lint.issues[i].msg) + '</div>';
+    }
+    $('icsstat').innerHTML = html;
+    $('icsout').innerHTML = '<pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px;max-height:380px;overflow:auto">' + esc(cal) + '</pre>';
+    $('icserr').textContent = events.length ? '' : '还没有事件：用 # 开头写一行标题即可';
+  }
+
+  $('icsbuild').addEventListener('click', render);
+  $('icsin').addEventListener('input', render);
+  render();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

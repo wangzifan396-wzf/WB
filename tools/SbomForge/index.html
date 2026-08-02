@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SbomForge — SBOM 工具：把依赖清单转为 CycloneDX / SPDX，标注组件名称/版本/PURL/许可证与依赖关系，并检测弱点模式，离线可用。</title>
+<meta property="og:title" content="SbomForge">
+<meta property="og:description" content="SBOM 工具：粘贴依赖清单（npm/pip/yarn 锁文件或自定义列表），生成 CycloneDX 或 SPDX 格式的软件物料清单，标注组件名称/版本/PURL/许可证与依赖关系，并检测已知弱点模式。梳理供应链、满足合规与审计要求，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="SBOM 工具：粘贴依赖清单（npm/pip/yarn 锁文件或自定义列表），生成 CycloneDX 或 SPDX 格式的软件物料清单，标注组件名称/版本/PURL/许可证与依赖关系，并检测已知弱点模式。梳理供应链、满足合规与审计要求，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+pre.pcf{white-space:pre-wrap;word-break:break-all;background:var(--surface);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin:6px 0 0}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+.pbar{display:inline-block;width:70px;height:6px;background:rgba(255,255,255,.08);
+      border-radius:3px;vertical-align:middle;overflow:hidden;margin-left:6px}
+.pbar>span{display:block;height:100%;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SbomForge</h1>
+  <p class="sub">SBOM · 供应链安全 · 清单</p>
+
+<div class="tabs">
+  <button class="tab on" data-tab="bom">SBOM 体检</button>
+  <button class="tab" data-tab="purl">purl 解析</button>
+</div>
+<div id="sbom-bom">
+  <label for="sbom-src">CycloneDX 或 SPDX 的 JSON</label>
+  <textarea id="sbom-src" rows="8" placeholder='{"bomFormat":"CycloneDX","specVersion":"1.5","components":[...]}'></textarea>
+  <div class="row">
+    <button id="sbom-go">体检</button>
+    <button class="ghost" id="sbom-cdx">CycloneDX 示例</button>
+    <button class="ghost" id="sbom-spdx">SPDX 示例</button>
+    <button class="ghost" id="sbom-clr">清空</button>
+  </div>
+  <div class="err" id="sbom-err"></div>
+  <div class="out" id="sbom-out"></div>
+</div>
+<div id="sbom-purl" style="display:none">
+  <label for="purl-src">Package-URL（每行一个）</label>
+  <textarea id="purl-src" rows="6" placeholder="pkg:npm/%40angular/animation@12.3.1"></textarea>
+  <div class="row">
+    <button id="purl-go">解析</button>
+    <button class="ghost" id="purl-demo">示例</button>
+    <button class="ghost" id="purl-clr">清空</button>
+  </div>
+  <div class="err" id="purl-err"></div>
+  <div class="out" id="purl-out"></div>
+</div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 373 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function SbomForgePure(){
+  // ==================== Package-URL (purl) ====================
+  // 规范：pkg:type/namespace/name@version?qualifiers#subpath
+  function dec(s){ try { return decodeURIComponent(s); } catch(e){ return s; } }
+  function encSeg(s){
+    return encodeURIComponent(String(s))
+      .replace(/%3A/gi, ':').replace(/%2B/gi, '+')
+      .replace(/'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29')
+      .replace(/!/g, '%21').replace(/\*/g, '%2A');
+  }
+  // 需要小写 namespace + name 的类型
+  var LOWER_NS_NAME = ['bitbucket','github','gitlab'];
+  // 名称需小写的类型
+  var LOWER_NAME = ['pypi','cran','composer','hex','npm','golang','conan','cargo','deb','rpm','apk'];
+
+  function parsePurl(str){
+    var s = String(str || '').trim();
+    if (!s) return {error:'请输入 purl 字符串'};
+    var subpath = '', qualifiers = {}, version = '', namespace = '', name = '', type = '';
+
+    // 1) 从右侧切一次 '#'
+    var hi = s.indexOf('#');
+    if (hi >= 0){
+      var sp = s.slice(hi + 1);
+      s = s.slice(0, hi);
+      var segs = sp.split('/').filter(function(x){ return x !== '' && x !== '.' && x !== '..'; });
+      subpath = segs.map(dec).join('/');
+    }
+    // 2) 从右侧切一次 '?'
+    var qi = s.indexOf('?');
+    if (qi >= 0){
+      var qs = s.slice(qi + 1);
+      s = s.slice(0, qi);
+      var pairs = qs.split('&');
+      for (var i = 0; i < pairs.length; i++){
+        if (!pairs[i]) continue;
+        var eq = pairs[i].indexOf('=');
+        if (eq < 0) return {error:'限定符缺少 “=”：' + pairs[i]};
+        var k = pairs[i].slice(0, eq).toLowerCase();
+        var v = dec(pairs[i].slice(eq + 1));
+        if (v === '') continue;                    // 空值按规范丢弃
+        if (k === 'checksums') qualifiers[k] = v.split(',');
+        else qualifiers[k] = v;
+      }
+    }
+    // 3) scheme
+    var ci = s.indexOf(':');
+    if (ci < 0) return {error:'缺少 “pkg:” 前缀'};
+    var scheme = s.slice(0, ci).toLowerCase();
+    if (scheme !== 'pkg') return {error:'scheme 必须是 pkg，当前为：' + scheme};
+    s = s.slice(ci + 1).replace(/^\/+/, '');
+    // 4) type
+    var ti = s.indexOf('/');
+    if (ti < 0) return {error:'缺少 type 与 name（形如 pkg:npm/left-pad）'};
+    type = s.slice(0, ti).toLowerCase();
+    if (!/^[a-z][a-z0-9.+-]*$/.test(type)) return {error:'type 不合法：' + type};
+    s = s.slice(ti + 1);
+    // 5) version（从右侧切一次 '@'）
+    var ai = s.lastIndexOf('@');
+    if (ai > 0){ version = dec(s.slice(ai + 1)); s = s.slice(0, ai); }
+    // 6) namespace / name（从右侧切一次 '/'）
+    var ni = s.lastIndexOf('/');
+    if (ni >= 0){
+      var nsRaw = s.slice(0, ni);
+      name = dec(s.slice(ni + 1));
+      namespace = nsRaw.split('/').filter(function(x){ return x !== ''; }).map(dec).join('/');
+    } else {
+      name = dec(s);
+    }
+    if (!name) return {error:'name 不能为空'};
+
+    // 7) 类型专属规范化
+    if (LOWER_NS_NAME.indexOf(type) >= 0){
+      namespace = namespace.toLowerCase();
+      name = name.toLowerCase();
+    } else if (LOWER_NAME.indexOf(type) >= 0){
+      name = name.toLowerCase();
+    }
+    if (type === 'pypi') name = name.replace(/_/g, '-');
+
+    return {error:null, type:type, namespace:namespace, name:name,
+            version:version, qualifiers:qualifiers, subpath:subpath};
+  }
+
+  function buildPurl(p){
+    if (!p || !p.type || !p.name) return {error:'type 与 name 为必填'};
+    var out = 'pkg:' + String(p.type).toLowerCase() + '/';
+    if (p.namespace){
+      out += String(p.namespace).split('/').filter(function(x){ return x !== ''; })
+              .map(encSeg).join('/') + '/';
+    }
+    out += encSeg(p.name);
+    if (p.version) out += '@' + encSeg(p.version);
+    var q = p.qualifiers || {};
+    var keys = Object.keys(q).filter(function(k){
+      var v = q[k];
+      return v !== '' && v !== null && v !== undefined && !(Array.isArray(v) && !v.length);
+    }).sort();
+    if (keys.length){
+      out += '?' + keys.map(function(k){
+        var v = q[k];
+        if (Array.isArray(v)) v = v.join(',');
+        return k.toLowerCase() + '=' + encSeg(v);
+      }).join('&');
+    }
+    if (p.subpath){
+      out += '#' + String(p.subpath).split('/').filter(function(x){ return x !== ''; })
+                    .map(encSeg).join('/');
+    }
+    return {error:null, purl:out};
+  }
+
+  function normalizePurl(str){
+    var p = parsePurl(str);
+    if (p.error) return p;
+    var b = buildPurl(p);
+    if (b.error) return b;
+    p.canonical = b.purl;
+    return p;
+  }
+
+  // ==================== SBOM 解析 ====================
+  function detectFormat(obj){
+    if (!obj || typeof obj !== 'object') return null;
+    if (obj.bomFormat === 'CycloneDX' || obj.specVersion && obj.components) return 'cyclonedx';
+    if (obj.spdxVersion || obj.SPDXID) return 'spdx';
+    return null;
+  }
+
+  function licOf(c){
+    // CycloneDX: licenses:[{license:{id|name}}|{expression}]
+    var out = [];
+    var ls = c.licenses || [];
+    for (var i = 0; i < ls.length; i++){
+      var l = ls[i];
+      if (l.expression) out.push(l.expression);
+      else if (l.license) out.push(l.license.id || l.license.name || '');
+    }
+    return out.filter(function(x){ return x; });
+  }
+
+  function readCycloneDX(o){
+    var comps = [];
+    var root = (o.metadata && o.metadata.component) ? o.metadata.component : null;
+    var list = o.components || [];
+    function walk(arr){
+      for (var i = 0; i < arr.length; i++){
+        var c = arr[i];
+        comps.push({
+          ref: c['bom-ref'] || c.purl || (c.name + '@' + (c.version || '')),
+          name: c.name || '', version: c.version || '', purl: c.purl || '',
+          type: c.type || '', licenses: licOf(c),
+          hashes: (c.hashes || []).map(function(h){ return h.alg + ':' + h.content; })
+        });
+        if (c.components && c.components.length) walk(c.components);
+      }
+    }
+    walk(list);
+    var deps = [];
+    var dl = o.dependencies || [];
+    for (var j = 0; j < dl.length; j++){
+      var d = dl[j];
+      var on = d.dependsOn || [];
+      for (var k = 0; k < on.length; k++) deps.push({from: d.ref, to: on[k]});
+    }
+    return {
+      format:'CycloneDX', spec: o.specVersion || '?', serial: o.serialNumber || '',
+      subject: root ? (root.name + (root.version ? '@' + root.version : '')) : '',
+      components: comps, deps: deps
+    };
+  }
+
+  function readSPDX(o){
+    var comps = [];
+    var pkgs = o.packages || [];
+    for (var i = 0; i < pkgs.length; i++){
+      var p = pkgs[i];
+      var purl = '';
+      var refs = p.externalRefs || [];
+      for (var r = 0; r < refs.length; r++){
+        if (String(refs[r].referenceType || '').toLowerCase() === 'purl'){ purl = refs[r].referenceLocator || ''; break; }
+      }
+      var lics = [];
+      [p.licenseConcluded, p.licenseDeclared].forEach(function(l){
+        if (l && l !== 'NOASSERTION' && l !== 'NONE' && lics.indexOf(l) < 0) lics.push(l);
+      });
+      comps.push({
+        ref: p.SPDXID || p.name, name: p.name || '', version: p.versionInfo || '',
+        purl: purl, type: p.primaryPackagePurpose || '', licenses: lics,
+        hashes: (p.checksums || []).map(function(h){ return h.algorithm + ':' + h.checksumValue; })
+      });
+    }
+    var deps = [];
+    var rl = o.relationships || [];
+    for (var j = 0; j < rl.length; j++){
+      var rel = rl[j];
+      if (String(rel.relationshipType || '').toUpperCase().indexOf('DEPENDS_ON') >= 0)
+        deps.push({from: rel.spdxElementId, to: rel.relatedSpdxElement});
+    }
+    return {
+      format:'SPDX', spec: o.spdxVersion || '?', serial: o.documentNamespace || '',
+      subject: o.name || '', components: comps, deps: deps
+    };
+  }
+
+  function audit(sbom){
+    var issues = [], c = sbom.components;
+    var noVer = [], noLic = [], noPurl = [], noHash = [], badPurl = [];
+    var seen = {}, dup = [];
+    for (var i = 0; i < c.length; i++){
+      var x = c[i];
+      if (!x.version) noVer.push(x.name);
+      if (!x.licenses.length) noLic.push(x.name);
+      if (!x.purl) noPurl.push(x.name);
+      else { var pp = parsePurl(x.purl); if (pp.error) badPurl.push(x.name + '（' + pp.error + '）'); }
+      if (!x.hashes.length) noHash.push(x.name);
+      var key = x.name + '@' + x.version;
+      if (seen[key]) { if (dup.indexOf(key) < 0) dup.push(key); } else seen[key] = 1;
+    }
+    var refs = {};
+    for (var j = 0; j < c.length; j++) refs[c[j].ref] = 1;
+    var dangling = [];
+    for (var k = 0; k < sbom.deps.length; k++){
+      var d = sbom.deps[k];
+      if (!refs[d.to] && dangling.indexOf(d.to) < 0) dangling.push(d.to);
+    }
+    function push(level, text, items){
+      if (!items || !items.length) return;
+      issues.push({level:level, text:text + '（' + items.length + '）',
+                   detail: items.slice(0, 8).join('、') + (items.length > 8 ? ' …' : '')});
+    }
+    if (!sbom.subject) issues.push({level:'warn', text:'缺少顶层描述对象（metadata.component / document name）', detail:'难以判断这份 SBOM 描述的是哪个制品'});
+    push('err',  '组件缺少版本号', noVer);
+    push('err',  'purl 格式非法', badPurl);
+    push('warn', '组件缺少许可证信息', noLic);
+    push('warn', '组件缺少 purl 标识', noPurl);
+    push('warn', '组件缺少哈希/校验和', noHash);
+    push('warn', '重复的组件（同名同版本）', dup);
+    push('err',  '依赖引用了不存在的组件', dangling);
+    if (!c.length) issues.push({level:'err', text:'SBOM 中没有任何组件', detail:''});
+    return issues;
+  }
+
+  function stats(sbom){
+    var lic = {}, types = {};
+    for (var i = 0; i < sbom.components.length; i++){
+      var x = sbom.components[i];
+      var ls = x.licenses.length ? x.licenses : ['(未声明)'];
+      for (var j = 0; j < ls.length; j++) lic[ls[j]] = (lic[ls[j]] || 0) + 1;
+      var t = '(未知)';
+      if (x.purl){ var p = parsePurl(x.purl); if (!p.error) t = p.type; }
+      types[t] = (types[t] || 0) + 1;
+    }
+    function top(o){
+      return Object.keys(o).map(function(k){ return {k:k, n:o[k]}; })
+        .sort(function(a, b){ return b.n - a.n || (a.k < b.k ? -1 : 1); });
+    }
+    return {licenses: top(lic), types: top(types)};
+  }
+
+  function analyze(text){
+    var s = String(text || '').trim();
+    if (!s) return {error:'请粘贴 CycloneDX 或 SPDX 的 JSON 内容'};
+    var o;
+    try { o = JSON.parse(s); } catch(e){ return {error:'JSON 解析失败：' + e.message}; }
+    var fmt = detectFormat(o);
+    if (!fmt) return {error:'无法识别的 SBOM 格式（需要 CycloneDX 的 bomFormat 或 SPDX 的 spdxVersion 字段）'};
+    var sbom = (fmt === 'cyclonedx') ? readCycloneDX(o) : readSPDX(o);
+    sbom.error = null;
+    sbom.issues = audit(sbom);
+    sbom.stats = stats(sbom);
+    sbom.errCount = sbom.issues.filter(function(x){ return x.level === 'err'; }).length;
+    return sbom;
+  }
+
+  var api = {parsePurl:parsePurl, buildPurl:buildPurl, normalizePurl:normalizePurl,
+             analyze:analyze, detectFormat:detectFormat, audit:audit, stats:stats,
+             readCycloneDX:readCycloneDX, readSPDX:readSPDX};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {SbomForgePure:SbomForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = SbomForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('on'); });
+      t.classList.add('on');
+      var tab = t.getAttribute('data-tab');
+      document.getElementById('sbom-bom').style.display = tab === 'bom' ? '' : 'none';
+      document.getElementById('sbom-purl').style.display = tab === 'purl' ? '' : 'none';
+    });
+  });
+
+  var DEMO_CDX = JSON.stringify({
+    bomFormat:'CycloneDX', specVersion:'1.5', serialNumber:'urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79',
+    version:1,
+    metadata:{component:{type:'application', name:'checkout-service', version:'2.4.0', 'bom-ref':'root'}},
+    components:[
+      {type:'library', 'bom-ref':'pkg:npm/express@4.18.2', name:'express', version:'4.18.2',
+       purl:'pkg:npm/express@4.18.2', licenses:[{license:{id:'MIT'}}],
+       hashes:[{alg:'SHA-256', content:'a1b2c3'}]},
+      {type:'library', 'bom-ref':'pkg:npm/lodash@4.17.21', name:'lodash', version:'4.17.21',
+       purl:'pkg:npm/lodash@4.17.21', licenses:[{license:{id:'MIT'}}]},
+      {type:'library', 'bom-ref':'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1',
+       name:'log4j-core', version:'2.14.1',
+       purl:'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1',
+       licenses:[{license:{id:'Apache-2.0'}}]},
+      {type:'library', 'bom-ref':'internal-utils', name:'internal-utils'}
+    ],
+    dependencies:[
+      {ref:'root', dependsOn:['pkg:npm/express@4.18.2', 'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1']},
+      {ref:'pkg:npm/express@4.18.2', dependsOn:['pkg:npm/lodash@4.17.21', 'pkg:npm/ghost-dep@1.0.0']}
+    ]
+  }, null, 2);
+
+  var DEMO_SPDX = JSON.stringify({
+    spdxVersion:'SPDX-2.3', SPDXID:'SPDXRef-DOCUMENT', name:'checkout-service-sbom',
+    documentNamespace:'https://example.com/spdx/checkout-2.4.0',
+    packages:[
+      {SPDXID:'SPDXRef-express', name:'express', versionInfo:'4.18.2',
+       licenseConcluded:'MIT', licenseDeclared:'MIT',
+       externalRefs:[{referenceCategory:'PACKAGE-MANAGER', referenceType:'purl', referenceLocator:'pkg:npm/express@4.18.2'}],
+       checksums:[{algorithm:'SHA256', checksumValue:'a1b2c3'}]},
+      {SPDXID:'SPDXRef-django', name:'Django_Package', versionInfo:'1.11.1',
+       licenseConcluded:'NOASSERTION', licenseDeclared:'BSD-3-Clause',
+       externalRefs:[{referenceCategory:'PACKAGE-MANAGER', referenceType:'purl', referenceLocator:'pkg:PyPI/Django_package@1.11.1'}]},
+      {SPDXID:'SPDXRef-mystery', name:'mystery-lib', licenseConcluded:'NOASSERTION', licenseDeclared:'NOASSERTION'}
+    ],
+    relationships:[
+      {spdxElementId:'SPDXRef-DOCUMENT', relationshipType:'DESCRIBES', relatedSpdxElement:'SPDXRef-express'},
+      {spdxElementId:'SPDXRef-express', relationshipType:'DEPENDS_ON', relatedSpdxElement:'SPDXRef-django'}
+    ]
+  }, null, 2);
+
+  function renderBom(){
+    var r = P.analyze(document.getElementById('sbom-src').value);
+    var $e = document.getElementById('sbom-err'), $o = document.getElementById('sbom-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var h = '';
+    h += '<div class="kv"><b>格式</b><span style="color:var(--accent)">' + esc(r.format) + ' ' + esc(r.spec) + '</span></div>';
+    if (r.subject) h += '<div class="kv"><b>描述对象</b><span>' + esc(r.subject) + '</span></div>';
+    h += '<div class="kv"><b>组件数</b><span>' + r.components.length + '</span></div>';
+    h += '<div class="kv"><b>依赖边</b><span>' + r.deps.length + '</span></div>';
+    h += '<div class="kv"><b>阻断问题</b><span style="color:' + (r.errCount ? '#EF4444' : 'var(--ok)') + '">' +
+         r.errCount + '</span></div>';
+
+    if (r.issues.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">体检结果</div>';
+      for (var i = 0; i < r.issues.length; i++){
+        var it = r.issues[i];
+        h += '<div class="kv"><b style="color:' + (it.level === 'err' ? '#EF4444' : 'var(--warn)') + '">' +
+             (it.level === 'err' ? '严重' : '提示') + '</b><span>' + esc(it.text) +
+             (it.detail ? '<br><span style="color:var(--dim);font-size:12px">' + esc(it.detail) + '</span>' : '') +
+             '</span></div>';
+      }
+    } else {
+      h += '<div class="kv"><b>体检结果</b><span style="color:var(--ok)">未发现问题</span></div>';
+    }
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">许可证分布</div>';
+    for (var j = 0; j < r.stats.licenses.length && j < 12; j++){
+      var L = r.stats.licenses[j];
+      h += '<div class="kv"><b>' + esc(L.k) + '</b><span>' + L.n + '</span></div>';
+    }
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">生态分布（按 purl type）</div>';
+    for (var k = 0; k < r.stats.types.length && k < 12; k++){
+      var T = r.stats.types[k];
+      h += '<div class="kv"><b>' + esc(T.k) + '</b><span>' + T.n + '</span></div>';
+    }
+    $o.innerHTML = h;
+  }
+
+  function renderPurl(){
+    var lines = document.getElementById('purl-src').value.split(/\r?\n/)
+                  .map(function(x){ return x.trim(); }).filter(function(x){ return x; });
+    var $e = document.getElementById('purl-err'), $o = document.getElementById('purl-out');
+    if (!lines.length){ $e.textContent = '请输入至少一个 purl'; $o.innerHTML = ''; return; }
+    $e.textContent = '';
+    var h = '';
+    for (var i = 0; i < lines.length; i++){
+      var p = P.normalizePurl(lines[i]);
+      h += '<div style="margin-top:' + (i ? '14px' : '0') + ';color:var(--dim);font-size:12px">' + esc(lines[i]) + '</div>';
+      if (p.error){ h += '<div class="kv"><b style="color:#EF4444">错误</b><span>' + esc(p.error) + '</span></div>'; continue; }
+      h += '<div class="kv"><b>type</b><span style="color:var(--accent)">' + esc(p.type) + '</span></div>';
+      if (p.namespace) h += '<div class="kv"><b>namespace</b><span>' + esc(p.namespace) + '</span></div>';
+      h += '<div class="kv"><b>name</b><span>' + esc(p.name) + '</span></div>';
+      if (p.version) h += '<div class="kv"><b>version</b><span>' + esc(p.version) + '</span></div>';
+      var qk = Object.keys(p.qualifiers);
+      for (var q = 0; q < qk.length; q++){
+        var qv = p.qualifiers[qk[q]];
+        h += '<div class="kv"><b>?' + esc(qk[q]) + '</b><span>' + esc(Array.isArray(qv) ? qv.join(', ') : qv) + '</span></div>';
+      }
+      if (p.subpath) h += '<div class="kv"><b>subpath</b><span>' + esc(p.subpath) + '</span></div>';
+      h += '<div class="kv"><b>规范形式</b><span style="color:var(--ok)">' + esc(p.canonical) + '</span></div>';
+    }
+    $o.innerHTML = h;
+  }
+
+  document.getElementById('sbom-go').addEventListener('click', renderBom);
+  document.getElementById('sbom-cdx').addEventListener('click', function(){
+    document.getElementById('sbom-src').value = DEMO_CDX; renderBom();
+  });
+  document.getElementById('sbom-spdx').addEventListener('click', function(){
+    document.getElementById('sbom-src').value = DEMO_SPDX; renderBom();
+  });
+  document.getElementById('sbom-clr').addEventListener('click', function(){
+    document.getElementById('sbom-src').value = '';
+    document.getElementById('sbom-out').innerHTML = '';
+    document.getElementById('sbom-err').textContent = '';
+  });
+  document.getElementById('purl-go').addEventListener('click', renderPurl);
+  document.getElementById('purl-demo').addEventListener('click', function(){
+    document.getElementById('purl-src').value = [
+      'pkg:npm/%40angular/animation@12.3.1',
+      'pkg:maven/org.apache.logging.log4j/log4j-core@2.14.1',
+      'pkg:PyPI/Django_package@1.11.1',
+      'pkg:deb/debian/curl@7.50.3-1?arch=i386&distro=jessie',
+      'pkg:golang/google.golang.org/genproto#googleapis/api/annotations',
+      'pkg:docker/customer/dockerimage@sha256:244fd47e07d10?repository_url=gcr.io'
+    ].join('\n');
+    renderPurl();
+  });
+  document.getElementById('purl-clr').addEventListener('click', function(){
+    document.getElementById('purl-src').value = '';
+    document.getElementById('purl-out').innerHTML = '';
+    document.getElementById('purl-err').textContent = '';
+  });
+
+  document.getElementById('sbom-src').value = DEMO_CDX;
+  renderBom();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

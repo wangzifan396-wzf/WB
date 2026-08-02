@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<title data-i18n="meta_title">FormForge · 表单构建器</title>
+<meta name="description" content="FormForge — 本地优先的离线表单构建器：拖拽式添加文本/选择/单选/多选/日期等字段，实时预览，一键导出独立 HTML 或 JSON Schema，零依赖纯前端，数据留在你自己的浏览器。">
+<meta property="og:title" content="FormForge · 表单构建器">
+<meta property="og:description" content="本地优先的离线表单构建器：可视化添加字段、实时预览、导出独立 HTML 或 JSON Schema。">
+<meta property="og:image" content="og.svg">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="FormForge · 表单构建器">
+<meta name="twitter:description" content="本地优先的离线表单构建器：可视化添加字段、实时预览、导出独立 HTML 或 JSON Schema。">
+<meta name="twitter:image" content="og.svg">
+<style>
+:root{
+  --bg:#0A0A0B; --surface:#141417; --surface-2:#1A1B1E; --surface-3:#202125;
+  --text:#FFFFFF; --muted:#A1A1AA; --faint:#71717A;
+  --border:rgba(255,255,255,0.08); --border-strong:rgba(255,255,255,0.14);
+  --accent:#5E6AD2; --accent-soft:rgba(94,106,210,0.16);
+  --ok:#10B981; --warn:#F5A623; --danger:#F5365C;
+  --radius:10px;
+}
+[data-theme="light"]{
+  --bg:#FFFFFF; --surface:#F7F8FA; --surface-2:#EEF0F3; --surface-3:#E4E7EC;
+  --text:#18181B; --muted:#52525B; --faint:#71717A;
+  --border:rgba(0,0,0,0.10); --border-strong:rgba(0,0,0,0.18);
+  --accent-soft:rgba(94,106,210,0.10);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--accent); outline-offset:2px; border-radius:6px;
+}
+.app{max-width:1240px;margin:0 auto;padding:18px 18px 64px;display:flex;flex-direction:column;gap:16px;min-height:100%}
+.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:8px;margin-right:auto}
+.brand h1{font-size:22px;margin:0;letter-spacing:-.02em}
+.brand .tag{color:var(--muted);font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input,select,textarea{
+  background:var(--surface); color:var(--text); border:1px solid var(--border);
+  border-radius:8px; padding:8px 10px; font-size:13px;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.btn{
+  background:var(--surface); color:var(--text); border:1px solid var(--border);
+  border-radius:8px; padding:8px 12px; cursor:pointer; font-size:13px; font-weight:600;
+  transition:border-color .12s ease,transform .12s ease,background .12s ease; white-space:nowrap;
+}
+.btn:hover{border-color:var(--border-strong)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.icon{padding:8px 10px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;align-items:start}
+@media (max-width:860px){.main{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.settings{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;color:var(--muted)}
+.field input{width:100%}
+.fhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.fhead-t{font-weight:700;font-size:14px}
+.fhead .row select{min-width:140px}
+.field-list{display:flex;flex-direction:column;gap:8px}
+.frow{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+.frow .fname{font-weight:600;font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ftype{font-size:10px;letter-spacing:.04em;color:var(--accent);background:var(--accent-soft);border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-weight:700}
+.freq{color:var(--danger);font-weight:800}
+.fdot{background:var(--surface-3);border:none;color:var(--muted);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;line-height:1;display:grid;place-items:center}
+.fdot:hover:not(:disabled){color:var(--text)}
+.frow .act{background:var(--surface-3);border:none;color:var(--muted);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px}
+.frow .act:hover{color:var(--text)}
+.frow .act.del:hover{color:var(--danger)}
+.empty{color:var(--faint);text-align:center;padding:28px 0;font-size:13px}
+.preview{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:sticky;top:18px}
+.pv-head{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.pv-body{min-height:120px}
+.valid{margin-top:12px;font-size:12px;font-weight:600}
+.valid.ok{color:var(--ok)} .valid.bad{color:var(--danger)}
+/* 预览内表单样式 */
+.ff-form{font:14px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC",sans-serif;color:var(--text)}
+.ff-form h2{font-size:18px;margin:0 0 4px}
+.ff-desc{color:var(--muted);margin:0 0 14px;font-size:13px}
+.ff-field{margin-bottom:14px}
+.ff-label{display:block;font-weight:600;margin-bottom:6px;font-size:13px}
+.ff-req{color:var(--danger);margin-left:4px}
+.ff-form input,.ff-form select,.ff-form textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font:inherit;box-sizing:border-box}
+.ff-form textarea{min-height:84px;resize:vertical}
+.ff-help{display:block;color:var(--faint);font-size:12px;margin-top:5px}
+.ff-opt{display:block;font-weight:400;margin:6px 0;cursor:pointer;font-size:13px}
+.ff-submit{margin-top:6px;background:var(--accent);color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px}
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-start;justify-content:center;padding:48px 16px;z-index:100;overflow:auto}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border-strong);border-radius:14px;width:540px;max-width:100%;padding:20px;display:flex;flex-direction:column;gap:12px}
+.modal h3{margin:0;font-size:17px}
+.modal .field textarea{min-height:64px;resize:vertical}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.ck{display:flex;align-items:center;gap:8px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);padding:9px 16px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:200}
+.toast.show{opacity:1}
+@media (max-width:640px){.row{width:100%}.main{grid-template-columns:1fr}.preview{position:static}}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <h1>FormForge</h1>
+      <span class="tag" data-i18n-html="Local-first form builder">本地优先的表单构建器</span>
+    </div>
+    <div class="row">
+      <select id="formSel" title="表单"></select>
+      <button class="btn" id="newForm" title="新建表单">＋ 新建表单</button>
+    </div>
+    <div class="row" style="margin-left:auto">
+      <button class="btn" id="expHtml" title="导出为独立 HTML">导出 HTML</button>
+      <button class="btn" id="expJson" title="导出 JSON Schema">导出 JSON</button>
+      <button class="btn" id="impBtn" title="导入 JSON">导入</button>
+      <input type="file" id="impFile" accept="application/json" hidden>
+      <button class="btn icon" id="themeBtn" title="主题">◐</button>
+    </div>
+  </div>
+  <div class="main">
+    <section class="builder">
+      <div class="card settings">
+        <div class="field"><label>表单标题</label><input id="fTitle" placeholder="如：用户反馈"></div>
+        <div class="field"><label>表单说明</label><input id="fDesc" placeholder="一句话说明这个表单的用途"></div>
+        <div class="field"><label>提交按钮文字</label><input id="fSubmit" placeholder="提交"></div>
+      </div>
+      <div class="card">
+        <div class="fhead">
+          <span class="fhead-t">字段</span>
+          <span class="row"><select id="addType"></select><button class="btn primary" id="addBtn" type="button">添加字段</button></span>
+        </div>
+        <div id="fieldList" class="field-list"></div>
+      </div>
+    </section>
+    <section class="preview">
+      <div class="pv-head">预览</div>
+      <div id="preview" class="pv-body"></div>
+      <div id="validMsg" class="valid"></div>
+    </section>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal">
+    <h3 id="modalTitle">编辑字段</h3>
+    <div class="field"><label>标签</label><input id="eLabel" placeholder="字段显示名称"></div>
+    <div class="field"><label>字段名 (name)</label><input id="eName" placeholder="如：email"></div>
+    <div class="field"><label>占位符 placeholder</label><input id="ePlaceholder" placeholder="输入提示"></div>
+    <div class="field"><label class="ck"><input type="checkbox" id="eRequired"> 必填</label></div>
+    <div class="field"><label>帮助文字</label><input id="eHelp" placeholder="字段下方的说明"></div>
+    <div class="field" id="eOptsWrap"><label>选项（每行一个）</label><textarea id="eOpts" placeholder="选项一&#10;选项二"></textarea></div>
+    <div class="grid3" id="eRangeWrap">
+      <div class="field"><label>最小值</label><input id="eMin" placeholder="0"></div>
+      <div class="field"><label>最大值</label><input id="eMax" placeholder="100"></div>
+      <div class="field"><label>步长</label><input id="eStep" placeholder="1"></div>
+    </div>
+    <div class="foot" style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+      <button class="btn" id="mCancel" type="button">取消</button>
+      <button class="btn primary" id="mSave" type="button">保存</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== FormForge 主脚本（纯函数 + UI） ===== */
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function clone(o){ try{ return JSON.parse(JSON.stringify(o)); }catch(e){ return JSON.parse(JSON.stringify(o||{})); } }
+function uid(p){ p=p||'id'; return p+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3); }
+
+var FORM_CSS = '.ff-form{max-width:560px;margin:28px auto;font:14px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;color:#18181B}'+
+  '.ff-form h2{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}.ff-desc{color:#71717A;margin:0 0 18px;font-size:13px}'+
+  '.ff-field{margin-bottom:15px}.ff-label{display:block;font-weight:600;margin-bottom:6px;font-size:13px}'+
+  '.ff-req{color:#E5484D;margin-left:4px}'+
+  '.ff-form input,.ff-form select,.ff-form textarea{width:100%;padding:10px 12px;border:1px solid #D6D9E0;border-radius:8px;font:inherit;box-sizing:border-box;background:#fff}'+
+  '.ff-form textarea{min-height:90px;resize:vertical}.ff-help{display:block;color:#71717A;font-size:12px;margin-top:5px}'+
+  '.ff-opt{display:block;font-weight:400;margin:6px 0;cursor:pointer;font-size:14px}'+
+  '.ff-submit{margin-top:8px;background:#5E6AD2;color:#fff;border:none;padding:11px 22px;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px}'+
+  '.ff-submit:hover{filter:brightness(1.06)}';
+
+function fieldCatalog(){
+  return [
+    {type:'text',label:'单行文本'},{type:'textarea',label:'多行文本'},{type:'email',label:'邮箱'},
+    {type:'number',label:'数字'},{type:'tel',label:'电话'},{type:'password',label:'密码'},
+    {type:'url',label:'网址'},{type:'date',label:'日期'},{type:'select',label:'下拉选择'},
+    {type:'radio',label:'单选'},{type:'checkbox',label:'多选'},{type:'range',label:'滑块'},
+    {type:'color',label:'颜色'}
+  ];
+}
+function newField(type){
+  var cat=fieldCatalog(); var c=null;
+  for(var i=0;i<cat.length;i++){ if(cat[i].type===type){ c=cat[i]; break; } }
+  if(!c) c=cat[0];
+  var isOpt=(c.type==='select'||c.type==='radio'||c.type==='checkbox');
+  return { id:uid('f'), type:c.type, label:c.label, name:'', placeholder:'', required:false,
+    help:'', options:isOpt?['选项一','选项二']:[], min:'', max:'', step:'' };
+}
+function newForm(name){
+  var f=newField('text'); f.name='name'; f.label='姓名';
+  return { id:uid('fm'), name:name||'我的表单', title:'未命名表单', description:'', submitLabel:'提交', fields:[f] };
+}
+function addField(form,field){ var f=clone(form); f.fields=(f.fields||[]).concat([clone(field)]); return f; }
+function updateField(form,fieldId,patch){ var f=clone(form); f.fields=f.fields.map(function(x){ return x.id===fieldId?Object.assign(clone(x),patch):x; }); return f; }
+function deleteField(form,fieldId){ var f=clone(form); f.fields=f.fields.filter(function(x){ return x.id!==fieldId; }); return f; }
+function moveField(form,fieldId,toIndex){
+  var f=clone(form); var arr=f.fields; var from=-1;
+  for(var i=0;i<arr.length;i++){ if(arr[i].id===fieldId){ from=i; break; } }
+  if(from<0) return f;
+  var item=arr.splice(from,1)[0];
+  var t=toIndex; if(t<0) t=0; if(t>arr.length) t=arr.length;
+  arr.splice(t,0,item); return f;
+}
+function sanitizeName(s){
+  s=String(s==null?'':s).trim().toLowerCase().replace(/[^a-z0-9_]+/g,'_').replace(/^_+|_+$/g,'');
+  return s;
+}
+function uniqueName(form,base){
+  var b=sanitizeName(base)||'field';
+  var names={}; (form.fields||[]).forEach(function(x){ if(x.name) names[x.name]=1; });
+  if(!names[b]) return b;
+  var i=2; while(names[b+'_'+i]) i++;
+  return b+'_'+i;
+}
+function rangeAttrs(f){
+  var a='';
+  if(f.min!==''&&f.min!=null) a+=' min="'+escapeHtml(f.min)+'"';
+  if(f.max!==''&&f.max!=null) a+=' max="'+escapeHtml(f.max)+'"';
+  if(f.step!==''&&f.step!=null) a+=' step="'+escapeHtml(f.step)+'"';
+  return a;
+}
+function renderFieldHtml(f){
+  var id='ff_'+f.id;
+  var nm=escapeHtml(f.name||id);
+  var lab=escapeHtml(f.label||'');
+  var ph=escapeHtml(f.placeholder||'');
+  var help=f.help?('<small class="ff-help">'+escapeHtml(f.help)+'</small>'):'';
+  var req=f.required?' required':'';
+  var reqMark=f.required?'<span class="ff-req">*</span>':'';
+  var ctrl='';
+  if(f.type==='textarea'){
+    ctrl='<textarea id="'+id+'" name="'+nm+'" placeholder="'+ph+'"'+req+'></textarea>';
+  } else if(f.type==='select'){
+    var opts=(f.options&&f.options.length?f.options:['选项']).map(function(o){ return '<option value="'+escapeHtml(o)+'">'+escapeHtml(o)+'</option>'; }).join('');
+    ctrl='<select id="'+id+'" name="'+nm+'"'+req+'>'+opts+'</select>';
+  } else if(f.type==='radio'){
+    ctrl=(f.options&&f.options.length?f.options:['选项']).map(function(o){ return '<label class="ff-opt"><input type="radio" name="'+nm+'" value="'+escapeHtml(o)+'"> '+escapeHtml(o)+'</label>'; }).join('');
+  } else if(f.type==='checkbox'){
+    ctrl=(f.options&&f.options.length?f.options:['选项']).map(function(o){ return '<label class="ff-opt"><input type="checkbox" name="'+nm+'[]" value="'+escapeHtml(o)+'"> '+escapeHtml(o)+'</label>'; }).join('');
+  } else if(f.type==='range'){
+    ctrl='<input type="range" id="'+id+'" name="'+nm+'"'+rangeAttrs(f)+req+'>';
+  } else if(f.type==='number'){
+    ctrl='<input type="number" id="'+id+'" name="'+nm+'" placeholder="'+ph+'"'+rangeAttrs(f)+req+'>';
+  } else {
+    ctrl='<input type="'+f.type+'" id="'+id+'" name="'+nm+'" placeholder="'+ph+'"'+req+'>';
+  }
+  return '<div class="ff-field"><label class="ff-label" for="'+id+'">'+lab+reqMark+'</label>'+ctrl+help+'</div>';
+}
+function renderFormInner(form){
+  var fields=(form.fields||[]).map(renderFieldHtml).join('');
+  var btn='<button type="submit" class="ff-submit">'+escapeHtml(form.submitLabel||'提交')+'</button>';
+  return '<form class="ff-form" onsubmit="return false">'+fields+btn+'</form>';
+}
+function renderFormHtml(form){
+  return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>'+escapeHtml(form.title||'Form')+'</title>\n<style>\n'+FORM_CSS+'\n</style>\n</head>\n<body>\n'+
+    (form.title?('<h2>'+escapeHtml(form.title)+'</h2>'):'')+'\n'+
+    (form.description?('<p class="ff-desc">'+escapeHtml(form.description)+'</p>'):'')+'\n'+
+    renderFormInner(form)+'\n</body>\n</html>';
+}
+function validateForm(form){
+  var errs=[]; var seen={};
+  (form.fields||[]).forEach(function(f,i){
+    if(!f.label||!f.label.trim()) errs.push('第'+(i+1)+'个字段缺少标签');
+    if(!f.name||!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(f.name)) errs.push('字段「'+(f.label||('#'+(i+1)))+'」的 name 非法');
+    if(seen[f.name]) errs.push('字段 name「'+f.name+'」重复');
+    seen[f.name]=1;
+    if(f.type==='select'||f.type==='radio'||f.type==='checkbox'){
+      if(!f.options||!f.options.length) errs.push('字段「'+(f.label||'')+'」缺少选项');
+    }
+    if(f.type==='number'||f.type==='range'){
+      var mn=parseFloat(f.min), mx=parseFloat(f.max);
+      if(!isNaN(mn)&&!isNaN(mx)&&mn>mx) errs.push('字段「'+(f.label||'')+'」最小值大于最大值');
+    }
+  });
+  return errs;
+}
+function exportSchema(form){ return JSON.stringify(form); }
+function importSchema(json){
+  var b; try{ b=JSON.parse(json); }catch(e){ throw new Error('invalid'); }
+  if(!b || !Array.isArray(b.fields)) throw new Error('invalid');
+  b.id=b.id||uid('fm'); b.name=b.name||'导入的表单';
+  b.title=b.title||''; b.description=b.description||''; b.submitLabel=b.submitLabel||'提交';
+  b.fields=b.fields.map(function(f){ return Object.assign(newField(f.type||'text'), f); });
+  return b;
+}
+function formStats(form){
+  var byType={}, required=0;
+  (form.fields||[]).forEach(function(f){ byType[f.type]=(byType[f.type]||0)+1; if(f.required) required++; });
+  return { fields:(form.fields||[]).length, required:required, byType:byType };
+}
+
+if(typeof module!=='undefined'&&module.exports){
+  module.exports={escapeHtml,clone,uid,fieldCatalog,newField,newForm,addField,updateField,
+    deleteField,moveField,sanitizeName,uniqueName,renderFieldHtml,renderFormInner,renderFormHtml,
+    validateForm,exportSchema,importSchema,formStats};
+}
+
+if(typeof window!=='undefined'){
+(function(){
+  var LS='formforge.state.v1', LST='formforge.theme';
+  var state={forms:[],activeId:null};
+  var editingId=null;
+
+  function $(s){ return document.querySelector(s); }
+  function save(){ try{ localStorage.setItem(LS,JSON.stringify(state)); }catch(e){} }
+  function load(){
+    try{ var r=localStorage.getItem(LS); if(r){ state=JSON.parse(r); } }catch(e){}
+    if(!state.forms || !state.forms.length){ state={forms:[newForm('我的表单')],activeId:null}; }
+    if(!state.activeId || !getForm(state.activeId)) state.activeId=state.forms[0].id;
+  }
+  function getForm(id){ for(var i=0;i<state.forms.length;i++){ if(state.forms[i].id===id) return state.forms[i]; } return null; }
+  function activeForm(){ var f=getForm(state.activeId); return f||state.forms[0]; }
+  function toast(msg){ var t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){ t.classList.remove('show'); },1600); }
+
+  function renderAll(){
+    var form=activeForm();
+    var sel=$('#formSel');
+    sel.innerHTML=state.forms.map(function(f){ return '<option value="'+f.id+'">'+escapeHtml(f.name)+'</option>'; }).join('');
+    sel.value=form.id;
+    $('#fTitle').value=form.title||'';
+    $('#fDesc').value=form.description||'';
+    $('#fSubmit').value=form.submitLabel||'';
+    renderFields();
+    renderPreview();
+  }
+  function renderFields(){
+    var form=activeForm();
+    var list=$('#fieldList');
+    if(!form.fields.length){ list.innerHTML='<div class="empty">还没有字段，选类型后点「添加字段」。</div>'; return; }
+    list.innerHTML=form.fields.map(function(f,i){
+      var isOpt=(f.type==='select'||f.type==='radio'||f.type==='checkbox');
+      var optInfo=isOpt?(' · '+(f.options?f.options.length:0)+' 项'):'';
+      var req=f.required?'<span class="freq" title="必填">*</span>':'';
+      return '<div class="frow" data-id="'+f.id+'">'+
+        '<button class="fdot" data-move="up" title="上移"'+(i===0?' disabled':'')+'>&#9650;</button>'+
+        '<button class="fdot" data-move="down" title="下移"'+(i===form.fields.length-1?' disabled':'')+'>&#9660;</button>'+
+        '<span class="fname">'+escapeHtml(f.label||'(未命名)')+'</span>'+
+        '<span class="ftype">'+f.type.toUpperCase()+'</span>'+req+optInfo+
+        '<button class="act" data-edit="'+f.id+'" title="编辑">&#9998;</button>'+
+        '<button class="act del" data-del="'+f.id+'" title="删除">&#215;</button>'+
+      '</div>';
+    }).join('');
+  }
+  function renderPreview(){
+    var form=activeForm();
+    $('#preview').innerHTML=renderFormInner(form);
+    var errs=validateForm(form);
+    var vm=$('#validMsg');
+    if(errs.length){ vm.className='valid bad'; vm.textContent='✗ '+errs.length+' issue'+(errs.length>1?'s':''); }
+    else { vm.className='valid ok'; vm.textContent='✓ OK'; }
+  }
+  function renderAddTypes(){
+    var sel=$('#addType');
+    sel.innerHTML=fieldCatalog().map(function(c){ return '<option value="'+c.type+'">'+escapeHtml(c.label)+'</option>'; }).join('');
+  }
+
+  function openFieldModal(fieldId){
+    editingId=fieldId;
+    var form=activeForm();
+    var f=null; for(var i=0;i<form.fields.length;i++){ if(form.fields[i].id===fieldId){ f=form.fields[i]; break; } }
+    if(!f) return;
+    $('#eLabel').value=f.label; $('#eName').value=f.name; $('#ePlaceholder').value=f.placeholder||'';
+    $('#eRequired').checked=!!f.required; $('#eHelp').value=f.help||'';
+    $('#eOpts').value=(f.options||[]).join('\n');
+    $('#eMin').value=f.min||''; $('#eMax').value=f.max||''; $('#eStep').value=f.step||'';
+    var isOpt=(f.type==='select'||f.type==='radio'||f.type==='checkbox');
+    $('#eOptsWrap').style.display=isOpt?'':'none';
+    var isRange=(f.type==='number'||f.type==='range');
+    $('#eRangeWrap').style.display=isRange?'':'none';
+    $('#modalTitle').textContent='编辑字段';
+    $('#overlay').classList.add('open');
+    setTimeout(function(){ $('#eLabel').focus(); },30);
+  }
+  function closeModal(){ $('#overlay').classList.remove('open'); editingId=null; }
+  function saveFieldModal(){
+    if(!editingId) return;
+    var label=$('#eLabel').value.trim();
+    if(!label){ toast('请填写标签'); return; }
+    var name=$('#eName').value.trim();
+    if(!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)){ toast('字段名需以字母/下划线开头，仅含字母数字下划线'); return; }
+    var form=activeForm();
+    var others=form.fields.filter(function(x){ return x.id!==editingId; });
+    name=uniqueName({fields:others}, name);
+    var opts=$('#eOpts').value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+    var patch={ label:label, name:name, placeholder:$('#ePlaceholder').value.trim(),
+      required:$('#eRequired').checked, help:$('#eHelp').value.trim(),
+      options:opts, min:$('#eMin').value.trim(), max:$('#eMax').value.trim(), step:$('#eStep').value.trim() };
+    state.forms=state.forms.map(function(x){ return x.id===form.id?updateField(x,editingId,patch):x; });
+    save(); renderFields(); renderPreview(); closeModal();
+  }
+
+  function addFieldOfType(){
+    var type=$('#addType').value;
+    var f=newField(type);
+    f.name=uniqueName(activeForm(), sanitizeName(f.label)||type);
+    var form=activeForm();
+    state.forms=state.forms.map(function(x){ return x.id===form.id?addField(x,f):x; });
+    save(); renderFields(); renderPreview();
+  }
+  function updateFormMeta(patch){
+    var form=activeForm();
+    state.forms=state.forms.map(function(x){ return x.id===form.id?Object.assign(clone(x),patch):x; });
+    save(); renderPreview();
+  }
+
+  function bind(){
+    $('#formSel').addEventListener('change',function(e){ state.activeId=e.target.value; save(); renderAll(); });
+    $('#newForm').addEventListener('click',function(){ var name=prompt('表单名称','我的表单'); if(name===null) return; var nf=newForm(name.trim()||'我的表单'); state.forms.push(nf); state.activeId=nf.id; save(); renderAll(); });
+    $('#addBtn').addEventListener('click',addFieldOfType);
+    $('#fTitle').addEventListener('input',function(e){ updateFormMeta({title:e.target.value}); });
+    $('#fDesc').addEventListener('input',function(e){ updateFormMeta({description:e.target.value}); });
+    $('#fSubmit').addEventListener('input',function(e){ updateFormMeta({submitLabel:e.target.value}); });
+    $('#themeBtn').addEventListener('click',toggleTheme);
+    $('#expHtml').addEventListener('click',function(){ var form=activeForm(); var blob=new Blob([renderFormHtml(form)],{type:'text/html'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(form.name||'form')+'.html'; a.click(); toast('已导出 HTML'); });
+    $('#expJson').addEventListener('click',function(){ var form=activeForm(); var blob=new Blob([exportSchema(form)],{type:'application/json'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(form.name||'form')+'.json'; a.click(); toast('已导出 JSON'); });
+    $('#impBtn').addEventListener('click',function(){ $('#impFile').click(); });
+    $('#impFile').addEventListener('change',function(e){ var f=e.target.files[0]; if(!f) return; var rd=new FileReader(); rd.onload=function(){ try{ var nf=importSchema(rd.result); state.forms.push(nf); state.activeId=nf.id; save(); renderAll(); toast('已导入'); }catch(err){ toast('导入失败：格式不正确'); } }; rd.readAsText(f); e.target.value=''; });
+    $('#mCancel').addEventListener('click',closeModal);
+    $('#mSave').addEventListener('click',saveFieldModal);
+    $('#fieldList').addEventListener('click',function(e){
+      var t=e.target;
+      if(t.dataset.move){ var id=t.closest('.frow').dataset.id; var form=activeForm(); var idx=-1; for(var i=0;i<form.fields.length;i++){ if(form.fields[i].id===id){ idx=i; break; } }
+        if(idx<0) return; var to=t.dataset.move==='up'?idx-1:idx+1;
+        state.forms=state.forms.map(function(x){ return x.id===form.id?moveField(x,id,to):x; }); save(); renderFields(); renderPreview(); return; }
+      if(t.dataset.edit){ openFieldModal(t.dataset.edit); return; }
+      if(t.dataset.del){ if(confirm('确认删除该字段？')){ var form2=activeForm(); state.forms=state.forms.map(function(x){ return x.id===form2.id?deleteField(x,t.dataset.del):x; }); save(); renderFields(); renderPreview(); } return; }
+    });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeModal(); });
+    $('#overlay').addEventListener('click',function(e){ if(e.target===$('#overlay')) closeModal(); });
+  }
+  function applyTheme(t){ document.documentElement.setAttribute('data-theme',t); try{ localStorage.setItem(LST,t); }catch(e){} }
+  function toggleTheme(){ var cur=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light'; applyTheme(cur); }
+  function initTheme(){ var t; try{ t=localStorage.getItem(LST); }catch(e){} applyTheme(t==='light'?'light':'dark'); }
+
+  function init(){
+    initTheme(); load(); save(); renderAddTypes(); bind(); renderAll();
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded',init);
+})();
+}
+</script>
+<script>window.NANO_I18N_EXTRA={
+"FormForge · 表单构建器":"FormForge · Form Builder",
+"本地优先的表单构建器":"Local-first form builder",
+"表单标题":"Form title","表单说明":"Form description","提交按钮文字":"Submit button text",
+"字段":"Fields","添加字段":"Add field","预览":"Preview","新建表单":"New form",
+"导出 HTML":"Export HTML","导出 JSON":"Export JSON","导入":"Import","主题":"Theme",
+"编辑字段":"Edit field","标签":"Label","字段名 (name)":"Field name","占位符 placeholder":"Placeholder",
+"必填":"Required","帮助文字":"Help text","选项（每行一个）":"Options (one per line)",
+"最小值":"Min","最大值":"Max","步长":"Step","取消":"Cancel","保存":"Save",
+"还没有字段，选类型后点「添加字段」。":"No fields yet. Pick a type and click \"Add field\".",
+"请填写标签":"Please enter a label",
+"字段名需以字母/下划线开头，仅含字母数字下划线":"Name must start with a letter/underscore; only letters, digits, underscore",
+"已导出 HTML":"HTML exported","已导出 JSON":"JSON exported","已导入":"Imported",
+"导入失败：格式不正确":"Import failed: invalid format",
+"单行文本":"Text","多行文本":"Textarea","邮箱":"Email","数字":"Number","电话":"Phone",
+"密码":"Password","网址":"URL","日期":"Date","下拉选择":"Dropdown","单选":"Radio",
+"多选":"Checkbox","滑块":"Slider","颜色":"Color"
+};</script>
+<script>
+/* NANO_I18N_RUNTIME */
+(function(){
+  var COMMON = {
+    "复制":"Copy","复制结果":"Copy result","复制链接":"Copy link","复制代码":"Copy code",
+    "清空":"Clear","清除":"Clear","清除全部":"Clear all","清空全部":"Clear all",
+    "粘贴":"Paste","生成":"Generate","运行":"Run","执行":"Run","停止":"Stop","暂停":"Pause",
+    "继续":"Resume","重试":"Retry","格式化":"Format","压缩":"Minify","美化":"Beautify","压缩美化":"Minify",
+    "导出":"Export","导入":"Import","保存":"Save","删除":"Delete","移除":"Remove","添加":"Add",
+    "重置":"Reset","还原":"Reset","搜索":"Search","提交":"Submit","取消":"Cancel","确定":"OK",
+    "确认":"Confirm","关闭":"Close","输入":"Input","输出":"Output","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","名称":"Name","值":"Value","类型":"Type",
+    "大小":"Size","数量":"Count","颜色":"Color","文本":"Text","内容":"Content","编码":"Encode",
+    "解码":"Decode","加密":"Encrypt","解密":"Decrypt","校验":"Verify","计算":"Calculate",
+    "转换":"Convert","上传":"Upload","下载":"Download","全选":"Select all","折叠":"Collapse",
+    "展开":"Expand","开始":"Start","帮助":"Help","关于":"About","更多":"More","更少":"Less",
+    "示例":"Example","随机":"Random","全部":"All","中文":"中文","English":"English","浅色":"Light",
+    "深色":"Dark","亮色":"Dark","暗色":"Dark","复制成功":"Copied","已复制":"Copied",
+    "加载中":"Loading…","暂无数据":"No data","请输入":"Please enter","或":"or","拖拽":"Drag",
+    "拖到此处":"Drop here","选择文件":"Choose file","字数":"Words","字符":"Characters",
+    "行数":"Lines","用时":"Time","耗时":"Elapsed","共":"Total","项":"items","条":"items",
+    "历史":"History","清空历史":"Clear history","复制结果":"Copy result","复制":"Copy",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh","应用":"Apply",
+    "不区分大小写":"Case-insensitive","忽略空白":"Ignore whitespace","换行":"Line break",
+    "正则表达式":"Regex","模式":"Mode","选项":"Options","高级":"Advanced","基础":"Basic",
+    "开启":"On","关闭":"Off","启用":"Enable","禁用":"Disable","显示":"Show","隐藏":"Hide",
+    "复制 SVG":"Copy SVG","下载 SVG":"Download SVG","复制 PNG":"Copy PNG","下载 PNG":"Download PNG",
+    "复制 CSS":"Copy CSS","复制 URL":"Copy URL","复制到剪贴板":"Copy to clipboard",
+    "已保存到本地":"Saved locally","解析中":"Parsing…","分析中":"Analyzing…","生成中":"Generating…",
+    "请选择":"Please select","请先":"Please first","不支持":"Not supported","错误":"Error",
+    "成功":"Success","失败":"Failed","完成":"Done","下一步":"Next","上一步":"Previous",
+    "当前":"Current","总计":"Total","平均":"Average","最大":"Max","最小":"Min",
+    "字符数":"Chars","词数":"Words","句数":"Sentences","段落":"Paragraphs",
+    "浅色模式":"Light mode","深色模式":"Dark mode","切换主题":"Toggle theme","切换语言":"Switch language",
+    "打开文件":"Open file","保存文件":"Save file","导出文件":"Export file","导入文件":"Import file",
+    "复制全部":"Copy all","清除结果":"Clear result","清空结果":"Clear result",
+    "全屏":"Fullscreen","退出全屏":"Exit fullscreen","适应屏幕":"Fit screen","缩放":"Zoom",
+    "放大":"Zoom in","缩小":"Zoom out","重置视图":"Reset view","居中":"Center",
+    "添加节点":"Add node","删除节点":"Delete node","添加连线":"Add edge","删除连线":"Delete edge",
+    "自动布局":"Auto layout","适应视图":"Fit view","导出 JSON":"Export JSON","导出 Markdown":"Export Markdown",
+    "开始分析":"Start analysis","停止分析":"Stop analysis","分析文件夹":"Analyze folder",
+    "拖拽文件夹到此处":"Drop a folder here","或点击选择":"or click to choose","粘贴文本":"Paste text",
+    "复制结果":"Copy result","复制代码":"Copy code"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p = node.parentElement;
+    while(p){
+      var t = p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  var current = 'zh';
+  function applyLang(lang){
+    var d = full();
+    var root = document.documentElement;
+    current = lang;
+    var rawTitle = document.title;
+    if(lang==='en'){
+      if(d[rawTitle]) document.title = d[rawTitle];
+    } else {
+      var ex = window.NANO_I18N_EXTRA || {};
+      for(var _k in ex){ if(ex[_k] === rawTitle){ document.title = _k; break; } }
+    }
+    if(lang==='en'){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n = w.nextNode()){ n.__zh = n.nodeValue; n.nodeValue = d[n.nodeValue.trim()]; }
+      var els = root.querySelectorAll('[data-i18n-html]');
+      for(var ei=0; ei<els.length; ei++){ var el=els[ei]; if(el.__zhtml===undefined){ el.__zhtml = el.innerHTML; } el.innerHTML = el.getAttribute('data-i18n-html'); }
+    } else {
+      var w2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m = w2.nextNode()){ m.nodeValue = m.__zh; m.__zh = undefined; }
+      var els2 = root.querySelectorAll('[data-i18n-html]');
+      for(var ej=0; ej<els2.length; ej++){ var el2=els2[ej]; if(el2.__zhtml!==undefined){ el2.innerHTML = el2.__zhtml; el2.__zhtml = undefined; } }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en' ? 'zh' : 'en');
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand = document.createElement('a');
+    brand.id = 'nano-brand';
+    brand.href = 'https://wangzifan396-wzf.github.io/WB/';
+    brand.target = '_blank';
+    brand.rel = 'noopener';
+    brand.textContent = 'nano·tools';
+    brand.title = 'nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter = function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave = function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b = document.createElement('button');
+    b.id = 'nano-lang-btn';
+    b.title = 'Switch language / 切换语言';
+    b.textContent = 'EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter = function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave = function(){ b.style.transform='none'; };
+    b.onclick = toggle;
+    bar.appendChild(brand);
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved = localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved = ((navigator.language||'zh').slice(0,2).toLowerCase()==='en') ? 'en' : 'zh'; }
+    applyLang(saved);
+    mountBtn();
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (saved==='en'?'中':'EN');
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded',init);
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

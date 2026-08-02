@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<link rel="icon" href="favicon.svg">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HashKit · 编码 / 哈希 / JWT 工具箱</title>
+  <meta property="og:image" content="og.svg">
+
+<meta name="description" content="Single-file, zero-dependency, offline-first encoding & hashing toolbox: Base64/URL/HTML, SHA-256, JWT decode, UUID and password generator.">
+<style>
+  :root{
+    --bg:#08090A;--surface:#101113;--surface2:#1C1D1F;--border:#26282B;
+    --text:#F7F8F8;--text2:#9CA0A8;--text3:#6B6F76;
+    --accent:#5e6ad2;--accent2:#5ECAD8;--accent-soft:rgba(58,183,199,.14);
+    --green:#2EA043;--amber:#E0A030;--red:#E5484D;
+    --radius:12px;--maxw:1080px;
+  }
+  html[data-theme="light"]{
+    --bg:#FBFBFC;--surface:#FFFFFF;--surface2:#F4F5F7;--border:#E6E8EB;
+    --text:#0D0E10;--text2:#5B616B;--text3:#8A9099;--accent-soft:rgba(58,183,199,.10);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
+  .mono{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  a{color:var(--accent)}
+
+  nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
+    background:color-mix(in srgb,var(--bg) 75%,transparent);border-bottom:1px solid var(--border)}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:58px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#5E6AD2);
+    display:grid;place-items:center;color:#fff;font-weight:800;font-size:17px}
+  .nav-actions{display:flex;gap:8px}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:9px;
+    border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;font-weight:600;
+    cursor:pointer;transition:transform .16s,border-color .18s,background .18s}
+  .btn:hover{transform:translateY(-1px);border-color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#04231f}
+  .btn.sm{height:30px;padding:0 11px;font-size:12px}
+  .icon-btn{width:36px;padding:0;justify-content:center;font-size:15px}
+
+  header.hero{text-align:center;padding:44px 0 24px}
+  header.hero h1{font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:-.03em}
+  header.hero h1 .g{background:linear-gradient(120deg,var(--accent2),#5E6AD2);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  header.hero p{color:var(--text2);margin-top:10px;font-size:15px}
+
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:26px 0 22px}
+  .tab{padding:9px 16px;border-radius:999px;border:1px solid var(--border);background:var(--surface);
+    color:var(--text2);font-size:13.5px;font-weight:600;cursor:pointer;transition:all .16s}
+  .tab:hover{border-color:var(--accent);color:var(--text)}
+  .tab.active{background:var(--accent);border-color:var(--accent);color:#04231f}
+
+  .panel{display:none;animation:fade .3s}
+  .panel.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:18px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.row{grid-template-columns:1fr}}
+  label.lbl{display:block;font-size:12.5px;color:var(--text2);font-weight:600;margin-bottom:7px}
+  textarea,input[type=text],input[type=number],select{
+    width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;
+    padding:11px 13px;font-size:13.5px;outline:none;transition:border-color .18s;resize:vertical}
+  textarea:focus,input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  textarea{min-height:120px;line-height:1.5}
+  .out{min-height:120px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px;
+    font-size:13px;white-space:pre-wrap;word-break:break-all;color:var(--text)}
+  .controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:14px 0}
+  .hint{font-size:12px;color:var(--text3);margin-top:8px}
+  .err{color:var(--red)}
+  .ok{color:var(--green)}
+  .kv{display:flex;flex-direction:column;gap:10px}
+  .kv .item{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px}
+  .kv .item .k{font-size:11.5px;color:var(--text3);margin-bottom:3px}
+  .kv .item .v{font-size:13px;word-break:break-all}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 18px;border-radius:10px;
+    font-size:13px;transition:all .25s;z-index:50;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .seg{display:flex;gap:0;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+  .seg button{border:none;background:var(--surface);color:var(--text2);padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .15s}
+  .seg button.active{background:var(--accent);color:#04231f}
+  .field{margin-bottom:14px}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;user-select:none}
+  .check input{width:16px;height:16px;accent-color:var(--accent)}
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  footer{border-top:1px solid var(--border);margin-top:30px;padding:26px 0;text-align:center;color:var(--text3);font-size:12.5px}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+
+  <meta name="theme-color" content="#0A0A0B">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:title" content="HashKit · 编码 / 哈希 / JWT 工具箱">
+  <meta property="og:type" content="website">
+<meta property="og:description" content="Single-file, zero-dependency, offline-first encoding &amp; hashing toolbox: Base64/URL/HTML, SHA-256, JWT decode, UUID and password generator.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="HashKit · 编码 / 哈希 / JWT 工具箱">
+<meta name="twitter:description" content="Single-file, zero-dependency, offline-first encoding &amp; hashing toolbox: Base64/URL/HTML, SHA-256, JWT decode, UUID and password generator.">
+<meta name="twitter:image" content="og.svg">
+<style id="nano-a11y">
+:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<nav><div class="wrap nav-in">
+  <div class="brand"><span class="logo">#</span><span>HashKit</span></div>
+  <div class="nav-actions">
+    <a class="btn" href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/HashKit" target="_blank" rel="noopener">源码</a>
+    <button class="btn icon-btn" id="themeBtn" title="切换主题">◐</button>
+  </div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <h1 data-i18n-html="<span class=&quot;g&quot;>Encode</span> · Hash · JWT — All-in-one"><span class="g">编码</span> · 哈希 · JWT 一站式</h1>
+  <p>Base64 / URL / HTML 编解码、SHA-256、JWT 解码、UUID 与随机密码 —— 全部本地运算，数据不出浏览器。</p>
+</div></header>
+
+<main class="wrap">
+  <div class="tabs" id="tabs"></div>
+
+  <!-- 编解码 -->
+  <section class="panel active" data-panel="encode">
+    <div class="card">
+      <div class="field">
+        <label class="lbl">编解码类型</label>
+        <div class="controls">
+          <div class="seg" id="encType">
+            <button class="active" data-t="base64">Base64</button>
+            <button data-t="url">URL</button>
+            <button data-t="html">HTML 实体</button>
+          </div>
+          <div class="seg" id="encDir">
+            <button class="active" data-d="enc">编码</button>
+            <button data-d="dec">解码</button>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label class="lbl">输入</label>
+          <textarea id="encIn" placeholder="在此输入文本…"></textarea>
+        </div>
+        <div>
+          <label class="lbl">输出 <button class="btn sm" data-copy="encOut" style="float:right;margin-top:-4px">复制</button></label>
+          <div class="out mono" id="encOut"></div>
+        </div>
+      </div>
+      <div class="hint" id="encHint"></div>
+    </div>
+  </section>
+
+  <!-- 哈希 -->
+  <section class="panel" data-panel="hash">
+    <div class="card">
+      <div class="field">
+        <label class="lbl">输入文本</label>
+        <textarea id="hashIn" placeholder="输入要计算哈希的文本…"></textarea>
+      </div>
+      <div class="kv" id="hashOut"></div>
+      <div class="hint">SHA-256 为纯 JS 实现（无需联网 / 无需 crypto.subtle）。同样输入永远得到相同摘要。</div>
+    </div>
+  </section>
+
+  <!-- JWT -->
+  <section class="panel" data-panel="jwt">
+    <div class="card">
+      <div class="field">
+        <label class="lbl">JWT Token</label>
+        <textarea id="jwtIn" class="mono" placeholder="粘贴 eyJhbGciOi... 格式的 JWT"></textarea>
+      </div>
+      <div class="row">
+        <div>
+          <label class="lbl">Header</label>
+          <div class="out mono" id="jwtHeader"></div>
+        </div>
+        <div>
+          <label class="lbl">Payload</label>
+          <div class="out mono" id="jwtPayload"></div>
+        </div>
+      </div>
+      <div class="hint" id="jwtHint">仅本地解码 Header 与 Payload，不校验签名（签名校验需要密钥）。</div>
+    </div>
+  </section>
+
+  <!-- 生成器 -->
+  <section class="panel" data-panel="gen">
+    <div class="card">
+      <label class="lbl">UUID v4</label>
+      <div class="controls">
+        <div class="out mono" id="uuidOut" style="min-height:auto;flex:1;padding:10px 13px"></div>
+        <button class="btn" id="uuidGen">重新生成</button>
+        <button class="btn sm" data-copy="uuidOut">复制</button>
+      </div>
+    </div>
+    <div class="card">
+      <label class="lbl">随机密码</label>
+      <div class="grid3" style="margin:6px 0 14px">
+        <div class="field" style="margin:0">
+          <label class="lbl">长度：<span id="pwLenVal">16</span></label>
+          <input type="range" id="pwLen" min="6" max="64" value="16" style="width:100%;accent-color:var(--accent)">
+        </div>
+        <label class="check"><input type="checkbox" id="pwUpper" checked> 大写 A-Z</label>
+        <label class="check"><input type="checkbox" id="pwLower" checked> 小写 a-z</label>
+        <label class="check"><input type="checkbox" id="pwDigit" checked> 数字 0-9</label>
+        <label class="check"><input type="checkbox" id="pwSym" checked> 符号 !@#</label>
+      </div>
+      <div class="controls">
+        <div class="out mono" id="pwOut" style="min-height:auto;flex:1;padding:10px 13px"></div>
+        <button class="btn" id="pwGen">生成</button>
+        <button class="btn sm" data-copy="pwOut">复制</button>
+      </div>
+      <div class="hint" id="pwHint"></div>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap">HashKit · Single-file · Zero dependency · Offline-first · MIT License</div></footer>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- 纯函数核心（可 node 单测） ----------
+
+  // Base64（支持 Unicode）
+  function b64Encode(str){
+    // UTF-8 -> bytes -> base64
+    var utf8 = unescape(encodeURIComponent(str));
+    if(typeof btoa!=="undefined") return btoa(utf8);
+    return Buffer.from(str,"utf8").toString("base64");
+  }
+  function b64Decode(b64){
+    var bin;
+    if(typeof atob!=="undefined") bin = atob(b64.replace(/\s+/g,""));
+    else return Buffer.from(b64,"base64").toString("utf8");
+    return decodeURIComponent(escape(bin));
+  }
+  function urlEncode(s){ return encodeURIComponent(s); }
+  function urlDecode(s){ return decodeURIComponent(s); }
+  function htmlEncode(s){
+    return String(s).replace(/[&<>"']/g,function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function htmlDecode(s){
+    return String(s)
+      .replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
+      .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&#x2F;/gi,"/");
+  }
+
+  // 纯 JS SHA-256
+  function sha256(ascii){
+    function rr(n,x){return (x>>>n)|(x<<(32-n));}
+    var mathPow=Math.pow, maxWord=mathPow(2,32), result="";
+    var words=[], asciiBitLength;
+    // UTF-8 encode
+    var utf8=unescape(encodeURIComponent(ascii));
+    asciiBitLength=utf8.length*8;
+    var hash=sha256.h=sha256.h||[];
+    var k=sha256.k=sha256.k||[];
+    var primeCounter=k.length;
+    var isComposite={};
+    for(var candidate=2;primeCounter<64;candidate++){
+      if(!isComposite[candidate]){
+        for(var i=0;i<313;i+=candidate) isComposite[i]=candidate;
+        hash[primeCounter]=(mathPow(candidate,.5)*maxWord)|0;
+        k[primeCounter++]=(mathPow(candidate,1/3)*maxWord)|0;
+      }
+    }
+    var h0=hash.slice(0,8).map(function(x){return x;});
+    // build words
+    var msg=utf8;
+    var byteLen=msg.length;
+    var withOne=[];
+    for(var b=0;b<byteLen;b++) withOne.push(msg.charCodeAt(b)&0xff);
+    withOne.push(0x80);
+    while(withOne.length%64!==56) withOne.push(0);
+    var bitLenHi=Math.floor(asciiBitLength/maxWord);
+    var bitLenLo=asciiBitLength>>>0;
+    withOne.push((bitLenHi>>>24)&0xff,(bitLenHi>>>16)&0xff,(bitLenHi>>>8)&0xff,bitLenHi&0xff);
+    withOne.push((bitLenLo>>>24)&0xff,(bitLenLo>>>16)&0xff,(bitLenLo>>>8)&0xff,bitLenLo&0xff);
+    var H=h0.slice();
+    for(var off=0;off<withOne.length;off+=64){
+      var w=new Array(64);
+      for(var t=0;t<16;t++){
+        w[t]=(withOne[off+t*4]<<24)|(withOne[off+t*4+1]<<16)|(withOne[off+t*4+2]<<8)|(withOne[off+t*4+3]);
+      }
+      for(var t2=16;t2<64;t2++){
+        var s0=rr(7,w[t2-15])^rr(18,w[t2-15])^(w[t2-15]>>>3);
+        var s1=rr(17,w[t2-2])^rr(19,w[t2-2])^(w[t2-2]>>>10);
+        w[t2]=(w[t2-16]+s0+w[t2-7]+s1)|0;
+      }
+      var a=H[0],bb=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],hh=H[7];
+      for(var t3=0;t3<64;t3++){
+        var S1=rr(6,e)^rr(11,e)^rr(25,e);
+        var ch=(e&f)^((~e)&g);
+        var temp1=(hh+S1+ch+k[t3]+w[t3])|0;
+        var S0=rr(2,a)^rr(13,a)^rr(22,a);
+        var maj=(a&bb)^(a&c)^(bb&c);
+        var temp2=(S0+maj)|0;
+        hh=g;g=f;f=e;e=(d+temp1)|0;d=c;c=bb;bb=a;a=(temp1+temp2)|0;
+      }
+      H[0]=(H[0]+a)|0;H[1]=(H[1]+bb)|0;H[2]=(H[2]+c)|0;H[3]=(H[3]+d)|0;
+      H[4]=(H[4]+e)|0;H[5]=(H[5]+f)|0;H[6]=(H[6]+g)|0;H[7]=(H[7]+hh)|0;
+    }
+    for(var hi=0;hi<8;hi++){
+      var val=H[hi];
+      result+=("00000000"+(val>>>0).toString(16)).slice(-8);
+    }
+    return result;
+  }
+
+  // 简易 32 位 hash（FNV-1a，用于快速指纹）
+  function fnv1a(str){
+    var h=0x811c9dc5;
+    for(var i=0;i<str.length;i++){
+      h^=str.charCodeAt(i);
+      h=(h+((h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24)))>>>0;
+    }
+    return ("00000000"+h.toString(16)).slice(-8);
+  }
+
+  // JWT 解码（不校验签名）
+  function b64urlDecode(str){
+    str=str.replace(/-/g,"+").replace(/_/g,"/");
+    while(str.length%4) str+="=";
+    return b64Decode(str);
+  }
+  function decodeJwt(token){
+    var parts=String(token).trim().split(".");
+    if(parts.length<2) throw new Error("不是有效的 JWT（需要至少 header.payload）");
+    var header=JSON.parse(b64urlDecode(parts[0]));
+    var payload=JSON.parse(b64urlDecode(parts[1]));
+    return {header:header, payload:payload, signature:parts[2]||""};
+  }
+
+  // UUID v4
+  function uuidv4(rng){
+    rng=rng||function(){return Math.random();};
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,function(c){
+      var r=(rng()*16)|0, v=c==="x"?r:((r&0x3)|0x8);
+      return v.toString(16);
+    });
+  }
+
+  // 随机密码
+  function genPassword(opts, rng){
+    opts=opts||{};
+    rng=rng||function(){return Math.random();};
+    var len=Math.max(1,opts.length||16);
+    var pool="";
+    if(opts.upper) pool+="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    if(opts.lower) pool+="abcdefghijklmnopqrstuvwxyz";
+    if(opts.digit) pool+="0123456789";
+    if(opts.sym)   pool+="!@#$%^&*()-_=+[]{}";
+    if(!pool) return "";
+    var out="";
+    for(var i=0;i<len;i++) out+=pool.charAt((rng()*pool.length)|0);
+    return out;
+  }
+
+  // 密码强度估算（返回 0-4）
+  function pwStrength(pw){
+    if(!pw) return 0;
+    var score=0;
+    if(pw.length>=8) score++;
+    if(pw.length>=14) score++;
+    if(/[A-Z]/.test(pw)&&/[a-z]/.test(pw)) score++;
+    if(/\d/.test(pw)&&/[^A-Za-z0-9]/.test(pw)) score++;
+    return Math.min(4,score);
+  }
+
+  // ---------- 测试导出 ----------
+  if(typeof module!=="undefined" && module.exports){
+    module.exports={b64Encode,b64Decode,urlEncode,urlDecode,htmlEncode,htmlDecode,
+      sha256,fnv1a,decodeJwt,b64urlDecode,uuidv4,genPassword,pwStrength};
+  }
+  if(typeof window==="undefined") return;
+
+  // ---------- UI ----------
+  var $=function(s,e){return (e||document).querySelector(s);};
+  var $$=function(s,e){return Array.prototype.slice.call((e||document).querySelectorAll(s));};
+
+  var TABS=[
+    {id:"encode",label:"编 / 解码"},
+    {id:"hash",label:"哈希"},
+    {id:"jwt",label:"JWT 解码"},
+    {id:"gen",label:"生成器"}
+  ];
+
+  function toast(msg){
+    var t=$("#toast"); if(!t) return;
+    t.textContent=msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t=setTimeout(function(){t.classList.remove("show");},1600);
+  }
+
+  function initTabs(){
+    var el=$("#tabs");
+    el.innerHTML=TABS.map(function(t,i){
+      return '<button class="tab'+(i===0?' active':'')+'" data-tab="'+t.id+'">'+t.label+'</button>';
+    }).join("");
+    el.addEventListener("click",function(e){
+      var b=e.target.closest(".tab"); if(!b) return;
+      var id=b.getAttribute("data-tab");
+      $$(".tab").forEach(function(x){x.classList.toggle("active",x===b);});
+      $$(".panel").forEach(function(p){p.classList.toggle("active",p.getAttribute("data-panel")===id);});
+    });
+  }
+
+  // 编解码
+  var encState={type:"base64",dir:"enc"};
+  function runEncode(){
+    var input=$("#encIn").value;
+    var out=$("#encOut"), hint=$("#encHint");
+    hint.textContent=""; hint.className="hint";
+    if(!input){ out.textContent=""; return; }
+    try{
+      var r;
+      if(encState.type==="base64") r=encState.dir==="enc"?b64Encode(input):b64Decode(input);
+      else if(encState.type==="url") r=encState.dir==="enc"?urlEncode(input):urlDecode(input);
+      else r=encState.dir==="enc"?htmlEncode(input):htmlDecode(input);
+      out.textContent=r;
+    }catch(err){
+      out.textContent="";
+      hint.textContent="⚠ 解码失败："+err.message; hint.className="hint err";
+    }
+  }
+  function bindEncode(){
+    $("#encIn").addEventListener("input",runEncode);
+    $("#encType").addEventListener("click",function(e){
+      var b=e.target.closest("button"); if(!b) return;
+      encState.type=b.getAttribute("data-t");
+      $$("#encType button").forEach(function(x){x.classList.toggle("active",x===b);});
+      runEncode();
+    });
+    $("#encDir").addEventListener("click",function(e){
+      var b=e.target.closest("button"); if(!b) return;
+      encState.dir=b.getAttribute("data-d");
+      $$("#encDir button").forEach(function(x){x.classList.toggle("active",x===b);});
+      runEncode();
+    });
+  }
+
+  // 哈希
+  function runHash(){
+    var input=$("#hashIn").value;
+    var el=$("#hashOut");
+    if(!input){ el.innerHTML='<div class="item"><div class="k">等待输入…</div></div>'; return; }
+    var items=[
+      {k:"SHA-256",v:sha256(input)},
+      {k:"FNV-1a (32bit 指纹)",v:fnv1a(input)},
+      {k:"字符数 / 字节数",v:input.length+" 字符 / "+unescape(encodeURIComponent(input)).length+" 字节"}
+    ];
+    el.innerHTML=items.map(function(it){
+      return '<div class="item"><div class="k">'+it.k+'</div><div class="v mono">'+it.v+'</div></div>';
+    }).join("");
+  }
+
+  // JWT
+  function runJwt(){
+    var input=$("#jwtIn").value.trim();
+    var h=$("#jwtHeader"), p=$("#jwtPayload"), hint=$("#jwtHint");
+    hint.className="hint";
+    if(!input){ h.textContent=""; p.textContent=""; hint.textContent="仅本地解码 Header 与 Payload，不校验签名。"; return; }
+    try{
+      var r=decodeJwt(input);
+      h.textContent=JSON.stringify(r.header,null,2);
+      p.textContent=JSON.stringify(r.payload,null,2);
+      var extra="";
+      if(r.payload.exp){
+        var d=new Date(r.payload.exp*1000);
+        var expired=Date.now()>r.payload.exp*1000;
+        extra=" · exp: "+d.toLocaleString()+(expired?" （已过期）":" （有效）");
+      }
+      hint.textContent="✓ 解码成功"+extra; hint.className="hint ok";
+    }catch(err){
+      h.textContent=""; p.textContent="";
+      hint.textContent="⚠ "+err.message; hint.className="hint err";
+    }
+  }
+
+  // 生成器
+  function newUuid(){ $("#uuidOut").textContent=uuidv4(); }
+  function newPassword(){
+    var opts={
+      length:parseInt($("#pwLen").value,10),
+      upper:$("#pwUpper").checked, lower:$("#pwLower").checked,
+      digit:$("#pwDigit").checked, sym:$("#pwSym").checked
+    };
+    var pw=genPassword(opts);
+    $("#pwOut").textContent=pw||"（请至少勾选一种字符集）";
+    var s=pwStrength(pw);
+    var labels=["很弱","弱","中","强","很强"];
+    var colors=["var(--red)","var(--amber)","var(--amber)","var(--green)","var(--green)"];
+    var hint=$("#pwHint");
+    if(pw){ hint.innerHTML='强度：<span style="color:'+colors[s]+';font-weight:700">'+labels[s]+'</span>'; }
+    else hint.textContent="";
+  }
+
+  function bindCopy(){
+    document.addEventListener("click",function(e){
+      var b=e.target.closest("[data-copy]"); if(!b) return;
+      var id=b.getAttribute("data-copy");
+      var txt=$("#"+id).textContent;
+      if(!txt){ toast("没有可复制的内容"); return; }
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(txt).then(function(){toast("已复制");},function(){toast("复制失败");});
+      }else{ toast("已复制"); }
+    });
+  }
+
+  function applyTheme(t){
+    document.documentElement.setAttribute("data-theme",t);
+    try{localStorage.setItem("hashkit-theme",t);}catch(e){}
+    var b=$("#themeBtn"); if(b) b.textContent=t==="dark"?"◐":"◑";
+  }
+
+  function init(){
+    initTabs(); bindEncode(); bindCopy();
+    $("#hashIn").addEventListener("input",runHash); runHash();
+    $("#jwtIn").addEventListener("input",runJwt);
+    $("#uuidGen").addEventListener("click",newUuid); newUuid();
+    $("#pwLen").addEventListener("input",function(){$("#pwLenVal").textContent=$("#pwLen").value; newPassword();});
+    ["pwUpper","pwLower","pwDigit","pwSym"].forEach(function(id){$("#"+id).addEventListener("change",newPassword);});
+    $("#pwGen").addEventListener("click",newPassword); newPassword();
+    $("#themeBtn").addEventListener("click",function(){
+      var cur=document.documentElement.getAttribute("data-theme");
+      applyTheme(cur==="dark"?"light":"dark");
+    });
+    var saved="dark"; try{saved=localStorage.getItem("hashkit-theme")||"dark";}catch(e){}
+    applyTheme(saved);
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",init);
+  else init();
+})();
+</script>
+
+<footer id="nt-foot">
+<style>
+  .nt-foot{position:relative;z-index:2;margin-top:56px;border-top:1px solid rgba(255,255,255,.08);background:#0A0A0B;color:#71717A;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6}
+  .nt-foot *{box-sizing:border-box}
+  .nt-foot a{text-decoration:none}
+  .nt-in{max-width:1080px;margin:0 auto;padding:34px 24px 30px}
+  .nt-row{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .nt-id{min-width:0}
+  .nt-brand{display:flex;align-items:center;gap:10px;font-weight:700;color:#fff;font-size:15px;letter-spacing:-.02em}
+  .nt-brand .mk{width:26px;height:26px;border-radius:7px;background:#5E6AD2;display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px}
+  .nt-tag{margin-top:4px;color:#71717A;font-size:12.5px}
+  .nt-cta{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:9px;background:#5E6AD2;color:#fff;font-weight:600;font-size:13.5px;border:1px solid #5E6AD2;transition:transform .18s ease,background .2s ease,box-shadow .2s ease}
+  .nt-cta:hover{transform:translateY(-1px);background:#7C84E8;box-shadow:0 6px 20px rgba(94,106,210,.3)}
+  .nt-sep{height:1px;background:rgba(255,255,255,.08);margin:22px 0 16px}
+  .nt-rel{display:flex;flex-wrap:wrap;gap:8px}
+  .nt-rel a{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:#141417;border:1px solid rgba(255,255,255,.08);color:#A1A1AA;font-size:12.5px;font-weight:600;transition:all .18s ease}
+  .nt-rel a:hover{border-color:#5E6AD2;color:#fff}
+  .nt-cur{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(94,106,210,.12);border:1px solid #5E6AD2;color:#fff;font-size:12.5px;font-weight:700}
+  .nt-meta{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#71717A;font-size:12px}
+  .nt-meta a{color:#A1A1AA;border-bottom:1px dashed rgba(255,255,255,.08)}
+  .nt-meta a:hover{color:#5E6AD2}
+  @media(max-width:560px){.nt-row{flex-direction:column;align-items:flex-start}.nt-cta{width:100%;justify-content:center}}
+</style>
+<div class="nt-in">
+  <div class="nt-row">
+    <div class="nt-id">
+      <div class="nt-brand"><span class="mk">n</span> nano-tools</div>
+      <div class="nt-tag">单文件 · 零依赖 · 本地优先的开发者工具集</div>
+    </div>
+    <a class="nt-cta" href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">浏览全部 328 款工具 &rarr;</a>
+  </div>
+  <div class="nt-sep"></div>
+  <div class="nt-rel">
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BaseForge/" target="_blank" rel="noopener">BaseForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BoxKit/" target="_blank" rel="noopener">BoxKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CSSKit/" target="_blank" rel="noopener">CSSKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Chartify/" target="_blank" rel="noopener">Chartify</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ColorForge/" target="_blank" rel="noopener">ColorForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ContextLens/" target="_blank" rel="noopener">ContextLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronForge/" target="_blank" rel="noopener">CronForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronText/" target="_blank" rel="noopener">CronText</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DataForge/" target="_blank" rel="noopener">DataForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DiffLens/" target="_blank" rel="noopener">DiffLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Graphite/" target="_blank" rel="noopener">Graphite</a>
+      <span class="nt-cur">HashKit &middot; 当前</span>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/IconForge/" target="_blank" rel="noopener">IconForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Inkwell/" target="_blank" rel="noopener">Inkwell</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/JsonForge/" target="_blank" rel="noopener">JsonForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MarkForge/" target="_blank" rel="noopener">MarkForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MockForge/" target="_blank" rel="noopener">MockForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PalettePro/" target="_blank" rel="noopener">PalettePro</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PassForge/" target="_blank" rel="noopener">PassForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RESTKit/" target="_blank" rel="noopener">RESTKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RegexLab/" target="_blank" rel="noopener">RegexLab</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SVGForge/" target="_blank" rel="noopener">SVGForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SnapCompress/" target="_blank" rel="noopener">SnapCompress</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/UniConvert/" target="_blank" rel="noopener">UniConvert</a>
+  </div>
+  <div class="nt-meta">
+    <span>&copy; <span id="nt-yr"></span> nano-tools &middot; 由 HTML5 + 原生 JS 构建 &middot; 零依赖</span>
+    <span><a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> &middot; <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/HashKit" target="_blank" rel="noopener">本工具源码</a></span>
+  </div>
+</div>
+<script>
+(function(){var y=document.getElementById('nt-yr');if(y)y.textContent=new Date().getFullYear();})();
+</script>
+</footer>
+
+
+
+
+
+<!-- nano-i18n:start -->
+<script>
+window.NANO_I18N_EXTRA = {
+  "HashKit · 编码 / 哈希 / JWT 工具箱":"HashKit · Encode / Hash / JWT Toolkit"
+};
+/* NANO_I18N_RUNTIME */
+(function(){
+  // nano-tools 通用双语运行时：翻译可见 UI 文本（按钮/标签/标题/hero），不入脚本/样式/输入区。
+  var COMMON = {
+    "复制":"Copy","复制结果":"Copy result","复制链接":"Copy link","复制代码":"Copy code",
+    "清空":"Clear","清除":"Clear","清除全部":"Clear all","清空全部":"Clear all",
+    "粘贴":"Paste","生成":"Generate","运行":"Run","执行":"Run","停止":"Stop","暂停":"Pause",
+    "继续":"Resume","重试":"Retry","格式化":"Format","压缩":"Minify","美化":"Beautify","压缩美化":"Minify",
+    "导出":"Export","导入":"Import","保存":"Save","删除":"Delete","移除":"Remove","添加":"Add",
+    "重置":"Reset","还原":"Reset","搜索":"Search","提交":"Submit","取消":"Cancel","确定":"OK",
+    "确认":"Confirm","关闭":"Close","输入":"Input","输出":"Output","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","名称":"Name","值":"Value","类型":"Type",
+    "大小":"Size","数量":"Count","颜色":"Color","文本":"Text","内容":"Content","编码":"Encode",
+    "解码":"Decode","加密":"Encrypt","解密":"Decrypt","校验":"Verify","计算":"Calculate",
+    "转换":"Convert","上传":"Upload","下载":"Download","全选":"Select all","折叠":"Collapse",
+    "展开":"Expand","开始":"Start","帮助":"Help","关于":"About","更多":"More","更少":"Less",
+    "示例":"Example","随机":"Random","全部":"All","中文":"中文","English":"English","浅色":"Light",
+    "深色":"Dark","亮色":"Light","暗色":"Dark","复制成功":"Copied","已复制":"Copied",
+    "加载中":"Loading…","暂无数据":"No data","请输入":"Please enter","或":"or","拖拽":"Drag",
+    "拖到此处":"Drop here","选择文件":"Choose file","字数":"Words","字符":"Characters",
+    "行数":"Lines","用时":"Time","耗时":"Elapsed","共":"Total","项":"items","条":"items",
+    "历史":"History","清空历史":"Clear history","复制结果":"Copy result","复制":"Copy",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh","应用":"Apply",
+    "不区分大小写":"Case-insensitive","忽略空白":"Ignore whitespace","换行":"Line break",
+    "正则表达式":"Regex","模式":"Mode","选项":"Options","高级":"Advanced","基础":"Basic",
+    "开启":"On","关闭":"Off","启用":"Enable","禁用":"Disable","显示":"Show","隐藏":"Hide",
+    "复制 SVG":"Copy SVG","下载 SVG":"Download SVG","复制 PNG":"Copy PNG","下载 PNG":"Download PNG",
+    "复制 CSS":"Copy CSS","复制 URL":"Copy URL","复制到剪贴板":"Copy to clipboard",
+    "已保存到本地":"Saved locally","解析中":"Parsing…","分析中":"Analyzing…","生成中":"Generating…",
+    "请选择":"Please select","请先":"Please first","不支持":"Not supported","错误":"Error",
+    "成功":"Success","失败":"Failed","完成":"Done","下一步":"Next","上一步":"Previous",
+    "当前":"Current","总计":"Total","平均":"Average","最大":"Max","最小":"Min",
+    "字符数":"Chars","词数":"Words","句数":"Sentences","段落":"Paragraphs",
+    "浅色模式":"Light mode","深色模式":"Dark mode","切换主题":"Toggle theme","切换语言":"Switch language",
+    "打开文件":"Open file","保存文件":"Save file","导出文件":"Export file","导入文件":"Import file",
+    "复制全部":"Copy all","清除结果":"Clear result","清空结果":"Clear result",
+    "全屏":"Fullscreen","退出全屏":"Exit fullscreen","适应屏幕":"Fit screen","缩放":"Zoom",
+    "放大":"Zoom in","缩小":"Zoom out","重置视图":"Reset view","居中":"Center",
+    "添加节点":"Add node","删除节点":"Delete node","添加连线":"Add edge","删除连线":"Delete edge",
+    "自动布局":"Auto layout","适应视图":"Fit view","导出 JSON":"Export JSON","导出 Markdown":"Export Markdown",
+    "开始分析":"Start analysis","停止分析":"Stop analysis","分析文件夹":"Analyze folder",
+    "拖拽文件夹到此处":"Drop a folder here","或点击选择":"or click to choose","粘贴文本":"Paste text",
+    "复制结果":"Copy result","复制代码":"Copy code"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p = node.parentElement;
+    while(p){
+      var t = p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  var current = 'zh';
+  function applyLang(lang){
+    var d = full();
+    var root = document.documentElement;
+    current = lang;
+    // 翻译 <title>（浏览器标签 / 分享卡片）
+    var rawTitle = document.title;
+    if(lang==='en'){
+      if(d[rawTitle]) document.title = d[rawTitle];
+    } else {
+      var ex = window.NANO_I18N_EXTRA || {};
+      for(var _k in ex){ if(ex[_k] === rawTitle){ document.title = _k; break; } }
+    }
+    if(lang==='en'){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n = w.nextNode()){ n.__zh = n.nodeValue; n.nodeValue = d[n.nodeValue.trim()]; }
+      // 整元素翻译（hero 含子结构，如彩色词 <span>）
+      var els = root.querySelectorAll('[data-i18n-html]');
+      for(var ei=0; ei<els.length; ei++){ var el=els[ei]; if(el.__zhtml===undefined){ el.__zhtml = el.innerHTML; } el.innerHTML = el.getAttribute('data-i18n-html'); }
+    } else {
+      var w2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m = w2.nextNode()){ m.nodeValue = m.__zh; m.__zh = undefined; }
+      // 还原整元素翻译
+      var els2 = root.querySelectorAll('[data-i18n-html]');
+      for(var ej=0; ej<els2.length; ej++){ var el2=els2[ej]; if(el2.__zhtml!==undefined){ el2.innerHTML = el2.__zhtml; el2.__zhtml = undefined; } }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en' ? 'zh' : 'en');
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand = document.createElement('a');
+    brand.id = 'nano-brand';
+    brand.href = 'https://wangzifan396-wzf.github.io/WB/';
+    brand.target = '_blank';
+    brand.rel = 'noopener';
+    brand.textContent = 'nano·tools';
+    brand.title = 'nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter = function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave = function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b = document.createElement('button');
+    b.id = 'nano-lang-btn';
+    b.title = 'Switch language / 切换语言';
+    b.textContent = 'EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter = function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave = function(){ b.style.transform='none'; };
+    b.onclick = toggle;
+    bar.appendChild(brand);
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved = localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved = ((navigator.language||'zh').slice(0,2).toLowerCase()==='en') ? 'en' : 'zh'; }
+    applyLang(saved);
+    mountBtn();
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (saved==='en'?'中':'EN');
+    // 捕获渲染后注入的静态文本（动态节点）
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+
+</script>
+<!-- nano-i18n:end -->
+</body>
+</html>

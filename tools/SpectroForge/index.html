@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SpectroForge — 音频波形与频谱图：加载本地音频，纯函数计算波形包络与 STFT 频谱图，可视化频率随时间的变化，离线可用。</title>
+<meta property="og:title" content="SpectroForge">
+<meta property="og:description" content="音频波形与频谱图查看器：加载本地音频文件（或生成示例），纯函数计算振幅波形包络与基于短时傅里叶变换（FFT）的频谱图，直观看到频率成分随时间的变化，全部在浏览器内完成、不上传任何音频。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="音频波形与频谱图查看器：加载本地音频文件（或生成示例），纯函数计算振幅波形包络与基于短时傅里叶变换（FFT）的频谱图，直观看到频率成分随时间的变化，全部在浏览器内完成、不上传任何音频。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SpectroForge</h1>
+  <p class="sub">音频 · 波形 · 频谱图</p>
+
+  <div class="row">
+    <input type="file" id="sp_file" accept="audio/*" style="flex:1">
+    <button id="sp_demo">生成示例音频</button>
+  </div>
+  <div class="err" id="sp_err"></div>
+
+  <label>波形（振幅包络）</label>
+  <canvas id="sp_wave" style="width:100%;height:140px;background:var(--bg);border:1px solid var(--line);border-radius:8px"></canvas>
+
+  <label>频谱图（时间 → 频率，颜色越亮能量越高）</label>
+  <canvas id="sp_spec" style="width:100%;height:260px;background:#000;border:1px solid var(--line);border-radius:8px"></canvas>
+
+  <div class="out" id="sp_info"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 361 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+/* ============ SpectroForge 内核 ============
+   纯函数：迭代 radix-2 FFT、波形峰值、频谱图。 */
+var SpectroForgePure = (function(){
+  // 原地迭代 FFT（Cooley-Tukey），re/im 等长且为 2 的幂。
+  function fft(re, im){
+    var n = re.length;
+    for(var i=1, j=0; i<n; i++){
+      var bit = n>>1;
+      for(; j & bit; bit>>=1) j ^= bit;
+      j ^= bit;
+      if(i < j){ var tr=re[i]; re[i]=re[j]; re[j]=tr; var ti=im[i]; im[i]=im[j]; im[j]=ti; }
+    }
+    for(var len=2; len<=n; len<<=1){
+      var ang = -2*Math.PI/len, wr=Math.cos(ang), wi=Math.sin(ang);
+      for(var i2=0; i2<n; i2+=len){
+        var cwr=1, cwi=0;
+        for(var k=0; k<len/2; k++){
+          var a=i2+k, b=i2+k+len/2;
+          var tr = re[b]*cwr - im[b]*cwi, ti = re[b]*cwi + im[b]*cwr;
+          re[b] = re[a]-tr; im[b] = im[a]-ti;
+          re[a] = re[a]+tr; im[a] = im[a]+ti;
+          var ncwr = cwr*wr - cwi*wi; cwi = cwr*wi + cwi*wr; cwr = ncwr;
+        }
+      }
+    }
+  }
+  function mag(re, im){ var o=[]; for(var i=0;i<re.length;i++) o.push(Math.sqrt(re[i]*re[i]+im[i]*im[i])); return o; }
+
+  function computeWaveform(samples, buckets){
+    buckets = buckets || 100;
+    var out=[], n=samples.length;
+    if(n===0) return [];
+    var per = n/buckets;
+    for(var i=0;i<buckets;i++){
+      var s=Math.floor(i*per), e=Math.min(n, Math.floor((i+1)*per)), mx=0;
+      for(var j=s;j<e;j++){ var v=Math.abs(samples[j]); if(v>mx) mx=v; }
+      out.push(mx);
+    }
+    return out;
+  }
+
+  function computeSpectrogram(samples, sampleRate, opts){
+    opts = opts || {};
+    var fftSize = opts.fftSize || 1024;
+    var hop = opts.hop || (fftSize>>1);
+    var win = opts.window || 'hann';
+    var n = samples.length;
+    if(n < fftSize) return {error:'音频太短，至少需要 '+fftSize+' 个采样点'};
+    if((fftSize & (fftSize-1)) !== 0) return {error:'fftSize 必须是 2 的幂'};
+    var w = new Array(fftSize);
+    for(var i=0;i<fftSize;i++) w[i] = (win==='hann') ? (0.5 - 0.5*Math.cos(2*Math.PI*i/(fftSize-1))) : 1;
+    var bins = fftSize>>1;
+    var cols = Math.floor((n - fftSize)/hop) + 1;
+    var data = [];
+    for(var c=0;c<cols;c++){
+      var off = c*hop, re=new Array(fftSize), im=new Array(fftSize);
+      for(var i2=0;i2<fftSize;i2++){ re[i2] = samples[off+i2]*w[i2]; im[i2]=0; }
+      fft(re, im);
+      var col=[];
+      for(var b=0;b<bins;b++) col.push(Math.sqrt(re[b]*re[b]+im[b]*im[b]) / fftSize);
+      data.push(col);
+    }
+    return { sampleRate:sampleRate, fftSize:fftSize, hop:hop, bins:bins, cols:cols, data:data };
+  }
+
+  function freqAt(bin, sampleRate, fftSize){ return bin * sampleRate / fftSize; }
+  function binAt(freq, sampleRate, fftSize){ return Math.round(freq * fftSize / sampleRate); }
+
+  return { fft:fft, mag:mag, computeWaveform:computeWaveform,
+           computeSpectrogram:computeSpectrogram, freqAt:freqAt, binAt:binAt };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = SpectroForgePure;
+if (typeof window !== 'undefined') window.SpectroForgePure = SpectroForgePure;
+
+</script>
+<script>
+
+(function(){
+  var P = window.SpectroForgePure;
+  var $ = function(id){ return document.getElementById(id); };
+  var waveC = $('sp_wave'), specC = $('sp_spec');
+  function colorMap(v){
+    v = Math.max(0, Math.min(1, v));
+    var r = Math.floor(255*Math.min(1, Math.max(0, v*1.7-0.35)));
+    var g = Math.floor(255*Math.min(1, Math.max(0, v*1.7-0.05)));
+    var b = Math.floor(255*Math.min(1, Math.max(0, 0.35+v*1.1)));
+    return 'rgb('+r+','+g+','+b+')';
+  }
+  function drawWave(samples){
+    var W=waveC.width=Math.max(300, waveC.clientWidth||600), H=waveC.height=140;
+    var ctx=waveC.getContext('2d'); if(!ctx) return;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='var(--bg)'; ctx.fillRect(0,0,W,H);
+    var wf = P.computeWaveform(samples, W);
+    ctx.strokeStyle='#22D3EE'; ctx.lineWidth=1; ctx.beginPath();
+    for(var x=0;x<W;x++){ var y=H/2 - wf[x]*(H/2-4); if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }
+    ctx.stroke();
+  }
+  function drawSpec(sp){
+    var cols=sp.cols, bins=sp.bins;
+    var W=specC.width=Math.max(300, specC.clientWidth||600), H=specC.height=260;
+    var ctx=specC.getContext('2d'); if(!ctx) return;
+    var max=1e-9;
+    for(var c=0;c<cols;c++) for(var b=0;b<bins;b++) if(sp.data[c][b]>max) max=sp.data[c][b];
+    for(var x=0;x<W;x++){
+      var c=Math.floor(x/W*cols);
+      for(var y=0;y<H;y++){
+        var b=Math.floor(y/H*bins); var m=sp.data[c][bins-1-b];
+        ctx.fillStyle=colorMap(m/max); ctx.fillRect(x,y,1,1);
+      }
+    }
+  }
+  function show(samples, sr){
+    $('sp_err').textContent='';
+    drawWave(samples);
+    var sp = P.computeSpectrogram(samples, sr, {fftSize:1024});
+    if(sp.error){ $('sp_err').textContent=sp.error; return; }
+    drawSpec(sp);
+    var dur = (samples.length/sr).toFixed(2);
+    var nyq = sr/2;
+    $('sp_info').innerHTML = '采样率 '+sr+' Hz · 时长 '+dur+' s · 帧数 '+sp.cols
+      + ' · 单帧 '+sp.fftSize+' 点 · 频率分辨率 '+(sr/sp.fftSize).toFixed(1)+' Hz · 奈奎斯特 '+nyq+' Hz';
+  }
+  function demo(){
+    var sr=44100, sec=1.5, N=Math.floor(sr*sec), buf=new Float32Array(N);
+    for(var i=0;i<N;i++) buf[i] = 0.6*Math.sin(2*Math.PI*440*i/sr) + 0.4*Math.sin(2*Math.PI*880*i/sr);
+    show(buf, sr);
+  }
+  $('sp_demo').addEventListener('click', demo);
+  $('sp_file').addEventListener('change', function(ev){
+    var f = ev.target.files && ev.target.files[0]; if(!f) return;
+    var r = new FileReader();
+    r.onload = function(){
+      try{
+        var AC = window.AudioContext || window.webkitAudioContext;
+        var ac = new AC();
+        ac.decodeAudioData(r.result.slice(0), function(buf){
+          show(buf.getChannelData(0), buf.sampleRate);
+        }, function(e){ $('sp_err').textContent='解码失败：'+(e&&e.message||e); });
+      }catch(e){ $('sp_err').textContent='无法创建音频上下文：'+e.message; }
+    };
+    r.readAsArrayBuffer(f);
+  });
+  demo();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>MqttForge — MQTT 3.1.1 报文工坊：手写实现的二进制编解码器，可构造 CONNECT/PUBLISH/SUBSCRIBE 等报文并逐字节拆解字段，配变长剩余长度计算、主题通配符匹配器与 MQTT-over-WebSocket 实时客户端。</title>
+<meta property="og:title" content="MqttForge">
+<meta property="og:description" content="MQTT 3.1.1 报文工坊：手写实现的二进制编解码器，可构造 CONNECT/PUBLISH/SUBSCRIBE/UNSUBSCRIBE 等控制报文并逐字节拆解字段含义，内置变长剩余长度编码、粘包与截断识别、主题通配符匹配器（#/+/$ 规范细则）与 MQTT-over-WebSocket 实时客户端，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="MQTT 3.1.1 报文工坊：手写实现的二进制编解码器，可构造 CONNECT/PUBLISH/SUBSCRIBE/UNSUBSCRIBE 等控制报文并逐字节拆解字段含义，内置变长剩余长度编码、粘包与截断识别、主题通配符匹配器（#/+/$ 规范细则）与 MQTT-over-WebSocket 实时客户端，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>MqttForge</h1>
+  <p class="sub">MQTT 报文编解码 · 主题通配匹配</p>
+  <h2 style="font-size:16px;margin:0 0 4px">报文构造器</h2>
+  <p class="sub">改动任一字段都会实时重编码，下面能看到每个字节落在哪个协议字段上。</p>
+  <div class="grid">
+    <div><label for="mq_kind">报文类型</label><select id="mq_kind">
+      <option value="connect">CONNECT</option><option value="publish" selected>PUBLISH</option>
+      <option value="subscribe">SUBSCRIBE</option><option value="unsubscribe">UNSUBSCRIBE</option>
+      <option value="pingreq">PINGREQ</option><option value="disconnect">DISCONNECT</option>
+    </select></div>
+    <div><label for="mq_clientid">clientId</label><input type="text" id="mq_clientid" value="nano-mqtt-01" spellcheck="false"></div>
+    <div><label for="mq_user">用户名</label><input type="text" id="mq_user" value="" spellcheck="false"></div>
+    <div><label for="mq_pass">密码</label><input type="text" id="mq_pass" value="" spellcheck="false"></div>
+    <div><label for="mq_keepalive">保活秒数</label><input type="text" id="mq_keepalive" value="60"></div>
+    <div><label for="mq_clean" style="margin-top:20px"><input type="checkbox" id="mq_clean" checked> clean session</label></div>
+    <div><label for="mq_topic">主题</label><input type="text" id="mq_topic" value="sensors/room1/temp" spellcheck="false"></div>
+    <div><label for="mq_qos">QoS</label><select id="mq_qos"><option>0</option><option>1</option><option>2</option></select></div>
+    <div><label for="mq_payload">载荷</label><input type="text" id="mq_payload" value="23.5" spellcheck="false"></div>
+    <div><label for="mq_retain" style="margin-top:20px"><input type="checkbox" id="mq_retain"> retain</label>
+         <label for="mq_dup" style="margin-top:6px"><input type="checkbox" id="mq_dup"> dup</label></div>
+  </div>
+  <div class="err" id="mq_build_err"></div>
+
+  <label>编码结果（hexdump）</label>
+  <div class="out"><pre id="mq_hexdump" style="margin:0;white-space:pre;overflow-x:auto;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"></pre></div>
+  <div class="row">
+    <button id="mq_copy_hex" class="ghost">复制 hex</button>
+    <button id="mq_to_decoder" class="ghost">送入解码器</button>
+    <span class="badge" id="mq_size">—</span>
+  </div>
+
+  <label>字节字段拆解</label>
+  <div class="out" id="mq_fields"></div>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <h2 style="font-size:16px;margin:0 0 4px">报文解码器</h2>
+  <p class="sub">从 Wireshark、代理日志或任何抓包工具里拷一段十六进制过来。</p>
+  <label for="mq_hexin">十六进制字节</label>
+  <textarea id="mq_hexin" rows="3" spellcheck="false">20 02 00 00</textarea>
+  <div class="row">
+    <button id="mq_decode">解码</button>
+    <button id="mq_dec_sample" class="ghost">样例：CONNACK 拒绝</button>
+  </div>
+  <div class="out" id="mq_decoded"></div>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <h2 style="font-size:16px;margin:0 0 4px">主题通配符匹配</h2>
+  <p class="sub">按 MQTT 规范判定，包含「# 覆盖父层」「+ 匹配空层」「通配符不匹配 $ 系统主题」这些容易踩的细则。</p>
+  <div class="grid">
+    <div><label for="mq_filter">订阅过滤器</label><input type="text" id="mq_filter" value="sensors/+/temp" spellcheck="false"></div>
+    <div><label for="mq_topics">待测主题（每行一个）</label><input type="text" id="mq_topics_hint" value="见下方文本框" disabled></div>
+  </div>
+  <textarea id="mq_topics" rows="6" spellcheck="false">sensors/room1/temp
+sensors/room2/temp
+sensors/room1/hum
+sensors//temp
+sensors/room1/temp/raw
+$SYS/broker/uptime</textarea>
+  <div class="out" id="mq_match_out"></div>
+
+  <label>过滤器合法性</label>
+  <div class="out" id="mq_topic_lint"></div>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <h2 style="font-size:16px;margin:0 0 4px">MQTT over WebSocket 实时客户端</h2>
+  <p class="sub">下面这个客户端不依赖 mqtt.js，直接用上面同一套编解码器在 WebSocket 上跑 MQTT 3.1.1。</p>
+  <div class="grid">
+    <div><label for="mq_url">代理地址</label><input type="text" id="mq_url" value="wss://test.mosquitto.org:8081/mqtt" spellcheck="false"></div>
+    <div><label for="mq_sub">连接后自动订阅</label><input type="text" id="mq_sub" value="nano-tools/demo/#" spellcheck="false"></div>
+  </div>
+  <div class="row">
+    <button id="mq_connect">连接</button>
+    <button id="mq_disconnect" class="ghost">断开</button>
+    <button id="mq_pub" class="ghost">发布上方主题</button>
+    <span id="mq_state" class="badge">未连接</span>
+  </div>
+  <div class="err" id="mq_err"></div>
+  <div class="out" id="mq_log" style="max-height:240px;overflow:auto;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"></div>
+
+  <label>连接配置体检</label>
+  <div class="out" id="mq_lint"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 353 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+/* ---- MQTT 3.1.1 (OASIS) 报文编解码 ---------------------------------------------
+   固定报头：1 字节控制报文类型+标志 + 1~4 字节剩余长度（7 位一组的变长编码）
+   变长编码上限 268435455 字节；字符串一律是 2 字节大端长度 + UTF-8 字节
+-------------------------------------------------------------------------------- */
+
+var PACKET_TYPES = {
+  1:'CONNECT', 2:'CONNACK', 3:'PUBLISH', 4:'PUBACK', 5:'PUBREC', 6:'PUBREL', 7:'PUBCOMP',
+  8:'SUBSCRIBE', 9:'SUBACK', 10:'UNSUBSCRIBE', 11:'UNSUBACK', 12:'PINGREQ', 13:'PINGRESP',
+  14:'DISCONNECT', 15:'AUTH'
+};
+
+var CONNACK_CODES = {
+  0:{name:'Accepted', desc:'连接已接受。'},
+  1:{name:'Unacceptable protocol version', desc:'服务端不支持客户端请求的 MQTT 协议级别。'},
+  2:{name:'Identifier rejected', desc:'客户端标识符格式正确但被服务端拒绝（常见于长度或字符限制）。'},
+  3:{name:'Server unavailable', desc:'网络连接已建立，但 MQTT 服务不可用。'},
+  4:{name:'Bad user name or password', desc:'用户名或密码格式错误 / 校验失败。'},
+  5:{name:'Not authorized', desc:'客户端未被授权连接。'}
+};
+
+function utf8Encode(str){
+  var s = String(str==null?'':str), out = [];
+  for(var i=0;i<s.length;i++){
+    var c = s.charCodeAt(i);
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xC0|(c>>6), 0x80|(c&0x3F)); }
+    else if(c>=0xD800 && c<=0xDBFF && i+1<s.length){
+      var d = s.charCodeAt(i+1);
+      if(d>=0xDC00 && d<=0xDFFF){
+        var cp = 0x10000 + ((c-0xD800)<<10) + (d-0xDC00);
+        out.push(0xF0|(cp>>18), 0x80|((cp>>12)&0x3F), 0x80|((cp>>6)&0x3F), 0x80|(cp&0x3F));
+        i++;
+      } else { out.push(0xE0|(c>>12), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F)); }
+    }
+    else { out.push(0xE0|(c>>12), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F)); }
+  }
+  return out;
+}
+
+function utf8Decode(bytes, start, end){
+  var a = bytes, i = start||0, e = (end===undefined? a.length : end), out = '';
+  while(i<e){
+    var b = a[i];
+    if(b<0x80){ out += String.fromCharCode(b); i+=1; }
+    else if((b&0xE0)===0xC0){ out += String.fromCharCode(((b&0x1F)<<6)|(a[i+1]&0x3F)); i+=2; }
+    else if((b&0xF0)===0xE0){ out += String.fromCharCode(((b&0x0F)<<12)|((a[i+1]&0x3F)<<6)|(a[i+2]&0x3F)); i+=3; }
+    else {
+      var cp = ((b&0x07)<<18)|((a[i+1]&0x3F)<<12)|((a[i+2]&0x3F)<<6)|(a[i+3]&0x3F);
+      cp -= 0x10000;
+      out += String.fromCharCode(0xD800+(cp>>10), 0xDC00+(cp&0x3FF));
+      i+=4;
+    }
+  }
+  return out;
+}
+
+function encodeVarint(n){
+  var v = Math.floor(Number(n)||0);
+  if(v<0) throw new Error('剩余长度不能为负');
+  if(v>268435455) throw new Error('剩余长度超过 MQTT 上限 268435455 字节');
+  var out=[];
+  do {
+    var b = v % 128;
+    v = Math.floor(v/128);
+    if(v>0) b = b | 0x80;
+    out.push(b);
+  } while(v>0);
+  return out;
+}
+
+function decodeVarint(bytes, offset){
+  var mul=1, value=0, i=offset||0, n=0, b;
+  do {
+    if(i>=bytes.length) return {ok:false, error:'剩余长度字段被截断'};
+    b = bytes[i++]; n++;
+    value += (b & 127) * mul;
+    if(n>4) return {ok:false, error:'剩余长度超过 4 字节，报文非法'};
+    mul *= 128;
+  } while((b & 128) !== 0);
+  return {ok:true, value:value, bytes:n, next:i};
+}
+
+function encodeString(str){
+  var b = utf8Encode(str);
+  if(b.length>65535) throw new Error('字符串 UTF-8 长度超过 65535');
+  return [(b.length>>8)&0xFF, b.length&0xFF].concat(b);
+}
+
+function readString(bytes, offset){
+  if(offset+2 > bytes.length) return {ok:false, error:'字符串长度字段被截断'};
+  var len = (bytes[offset]<<8) | bytes[offset+1];
+  if(offset+2+len > bytes.length) return {ok:false, error:'字符串内容被截断'};
+  return {ok:true, value:utf8Decode(bytes, offset+2, offset+2+len), len:len, next:offset+2+len};
+}
+
+function toBytes(arr){ return (typeof Uint8Array!=='undefined') ? new Uint8Array(arr) : arr; }
+
+function assemble(byte1, variableAndPayload){
+  return toBytes([byte1].concat(encodeVarint(variableAndPayload.length), variableAndPayload));
+}
+
+function buildConnect(o){
+  var c = o||{};
+  var clientId = c.clientId===undefined ? 'nano-mqtt' : String(c.clientId);
+  var keepAlive = c.keepAlive===undefined ? 60 : Math.max(0, Math.min(65535, Math.floor(Number(c.keepAlive)||0)));
+  var clean = c.clean===undefined ? true : !!c.clean;
+  var body = encodeString('MQTT').concat([0x04]);
+  var flags = 0;
+  if(clean) flags |= 0x02;
+  var will = c.will;
+  if(will && will.topic){
+    flags |= 0x04;
+    flags |= ((Math.max(0,Math.min(2, Number(will.qos)||0)) & 0x03) << 3);
+    if(will.retain) flags |= 0x20;
+  }
+  if(c.username!==undefined && c.username!==null && c.username!=='') flags |= 0x80;
+  if(c.password!==undefined && c.password!==null && c.password!=='') flags |= 0x40;
+  body.push(flags);
+  body.push((keepAlive>>8)&0xFF, keepAlive&0xFF);
+  body = body.concat(encodeString(clientId));
+  if(flags & 0x04){
+    body = body.concat(encodeString(will.topic));
+    body = body.concat(encodeString(will.payload===undefined?'':will.payload));
+  }
+  if(flags & 0x80) body = body.concat(encodeString(c.username));
+  if(flags & 0x40) body = body.concat(encodeString(c.password));
+  return assemble(0x10, body);
+}
+
+function buildPublish(o){
+  var c = o||{};
+  var qos = Math.max(0, Math.min(2, Math.floor(Number(c.qos)||0)));
+  var byte1 = 0x30 | (c.dup?0x08:0) | (qos<<1) | (c.retain?0x01:0);
+  var body = encodeString(c.topic===undefined?'':c.topic);
+  if(qos>0){
+    var pid = Math.max(1, Math.min(65535, Math.floor(Number(c.packetId)||1)));
+    body.push((pid>>8)&0xFF, pid&0xFF);
+  }
+  var payload = c.payload;
+  if(payload===undefined || payload===null) payload = [];
+  else if(typeof payload === 'string') payload = utf8Encode(payload);
+  else payload = Array.prototype.slice.call(payload);
+  return assemble(byte1, body.concat(payload));
+}
+
+function buildSubscribe(o){
+  var c = o||{};
+  var pid = Math.max(1, Math.min(65535, Math.floor(Number(c.packetId)||1)));
+  var body = [(pid>>8)&0xFF, pid&0xFF];
+  var subs = c.subscriptions||[];
+  if(!subs.length) throw new Error('SUBSCRIBE 至少要带一个主题过滤器');
+  subs.forEach(function(s){
+    body = body.concat(encodeString(s.topic));
+    body.push(Math.max(0, Math.min(2, Math.floor(Number(s.qos)||0))));
+  });
+  return assemble(0x82, body); // 低 4 位固定为 0010
+}
+
+function buildUnsubscribe(o){
+  var c = o||{};
+  var pid = Math.max(1, Math.min(65535, Math.floor(Number(c.packetId)||1)));
+  var body = [(pid>>8)&0xFF, pid&0xFF];
+  (c.topics||[]).forEach(function(t){ body = body.concat(encodeString(t)); });
+  return assemble(0xA2, body);
+}
+
+function buildPubAck(packetId){
+  var pid = Math.max(1, Math.min(65535, Math.floor(Number(packetId)||1)));
+  return assemble(0x40, [(pid>>8)&0xFF, pid&0xFF]);
+}
+function buildPingReq(){ return toBytes([0xC0, 0x00]); }
+function buildDisconnect(){ return toBytes([0xE0, 0x00]); }
+
+function decodePacket(bytes){
+  var a = bytes;
+  if(!a || a.length<2) return {ok:false, error:'报文至少需要 2 字节固定报头'};
+  var b1 = a[0];
+  var type = b1>>4, flags = b1 & 0x0F;
+  var name = PACKET_TYPES[type] || ('保留类型 '+type);
+  var fields = [{off:0, len:1, label:'控制报文类型 / 标志', value:'0x'+b1.toString(16).toUpperCase().padStart(2,'0')+' → '+name+' flags='+flags.toString(2).padStart(4,'0')}];
+  var rl = decodeVarint(a, 1);
+  if(!rl.ok) return {ok:false, error:rl.error, type:type, typeName:name};
+  fields.push({off:1, len:rl.bytes, label:'剩余长度', value:rl.value+' 字节（'+rl.bytes+' 字节变长编码）'});
+  var headerLength = 1 + rl.bytes;
+  var total = headerLength + rl.value;
+  var res = {ok:true, type:type, typeName:name, flags:flags, remainingLength:rl.value,
+             headerLength:headerLength, totalLength:total, fields:fields,
+             truncated:(a.length < total), extra:(a.length > total ? a.length-total : 0)};
+  var p = rl.next;
+  var end = Math.min(a.length, total);
+
+  if(type===1){ // CONNECT
+    var pn = readString(a, p); if(!pn.ok) return {ok:false, error:pn.error};
+    fields.push({off:p, len:2+pn.len, label:'协议名', value:pn.value});
+    p = pn.next;
+    if(p>=end) return res;
+    res.protocolLevel = a[p];
+    fields.push({off:p, len:1, label:'协议级别', value:a[p]+(a[p]===4?'（MQTT 3.1.1）':(a[p]===5?'（MQTT 5.0）':'（非常见版本）'))});
+    p++;
+    var cf = a[p];
+    res.connectFlags = cf;
+    res.clean = !!(cf & 0x02);
+    res.willFlag = !!(cf & 0x04);
+    res.willQos = (cf>>3)&0x03;
+    res.willRetain = !!(cf & 0x20);
+    res.hasPassword = !!(cf & 0x40);
+    res.hasUsername = !!(cf & 0x80);
+    var fl = [];
+    if(res.hasUsername) fl.push('username');
+    if(res.hasPassword) fl.push('password');
+    if(res.willRetain) fl.push('will-retain');
+    if(res.willFlag) fl.push('will(qos'+res.willQos+')');
+    if(res.clean) fl.push('clean-session');
+    fields.push({off:p, len:1, label:'连接标志', value:'0b'+cf.toString(2).padStart(8,'0')+(fl.length?(' → '+fl.join(', ')):'')});
+    p++;
+    res.keepAlive = (a[p]<<8)|a[p+1];
+    fields.push({off:p, len:2, label:'保活间隔', value:res.keepAlive+' 秒'+(res.keepAlive===0?'（0 = 不启用保活）':'')});
+    p+=2;
+    var cid = readString(a, p); if(!cid.ok) return {ok:false, error:cid.error};
+    res.clientId = cid.value;
+    fields.push({off:p, len:2+cid.len, label:'客户端标识符', value:cid.value===''?'(空，要求服务端分配)':cid.value});
+    p = cid.next;
+    if(res.willFlag){
+      var wt = readString(a, p); if(!wt.ok) return {ok:false, error:wt.error};
+      res.willTopic = wt.value;
+      fields.push({off:p, len:2+wt.len, label:'遗嘱主题', value:wt.value}); p = wt.next;
+      var wm = readString(a, p); if(!wm.ok) return {ok:false, error:wm.error};
+      res.willPayload = wm.value;
+      fields.push({off:p, len:2+wm.len, label:'遗嘱消息', value:wm.value}); p = wm.next;
+    }
+    if(res.hasUsername){
+      var un = readString(a, p); if(!un.ok) return {ok:false, error:un.error};
+      res.username = un.value;
+      fields.push({off:p, len:2+un.len, label:'用户名', value:un.value}); p = un.next;
+    }
+    if(res.hasPassword){
+      var pw = readString(a, p); if(!pw.ok) return {ok:false, error:pw.error};
+      res.password = pw.value;
+      fields.push({off:p, len:2+pw.len, label:'密码', value:'(已隐藏 '+pw.len+' 字节)'}); p = pw.next;
+    }
+    return res;
+  }
+
+  if(type===2){ // CONNACK
+    res.sessionPresent = !!(a[p] & 0x01);
+    fields.push({off:p, len:1, label:'连接确认标志', value:res.sessionPresent?'session present = 1（服务端保留了会话）':'session present = 0'});
+    res.returnCode = a[p+1];
+    var rc = CONNACK_CODES[res.returnCode];
+    res.returnName = rc ? rc.name : '未知返回码';
+    res.returnDesc = rc ? rc.desc : '不在 MQTT 3.1.1 定义范围内。';
+    fields.push({off:p+1, len:1, label:'返回码', value:res.returnCode+' '+res.returnName});
+    return res;
+  }
+
+  if(type===3){ // PUBLISH
+    res.dup = !!(flags & 0x08);
+    res.qos = (flags>>1)&0x03;
+    res.retain = !!(flags & 0x01);
+    var tp = readString(a, p); if(!tp.ok) return {ok:false, error:tp.error};
+    res.topic = tp.value;
+    fields.push({off:p, len:2+tp.len, label:'主题名', value:tp.value}); p = tp.next;
+    if(res.qos>0){
+      res.packetId = (a[p]<<8)|a[p+1];
+      fields.push({off:p, len:2, label:'报文标识符', value:String(res.packetId)}); p+=2;
+    }
+    var plLen = Math.max(0, end - p);
+    res.payloadBytes = plLen;
+    res.payload = utf8Decode(a, p, end);
+    fields.push({off:p, len:plLen, label:'有效载荷', value:plLen? (res.payload.length>120? res.payload.slice(0,120)+'…' : res.payload) : '(空)'});
+    return res;
+  }
+
+  if(type===8 || type===10){ // SUBSCRIBE / UNSUBSCRIBE
+    res.packetId = (a[p]<<8)|a[p+1];
+    fields.push({off:p, len:2, label:'报文标识符', value:String(res.packetId)});
+    p+=2;
+    res.subscriptions = [];
+    while(p < end){
+      var ft = readString(a, p); if(!ft.ok) return {ok:false, error:ft.error};
+      if(type===8){
+        var q = a[ft.next];
+        res.subscriptions.push({topic:ft.value, qos:q});
+        fields.push({off:p, len:2+ft.len+1, label:'订阅项', value:ft.value+'  QoS '+q});
+        p = ft.next+1;
+      } else {
+        res.subscriptions.push({topic:ft.value});
+        fields.push({off:p, len:2+ft.len, label:'退订项', value:ft.value});
+        p = ft.next;
+      }
+    }
+    return res;
+  }
+
+  if(type===9){ // SUBACK
+    res.packetId = (a[p]<<8)|a[p+1];
+    fields.push({off:p, len:2, label:'报文标识符', value:String(res.packetId)});
+    p+=2;
+    res.returnCodes = [];
+    while(p<end){
+      var code = a[p];
+      res.returnCodes.push(code);
+      fields.push({off:p, len:1, label:'订阅返回码',
+        value: code===0x80 ? '0x80 失败（无权限或过滤器非法）' : ('授予 QoS '+code)});
+      p++;
+    }
+    return res;
+  }
+
+  if(type===4||type===5||type===6||type===7||type===11){
+    res.packetId = (a[p]<<8)|a[p+1];
+    fields.push({off:p, len:2, label:'报文标识符', value:String(res.packetId)});
+    return res;
+  }
+
+  if(type===12||type===13||type===14){
+    if(rl.value!==0) fields.push({off:p, len:rl.value, label:'意外负载', value:name+' 不应携带负载'});
+    return res;
+  }
+  return res;
+}
+
+function topicMatch(filter, topic){
+  var fs = String(filter==null?'':filter), ts = String(topic==null?'':topic);
+  if(fs==='' || ts==='') return false;
+  var f = fs.split('/'), t = ts.split('/');
+  if(t[0].charAt(0)==='$' && (f[0]==='#' || f[0]==='+')) return false; // 通配符不匹配 $ 开头的系统主题
+  for(var i=0;i<f.length;i++){
+    if(f[i]==='#') return i===f.length-1;
+    if(i>=t.length) return false;
+    if(f[i]==='+') continue;
+    if(f[i]!==t[i]) return false;
+  }
+  return f.length===t.length;
+}
+
+function validateTopic(topic, isFilter){
+  var s = String(topic==null?'':topic);
+  var errors = [], warnings = [];
+  if(s==='') errors.push('主题不能为空，MQTT 要求至少 1 个字符。');
+  if(s.indexOf('\u0000')>=0) errors.push('主题不能包含 U+0000。');
+  var blen = utf8Encode(s).length;
+  if(blen>65535) errors.push('主题 UTF-8 长度 '+blen+' 字节，超过 65535 上限。');
+  var levels = s.split('/');
+  if(!isFilter){
+    if(s.indexOf('+')>=0 || s.indexOf('#')>=0) errors.push('发布用的主题名不允许包含通配符 + 或 #。');
+  } else {
+    levels.forEach(function(lv, i){
+      if(lv.indexOf('#')>=0){
+        if(lv!=='#') errors.push('第 '+(i+1)+' 层「'+lv+'」中的 # 必须独占一层。');
+        else if(i!==levels.length-1) errors.push('# 只能出现在过滤器最后一层。');
+      }
+      if(lv.indexOf('+')>=0 && lv!=='+') errors.push('第 '+(i+1)+' 层「'+lv+'」中的 + 必须独占一层。');
+    });
+  }
+  if(s.charAt(0)==='$') warnings.push('以 $ 开头的主题被服务端保留（如 $SYS/），通配符订阅不会匹配到它。');
+  if(s.charAt(0)==='/') warnings.push('以 / 开头会产生一个空的首层，'+(isFilter?'需要用 "/x" 而不是 "x" 才能匹配。':'订阅方必须用同样的前导斜杠。'));
+  if(s.length>1 && s.charAt(s.length-1)==='/') warnings.push('以 / 结尾会产生一个空的末层，"a/" 与 "a" 是两个不同主题。');
+  if(s.indexOf('//')>=0) warnings.push('出现连续斜杠，中间是一个合法但容易被误读的空层。');
+  if(/\s/.test(s)) warnings.push('主题包含空白字符：合法，但排查问题时极易看漏。');
+  return {ok:errors.length===0, errors:errors, warnings:warnings, levels:levels.length, bytes:blen};
+}
+
+function hex(bytes){
+  var out=[];
+  for(var i=0;i<bytes.length;i++) out.push(bytes[i].toString(16).toUpperCase().padStart(2,'0'));
+  return out.join(' ');
+}
+
+function parseHex(text){
+  var s = String(text==null?'':text).replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,' ').trim();
+  if(!s) return {ok:false, error:'没有解析到十六进制字节'};
+  var toks = s.split(/\s+/), out=[];
+  for(var i=0;i<toks.length;i++){
+    var t = toks[i];
+    if(t.length%2!==0) return {ok:false, error:'第 '+(i+1)+' 组「'+t+'」不是偶数位十六进制'};
+    for(var j=0;j<t.length;j+=2) out.push(parseInt(t.substr(j,2),16));
+  }
+  return {ok:true, bytes:toBytes(out)};
+}
+
+function hexdump(bytes){
+  var lines=[];
+  for(var i=0;i<bytes.length;i+=16){
+    var chunk=[], ascii='';
+    for(var j=0;j<16;j++){
+      if(i+j<bytes.length){
+        var b=bytes[i+j];
+        chunk.push(b.toString(16).toUpperCase().padStart(2,'0'));
+        ascii += (b>=32 && b<127) ? String.fromCharCode(b) : '.';
+      } else { chunk.push('  '); ascii += ' '; }
+    }
+    lines.push(i.toString(16).toUpperCase().padStart(4,'0')+'  '+chunk.join(' ')+'  |'+ascii+'|');
+  }
+  return lines.join('\n');
+}
+
+function lint(cfg){
+  var c = cfg||{};
+  var out = [];
+  function add(level, msg){ out.push({level:level, msg:msg}); }
+  var cid = c.clientId===undefined ? '' : String(c.clientId);
+  if(cid===''){
+    if(c.clean===false) add('error', 'clientId 为空时必须使用 clean session=1，否则服务端应以返回码 2 拒绝连接。');
+    else add('info', 'clientId 留空表示由服务端分配；这样的会话无法在断线后被恢复。');
+  } else {
+    var blen = utf8Encode(cid).length;
+    if(blen>65535) add('error', 'clientId 超过 65535 字节。');
+    else if(blen>23) add('warn', 'clientId 长度 '+blen+' 字节：规范只要求服务端接受 1–23 字节，超长部分依赖具体实现。');
+    if(!/^[0-9a-zA-Z]*$/.test(cid)) add('warn', 'clientId 含非字母数字字符：规范只要求服务端支持 [0-9a-zA-Z]，其余字符可能被拒。');
+  }
+  if(c.password && !c.username) add('error', 'MQTT 3.1.1 规定：没有用户名时不允许携带密码（密码标志位必须为 0）。');
+  var ka = Number(c.keepAlive===undefined?60:c.keepAlive);
+  if(ka===0) add('warn', '保活间隔为 0 表示关闭保活机制，服务端将不会主动检测半开连接。');
+  else if(ka>65535) add('error', '保活间隔超过 65535 秒，字段只有 2 字节。');
+  else if(ka>300) add('info', '保活 '+ka+'s 偏长：服务端要等 1.5 倍（'+Math.round(ka*1.5)+'s）才判定客户端离线。');
+  if(c.clean===false && cid==='') add('warn', '持久会话依赖固定 clientId，随机 id + clean=false 会在服务端堆积永不消费的会话。');
+  if(c.will && c.will.topic){
+    var wv = validateTopic(c.will.topic, false);
+    wv.errors.forEach(function(e){ add('error', '遗嘱主题：'+e); });
+    if(!c.will.retain) add('info', '遗嘱未设置 retain：后订阅的客户端看不到这条离线通知，做在线状态一般需要 retain=1。');
+  }
+  if(c.topic!==undefined){
+    var tv = validateTopic(c.topic, !!c.isFilter);
+    tv.errors.forEach(function(e){ add('error', e); });
+    tv.warnings.forEach(function(w){ add('warn', w); });
+  }
+  var qos = Number(c.qos||0);
+  if(qos===2) add('info', 'QoS 2 是四步握手（PUBLISH/PUBREC/PUBREL/PUBCOMP），吞吐显著低于 QoS 1，且部分云托管代理并不支持。');
+  if(qos===0 && c.retain) add('info', 'QoS 0 + retain：消息会被保留，但投递本身仍是「至多一次」，代理重启期间发出的消息可能丢失。');
+  if(c.url){
+    if(/^ws:\/\//i.test(c.url)) add('warn', '使用明文 ws://：MQTT 的用户名与密码是明文字段，务必改用 wss://。');
+    if(!/\/mqtt|\/ws/i.test(c.url)) add('info', '多数代理的 WebSocket 端点路径是 /mqtt（EMQX、Mosquitto）或 /ws，请确认路径正确。');
+  }
+  return out;
+}
+
+var MqttForgePure = {
+  PACKET_TYPES:PACKET_TYPES, CONNACK_CODES:CONNACK_CODES,
+  utf8Encode:utf8Encode, utf8Decode:utf8Decode,
+  encodeVarint:encodeVarint, decodeVarint:decodeVarint,
+  encodeString:encodeString, readString:readString,
+  buildConnect:buildConnect, buildPublish:buildPublish, buildSubscribe:buildSubscribe,
+  buildUnsubscribe:buildUnsubscribe, buildPubAck:buildPubAck,
+  buildPingReq:buildPingReq, buildDisconnect:buildDisconnect,
+  decodePacket:decodePacket, topicMatch:topicMatch, validateTopic:validateTopic,
+  hex:hex, parseHex:parseHex, hexdump:hexdump, lint:lint
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = MqttForgePure;
+if (typeof window !== 'undefined') window.MqttForgePure = MqttForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.MqttForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var LEVEL_COLOR={error:'var(--warn)', warn:'var(--warn)', info:'var(--muted)'};
+  var pid = 1;
+
+  function readCfg(){
+    return {
+      kind: $('mq_kind').value,
+      clientId: $('mq_clientid').value,
+      username: $('mq_user').value,
+      password: $('mq_pass').value,
+      keepAlive: Number($('mq_keepalive').value)||0,
+      clean: $('mq_clean').checked,
+      topic: $('mq_topic').value,
+      qos: Number($('mq_qos').value)||0,
+      payload: $('mq_payload').value,
+      retain: $('mq_retain').checked,
+      dup: $('mq_dup').checked
+    };
+  }
+  function buildFromCfg(c){
+    switch(c.kind){
+      case 'connect': return P.buildConnect(c);
+      case 'subscribe': return P.buildSubscribe({packetId:1, subscriptions:[{topic:c.topic, qos:c.qos}]});
+      case 'unsubscribe': return P.buildUnsubscribe({packetId:1, topics:[c.topic]});
+      case 'pingreq': return P.buildPingReq();
+      case 'disconnect': return P.buildDisconnect();
+      default: return P.buildPublish({topic:c.topic, payload:c.payload, qos:c.qos,
+                                      retain:c.retain, dup:c.dup, packetId:1});
+    }
+  }
+  function renderFields(dec, bytes){
+    if(!dec.ok){ $('mq_fields').innerHTML='<span style="color:var(--warn)">'+esc(dec.error||'无法解码')+'</span>'; return; }
+    var rows = dec.fields.map(function(f){
+      var slice=[];
+      for(var i=f.off;i<Math.min(f.off+f.len, bytes.length);i++) slice.push(bytes[i].toString(16).toUpperCase().padStart(2,'0'));
+      var shown = slice.length>10 ? slice.slice(0,10).join(' ')+' …' : slice.join(' ');
+      return '<div style="padding:5px 0;border-bottom:1px dashed var(--line);font-size:13px">'+
+        '<span style="color:var(--dim)">@'+f.off+' +'+f.len+'</span> '+
+        '<b style="color:var(--muted);font-weight:500">'+esc(f.label)+'</b>'+
+        '<div style="font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--accent)">'+esc(shown)+'</div>'+
+        '<div style="color:var(--fg)">'+esc(String(f.value))+'</div></div>';
+    }).join('');
+    var warn = '';
+    if(dec.truncated) warn += '<div style="color:var(--warn);margin-top:8px">报文被截断：声明剩余长度 '+dec.remainingLength+'，实际字节不足。</div>';
+    if(dec.extra) warn += '<div style="color:var(--info);margin-top:8px">尾部还有 '+dec.extra+' 字节，说明这是粘在一起的多条报文（MQTT 允许一个 TCP 段里连发）。</div>';
+    $('mq_fields').innerHTML = rows + warn;
+  }
+  function build(){
+    var c = readCfg();
+    var bytes;
+    try{ bytes = buildFromCfg(c); }
+    catch(e){ $('mq_build_err').textContent = '编码失败：'+e.message; return; }
+    $('mq_build_err').textContent = '';
+    $('mq_hexdump').textContent = P.hexdump(bytes);
+    $('mq_size').textContent = bytes.length + ' 字节';
+    renderFields(P.decodePacket(bytes), bytes);
+    renderLint();
+  }
+  function decode(){
+    var r = P.parseHex($('mq_hexin').value);
+    if(!r.ok){ $('mq_decoded').innerHTML='<span style="color:var(--warn)">'+esc(r.error)+'</span>'; return; }
+    var d = P.decodePacket(r.bytes);
+    if(!d.ok){ $('mq_decoded').innerHTML='<span style="color:var(--warn)">'+esc(d.error)+'</span>'; return; }
+    var head='<div class="kv"><b>报文类型</b><span>'+esc(d.typeName)+'</span></div>'+
+             '<div class="kv"><b>剩余长度</b><span>'+d.remainingLength+' 字节</span></div>'+
+             '<div class="kv"><b>报文总长</b><span>'+d.totalLength+' 字节</span></div>';
+    if(d.typeName==='CONNACK'){
+      head += '<div class="kv"><b>返回码</b><span style="color:'+(d.returnCode===0?'var(--ok)':'var(--warn)')+'">'+
+              d.returnCode+' '+esc(d.returnName)+'</span></div>'+
+              '<div style="color:var(--muted);font-size:13px;margin:6px 0">'+esc(d.returnDesc)+'</div>';
+    }
+    var body = d.fields.map(function(f){
+      return '<div class="kv"><b>'+esc(f.label)+'</b><span>'+esc(String(f.value))+'</span></div>';
+    }).join('');
+    $('mq_decoded').innerHTML = head + '<div style="height:8px"></div>' + body +
+      '<div style="height:8px"></div><pre style="margin:0;white-space:pre;overflow-x:auto;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--dim)">'+
+      esc(P.hexdump(r.bytes))+'</pre>';
+  }
+  function renderMatch(){
+    var filter = $('mq_filter').value;
+    var topics = $('mq_topics').value.split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean);
+    if(!topics.length){ $('mq_match_out').innerHTML='<span style="color:var(--dim)">上面填几个主题试试。</span>'; }
+    else {
+      $('mq_match_out').innerHTML = topics.map(function(t){
+        var hit = P.topicMatch(filter, t);
+        return '<div class="kv"><b style="font-family:ui-monospace,Menlo,Consolas,monospace">'+esc(t)+'</b>'+
+               '<span style="color:'+(hit?'var(--ok)':'var(--dim)')+'">'+(hit?'匹配':'不匹配')+'</span></div>';
+      }).join('');
+    }
+    var v = P.validateTopic(filter, true);
+    var lines = [];
+    v.errors.forEach(function(e){ lines.push('<div style="color:var(--warn);font-size:13px">[错误] '+esc(e)+'</div>'); });
+    v.warnings.forEach(function(w){ lines.push('<div style="color:var(--warn);font-size:13px">[警告] '+esc(w)+'</div>'); });
+    if(!lines.length) lines.push('<div style="color:var(--ok);font-size:13px">过滤器合法：'+v.levels+' 层，'+v.bytes+' 字节。</div>');
+    $('mq_topic_lint').innerHTML = lines.join('');
+  }
+  function renderLint(){
+    var c = readCfg();
+    c.url = $('mq_url').value;
+    c.isFilter = (c.kind==='subscribe' || c.kind==='unsubscribe');
+    var issues = P.lint(c);
+    if(!issues.length){ $('mq_lint').innerHTML='<span style="color:var(--ok)">配置体检通过。</span>'; return; }
+    $('mq_lint').innerHTML = issues.map(function(i){
+      var tag = i.level==='error' ? '错误' : (i.level==='warn' ? '警告' : '提示');
+      return '<div style="margin:4px 0;font-size:13px"><span style="color:'+(LEVEL_COLOR[i.level]||'var(--muted)')+'">['+tag+']</span> '+esc(i.msg)+'</div>';
+    }).join('');
+  }
+
+  // ---- live MQTT over WebSocket, built on the same codec ----
+  var sock=null, log=[], pingTimer=null, rxBuf=[];
+  function setState(txt, cls){
+    var el=$('mq_state'); el.textContent=txt;
+    el.style.background = cls==='on' ? 'var(--ok)' : (cls==='wait' ? 'var(--warn)' : 'var(--surface)');
+    el.style.color = cls ? '#0A0A0B' : 'var(--muted)';
+    el.style.borderColor = cls ? 'transparent' : 'var(--line)';
+  }
+  function pushLog(kind, text){
+    log.push({t:Date.now(), kind:kind, text:text});
+    if(log.length>300) log.shift();
+    var box=$('mq_log');
+    box.innerHTML = log.slice(-150).map(function(e){
+      var color = e.kind==='error' ? 'var(--warn)' : (e.kind==='out' ? 'var(--accent)' : (e.kind==='in' ? 'var(--ok)' : 'var(--dim)'));
+      return '<div><span style="color:var(--dim)">'+new Date(e.t).toTimeString().slice(0,8)+'</span> '+
+             '<span style="color:'+color+';white-space:pre-wrap">'+esc(e.text)+'</span></div>';
+    }).join('');
+    box.scrollTop = box.scrollHeight;
+  }
+  function sendPacket(bytes, label){
+    if(!sock || sock.readyState!==1){ pushLog('error','未连接，无法发送 '+label); return; }
+    sock.send(bytes);
+    pushLog('out','→ '+label+'  ['+bytes.length+' B]  '+P.hex(bytes).slice(0,60));
+  }
+  function drain(){
+    // MQTT 允许多条报文粘在一个 WebSocket 帧里，也允许一条报文跨帧
+    while(rxBuf.length>=2){
+      var d = P.decodePacket(rxBuf);
+      if(!d.ok) { pushLog('error','解码失败：'+d.error); rxBuf=[]; return; }
+      if(d.truncated) return; // 等后续字节
+      var body = rxBuf.slice(0, d.totalLength);
+      rxBuf = rxBuf.slice(d.totalLength);
+      handlePacket(P.decodePacket(body), body);
+    }
+  }
+  function handlePacket(d, bytes){
+    if(d.typeName==='CONNACK'){
+      if(d.returnCode===0){
+        setState('已连接','on');
+        pushLog('in','← CONNACK 接受'+(d.sessionPresent?'（服务端恢复了已有会话）':'（全新会话）'));
+        var filter=$('mq_sub').value.trim();
+        if(filter) sendPacket(P.buildSubscribe({packetId:pid++, subscriptions:[{topic:filter, qos:0}]}), 'SUBSCRIBE '+filter);
+        clearInterval(pingTimer);
+        var ka=Number($('mq_keepalive').value)||60;
+        if(ka>0) pingTimer=setInterval(function(){ sendPacket(P.buildPingReq(),'PINGREQ'); }, Math.max(5, ka*0.8)*1000);
+      } else {
+        setState('被拒绝','');
+        pushLog('error','← CONNACK 拒绝 '+d.returnCode+' '+d.returnName+' — '+d.returnDesc);
+      }
+      return;
+    }
+    if(d.typeName==='PUBLISH'){
+      pushLog('in','← PUBLISH ['+d.topic+'] QoS'+d.qos+(d.retain?' retain':'')+'  '+d.payload);
+      if(d.qos===1) sendPacket(P.buildPubAck(d.packetId), 'PUBACK '+d.packetId);
+      return;
+    }
+    if(d.typeName==='SUBACK'){
+      pushLog('in','← SUBACK '+d.returnCodes.map(function(c){ return c===0x80?'失败':('QoS'+c); }).join(', '));
+      return;
+    }
+    if(d.typeName==='PINGRESP'){ pushLog('in','← PINGRESP'); return; }
+    pushLog('in','← '+d.typeName+' ['+bytes.length+' B]');
+  }
+  function connect(){
+    disconnect();
+    if(typeof WebSocket === 'undefined'){ $('mq_err').textContent='当前环境不支持 WebSocket'; return; }
+    var url=$('mq_url').value.trim();
+    if(!url){ $('mq_err').textContent='请填写代理地址'; return; }
+    $('mq_err').textContent=''; rxBuf=[]; setState('连接中…','wait');
+    try{ sock=new WebSocket(url, 'mqtt'); }
+    catch(e){ $('mq_err').textContent='创建连接失败：'+e.message; setState('未连接',''); return; }
+    sock.binaryType='arraybuffer';
+    sock.onopen=function(){
+      pushLog('sys','WebSocket 已打开（子协议 '+(sock.protocol||'未协商')+'），开始 MQTT 握手');
+      var c=readCfg();
+      sendPacket(P.buildConnect({clientId:c.clientId, keepAlive:c.keepAlive, clean:c.clean,
+                                 username:c.username, password:c.password}), 'CONNECT');
+    };
+    sock.onmessage=function(ev){
+      var arr = new Uint8Array(ev.data);
+      for(var i=0;i<arr.length;i++) rxBuf.push(arr[i]);
+      drain();
+    };
+    sock.onerror=function(){ pushLog('error','WebSocket 出错（多数是地址、端口或子协议不对）'); };
+    sock.onclose=function(ev){
+      clearInterval(pingTimer); setState('未连接','');
+      pushLog('sys','连接关闭 code='+ev.code+(ev.reason?(' '+ev.reason):''));
+    };
+  }
+  function disconnect(){
+    clearInterval(pingTimer);
+    if(sock){
+      try{ if(sock.readyState===1) sock.send(P.buildDisconnect()); }catch(e){}
+      try{ sock.close(); }catch(e){}
+      sock=null;
+    }
+    setState('未连接','');
+  }
+
+  $('mq_decode').addEventListener('click', decode);
+  $('mq_dec_sample').addEventListener('click', function(){ $('mq_hexin').value='20 02 00 05'; decode(); });
+  $('mq_copy_hex').addEventListener('click', function(){
+    var t=P.hex(buildFromCfg(readCfg()));
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){},function(){});
+  });
+  $('mq_to_decoder').addEventListener('click', function(){
+    $('mq_hexin').value=P.hex(buildFromCfg(readCfg())); decode();
+  });
+  ['mq_kind','mq_clientid','mq_user','mq_pass','mq_keepalive','mq_clean','mq_topic','mq_qos',
+   'mq_payload','mq_retain','mq_dup'].forEach(function(id){
+    $(id).addEventListener('input', build); $(id).addEventListener('change', build);
+  });
+  ['mq_filter','mq_topics'].forEach(function(id){ $(id).addEventListener('input', renderMatch); });
+  $('mq_url').addEventListener('input', renderLint);
+  $('mq_connect').addEventListener('click', connect);
+  $('mq_disconnect').addEventListener('click', disconnect);
+  $('mq_pub').addEventListener('click', function(){
+    var c=readCfg();
+    sendPacket(P.buildPublish({topic:c.topic, payload:c.payload, qos:c.qos, retain:c.retain,
+                               packetId:pid++}), 'PUBLISH ['+c.topic+']');
+  });
+
+  build(); decode(); renderMatch();
+  pushLog('sys','尚未连接。点「连接」用本页自带的编解码器直接跑一次 MQTT 握手。');
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

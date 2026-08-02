@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0A0A0B">
+<title>SnipForge — Local-first code snippet manager</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --canvas:#0A0A0B;
+    --card:#141417;
+    --surface:#1A1B1E;
+    --text:#FFFFFF;
+    --text-dim:#A1A1AA;
+    --text-mute:#71717A;
+    --border:rgba(255,255,255,0.08);
+    --border-strong:rgba(255,255,255,0.14);
+    --accent:#5E6AD2;
+    --success:#10B981;
+    --warning:#F5A623;
+    --info:#22D3EE;
+    --purple:#A78BFA;
+    --r-sm:6px; --r-md:10px; --r-lg:14px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--canvas); color:var(--text);
+    font-family:var(--font); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+  ::selection{background:rgba(94,106,210,0.35)}
+  button{font-family:inherit}
+  input,textarea,select{font-family:inherit}
+  /* scrollbars */
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.10);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.18);background-clip:padding-box}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  #app{display:flex;flex-direction:column;height:100vh}
+
+  /* ---------- topbar ---------- */
+  .topbar{
+    display:flex;align-items:center;gap:14px;
+    padding:0 16px;height:56px;flex:0 0 56px;
+    border-bottom:1px solid var(--border);background:rgba(20,20,23,0.6);
+    backdrop-filter:blur(8px);
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px;letter-spacing:.2px;white-space:nowrap}
+  .brand svg{color:var(--accent);display:block}
+  .brand .sub{color:var(--text-mute);font-weight:400;font-size:11px;margin-left:2px}
+  .search-wrap{flex:1;max-width:560px;position:relative;display:flex;align-items:center}
+  .search-wrap svg{position:absolute;left:11px;color:var(--text-mute);pointer-events:none}
+  #search{
+    width:100%;height:36px;padding:0 12px 0 34px;
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--r-md);color:var(--text);font-size:13px;outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  #search::placeholder{color:var(--text-mute)}
+  #search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94,106,210,0.18)}
+  .hint{position:absolute;right:10px;font-size:11px;color:var(--text-mute);pointer-events:none}
+  .actions{display:flex;align-items:center;gap:8px}
+  .btn{
+    height:34px;padding:0 13px;border-radius:var(--r-md);
+    background:var(--surface);border:1px solid var(--border);color:var(--text-dim);
+    font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+    transition:background .15s,border-color .15s,color .15s,transform .1s;
+    white-space:nowrap;
+  }
+  .btn:hover{background:#222327;color:var(--text);border-color:var(--border-strong)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--accent);border-color:transparent;color:#fff}
+  .btn.primary:hover{background:#6b77e0}
+  .btn.icon{padding:0;width:34px;justify-content:center}
+
+  /* ---------- layout ---------- */
+  .layout{flex:1;display:flex;min-height:0}
+  .sidebar{
+    width:236px;flex:0 0 236px;border-right:1px solid var(--border);
+    overflow-y:auto;padding:14px 10px;display:flex;flex-direction:column;gap:16px;
+  }
+  .side-group .side-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--text-mute);padding:0 8px 6px;font-weight:600;
+  }
+  .side-item{
+    display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--r-sm);
+    color:var(--text-dim);cursor:pointer;font-size:13px;user-select:none;
+    transition:background .12s,color .12s;
+  }
+  .side-item:hover{background:var(--surface);color:var(--text)}
+  .side-item.active{background:rgba(94,106,210,0.14);color:#fff}
+  .side-item .dot{width:7px;height:7px;border-radius:50%;background:var(--text-mute);flex:0 0 7px}
+  .side-item .lbl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .side-item .cnt{font-size:11px;color:var(--text-mute);font-variant-numeric:tabular-nums}
+  .side-item .x{opacity:0;color:var(--text-mute);font-size:12px;padding:0 2px;border-radius:4px}
+  .side-item:hover .x{opacity:1}
+  .side-item .x:hover{color:var(--warning)}
+  .fav-star{color:var(--warning)}
+
+  .list{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+  .list-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+  .list-head h2{margin:0;font-size:14px;font-weight:600}
+  .list-head .meta{font-size:12px;color:var(--text-mute)}
+  .empty{
+    margin-top:48px;text-align:center;color:var(--text-mute);font-size:13px;
+    border:1px dashed var(--border);border-radius:var(--r-lg);padding:40px 20px;
+  }
+
+  .card{
+    border:1px solid var(--border);background:var(--card);border-radius:var(--r-md);
+    padding:13px 14px;cursor:pointer;transition:border-color .15s,background .15s,transform .1s;
+    display:flex;flex-direction:column;gap:8px;position:relative;
+  }
+  .card:hover{border-color:var(--border-strong);background:#17171b}
+  .card.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .card .row1{display:flex;align-items:center;gap:9px}
+  .card .star{color:var(--text-mute);cursor:pointer;flex:0 0 auto;line-height:0}
+  .card .star.on{color:var(--warning)}
+  .card .title{font-weight:600;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card .desc{color:var(--text-dim);font-size:12.5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .card .row2{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .badge{
+    font-size:11px;padding:2px 8px;border-radius:999px;
+    background:var(--surface);border:1px solid var(--border);color:var(--text-dim);
+  }
+  .badge.lang{color:var(--info);border-color:rgba(34,211,238,0.25);background:rgba(34,211,238,0.08)}
+  .badge.folder{color:var(--purple);border-color:rgba(167,139,250,0.25);background:rgba(167,139,250,0.08)}
+  .chip{
+    font-size:11px;padding:2px 8px;border-radius:999px;
+    background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text-mute);
+  }
+  mark{background:rgba(94,106,210,0.45);color:#fff;border-radius:3px;padding:0 1px}
+
+  /* ---------- detail ---------- */
+  .detail{
+    width:400px;flex:0 0 400px;border-left:1px solid var(--border);
+    overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0;
+  }
+  .detail .placeholder{color:var(--text-mute);font-size:13px;margin-top:40px;text-align:center}
+  .detail h1{margin:0;font-size:18px;font-weight:600;line-height:1.3}
+  .detail .meta-row{display:flex;gap:7px;flex-wrap:wrap}
+  .detail .tags{display:flex;gap:6px;flex-wrap:wrap}
+  .detail .desc-box{color:var(--text-dim);font-size:13px;white-space:pre-wrap}
+  .detail .code-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .detail .code-head .t{font-size:12px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.06em}
+  .code-wrap{border:1px solid var(--border);border-radius:var(--r-md);background:#0d0d0f;overflow:hidden}
+  pre{margin:0;padding:14px;overflow:auto;max-height:360px}
+  pre code{font-family:var(--mono);font-size:12.5px;color:#e4e4e7;white-space:pre;line-height:1.55}
+  .copy-btn{height:28px;padding:0 10px;font-size:12px}
+  .detail-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* ---------- modal ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:50;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+    opacity:0;transition:opacity .18s;
+  }
+  .modal-overlay.show{opacity:1}
+  .modal{
+    width:min(620px,100%);max-height:90vh;overflow:auto;
+    background:var(--card);border:1px solid var(--border-strong);
+    border-radius:var(--r-lg);box-shadow:0 24px 70px rgba(0,0,0,0.6);
+    padding:20px;
+  }
+  .modal h3{margin:0 0 14px;font-size:16px;font-weight:600}
+  .field{margin-bottom:13px;display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:12px;color:var(--text-dim)}
+  .inp,.sel,.txt{
+    width:100%;background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--r-sm);color:var(--text);font-size:13px;padding:9px 10px;outline:none;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  .txt{font-family:var(--mono);font-size:12.5px;resize:vertical;min-height:160px;line-height:1.5}
+  .inp:focus,.sel:focus,.txt:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94,106,210,0.18)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:6px}
+  .confirm-msg{color:var(--text-dim);font-size:13px;margin:0 0 16px}
+
+  /* ---------- toast ---------- */
+  .toast-wrap{position:fixed;right:16px;bottom:16px;z-index:80;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .toast{
+    background:var(--surface);border:1px solid var(--border-strong);color:var(--text);
+    padding:10px 14px;border-radius:var(--r-md);font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,0.4);
+    transform:translateY(8px);opacity:0;transition:opacity .25s,transform .25s;max-width:320px;
+  }
+  .toast.show{transform:none;opacity:1}
+  .toast.ok{border-left:3px solid var(--success)}
+  .toast.warn{border-left:3px solid var(--warning)}
+
+  /* ---------- brand strip ---------- */
+  .brandstrip{
+    position:fixed;right:14px;bottom:12px;z-index:40;pointer-events:none;
+    font-size:11px;color:var(--text-mute);letter-spacing:.04em;
+    display:flex;align-items:center;gap:6px;opacity:.75;
+  }
+  .brandstrip .b{color:var(--accent)}
+
+  .reveal{opacity:0;transform:translateY(8px);transition:opacity .4s ease,transform .4s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;animation:none !important}
+    .reveal{opacity:1;transform:none}
+  }
+  @media (max-width:880px){
+    .detail{display:none}
+    .sidebar{width:180px;flex-basis:180px}
+  }
+</style>
+<meta name="description" content="本地优先的代码片段管理器：分类、标签、全文搜索，一键复制，JSON 导入导出，离线可用。">
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">SnipForge — Local-first code snippet manager</h1>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg>
+      <span>SnipForge</span><span class="sub" id="brandSub">snippets</span>
+    </div>
+    <div class="search-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="search" type="text" autocomplete="off" spellcheck="false" placeholder="搜索片段、代码、标签…">
+      <span class="hint">/</span>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btnNew">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span id="lblNew">新片段</span>
+      </button>
+      <button class="btn" id="btnFolder"><span id="lblFolder">+ 文件夹</span></button>
+      <button class="btn" id="btnImport"><span id="lblImport">导入</span></button>
+      <button class="btn" id="btnExport"><span id="lblExport">导出</span></button>
+      <button class="btn icon" id="btnLang" title="切换语言">EN</button>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="list" id="list"></main>
+    <section class="detail" id="detail"></section>
+  </div>
+  <div class="brandstrip">nano·tools · <span class="b">SnipForge</span></div>
+  <div class="toast-wrap" id="toasts"></div>
+  <input type="file" id="fileInput" accept="application/json,.json" hidden>
+</div>
+
+<script>
+/* ============================================================
+   SnipForge — pure logic (no DOM). Exported for Node tests.
+   ============================================================ */
+function uid(){
+  return 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
+}
+
+function normalizeSnippet(input){
+  input = input || {};
+  var ts = new Date().toISOString();
+  var tags = Array.isArray(input.tags) ? input.tags.filter(function(t){return t != null;}).map(String) : [];
+  return {
+    id: input.id || uid(),
+    folder: (input.folder && String(input.folder).trim()) || 'General',
+    title: (input.title != null ? String(input.title) : '') || 'Untitled',
+    desc: input.desc != null ? String(input.desc) : '',
+    lang: (input.lang && String(input.lang).trim()) || 'text',
+    code: input.code != null ? String(input.code) : '',
+    tags: tags,
+    fav: !!input.fav,
+    createdAt: input.createdAt || ts,
+    updatedAt: input.updatedAt || ts
+  };
+}
+
+function addSnippet(input){ return normalizeSnippet(input); }
+
+function removeSnippet(snippets, id){
+  return (snippets || []).filter(function(s){ return s.id !== id; });
+}
+
+function updateSnippet(snippet, patch){
+  var merged = Object.assign({}, snippet, patch || {});
+  merged.updatedAt = new Date().toISOString();
+  return merged;
+}
+
+function toggleFavorite(snippet){
+  return Object.assign({}, snippet, { fav: !snippet.fav, updatedAt: new Date().toISOString() });
+}
+
+function searchSnippets(snippets, query){
+  var q = (query || '').trim().toLowerCase();
+  if(!q) return (snippets || []).slice();
+  return (snippets || []).filter(function(s){
+    if((s.title || '').toLowerCase().indexOf(q) !== -1) return true;
+    if((s.code || '').toLowerCase().indexOf(q) !== -1) return true;
+    return (s.tags || []).some(function(t){ return (t || '').toLowerCase().indexOf(q) !== -1; });
+  });
+}
+
+function filterByLang(snippets, lang){
+  if(!lang || lang === 'all') return (snippets || []).slice();
+  return (snippets || []).filter(function(s){ return s.lang === lang; });
+}
+
+function groupByFolder(snippets){
+  var out = {};
+  (snippets || []).forEach(function(s){
+    var f = s.folder || 'General';
+    if(!out[f]) out[f] = [];
+    out[f].push(s);
+  });
+  return out;
+}
+
+function exportJSON(snippets){
+  return JSON.stringify({ version: 1, snippets: snippets || [] }, null, 2);
+}
+
+function importJSON(str){
+  if(typeof str !== 'string') throw new Error('Invalid shape');
+  var data;
+  try { data = JSON.parse(str); } catch(e){ throw new Error('Malformed JSON'); }
+  var arr;
+  if(Array.isArray(data)) arr = data;
+  else if(data && typeof data === 'object' && Array.isArray(data.snippets)) arr = data.snippets;
+  else throw new Error('Invalid shape');
+  if(!arr.every(function(x){ return x && typeof x === 'object'; })) throw new Error('Invalid shape');
+  return arr.map(normalizeSnippet);
+}
+
+function escapeHtml(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* ---- Node test export (BEFORE the window guard) ---- */
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    uid: uid,
+    normalizeSnippet: normalizeSnippet,
+    addSnippet: addSnippet,
+    removeSnippet: removeSnippet,
+    updateSnippet: updateSnippet,
+    toggleFavorite: toggleFavorite,
+    searchSnippets: searchSnippets,
+    filterByLang: filterByLang,
+    groupByFolder: groupByFolder,
+    exportJSON: exportJSON,
+    importJSON: importJSON,
+    escapeHtml: escapeHtml
+  };
+}
+
+/* ============================================================
+   UI layer — browser only.
+   ============================================================ */
+if (typeof window !== 'undefined') {
+  (function(){
+    'use strict';
+    var LS_KEY = 'snipforge.v1';
+    var LS_LANG = 'snipforge.lang';
+
+    var LANGS = ['javascript','typescript','python','go','rust','java','sql','bash','css','html','json','yaml','regex','markdown','text'];
+
+    var I18N = {
+      zh: {
+        search:'搜索片段、代码、标签…', new:'新片段', newFolder:'+ 文件夹', import:'导入', export:'导出',
+        all:'全部', fav:'收藏', folders:'文件夹', langs:'语言', noSnippet:'还没有片段，点击「新片段」开始。',
+        selectHint:'从左侧选择片段查看详情', copy:'复制', copied:'已复制', edit:'编辑', del:'删除',
+        folder:'文件夹', title:'标题', desc:'描述', lang:'语言', tags:'标签（逗号分隔）', code:'代码',
+        save:'保存', cancel:'取消', needTitle:'请填写标题', saved:'已保存', conDel:'确定删除该片段？',
+        conFolder:'删除文件夹后，其中的片段会移到「General」。确定？', folderName:'文件夹名称',
+        importOk:'导入成功', importFail:'导入失败：文件格式无效', exportOk:'已导出', brandSub:'代码碎片',
+        newFolderTitle:'新建文件夹', conDelTitle:'删除片段', conFolderTitle:'删除文件夹',
+        emptyFilter:'没有匹配的片段。', nHint:'n 新建'
+      },
+      en: {
+        search:'Search snippets, code, tags…', new:'New', newFolder:'+ Folder', import:'Import', export:'Export',
+        all:'All', fav:'Favorites', folders:'Folders', langs:'Languages', noSnippet:'No snippets yet — click “New” to start.',
+        selectHint:'Select a snippet on the left to view details', copy:'Copy', copied:'Copied', edit:'Edit', del:'Delete',
+        folder:'Folder', title:'Title', desc:'Description', lang:'Language', tags:'Tags (comma separated)', code:'Code',
+        save:'Save', cancel:'Cancel', needTitle:'Title is required', saved:'Saved', conDel:'Delete this snippet?',
+        conFolder:'After deleting the folder, its snippets move to “General”. Continue?', folderName:'Folder name',
+        importOk:'Imported', importFail:'Import failed: invalid file format', exportOk:'Exported', brandSub:'snippets',
+        newFolderTitle:'New folder', conDelTitle:'Delete snippet', conFolderTitle:'Delete folder',
+        emptyFilter:'No snippets match.', nHint:'n new'
+      }
+    };
+    var lang = 'zh';
+    function T(k){ return (I18N[lang] && I18N[lang][k]) || I18N.en[k] || k; }
+
+    var SAMPLES = [
+      { folder:'SQL', title:'窗口函数：累计求和', desc:'按用户分区、按时间排序的运行总计。',
+        lang:'sql', tags:['sql','window','analytics'],
+        code:'SELECT\n  user_id,\n  order_date,\n  amount,\n  SUM(amount) OVER (\n    PARTITION BY user_id\n    ORDER BY order_date\n    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n  ) AS running_total\nFROM orders\nORDER BY user_id, order_date;' },
+      { folder:'Frontend', title:'debounce 防抖函数', desc:'延迟执行，持续触发时只在停止后运行一次。',
+        lang:'javascript', tags:['js','util','performance'],
+        code:'function debounce(fn, wait = 300) {\n  let timer;\n  return function (...args) {\n    clearTimeout(timer);\n    timer = setTimeout(() => fn.apply(this, args), wait);\n  };\n}' },
+      { folder:'DevOps', title:'curl 发送 JSON', desc:'向本地 API 投递 JSON 负载。',
+        lang:'bash', tags:['bash','curl','api'],
+        code:'curl -X POST api.example.com/v1/echo \\\n  -H "Content-Type: application/json" \\\n  -d \'{"hello":"world"}\'' },
+      { folder:'Frontend', title:'邮箱正则校验', desc:'常见的邮箱格式校验表达式。',
+        lang:'regex', tags:['regex','validation'],
+        code:'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$' },
+      { folder:'Frontend', title:'Flex 居中', desc:'水平垂直居中的最简写法。',
+        lang:'css', tags:['css','layout'],
+        code:'.center {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}' },
+      { folder:'Backend', title:'按大小分块', desc:'把列表切分为固定大小的块（生成器）。',
+        lang:'python', tags:['python','util'],
+        code:'def chunk(items, size):\n    for i in range(0, len(items), size):\n        yield items[i:i + size]' }
+    ];
+
+    var state = {
+      snippets: [],
+      folders: [],
+      selectedId: null,
+      filter: { folder: 'all', lang: 'all', fav: false, query: '' }
+    };
+
+    /* ---------- safe DOM helpers ---------- */
+    function el(tag, attrs, kids){
+      var n = document.createElement(tag);
+      if(attrs){
+        Object.keys(attrs).forEach(function(k){
+          var v = attrs[k];
+          if(v == null) return;
+          if(k === 'text') n.textContent = v;
+          else if(k === 'class') n.className = v;
+          else if(k.slice(0,2) === 'on' && typeof v === 'function') n.addEventListener(k.slice(2), v);
+          else if(k === 'dataset') Object.keys(v).forEach(function(d){ n.dataset[d] = v[d]; });
+          else if(k === 'html') n.innerHTML = v; // only trusted static markup
+          else n.setAttribute(k, v);
+        });
+      }
+      if(kids != null){
+        (Array.isArray(kids) ? kids : [kids]).forEach(function(c){
+          if(c == null) return;
+          n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+        });
+      }
+      return n;
+    }
+    function svgEl(paths, w){
+      var ns = 'http:' + '//www.w3.org/2000/svg';
+      var s = document.createElementNS(ns, 'svg');
+      s.setAttribute('width', w || 15); s.setAttribute('height', w || 15);
+      s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none');
+      s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '2');
+      s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
+      s.innerHTML = paths;
+      return s;
+    }
+    var ICON = {
+      star:'<path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 17l-5.3 2.8 1-5.8-4.2-4.1 5.9-.9z"/>',
+      starFill:'<path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 17l-5.3 2.8 1-5.8-4.2-4.1 5.9-.9z" fill="currentColor" stroke="currentColor"/>',
+      folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+      copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+      edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+      trash:'<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>',
+      braces:'<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/>'
+    };
+
+    /* ---------- storage (guarded) ---------- */
+    function loadRaw(){
+      try { return window.localStorage.getItem(LS_KEY); } catch(e){ return null; }
+    }
+    function saveState(){
+      try {
+        window.localStorage.setItem(LS_KEY, JSON.stringify({ snippets: state.snippets, folders: state.folders }));
+      } catch(e){}
+    }
+    function loadLang(){
+      try { return window.localStorage.getItem(LS_LANG) || 'zh'; } catch(e){ return 'zh'; }
+    }
+    function saveLang(){ try { window.localStorage.setItem(LS_LANG, lang); } catch(e){} }
+
+    function uniqueFolders(){
+      var set = {};
+      state.folders.forEach(function(f){ set[f] = true; });
+      state.snippets.forEach(function(s){ if(s.folder) set[s.folder] = true; });
+      var arr = Object.keys(set);
+      arr.sort(function(a,b){ return a === 'General' ? -1 : b === 'General' ? 1 : a.localeCompare(b); });
+      return arr;
+    }
+    function ensureFolder(name){
+      name = (name || '').trim();
+      if(!name) return;
+      if(state.folders.indexOf(name) === -1) state.folders.push(name);
+    }
+
+    /* ---------- filtering pipeline ---------- */
+    function visibleSnippets(){
+      var arr = state.snippets;
+      if(state.filter.fav) arr = arr.filter(function(s){ return s.fav; });
+      if(state.filter.folder !== 'all') arr = arr.filter(function(s){ return s.folder === state.filter.folder; });
+      arr = filterByLang(arr, state.filter.lang);
+      if(state.filter.query) arr = searchSnippets(arr, state.filter.query);
+      return arr;
+    }
+
+    /* ---------- highlight (safe: textContent + <mark>) ---------- */
+    function highlight(text, q){
+      var frag = document.createDocumentFragment();
+      if(!q){ frag.appendChild(document.createTextNode(text)); return frag; }
+      var lower = (text || '').toLowerCase(), ql = q.toLowerCase(), i = 0, idx;
+      while((idx = lower.indexOf(ql, i)) !== -1){
+        if(idx > i) frag.appendChild(document.createTextNode(text.slice(i, idx)));
+        frag.appendChild(el('mark', { text: text.slice(idx, idx + ql.length) }));
+        i = idx + ql.length;
+      }
+      if(i < text.length) frag.appendChild(document.createTextNode(text.slice(i)));
+      return frag;
+    }
+
+    /* ---------- rendering ---------- */
+    var sidebar = document.getElementById('sidebar');
+    var listEl = document.getElementById('list');
+    var detailEl = document.getElementById('detail');
+
+    function renderSidebar(){
+      sidebar.innerHTML = '';
+      var counts = {};
+      state.snippets.forEach(function(s){
+        counts[s.folder] = (counts[s.folder] || 0) + 1;
+      });
+      var favCount = state.snippets.filter(function(s){ return s.fav; }).length;
+
+      // Filters group
+      var g1 = el('div', { class: 'side-group' });
+      g1.appendChild(el('div', { class: 'side-title', text: T('folders') }));
+      var allItem = el('div', { class: 'side-item' + (state.filter.folder === 'all' && !state.filter.fav ? ' active' : ''), onclick: function(){ state.filter.folder = 'all'; state.filter.fav = false; renderAll(); } });
+      allItem.appendChild(svgEl(ICON.braces, 14));
+      allItem.appendChild(el('span', { class: 'lbl', text: T('all') }));
+      allItem.appendChild(el('span', { class: 'cnt', text: String(state.snippets.length) }));
+      g1.appendChild(allItem);
+
+      var favItem = el('div', { class: 'side-item' + (state.filter.fav ? ' active' : ''), onclick: function(){ state.filter.fav = !state.filter.fav; renderAll(); } });
+      favItem.appendChild(svgEl(ICON.starFill, 14));
+      favItem.appendChild(el('span', { class: 'lbl', text: T('fav') }));
+      favItem.appendChild(el('span', { class: 'cnt', text: String(favCount) }));
+      g1.appendChild(favItem);
+
+      uniqueFolders().forEach(function(f){
+        if(f === 'General' && state.folders.indexOf('General') === -1){
+          // only show General if it has snippets but isn't a saved folder
+        }
+        var active = (state.filter.folder === f && !state.filter.fav);
+        var item = el('div', { class: 'side-item' + (active ? ' active' : '') });
+        item.appendChild(svgEl(ICON.folder, 14));
+        item.appendChild(el('span', { class: 'lbl', text: f, onclick: function(){ state.filter.folder = f; state.filter.fav = false; renderAll(); } }));
+        item.appendChild(el('span', { class: 'cnt', text: String(counts[f] || 0) }));
+        if(f !== 'General'){
+          var x = el('span', { class: 'x', text: '✕', title: T('del'), onclick: function(e){ e.stopPropagation(); confirmDeleteFolder(f); } });
+          item.appendChild(x);
+        }
+        item.addEventListener('click', function(e){
+          if(e.target === item.querySelector('.x')) return;
+          state.filter.folder = f; state.filter.fav = false; renderAll();
+        });
+        g1.appendChild(item);
+      });
+      sidebar.appendChild(g1);
+
+      // Languages group
+      var langsGroup = el('div', { class: 'side-group' });
+      langsGroup.appendChild(el('div', { class: 'side-title', text: T('langs') }));
+      var langCounts = {};
+      state.snippets.forEach(function(s){ langCounts[s.lang] = (langCounts[s.lang] || 0) + 1; });
+      var langKeys = Object.keys(langCounts).sort();
+      langKeys.forEach(function(l){
+        var active = (state.filter.lang === l && state.filter.folder === 'all' && !state.filter.fav);
+        var li = el('div', { class: 'side-item' + (active ? ' active' : ''), onclick: function(){
+          state.filter.lang = (state.filter.lang === l ? 'all' : l);
+          state.filter.folder = 'all'; state.filter.fav = false; renderAll();
+        } });
+        li.appendChild(el('span', { class: 'dot' }));
+        li.appendChild(el('span', { class: 'lbl', text: l }));
+        li.appendChild(el('span', { class: 'cnt', text: String(langCounts[l]) }));
+        langsGroup.appendChild(li);
+      });
+      sidebar.appendChild(langsGroup);
+    }
+
+    function renderList(){
+      listEl.innerHTML = '';
+      var arr = visibleSnippets();
+      var head = el('div', { class: 'list-head' });
+      head.appendChild(el('h2', { text: state.filter.fav ? T('fav') : (state.filter.folder === 'all' ? T('all') : state.filter.folder) }));
+      head.appendChild(el('span', { class: 'meta', text: arr.length + ' / ' + state.snippets.length }));
+      listEl.appendChild(head);
+
+      if(arr.length === 0){
+        listEl.appendChild(el('div', { class: 'empty', text: state.snippets.length === 0 ? T('noSnippet') : T('emptyFilter') }));
+        return;
+      }
+      var q = state.filter.query;
+      arr.forEach(function(s){
+        var card = el('div', { class: 'card reveal' + (s.id === state.selectedId ? ' selected' : '') });
+        var row1 = el('div', { class: 'row1' });
+        var star = el('span', { class: 'star' + (s.fav ? ' on' : ''), onclick: function(e){ e.stopPropagation(); toggleFav(s.id); } });
+        star.appendChild(svgEl(s.fav ? ICON.starFill : ICON.star, 16));
+        row1.appendChild(star);
+        var title = el('span', { class: 'title' });
+        title.appendChild(highlight(s.title, q));
+        row1.appendChild(title);
+        card.appendChild(row1);
+
+        if(s.desc){
+          var d = el('div', { class: 'desc' });
+          d.appendChild(highlight(s.desc, q));
+          card.appendChild(d);
+        }
+        var row2 = el('div', { class: 'row2' });
+        row2.appendChild(el('span', { class: 'badge folder', text: s.folder }));
+        row2.appendChild(el('span', { class: 'badge lang', text: s.lang }));
+        (s.tags || []).forEach(function(t){
+          var c = el('span', { class: 'chip' });
+          c.appendChild(highlight(t, q));
+          row2.appendChild(c);
+        });
+        card.appendChild(row2);
+        card.addEventListener('click', function(){ state.selectedId = s.id; renderAll(); });
+        listEl.appendChild(card);
+      });
+      revealAll(listEl);
+    }
+
+    function renderDetail(){
+      detailEl.innerHTML = '';
+      var s = state.snippets.filter(function(x){ return x.id === state.selectedId; })[0];
+      if(!s){
+        detailEl.appendChild(el('div', { class: 'placeholder', text: T('selectHint') }));
+        return;
+      }
+      detailEl.appendChild(el('h1', { text: s.title }));
+      var meta = el('div', { class: 'meta-row' });
+      meta.appendChild(el('span', { class: 'badge folder', text: s.folder }));
+      meta.appendChild(el('span', { class: 'badge lang', text: s.lang }));
+      if(s.fav) meta.appendChild(el('span', { class: 'badge', text: '★ ' + T('fav') }));
+      detailEl.appendChild(meta);
+
+      if(s.desc){
+        detailEl.appendChild(el('div', { class: 'desc-box', text: s.desc }));
+      }
+      if(s.tags && s.tags.length){
+        var tags = el('div', { class: 'tags' });
+        s.tags.forEach(function(t){ tags.appendChild(el('span', { class: 'chip', text: t })); });
+        detailEl.appendChild(tags);
+      }
+
+      var codeHead = el('div', { class: 'code-head' });
+      codeHead.appendChild(el('span', { class: 't', text: T('code') }));
+      var copyBtn = el('button', { class: 'btn copy-btn', onclick: function(){ copyText(s.code); } });
+      copyBtn.appendChild(svgEl(ICON.copy, 14));
+      copyBtn.appendChild(document.createTextNode(' ' + T('copy')));
+      codeHead.appendChild(copyBtn);
+      detailEl.appendChild(codeHead);
+
+      var wrap = el('div', { class: 'code-wrap' });
+      var pre = el('pre');
+      var code = el('code', { text: s.code });
+      pre.appendChild(code);
+      wrap.appendChild(pre);
+      detailEl.appendChild(wrap);
+
+      var actions = el('div', { class: 'detail-actions' });
+      var editBtn = el('button', { class: 'btn', onclick: function(){ openEditor(s); } });
+      editBtn.appendChild(svgEl(ICON.edit, 14));
+      editBtn.appendChild(document.createTextNode(' ' + T('edit')));
+      actions.appendChild(editBtn);
+      var favBtn = el('button', { class: 'btn', onclick: function(){ toggleFav(s.id); } });
+      favBtn.appendChild(svgEl(s.fav ? ICON.starFill : ICON.star, 14));
+      favBtn.appendChild(document.createTextNode(' ' + (s.fav ? T('fav') : T('fav'))));
+      actions.appendChild(favBtn);
+      var delBtn = el('button', { class: 'btn', onclick: function(){ confirmDelete(s.id); } });
+      delBtn.appendChild(svgEl(ICON.trash, 14));
+      delBtn.appendChild(document.createTextNode(' ' + T('del')));
+      actions.appendChild(delBtn);
+      detailEl.appendChild(actions);
+    }
+
+    function renderAll(){
+      renderSidebar();
+      renderList();
+      renderDetail();
+    }
+
+    /* ---------- reveal animation (guarded for non-IO envs) ---------- */
+    function revealAll(root){
+      var nodes = root.querySelectorAll('.reveal');
+      if(typeof IntersectionObserver === 'undefined'){
+        Array.prototype.forEach.call(nodes, function(n){ n.classList.add('in'); });
+        return;
+      }
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
+      }, { root: null, threshold: 0.05 });
+      Array.prototype.forEach.call(nodes, function(n){ io.observe(n); });
+    }
+
+    /* ---------- interactions ---------- */
+    function toggleFav(id){
+      var idx = state.snippets.findIndex(function(s){ return s.id === id; });
+      if(idx === -1) return;
+      state.snippets[idx] = toggleFavorite(state.snippets[idx]);
+      saveState(); renderAll();
+    }
+
+    function copyText(text){
+      var done = function(){ toast(T('copied'), 'ok'); };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(done, function(){ fallbackCopy(text, done); });
+      } else {
+        fallbackCopy(text, done);
+      }
+    }
+    function fallbackCopy(text, done){
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if(ok) done(); else toast(T('copy'), 'warn');
+      } catch(e){ toast(T('copy'), 'warn'); }
+    }
+
+    /* ---------- modal infra ---------- */
+    function openModal(contentNode){
+      var overlay = el('div', { class: 'modal-overlay' });
+      var box = el('div', { class: 'modal' }, contentNode);
+      overlay.appendChild(box);
+      overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(overlay); });
+      document.body.appendChild(overlay);
+      if(typeof requestAnimationFrame === 'function') requestAnimationFrame(function(){ overlay.classList.add('show'); });
+      else overlay.classList.add('show');
+      return overlay;
+    }
+    function closeModal(overlay){
+      overlay.classList.remove('show');
+      setTimeout(function(){ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 200);
+    }
+
+    function openEditor(snip){
+      var isNew = !snip;
+      var cur = snip ? Object.assign({}, snip) : { folder: (state.filter.folder !== 'all' ? state.filter.folder : ''), title:'', desc:'', lang:'javascript', code:'', tags:[], fav:false };
+      var folders = uniqueFolders();
+
+      var root = el('div');
+      root.appendChild(el('h3', { text: isNew ? ('+ ' + T('new')) : (T('edit') + ': ' + cur.title) }));
+
+      var fTitle = el('div', { class: 'field' });
+      fTitle.appendChild(el('label', { text: T('title') }));
+      var titleIn = el('input', { class: 'inp', type: 'text', value: cur.title || '', placeholder: T('title') });
+      fTitle.appendChild(titleIn); root.appendChild(fTitle);
+
+      var grid = el('div', { class: 'grid2' });
+      var fFolder = el('div', { class: 'field' });
+      fFolder.appendChild(el('label', { text: T('folder') }));
+      var folderIn = el('input', { class: 'inp', type: 'text', value: cur.folder || '', list: 'sf-folder-list', placeholder: 'SQL' });
+      var dl = el('datalist', { id: 'sf-folder-list' });
+      folders.forEach(function(f){ dl.appendChild(el('option', { value: f })); });
+      fFolder.appendChild(folderIn); fFolder.appendChild(dl);
+      grid.appendChild(fFolder);
+
+      var fLang = el('div', { class: 'field' });
+      fLang.appendChild(el('label', { text: T('lang') }));
+      var langSel = el('select', { class: 'sel' });
+      LANGS.forEach(function(l){ var o = el('option', { value: l, text: l }); if(l === cur.lang) o.selected = true; langSel.appendChild(o); });
+      fLang.appendChild(langSel);
+      grid.appendChild(fLang);
+      root.appendChild(grid);
+
+      var fDesc = el('div', { class: 'field' });
+      fDesc.appendChild(el('label', { text: T('desc') }));
+      var descIn = el('textarea', { class: 'inp', rows: '2', text: cur.desc || '' });
+      fDesc.appendChild(descIn); root.appendChild(fDesc);
+
+      var fTags = el('div', { class: 'field' });
+      fTags.appendChild(el('label', { text: T('tags') }));
+      var tagIn = el('input', { class: 'inp', type: 'text', value: (cur.tags || []).join(', '), placeholder: 'sql, window' });
+      fTags.appendChild(tagIn); root.appendChild(fTags);
+
+      var fCode = el('div', { class: 'field' });
+      fCode.appendChild(el('label', { text: T('code') }));
+      var codeIn = el('textarea', { class: 'txt', text: cur.code || '', spellcheck: 'false' });
+      fCode.appendChild(codeIn); root.appendChild(fCode);
+
+      var acts = el('div', { class: 'modal-actions' });
+      var cancel = el('button', { class: 'btn', onclick: function(){ closeModal(ov); } });
+      cancel.appendChild(document.createTextNode(T('cancel')));
+      var save = el('button', { class: 'btn primary', onclick: doSave });
+      save.appendChild(document.createTextNode(T('save')));
+      acts.appendChild(cancel); acts.appendChild(save);
+      root.appendChild(acts);
+
+      var ov = openModal(root);
+      setTimeout(function(){ titleIn.focus(); }, 60);
+
+      function doSave(){
+        var title = titleIn.value.trim();
+        if(!title){ toast(T('needTitle'), 'warn'); titleIn.focus(); return; }
+        var tags = tagIn.value.split(',').map(function(t){ return t.trim(); }).filter(Boolean);
+        var payload = {
+          folder: folderIn.value.trim() || 'General',
+          title: title,
+          desc: descIn.value,
+          lang: langSel.value,
+          code: codeIn.value,
+          tags: tags,
+          fav: cur.fav
+        };
+        if(isNew){
+          var ns = addSnippet(payload);
+          state.snippets.unshift(ns);
+          state.selectedId = ns.id;
+        } else {
+          var up = updateSnippet(cur, payload);
+          var idx = state.snippets.findIndex(function(s){ return s.id === cur.id; });
+          if(idx >= 0) state.snippets[idx] = up;
+          state.selectedId = up.id;
+        }
+        ensureFolder(payload.folder);
+        saveState(); renderAll(); closeModal(ov); toast(T('saved'), 'ok');
+      }
+    }
+
+    function promptText(title, label, value, cb){
+      var root = el('div');
+      root.appendChild(el('h3', { text: title }));
+      var f = el('div', { class: 'field' });
+      f.appendChild(el('label', { text: label }));
+      var inp = el('input', { class: 'inp', type: 'text', value: value || '' });
+      f.appendChild(inp); root.appendChild(f);
+      var acts = el('div', { class: 'modal-actions' });
+      var cancel = el('button', { class: 'btn', onclick: function(){ closeModal(ov); } });
+      cancel.appendChild(document.createTextNode(T('cancel')));
+      var ok = el('button', { class: 'btn primary', onclick: function(){ var v = inp.value.trim(); closeModal(ov); if(v) cb(v); } });
+      ok.appendChild(document.createTextNode(T('save')));
+      acts.appendChild(cancel); acts.appendChild(ok); root.appendChild(acts);
+      var ov = openModal(root);
+      setTimeout(function(){ inp.focus(); }, 60);
+    }
+
+    function confirmDelete(id){
+      var s = state.snippets.filter(function(x){ return x.id === id; })[0];
+      if(!s) return;
+      var root = el('div');
+      root.appendChild(el('h3', { text: T('conDelTitle') }));
+      root.appendChild(el('p', { class: 'confirm-msg', text: T('conDel') + ' “' + s.title + '”' }));
+      var acts = el('div', { class: 'modal-actions' });
+      var cancel = el('button', { class: 'btn', onclick: function(){ closeModal(ov); } });
+      cancel.appendChild(document.createTextNode(T('cancel')));
+      var yes = el('button', { class: 'btn primary', onclick: function(){
+        state.snippets = removeSnippet(state.snippets, id);
+        if(state.selectedId === id) state.selectedId = null;
+        saveState(); renderAll(); closeModal(ov); toast(T('del'), 'ok');
+      } });
+      yes.appendChild(document.createTextNode(T('del')));
+      acts.appendChild(cancel); acts.appendChild(yes); root.appendChild(acts);
+      var ov = openModal(root);
+    }
+
+    function confirmDeleteFolder(name){
+      var root = el('div');
+      root.appendChild(el('h3', { text: T('conFolderTitle') }));
+      root.appendChild(el('p', { class: 'confirm-msg', text: T('conFolder') }));
+      var acts = el('div', { class: 'modal-actions' });
+      var cancel = el('button', { class: 'btn', onclick: function(){ closeModal(ov); } });
+      cancel.appendChild(document.createTextNode(T('cancel')));
+      var yes = el('button', { class: 'btn primary', onclick: function(){
+        state.snippets.forEach(function(s){ if(s.folder === name) s.folder = 'General'; });
+        state.folders = state.folders.filter(function(f){ return f !== name; });
+        if(state.filter.folder === name) state.filter.folder = 'all';
+        saveState(); renderAll(); closeModal(ov); toast(T('del'), 'ok');
+      } });
+      yes.appendChild(document.createTextNode(T('del')));
+      acts.appendChild(cancel); acts.appendChild(yes); root.appendChild(acts);
+      var ov = openModal(root);
+    }
+
+    /* ---------- import / export ---------- */
+    function exportAll(){
+      try {
+        var data = exportJSON(state.snippets);
+        var blob = new Blob([data], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = el('a', { href: url, download: 'snipforge-snippets.json' });
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+        toast(T('exportOk'), 'ok');
+      } catch(e){ toast(T('exportOk'), 'warn'); }
+    }
+    function importAll(text){
+      try {
+        var imported = importJSON(text);
+        var existing = {};
+        state.snippets.forEach(function(s){ existing[s.id] = true; });
+        var added = 0;
+        imported.forEach(function(s){
+          if(existing[s.id]) s.id = uid();
+          ensureFolder(s.folder);
+          state.snippets.push(s); added++;
+        });
+        saveState(); renderAll();
+        toast(T('importOk') + ' (' + added + ')', 'ok');
+      } catch(e){
+        toast(T('importFail'), 'warn');
+      }
+    }
+
+    /* ---------- toast ---------- */
+    function toast(msg, type){
+      var wrap = document.getElementById('toasts');
+      var t = el('div', { class: 'toast' + (type ? ' ' + type : ''), text: msg });
+      wrap.appendChild(t);
+      if(typeof requestAnimationFrame === 'function') requestAnimationFrame(function(){ t.classList.add('show'); });
+      else t.classList.add('show');
+      setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 300); }, 2600);
+    }
+
+    /* ---------- language ---------- */
+    function applyLang(){
+      document.documentElement.lang = (lang === 'zh') ? 'zh' : 'en';
+      document.getElementById('search').placeholder = T('search');
+      document.getElementById('lblNew').textContent = T('new');
+      document.getElementById('lblFolder').textContent = T('newFolder');
+      document.getElementById('lblImport').textContent = T('import');
+      document.getElementById('lblExport').textContent = T('export');
+      document.getElementById('btnLang').textContent = (lang === 'zh') ? 'EN' : '中';
+      document.getElementById('brandSub').textContent = T('brandSub');
+    }
+    function toggleLang(){
+      lang = (lang === 'zh') ? 'en' : 'zh';
+      saveLang(); applyLang(); renderAll();
+    }
+
+    /* ---------- init ---------- */
+    function init(){
+      lang = loadLang();
+      var raw = loadRaw();
+      if(raw){
+        try {
+          var data = JSON.parse(raw);
+          state.snippets = Array.isArray(data.snippets) ? data.snippets.map(normalizeSnippet) : [];
+          state.folders = Array.isArray(data.folders) ? data.folders : [];
+        } catch(e){ state.snippets = []; state.folders = []; }
+      }
+      if(state.snippets.length === 0){
+        state.snippets = SAMPLES.map(function(s){ return normalizeSnippet(s); });
+        state.folders = uniqueFolders();
+        saveState();
+      }
+      applyLang();
+      renderAll();
+
+      // events
+      document.getElementById('btnNew').addEventListener('click', function(){ openEditor(null); });
+      document.getElementById('btnFolder').addEventListener('click', function(){
+        promptText(T('newFolderTitle'), T('folderName'), '', function(name){ ensureFolder(name); saveState(); renderAll(); toast(name, 'ok'); });
+      });
+      document.getElementById('btnImport').addEventListener('click', function(){ document.getElementById('fileInput').click(); });
+      document.getElementById('btnExport').addEventListener('click', exportAll);
+      document.getElementById('btnLang').addEventListener('click', toggleLang);
+
+      var search = document.getElementById('search');
+      search.addEventListener('input', function(){ state.filter.query = search.value; renderList(); });
+
+      var fileInput = document.getElementById('fileInput');
+      fileInput.addEventListener('change', function(e){
+        var file = e.target.files && e.target.files[0];
+        if(!file) return;
+        var reader = new FileReader();
+        reader.onload = function(){ importAll(String(reader.result || '')); fileInput.value = ''; };
+        reader.onerror = function(){ toast(T('importFail'), 'warn'); fileInput.value = ''; };
+        reader.readAsText(file);
+      });
+
+      document.addEventListener('keydown', function(e){
+        var t = e.target;
+        var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
+        if(e.key === '/' && !typing){ e.preventDefault(); search.focus(); }
+        else if((e.key === 'n' || e.key === 'N') && !typing){ e.preventDefault(); openEditor(null); }
+        else if(e.key === 'Escape'){ var ov = document.querySelector('.modal-overlay'); if(ov) closeModal(ov); }
+      });
+
+      if('serviceWorker' in navigator){
+        navigator.serviceWorker.register('sw.js').catch(function(){ /* offline only */ });
+      }
+    }
+
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  })();
+}
+</script>
+<footer style="margin-top:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);color:#71717A;font-size:12px;text-align:center">nano-tools · 单文件 · 零依赖 · 本地优先 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</body>
+</html>

@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>ActionsForge — GitHub Actions 检查器：解析 workflow YAML，校验 job 依赖图、矩阵与缓存配置，提示把密钥 echo 到日志等反模式，离线可用。</title>
+<meta property="og:title" content="ActionsForge">
+<meta property="og:description" content="GitHub Actions 检查器：粘贴 workflow YAML，解析 jobs/steps/needs/触发事件与 secrets 引用，校验步骤依赖图是否有环、矩阵与缓存配置是否合理，并提示常见反模式（如把密钥直接 echo 到日志）。评审 CI/CD 配置、排查流水线失败，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="GitHub Actions 检查器：粘贴 workflow YAML，解析 jobs/steps/needs/触发事件与 secrets 引用，校验步骤依赖图是否有环、矩阵与缓存配置是否合理，并提示常见反模式（如把密钥直接 echo 到日志）。评审 CI/CD 配置、排查流水线失败，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+pre.pcf{white-space:pre-wrap;word-break:break-all;background:var(--surface);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin:6px 0 0}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+.pbar{display:inline-block;width:70px;height:6px;background:rgba(255,255,255,.08);
+      border-radius:3px;vertical-align:middle;overflow:hidden;margin-left:6px}
+.pbar>span{display:block;height:100%;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>ActionsForge</h1>
+  <p class="sub">GitHub Actions · CI/CD · 工作流</p>
+
+<label for="gha-src">GitHub Actions 工作流 YAML</label>
+<textarea id="gha-src" rows="14" placeholder="name: CI&#10;on: [push]&#10;jobs:&#10;  build:&#10;    runs-on: ubuntu-latest"></textarea>
+<div class="row">
+  <button id="gha-go">解析并体检</button>
+  <button class="ghost" id="gha-demo">高风险示例</button>
+  <button class="ghost" id="gha-safe">加固后示例</button>
+  <button class="ghost" id="gha-clr">清空</button>
+</div>
+<div class="err" id="gha-err"></div>
+<div class="out" id="gha-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 373 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function ActionsForgePure(){
+  // ==================== YAML 子集解析 ====================
+  function rep(n){ var s = ''; for (var i = 0; i < n; i++) s += ' '; return s; }
+
+  function stripComment(t){
+    var q = null, out = '';
+    for (var i = 0; i < t.length; i++){
+      var c = t[i];
+      if (q){ if (c === q) q = null; out += c; continue; }
+      if (c === '"' || c === "'"){ q = c; out += c; continue; }
+      if (c === '#' && (i === 0 || t[i-1] === ' ')) break;
+      out += c;
+    }
+    return out.replace(/\s+$/, '');
+  }
+
+  function tokenize(src){
+    var raw = String(src == null ? '' : src).replace(/\r\n/g, '\n').replace(/\t/g, '  ').split('\n');
+    var out = [];
+    for (var i = 0; i < raw.length; i++){
+      var ln = raw[i].replace(/\s+$/, '');
+      var ind = 0; while (ind < ln.length && ln[ind] === ' ') ind++;
+      var body = ln.slice(ind);
+      out.push({no:i+1, indent:ind, text:body, blank:(body === '')});
+    }
+    return out;
+  }
+
+  function findKeyColon(t){
+    var q = null, depth = 0;
+    for (var i = 0; i < t.length; i++){
+      var c = t[i];
+      if (q){ if (c === q) q = null; continue; }
+      if (c === '"' || c === "'"){ q = c; continue; }
+      if (c === '[' || c === '{') depth++;
+      else if (c === ']' || c === '}') depth--;
+      else if (c === ':' && depth === 0){
+        if (i + 1 >= t.length || t[i+1] === ' ') return i;
+      }
+    }
+    return -1;
+  }
+
+  function splitFlow(s){
+    var parts = [], depth = 0, q = null, cur = '';
+    for (var i = 0; i < s.length; i++){
+      var c = s[i];
+      if (q){ cur += c; if (c === q) q = null; continue; }
+      if (c === '"' || c === "'"){ q = c; cur += c; continue; }
+      if (c === '[' || c === '{'){ depth++; cur += c; continue; }
+      if (c === ']' || c === '}'){ depth--; cur += c; continue; }
+      if (c === ',' && depth === 0){ parts.push(cur.trim()); cur = ''; continue; }
+      cur += c;
+    }
+    if (cur.trim() !== '') parts.push(cur.trim());
+    return parts;
+  }
+
+  function unquote(s){
+    s = s.trim();
+    if (s.length >= 2){
+      if (s[0] === '"' && s[s.length-1] === '"'){
+        return s.slice(1, -1).replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      }
+      if (s[0] === "'" && s[s.length-1] === "'") return s.slice(1, -1).replace(/''/g, "'");
+    }
+    return s;
+  }
+
+  function scalar(s){
+    s = s.trim();
+    if (s === '') return '';
+    if (s[0] === '"' || s[0] === "'") return unquote(s);
+    if (s[0] === '[' && s[s.length-1] === ']'){
+      var b = s.slice(1, -1).trim();
+      if (b === '') return [];
+      var ps = splitFlow(b), arr = [];
+      for (var i = 0; i < ps.length; i++) arr.push(scalar(ps[i]));
+      return arr;
+    }
+    if (s[0] === '{' && s[s.length-1] === '}'){
+      var b2 = s.slice(1, -1).trim(), o = {};
+      if (b2 === '') return o;
+      var ps2 = splitFlow(b2);
+      for (var j = 0; j < ps2.length; j++){
+        var ci = findKeyColon(ps2[j]);
+        if (ci < 0){ o[unquote(ps2[j])] = null; continue; }
+        o[unquote(ps2[j].slice(0, ci))] = scalar(ps2[j].slice(ci+1));
+      }
+      return o;
+    }
+    if (/^(true|yes)$/i.test(s)) return true;
+    if (/^(false|no)$/i.test(s)) return false;
+    if (/^(null|~)$/i.test(s)) return null;
+    if (/^-?\d+$/.test(s)) return parseInt(s, 10);
+    if (/^-?\d*\.\d+$/.test(s)) return parseFloat(s);
+    return s;
+  }
+
+  function nextReal(lines, i){
+    while (i < lines.length){
+      if (lines[i].blank){ i++; continue; }
+      if (stripComment(lines[i].text) === ''){ i++; continue; }
+      return i;
+    }
+    return -1;
+  }
+
+  function readBlockScalar(lines, st, indent, marker){
+    var folded = marker.charAt(0) === '>';
+    var chomp = /-/.test(marker) ? '-' : (/\+/.test(marker) ? '+' : '');
+    var buf = [], base = -1;
+    while (st.i < lines.length){
+      var L = lines[st.i];
+      if (L.blank){ buf.push(''); st.i++; continue; }
+      if (L.indent <= indent) break;
+      if (base < 0) base = L.indent;
+      buf.push(rep(Math.max(0, L.indent - base)) + L.text);
+      st.i++;
+    }
+    while (buf.length && buf[buf.length-1] === '') buf.pop();
+    var s = folded ? buf.join(' ') : buf.join('\n');
+    if (chomp !== '-' && s !== '') s += '\n';
+    return s;
+  }
+
+  function collectChild(lines, st, indent, ctx){
+    var k = nextReal(lines, st.i);
+    if (k < 0) return null;
+    var L = lines[k];
+    if (L.indent > indent){ st.i = k; return parseNode(lines, st, L.indent, ctx); }
+    if (L.indent === indent){
+      var t = stripComment(L.text);
+      if (t.charAt(0) === '-' && (t.length === 1 || t.charAt(1) === ' ')){ st.i = k; return parseSeq(lines, st, indent, ctx); }
+    }
+    return null;
+  }
+
+  function parseNode(lines, st, indent, ctx){
+    var k = nextReal(lines, st.i);
+    if (k < 0) return null;
+    st.i = k;
+    var t = stripComment(lines[k].text);
+    if (t.charAt(0) === '-' && (t.length === 1 || t.charAt(1) === ' ')) return parseSeq(lines, st, indent, ctx);
+    return parseMap(lines, st, indent, ctx);
+  }
+
+  function parseMap(lines, st, indent, ctx){
+    var obj = {}; ctx.meta.push(obj);
+    obj.__lines = {};
+    while (st.i < lines.length){
+      var L = lines[st.i];
+      if (L.blank){ st.i++; continue; }
+      var t = stripComment(L.text);
+      if (t === ''){ st.i++; continue; }
+      if (L.indent < indent) break;
+      if (L.indent > indent){ ctx.errors.push('第 ' + L.no + ' 行缩进异常（多出 ' + (L.indent - indent) + ' 空格）'); st.i++; continue; }
+      if (t.charAt(0) === '-') break;
+      var ci = findKeyColon(t);
+      if (ci < 0){ ctx.errors.push('第 ' + L.no + ' 行不是合法键值对：' + t); st.i++; continue; }
+      var key = unquote(t.slice(0, ci));
+      var rest = t.slice(ci+1).trim();
+      obj.__lines[key] = L.no;
+      st.i++;
+      if (rest === ''){
+        obj[key] = collectChild(lines, st, indent, ctx);
+      } else if (/^[|>][-+]?\d*$/.test(rest)){
+        obj[key] = readBlockScalar(lines, st, indent, rest);
+      } else {
+        obj[key] = scalar(rest);
+      }
+    }
+    return obj;
+  }
+
+  function parseSeq(lines, st, indent, ctx){
+    var arr = [];
+    while (st.i < lines.length){
+      var L = lines[st.i];
+      if (L.blank){ st.i++; continue; }
+      var t = stripComment(L.text);
+      if (t === ''){ st.i++; continue; }
+      if (L.indent !== indent) break;
+      if (!(t.charAt(0) === '-' && (t.length === 1 || t.charAt(1) === ' '))) break;
+      var after = t.slice(1);
+      var lead = after.length - after.replace(/^ +/, '').length;
+      var rest = after.slice(lead);
+      if (rest === ''){
+        st.i++;
+        arr.push(collectChild(lines, st, indent, ctx));
+      } else {
+        var ni = indent + 1 + lead;
+        lines[st.i] = {no:L.no, indent:ni, text:rest, blank:false};
+        if (findKeyColon(rest) >= 0) arr.push(parseMap(lines, st, ni, ctx));
+        else if (rest.charAt(0) === '-') arr.push(parseSeq(lines, st, ni, ctx));
+        else { arr.push(scalar(rest)); st.i++; }
+      }
+    }
+    return arr;
+  }
+
+  function parseYaml(src){
+    if (String(src == null ? '' : src).trim() === '') return {error:'请输入 GitHub Actions 工作流 YAML'};
+    var lines = tokenize(src);
+    var ctx = {errors:[], meta:[]};
+    var st = {i:0};
+    var doc = parseNode(lines, st, 0, ctx);
+    if (doc === null) return {error:'未解析出任何内容（是否全为注释？）'};
+    if (Object.prototype.toString.call(doc) !== '[object Object]') return {error:'工作流顶层必须是映射（key: value），当前是序列'};
+    return {value:doc, errors:ctx.errors};
+  }
+
+  function lineOf(obj, key){
+    return (obj && obj.__lines && obj.__lines[key]) || 0;
+  }
+
+  // ==================== uses 引用解析 ====================
+  function parseUses(u){
+    var s = String(u == null ? '' : u).trim();
+    if (s === '') return {error:'空的 uses'};
+    if (s.indexOf('docker://') === 0) return {kind:'docker', image:s.slice(9), raw:s};
+    if (s.charAt(0) === '.' ) return {kind:'local', path:s, raw:s};
+    var at = s.lastIndexOf('@');
+    if (at < 0) return {kind:'remote', raw:s, error:'缺少 @ref（未指定版本）'};
+    var left = s.slice(0, at), ref = s.slice(at+1);
+    var seg = left.split('/');
+    if (seg.length < 2) return {kind:'remote', raw:s, error:'格式应为 owner/repo[/path]@ref'};
+    var pinned = /^[0-9a-f]{40}$/i.test(ref);
+    var mutable = /^(main|master|latest|HEAD|develop)$/.test(ref);
+    return {
+      kind:'remote', raw:s, owner:seg[0], repo:seg[1],
+      path:(seg.length > 2 ? seg.slice(2).join('/') : ''),
+      ref:ref, pinned:pinned, mutable:mutable,
+      tagged:(!pinned && !mutable)
+    };
+  }
+
+  // ==================== 矩阵展开 ====================
+  function expandMatrix(matrix){
+    if (!matrix || typeof matrix !== 'object') return [{}];
+    var keys = [], k;
+    for (k in matrix){
+      if (!Object.prototype.hasOwnProperty.call(matrix, k)) continue;
+      if (k === 'include' || k === 'exclude' || k === '__lines') continue;
+      keys.push(k);
+    }
+    var combos = [{}];
+    for (var i = 0; i < keys.length; i++){
+      var vals = matrix[keys[i]];
+      if (!(vals instanceof Array)) vals = [vals];
+      var next = [];
+      for (var a = 0; a < combos.length; a++){
+        for (var b = 0; b < vals.length; b++){
+          var o = {}, kk;
+          for (kk in combos[a]) if (Object.prototype.hasOwnProperty.call(combos[a], kk)) o[kk] = combos[a][kk];
+          o[keys[i]] = vals[b];
+          next.push(o);
+        }
+      }
+      combos = next;
+    }
+    // exclude
+    var ex = matrix.exclude instanceof Array ? matrix.exclude : [];
+    if (ex.length){
+      combos = combos.filter(function(c){
+        for (var e = 0; e < ex.length; e++){
+          var rule = ex[e], all = true, rk;
+          for (rk in rule){
+            if (!Object.prototype.hasOwnProperty.call(rule, rk) || rk === '__lines') continue;
+            if (String(c[rk]) !== String(rule[rk])){ all = false; break; }
+          }
+          if (all) return false;
+        }
+        return true;
+      });
+    }
+    // include：能匹配已有组合则扩展该组合，否则追加为新组合
+    var inc = matrix.include instanceof Array ? matrix.include : [];
+    for (var m = 0; m < inc.length; m++){
+      var rule2 = inc[m], matched = false, rk2;
+      for (var c2 = 0; c2 < combos.length; c2++){
+        var fits = true, overlap = false;
+        for (rk2 in rule2){
+          if (!Object.prototype.hasOwnProperty.call(rule2, rk2) || rk2 === '__lines') continue;
+          if (Object.prototype.hasOwnProperty.call(combos[c2], rk2)){
+            overlap = true;
+            if (String(combos[c2][rk2]) !== String(rule2[rk2])){ fits = false; break; }
+          }
+        }
+        if (fits && overlap){
+          for (rk2 in rule2){
+            if (!Object.prototype.hasOwnProperty.call(rule2, rk2) || rk2 === '__lines') continue;
+            combos[c2][rk2] = rule2[rk2];
+          }
+          matched = true;
+        }
+      }
+      if (!matched){
+        var fresh = {}, rk3;
+        for (rk3 in rule2){
+          if (!Object.prototype.hasOwnProperty.call(rule2, rk3) || rk3 === '__lines') continue;
+          fresh[rk3] = rule2[rk3];
+        }
+        combos.push(fresh);
+      }
+    }
+    return combos;
+  }
+
+  // ==================== 作业依赖图 ====================
+  function jobGraph(jobs){
+    var names = [], k;
+    for (k in jobs){ if (Object.prototype.hasOwnProperty.call(jobs, k) && k !== '__lines') names.push(k); }
+    var edges = [], missing = [];
+    for (var i = 0; i < names.length; i++){
+      var j = jobs[names[i]] || {};
+      var need = j.needs;
+      if (need == null) continue;
+      if (!(need instanceof Array)) need = [need];
+      for (var n = 0; n < need.length; n++){
+        var dep = String(need[n]);
+        if (names.indexOf(dep) < 0) missing.push({job:names[i], dep:dep});
+        else edges.push({from:dep, to:names[i]});
+      }
+    }
+    // 分波次（拓扑分层）
+    var remaining = names.slice(), waves = [], guard = 0, done = [];
+    while (remaining.length && guard++ < 200){
+      var ready = remaining.filter(function(nm){
+        for (var e = 0; e < edges.length; e++){
+          if (edges[e].to === nm && done.indexOf(edges[e].from) < 0) return false;
+        }
+        return true;
+      });
+      if (!ready.length) break;
+      waves.push(ready);
+      for (var r = 0; r < ready.length; r++){ done.push(ready[r]); remaining.splice(remaining.indexOf(ready[r]), 1); }
+    }
+    return {nodes:names, edges:edges, waves:waves, missing:missing, cyclic:remaining.slice()};
+  }
+
+  // ==================== 体检规则 ====================
+  var UNTRUSTED = [
+    'github.event.issue.title', 'github.event.issue.body',
+    'github.event.pull_request.title', 'github.event.pull_request.body',
+    'github.event.pull_request.head.ref', 'github.event.pull_request.head.label',
+    'github.event.pull_request.head.repo.default_branch',
+    'github.event.comment.body', 'github.event.review.body',
+    'github.event.review_comment.body', 'github.event.discussion.title',
+    'github.event.discussion.body', 'github.event.head_commit.message',
+    'github.event.head_commit.author.email', 'github.event.head_commit.author.name',
+    'github.event.pages', 'github.head_ref'
+  ];
+  var SECRET_PAT = [
+    {re:/AKIA[0-9A-Z]{16}/, name:'AWS Access Key ID'},
+    {re:/gh[pousr]_[A-Za-z0-9]{16,}/, name:'GitHub Token'},
+    {re:/xox[baprs]-[A-Za-z0-9-]{10,}/, name:'Slack Token'},
+    {re:/-----BEGIN [A-Z ]*PRIVATE KEY-----/, name:'私钥 PEM'},
+    {re:/sk-[A-Za-z0-9]{20,}/, name:'OpenAI 风格密钥'}
+  ];
+
+  function toList(v){
+    if (v == null) return [];
+    if (v instanceof Array) return v.map(String);
+    if (typeof v === 'object'){
+      var out = [], k;
+      for (k in v){ if (Object.prototype.hasOwnProperty.call(v, k) && k !== '__lines') out.push(k); }
+      return out;
+    }
+    return [String(v)];
+  }
+
+  function lint(doc){
+    var iss = [];
+    function add(level, text, line){ iss.push({level:level, text:text, line:line || 0}); }
+
+    var triggers = toList(doc.on !== undefined ? doc.on : doc[true]);
+    if (!triggers.length) add('err', '缺少 on 触发器，工作流永远不会运行', lineOf(doc, 'on'));
+    var jobs = doc.jobs;
+    if (!jobs || typeof jobs !== 'object'){
+      add('err', '缺少 jobs 段落', lineOf(doc, 'jobs'));
+      return {issues:iss, graph:{nodes:[], edges:[], waves:[], missing:[], cyclic:[]}, triggers:triggers, steps:0, actions:[]};
+    }
+
+    // 顶层权限
+    if (doc.permissions === undefined) add('warn', '未声明顶层 permissions，GITHUB_TOKEN 将沿用仓库默认权限（可能是可写）', lineOf(doc, 'name'));
+    else if (doc.permissions === 'write-all') add('err', 'permissions: write-all 授予全量写权限，违反最小权限原则', lineOf(doc, 'permissions'));
+
+    if (triggers.indexOf('pull_request') >= 0 && doc.concurrency === undefined)
+      add('info', '建议配置 concurrency + cancel-in-progress，避免同一 PR 反复排队浪费额度', lineOf(doc, 'on'));
+
+    var jobNames = [], k;
+    for (k in jobs){ if (Object.prototype.hasOwnProperty.call(jobs, k) && k !== '__lines') jobNames.push(k); }
+    if (!jobNames.length) add('err', 'jobs 下没有任何作业', lineOf(doc, 'jobs'));
+
+    var dangerousTrigger = triggers.indexOf('pull_request_target') >= 0 || triggers.indexOf('workflow_run') >= 0;
+    var forkTrigger = dangerousTrigger || triggers.indexOf('pull_request') >= 0;
+    var totalSteps = 0, actions = [];
+
+    for (var ji = 0; ji < jobNames.length; ji++){
+      var jn = jobNames[ji], job = jobs[jn] || {};
+      var jline = lineOf(jobs, jn);
+      if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(jn)) add('err', '作业 ID「' + jn + '」非法：只能由字母/数字/_/- 组成且不能以数字开头', jline);
+
+      var steps = job.steps;
+      if (!(steps instanceof Array) || !steps.length){
+        if (job.uses === undefined) add('err', '作业「' + jn + '」既没有 steps 也没有 uses（可复用工作流）', jline);
+        steps = [];
+      }
+      if (job['runs-on'] === undefined && job.uses === undefined)
+        add('err', '作业「' + jn + '」缺少 runs-on', jline);
+      var runner = String(job['runs-on'] == null ? '' : (typeof job['runs-on'] === 'object' ? JSON.stringify(job['runs-on']) : job['runs-on']));
+      if (/self-hosted/.test(runner) && forkTrigger)
+        add('warn', '作业「' + jn + '」在 self-hosted runner 上响应 PR 事件：fork 提交的代码会在你的机器上执行', jline);
+      if (job['timeout-minutes'] === undefined)
+        add('info', '作业「' + jn + '」未设置 timeout-minutes，卡死时会一直占用额度（默认 360 分钟）', jline);
+      if (job['continue-on-error'] === true)
+        add('info', '作业「' + jn + '」设置了 continue-on-error，失败不会阻断流水线', jline);
+      if (job.permissions === undefined && doc.permissions === undefined && steps.length)
+        add('info', '作业「' + jn + '」可按需收敛 permissions（如 contents: read）', jline);
+
+      totalSteps += steps.length;
+      var seenIds = {};
+      for (var si = 0; si < steps.length; si++){
+        var stp = steps[si] || {};
+        var sline = lineOf(stp, 'uses') || lineOf(stp, 'run') || lineOf(stp, 'name') || jline;
+        var label = '作业「' + jn + '」第 ' + (si+1) + ' 步' + (stp.name ? '（' + stp.name + '）' : '');
+
+        if (stp.id !== undefined){
+          if (seenIds[stp.id]) add('err', label + ' 的 id「' + stp.id + '」在同一作业内重复', sline);
+          seenIds[stp.id] = 1;
+        }
+        if (stp.uses === undefined && stp.run === undefined)
+          add('err', label + ' 既没有 uses 也没有 run', sline);
+        if (stp.uses !== undefined && stp.run !== undefined)
+          add('err', label + ' 同时写了 uses 和 run，二者互斥', sline);
+
+        if (stp.uses !== undefined){
+          var u = parseUses(stp.uses);
+          if (u.error) add('err', label + ' 的 uses 无效：' + u.error, sline);
+          if (u.kind === 'remote' && !u.error){
+            actions.push(u.owner + '/' + u.repo + (u.path ? '/' + u.path : '') + '@' + u.ref);
+            if (u.mutable)
+              add('err', label + ' 引用可变分支 ' + u.raw + '：上游改一行代码就会进入你的流水线，请改为 40 位 commit SHA', sline);
+            else if (u.tagged && u.owner !== 'actions' && u.owner !== 'github')
+              add('warn', label + ' 引用第三方动作 ' + u.raw + ' 但只按标签固定：标签可被上游重打，建议改为 commit SHA 并用注释标注版本', sline);
+            if (/^actions\/(checkout|setup-node|upload-artifact|download-artifact|cache)$/.test(u.owner + '/' + u.repo) && /^v[123]$/.test(u.ref))
+              add('info', label + ' 使用 ' + u.raw + '：该大版本运行在已弃用的 Node 运行时上，建议升级', sline);
+            if (stp['with'] && typeof stp['with'] === 'object' && u.repo === 'checkout'){
+              var refv = String(stp['with'].ref == null ? '' : stp['with'].ref);
+              if (dangerousTrigger && /pull_request|head\.sha|head\.ref|github\.event/.test(refv))
+                add('err', label + '：pull_request_target / workflow_run 触发下检出 PR 代码，同时持有可写 token 与 secrets，这是最典型的 CI 提权路径', sline);
+            }
+          }
+          if (stp['with'] && typeof stp['with'] === 'object'){
+            var wk;
+            for (wk in stp['with']){
+              if (!Object.prototype.hasOwnProperty.call(stp['with'], wk) || wk === '__lines') continue;
+              var wv = String(stp['with'][wk]);
+              if (/secrets\./.test(wv) && u.kind === 'remote' && u.owner !== 'actions' && u.owner !== 'github')
+                add('warn', label + ' 把 secrets 传给第三方动作 ' + u.raw + '，请确认该动作已固定到 SHA', sline);
+            }
+          }
+        }
+
+        if (typeof stp.run === 'string'){
+          var body = stp.run;
+          for (var ui = 0; ui < UNTRUSTED.length; ui++){
+            var pat = new RegExp('\\$\\{\\{[^}]*' + UNTRUSTED[ui].replace(/\./g, '\\.') + '[^}]*\\}\\}');
+            if (pat.test(body)){
+              add('err', label + ' 在 run 脚本里直接插值 ' + UNTRUSTED[ui] + '：攻击者可提交带反引号的标题实现命令注入，请改为 env 中转再引用 "$VAR"', sline);
+              break;
+            }
+          }
+          if (/::set-output|::save-state/.test(body))
+            add('warn', label + ' 使用已废弃的 ::set-output / ::save-state 工作流命令，请改用 $GITHUB_OUTPUT', sline);
+          if (/curl[^\n]*\|\s*(ba)?sh/.test(body))
+            add('warn', label + ' 存在 curl | sh 直接执行远端脚本的模式，供应链风险高', sline);
+          for (var pi = 0; pi < SECRET_PAT.length; pi++){
+            if (SECRET_PAT[pi].re.test(body)){
+              add('err', label + ' 的脚本里疑似硬编码 ' + SECRET_PAT[pi].name, sline);
+              break;
+            }
+          }
+        }
+      }
+
+      // env 硬编码密钥
+      if (job.env && typeof job.env === 'object'){
+        var ek;
+        for (ek in job.env){
+          if (!Object.prototype.hasOwnProperty.call(job.env, ek) || ek === '__lines') continue;
+          var ev = String(job.env[ek]);
+          for (var qi = 0; qi < SECRET_PAT.length; qi++){
+            if (SECRET_PAT[qi].re.test(ev)){ add('err', '作业「' + jn + '」的 env.' + ek + ' 疑似硬编码 ' + SECRET_PAT[qi].name, jline); break; }
+          }
+        }
+      }
+    }
+
+    var g = jobGraph(jobs);
+    for (var mi = 0; mi < g.missing.length; mi++)
+      add('err', '作业「' + g.missing[mi].job + '」的 needs 指向不存在的作业「' + g.missing[mi].dep + '」', 0);
+    if (g.cyclic.length)
+      add('err', '作业依赖存在环：' + g.cyclic.join(' ↔ ') + '（工作流将永远无法调度）', 0);
+
+    return {issues:iss, graph:g, triggers:triggers, steps:totalSteps, actions:actions};
+  }
+
+  function summary(doc, lr){
+    var jobs = doc.jobs || {}, names = lr.graph.nodes;
+    var rows = [];
+    for (var i = 0; i < names.length; i++){
+      var j = jobs[names[i]] || {};
+      var mx = (j.strategy && j.strategy.matrix) ? expandMatrix(j.strategy.matrix) : [];
+      rows.push({
+        id: names[i],
+        name: j.name || names[i],
+        runner: (typeof j['runs-on'] === 'object' && j['runs-on'] !== null) ? JSON.stringify(j['runs-on']) : (j['runs-on'] || (j.uses ? '（可复用工作流）' : '—')),
+        steps: (j.steps instanceof Array) ? j.steps.length : 0,
+        needs: toList(j.needs),
+        matrix: mx.length
+      });
+    }
+    var uniq = [];
+    for (var a = 0; a < lr.actions.length; a++) if (uniq.indexOf(lr.actions[a]) < 0) uniq.push(lr.actions[a]);
+    return {jobs:rows, uniqueActions:uniq};
+  }
+
+  function analyze(src){
+    var p = parseYaml(src);
+    if (p.error) return {error:p.error};
+    var doc = p.value;
+    var lr = lint(doc);
+    var sm = summary(doc, lr);
+    var iss = lr.issues.slice();
+    for (var i = 0; i < p.errors.length; i++) iss.push({level:'err', text:'YAML 语法：' + p.errors[i], line:0});
+    iss.sort(function(a, b){
+      var rank = {err:0, warn:1, info:2};
+      if (rank[a.level] !== rank[b.level]) return rank[a.level] - rank[b.level];
+      return (a.line || 0) - (b.line || 0);
+    });
+    return {
+      doc: doc,
+      name: doc.name || '(未命名工作流)',
+      triggers: lr.triggers,
+      graph: lr.graph,
+      jobs: sm.jobs,
+      uniqueActions: sm.uniqueActions,
+      stepCount: lr.steps,
+      issues: iss,
+      errCount: iss.filter(function(x){ return x.level === 'err'; }).length,
+      warnCount: iss.filter(function(x){ return x.level === 'warn'; }).length
+    };
+  }
+
+  var api = {parseYaml:parseYaml, parseUses:parseUses, expandMatrix:expandMatrix,
+             jobGraph:jobGraph, lint:lint, analyze:analyze, scalar:scalar,
+             findKeyColon:findKeyColon, stripComment:stripComment};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {ActionsForgePure:ActionsForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = ActionsForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var RISKY = [
+    'name: PR 预检',
+    'on:',
+    '  pull_request_target:',
+    '    types: [opened, synchronize]',
+    'permissions: write-all',
+    'jobs:',
+    '  review:',
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - uses: actions/checkout@v3',
+    '        with:',
+    '          ref: ${{ github.event.pull_request.head.sha }}',
+    '      - uses: some-vendor/lint-action@main',
+    '        with:',
+    '          token: ${{ secrets.DEPLOY_TOKEN }}',
+    '      - name: 打印标题',
+    '        run: |',
+    '          echo "收到 PR：${{ github.event.pull_request.title }}"',
+    '          echo "::set-output name=ok::1"',
+    '  deploy:',
+    '    needs: [review, missing-job]',
+    '    runs-on: self-hosted',
+    '    strategy:',
+    '      matrix:',
+    '        node: [18, 20, 22]',
+    '        os: [ubuntu-latest, windows-latest]',
+    '        exclude:',
+    '          - node: 18',
+    '            os: windows-latest',
+    '    steps:',
+    '      - run: make deploy'
+  ].join('\n');
+  var SAFE = [
+    'name: PR 预检',
+    'on:',
+    '  pull_request:',
+    '    types: [opened, synchronize]',
+    'permissions:',
+    '  contents: read',
+    'concurrency:',
+    '  group: pr-${{ github.ref }}',
+    '  cancel-in-progress: true',
+    'jobs:',
+    '  review:',
+    '    runs-on: ubuntu-latest',
+    '    timeout-minutes: 15',
+    '    steps:',
+    '      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683',
+    '      - name: 打印标题',
+    '        env:',
+    '          PR_TITLE: ${{ github.event.pull_request.title }}',
+    '        run: echo "收到 PR：$PR_TITLE"'
+  ].join('\n');
+
+  function run(){
+    var r = P.analyze(document.getElementById('gha-src').value);
+    var $e = document.getElementById('gha-err'), $o = document.getElementById('gha-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var h = '';
+    h += '<div class="kv"><b>工作流</b><span>' + esc(r.name) + '</span></div>';
+    h += '<div class="kv"><b>触发器</b><span>' + (r.triggers.length ? esc(r.triggers.join('、')) : '—') + '</span></div>';
+    h += '<div class="kv"><b>作业 / 步骤</b><span>' + r.graph.nodes.length + ' 个作业，' + r.stepCount + ' 步</span></div>';
+    h += '<div class="kv"><b>严重 / 警告</b><span><span style="color:' + (r.errCount ? '#EF4444' : 'var(--ok)') + ';font-weight:700">' +
+         r.errCount + '</span> / <span style="color:var(--warn)">' + r.warnCount + '</span></span></div>';
+
+    if (r.graph.waves.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">调度波次（同一波并行）</div>';
+      for (var w = 0; w < r.graph.waves.length; w++){
+        h += '<div class="kv"><b>第 ' + (w+1) + ' 波</b><span>' + esc(r.graph.waves[w].join('、')) + '</span></div>';
+      }
+    }
+
+    if (r.jobs.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">作业明细</div>';
+      for (var j = 0; j < r.jobs.length; j++){
+        var jb = r.jobs[j];
+        h += '<div class="kv"><b>' + esc(jb.id) + '</b><span>' + esc(jb.runner) + ' · ' + jb.steps + ' 步' +
+             (jb.matrix ? ' · 矩阵 ' + jb.matrix + ' 组合' : '') +
+             (jb.needs.length ? ' · 依赖 ' + esc(jb.needs.join('/')) : '') + '</span></div>';
+      }
+    }
+
+    if (r.issues.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">供应链与配置体检</div>';
+      for (var i = 0; i < r.issues.length; i++){
+        var it = r.issues[i];
+        var col = it.level === 'err' ? '#EF4444' : (it.level === 'warn' ? 'var(--warn)' : 'var(--muted)');
+        var tag = it.level === 'err' ? '严重' : (it.level === 'warn' ? '警告' : '建议');
+        h += '<div class="kv"><b style="color:' + col + '">' + tag + (it.line ? ' L' + it.line : '') +
+             '</b><span>' + esc(it.text) + '</span></div>';
+      }
+    } else {
+      h += '<div class="kv"><b>体检结果</b><span style="color:var(--ok)">未发现问题</span></div>';
+    }
+
+    if (r.uniqueActions.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">引用的动作</div>';
+      for (var a = 0; a < r.uniqueActions.length; a++){
+        var pu = P.parseUses(r.uniqueActions[a]);
+        var st = pu.pinned ? '<span style="color:var(--ok)">已固定 SHA</span>' :
+                 (pu.mutable ? '<span style="color:#EF4444">可变分支</span>' : '<span style="color:var(--warn)">标签固定</span>');
+        h += '<div class="kv"><b>' + esc(r.uniqueActions[a]) + '</b><span>' + st + '</span></div>';
+      }
+    }
+    $o.innerHTML = h;
+  }
+
+  document.getElementById('gha-go').addEventListener('click', run);
+  document.getElementById('gha-demo').addEventListener('click', function(){
+    document.getElementById('gha-src').value = RISKY; run();
+  });
+  document.getElementById('gha-safe').addEventListener('click', function(){
+    document.getElementById('gha-src').value = SAFE; run();
+  });
+  document.getElementById('gha-clr').addEventListener('click', function(){
+    document.getElementById('gha-src').value = '';
+    document.getElementById('gha-out').innerHTML = '';
+    document.getElementById('gha-err').textContent = '';
+  });
+  document.getElementById('gha-src').value = RISKY;
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

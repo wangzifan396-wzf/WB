@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>AvroForge — Avro 工具：解析模式、计算 PCF 与 64 位 Rabin 指纹、编码/解码单对象与容器，并评估模式演进兼容性，离线可用。</title>
+<meta property="og:title" content="AvroForge">
+<meta property="og:description" content="Avro 工具：解析 Avro 模式（record/enum/union/逻辑类型），计算解析规范形式（PCF）与 64 位 Rabin 指纹，编码/解码单对象（single-object）与二进制容器，并评估模式演进兼容性（FULL/BACKWARD/FORWARD）。调试 Kafka/数据流水线中的 Avro 载荷，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Avro 工具：解析 Avro 模式（record/enum/union/逻辑类型），计算解析规范形式（PCF）与 64 位 Rabin 指纹，编码/解码单对象（single-object）与二进制容器，并评估模式演进兼容性（FULL/BACKWARD/FORWARD）。调试 Kafka/数据流水线中的 Avro 载荷，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+pre.pcf{white-space:pre-wrap;word-break:break-all;background:var(--surface);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin:6px 0 0}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+.pbar{display:inline-block;width:70px;height:6px;background:rgba(255,255,255,.08);
+      border-radius:3px;vertical-align:middle;overflow:hidden;margin-left:6px}
+.pbar>span{display:block;height:100%;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>AvroForge</h1>
+  <p class="sub">Avro · Schema · 序列化</p>
+
+<label for="av-src">Avro Schema（JSON，读端 / 当前版本）</label>
+<textarea id="av-src" rows="9" placeholder='{"type":"record","name":"User","namespace":"com.example","fields":[]}'></textarea>
+<div class="row">
+  <button id="av-go">解析并计算指纹</button>
+  <button class="ghost" id="av-demo">示例：User 记录</button>
+  <button class="ghost" id="av-demo2">示例：逻辑类型与嵌套</button>
+  <button class="ghost" id="av-clr">清空</button>
+</div>
+<label for="av-old">写端 / 旧版本 Schema（可选，填了才做演进兼容性判定）</label>
+<textarea id="av-old" rows="7" placeholder="留空则只做单份 schema 体检"></textarea>
+<div class="row">
+  <button class="ghost" id="av-cmp">对比两份 schema 的兼容性</button>
+  <button class="ghost" id="av-demo3">示例：加了一个带默认值的字段</button>
+</div>
+<div class="err" id="av-err"></div>
+<div class="out" id="av-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 373 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function AvroForgePure(){
+  var PRIMITIVES = ['null', 'boolean', 'int', 'long', 'float', 'double', 'bytes', 'string'];
+  var NAMED = ['record', 'error', 'enum', 'fixed'];
+  var COMPLEX = ['record', 'error', 'enum', 'array', 'map', 'union', 'fixed'];
+  // 允许的类型提升：writer 类型 -> 可被读成的类型
+  var PROMOTE = {
+    'int':    ['long', 'float', 'double'],
+    'long':   ['float', 'double'],
+    'float':  ['double'],
+    'string': ['bytes'],
+    'bytes':  ['string']
+  };
+  var LOGICAL = {
+    'decimal':            ['bytes', 'fixed'],
+    'uuid':               ['string', 'fixed'],
+    'date':               ['int'],
+    'time-millis':        ['int'],
+    'time-micros':        ['long'],
+    'timestamp-millis':   ['long'],
+    'timestamp-micros':   ['long'],
+    'timestamp-nanos':    ['long'],
+    'local-timestamp-millis': ['long'],
+    'local-timestamp-micros': ['long'],
+    'local-timestamp-nanos':  ['long'],
+    'duration':           ['fixed']
+  };
+
+  function isName(s){ return /^[A-Za-z_][A-Za-z0-9_]*$/.test(String(s)); }
+  function isFullName(s){
+    var parts = String(s).split('.');
+    for (var i = 0; i < parts.length; i++) if (!isName(parts[i])) return false;
+    return parts.length > 0;
+  }
+  function fullName(name, namespace){
+    if (String(name).indexOf('.') >= 0) return String(name);
+    return namespace ? namespace + '.' + name : String(name);
+  }
+
+  // ==================== 解析 ====================
+  function parse(text){
+    var raw;
+    if (typeof text === 'object' && text !== null) raw = text;
+    else {
+      var s = String(text == null ? '' : text).trim();
+      if (s === '') return {error:'请输入 Avro Schema（JSON）'};
+      try { raw = JSON.parse(s); }
+      catch (e){ return {error:'JSON 解析失败：' + e.message}; }
+    }
+    var names = {}, errors = [];
+    var ast = walk(raw, '', names, errors, []);
+    if (typeof ast === 'string' && ast.indexOf('!!') === 0) return {error:ast.slice(2)};
+    return {value:ast, names:names, errors:errors};
+  }
+
+  function walk(node, enclosingNs, names, errors, path){
+    function err(msg){ errors.push({path:(path.join('.') || '<root>'), text:msg}); }
+
+    if (node === null) return {kind:'primitive', type:'null'};
+    if (typeof node === 'string'){
+      if (PRIMITIVES.indexOf(node) >= 0) return {kind:'primitive', type:node};
+      var fn = fullName(node, enclosingNs);
+      if (names[fn]) return {kind:'ref', type:fn};
+      if (names[node]) return {kind:'ref', type:node};
+      if (!isFullName(node)) err('非法的类型名「' + node + '」：既不是内建类型，也不是合法的命名类型引用');
+      else err('引用了未定义的命名类型「' + fn + '」：Avro 要求被引用的 record / enum / fixed 先出现在同一 schema 中');
+      return {kind:'ref', type:fn, unresolved:true};
+    }
+    if (node instanceof Array){
+      if (!node.length) err('联合类型不能为空数组');
+      var branches = [], seen = {};
+      for (var i = 0; i < node.length; i++){
+        var b = walk(node[i], enclosingNs, names, errors, path.concat(['union[' + i + ']']));
+        if (b.kind === 'union') err('联合类型不能直接嵌套联合类型（第 ' + (i+1) + ' 个分支）');
+        var key = b.kind === 'primitive' ? b.type : (b.name || b.type || b.kind);
+        if (b.kind === 'array') key = 'array';
+        if (b.kind === 'map') key = 'map';
+        if (seen[key]) err('联合类型中出现重复的分支「' + key + '」：同一联合里除命名类型外不允许同类型重复');
+        seen[key] = 1;
+        branches.push(b);
+      }
+      return {kind:'union', branches:branches};
+    }
+    if (typeof node !== 'object') { err('schema 节点必须是字符串、数组或对象，实际是 ' + (typeof node)); return {kind:'primitive', type:'null'}; }
+
+    var t = node.type;
+    if (t === undefined){ err('对象形式的 schema 缺少 type 字段'); return {kind:'primitive', type:'null'}; }
+    if (t instanceof Array || (typeof t === 'object' && t !== null))
+      return walk(t, enclosingNs, names, errors, path);
+
+    if (PRIMITIVES.indexOf(t) >= 0){
+      var prim = {kind:'primitive', type:t};
+      if (node.logicalType !== undefined) prim.logical = checkLogical(node, t, err);
+      return prim;
+    }
+
+    var ns = node.namespace !== undefined ? node.namespace : enclosingNs;
+    if (node.namespace !== undefined && node.namespace !== '' && !isFullName(node.namespace))
+      err('非法的 namespace「' + node.namespace + '」');
+
+    if (NAMED.indexOf(t) >= 0){
+      if (node.name === undefined){ err(t + ' 类型缺少 name 字段'); return {kind:'primitive', type:'null'}; }
+      if (!isFullName(node.name)) err('非法的类型名「' + node.name + '」：只能由字母、数字、下划线组成，且不能以数字开头');
+      var fname = fullName(node.name, ns);
+      if (names[fname]) err('命名类型「' + fname + '」重复定义');
+      var effNs = fname.indexOf('.') >= 0 ? fname.slice(0, fname.lastIndexOf('.')) : '';
+      var self = {kind:(t === 'error' ? 'record' : t), name:fname, isError:(t === 'error')};
+      names[fname] = self;
+
+      if (t === 'record' || t === 'error'){
+        if (!(node.fields instanceof Array)){ err('record「' + fname + '」缺少 fields 数组'); self.fields = []; return self; }
+        var fields = [], fseen = {};
+        for (var f = 0; f < node.fields.length; f++){
+          var fd = node.fields[f];
+          if (typeof fd !== 'object' || fd === null){ err('record「' + fname + '」的第 ' + (f+1) + ' 个字段不是对象'); continue; }
+          if (fd.name === undefined){ err('record「' + fname + '」的第 ' + (f+1) + ' 个字段缺少 name'); continue; }
+          if (!isName(fd.name)) err('字段名「' + fd.name + '」非法');
+          if (fseen[fd.name]) err('record「' + fname + '」中字段名「' + fd.name + '」重复');
+          fseen[fd.name] = 1;
+          if (fd.type === undefined){ err('字段「' + fd.name + '」缺少 type'); continue; }
+          var ftype = walk(fd.type, effNs, names, errors, path.concat([fd.name]));
+          var fobj = {name:fd.name, type:ftype, hasDefault:(fd['default'] !== undefined), def:fd['default'], order:fd.order};
+          if (fd.order !== undefined && ['ascending', 'descending', 'ignore'].indexOf(fd.order) < 0)
+            err('字段「' + fd.name + '」的 order 只能是 ascending / descending / ignore');
+          if (fobj.hasDefault) checkDefault(ftype, fd['default'], fd.name, err);
+          fields.push(fobj);
+        }
+        self.fields = fields;
+        return self;
+      }
+      if (t === 'enum'){
+        if (!(node.symbols instanceof Array)){ err('enum「' + fname + '」缺少 symbols 数组'); self.symbols = []; return self; }
+        var syms = [], sseen = {};
+        for (var s = 0; s < node.symbols.length; s++){
+          var sym = node.symbols[s];
+          if (!isName(sym)) err('enum「' + fname + '」的符号「' + sym + '」非法：必须符合命名规则');
+          if (sseen[sym]) err('enum「' + fname + '」的符号「' + sym + '」重复');
+          sseen[sym] = 1;
+          syms.push(String(sym));
+        }
+        self.symbols = syms;
+        if (node['default'] !== undefined){
+          self.enumDefault = node['default'];
+          if (syms.indexOf(String(node['default'])) < 0)
+            err('enum「' + fname + '」的 default「' + node['default'] + '」不在 symbols 列表中');
+        }
+        return self;
+      }
+      // fixed
+      if (node.size === undefined){ err('fixed「' + fname + '」缺少 size'); self.size = 0; return self; }
+      if (typeof node.size !== 'number' || node.size < 0 || node.size % 1 !== 0)
+        err('fixed「' + fname + '」的 size 必须是非负整数');
+      self.size = node.size;
+      if (node.logicalType !== undefined) self.logical = checkLogical(node, 'fixed', err);
+      return self;
+    }
+
+    if (t === 'array'){
+      if (node.items === undefined){ err('array 缺少 items'); return {kind:'array', items:{kind:'primitive', type:'null'}}; }
+      return {kind:'array', items:walk(node.items, ns, names, errors, path.concat(['items']))};
+    }
+    if (t === 'map'){
+      if (node.values === undefined){ err('map 缺少 values'); return {kind:'map', values:{kind:'primitive', type:'null'}}; }
+      return {kind:'map', values:walk(node.values, ns, names, errors, path.concat(['values']))};
+    }
+    err('未知的类型「' + t + '」');
+    return {kind:'primitive', type:'null'};
+  }
+
+  function checkLogical(node, base, err){
+    var lt = node.logicalType;
+    var allowed = LOGICAL[lt];
+    if (!allowed){ err('未知的 logicalType「' + lt + '」，读端会退化为底层类型 ' + base); return {name:lt, valid:false}; }
+    if (allowed.indexOf(base) < 0){
+      err('logicalType「' + lt + '」只能建立在 ' + allowed.join(' / ') + ' 之上，当前底层类型是 ' + base);
+      return {name:lt, valid:false};
+    }
+    if (lt === 'decimal'){
+      if (typeof node.precision !== 'number' || node.precision < 1) err('decimal 需要正整数 precision');
+      if (node.scale !== undefined){
+        if (typeof node.scale !== 'number' || node.scale < 0) err('decimal 的 scale 必须是非负整数');
+        else if (typeof node.precision === 'number' && node.scale > node.precision) err('decimal 的 scale 不能大于 precision');
+      }
+      if (base === 'fixed' && typeof node.precision === 'number' && typeof node.size === 'number'){
+        var maxP = Math.floor(Math.log(Math.pow(2, 8 * node.size - 1) - 1) / Math.log(10));
+        if (node.precision > maxP) err('decimal 精度 ' + node.precision + ' 超过 fixed(' + node.size + ') 能表示的上限 ' + maxP);
+      }
+    }
+    return {name:lt, valid:true, precision:node.precision, scale:node.scale};
+  }
+
+  function checkDefault(type, def, fieldName, err){
+    var t = type.kind === 'union' ? type.branches[0] : type;
+    var tn = t.kind === 'primitive' ? t.type : t.kind;
+    function bad(expect){ err('字段「' + fieldName + '」的 default 与类型不符：期望 ' + expect + '，实际是 ' + JSON.stringify(def)); }
+    if (type.kind === 'union' && type.branches.length){
+      // Avro 规定联合类型的默认值必须匹配第一个分支
+      checkDefault(type.branches[0], def, fieldName, err);
+      return;
+    }
+    switch (tn){
+      case 'null': if (def !== null) bad('null'); break;
+      case 'boolean': if (typeof def !== 'boolean') bad('boolean'); break;
+      case 'int': case 'long':
+        if (typeof def !== 'number' || def % 1 !== 0) bad('整数'); break;
+      case 'float': case 'double':
+        if (typeof def !== 'number') bad('数值'); break;
+      case 'bytes': case 'fixed': case 'string':
+        if (typeof def !== 'string') bad('字符串'); break;
+      case 'enum':
+        if (typeof def !== 'string' || (t.symbols && t.symbols.indexOf(def) < 0)) bad('symbols 中的一个符号'); break;
+      case 'array': if (!(def instanceof Array)) bad('数组'); break;
+      case 'map': case 'record':
+        if (typeof def !== 'object' || def === null || def instanceof Array) bad('对象'); break;
+      default: break;
+    }
+  }
+
+  // ==================== 解析规范形式（PCF） ====================
+  function canonical(ast){
+    switch (ast.kind){
+      case 'primitive': return '"' + ast.type + '"';
+      case 'ref': return '"' + ast.type + '"';
+      case 'union':
+        return '[' + ast.branches.map(canonical).join(',') + ']';
+      case 'array': return '{"type":"array","items":' + canonical(ast.items) + '}';
+      case 'map': return '{"type":"map","values":' + canonical(ast.values) + '}';
+      case 'enum':
+        return '{"name":"' + ast.name + '","type":"enum","symbols":[' +
+               ast.symbols.map(function(s){ return '"' + s + '"'; }).join(',') + ']}';
+      case 'fixed':
+        return '{"name":"' + ast.name + '","type":"fixed","size":' + ast.size + '}';
+      case 'record':
+        return '{"name":"' + ast.name + '","type":"record","fields":[' +
+               ast.fields.map(function(f){
+                 return '{"name":"' + f.name + '","type":' + canonical(f.type) + '}';
+               }).join(',') + ']}';
+      default: return '"null"';
+    }
+  }
+  // PCF 内引用只写一次完整定义，重复出现写全名
+  function canonicalForm(ast){
+    var emitted = {};
+    function go(n){
+      switch (n.kind){
+        case 'primitive': return '"' + n.type + '"';
+        case 'ref': return '"' + n.type + '"';
+        case 'union': return '[' + n.branches.map(go).join(',') + ']';
+        case 'array': return '{"type":"array","items":' + go(n.items) + '}';
+        case 'map': return '{"type":"map","values":' + go(n.values) + '}';
+        case 'enum':
+          if (emitted[n.name]) return '"' + n.name + '"';
+          emitted[n.name] = 1;
+          return '{"name":"' + n.name + '","type":"enum","symbols":[' +
+                 n.symbols.map(function(s){ return '"' + s + '"'; }).join(',') + ']}';
+        case 'fixed':
+          if (emitted[n.name]) return '"' + n.name + '"';
+          emitted[n.name] = 1;
+          return '{"name":"' + n.name + '","type":"fixed","size":' + n.size + '}';
+        case 'record':
+          if (emitted[n.name]) return '"' + n.name + '"';
+          emitted[n.name] = 1;
+          return '{"name":"' + n.name + '","type":"record","fields":[' +
+                 n.fields.map(function(f){ return '{"name":"' + f.name + '","type":' + go(f.type) + '}'; }).join(',') + ']}';
+        default: return '"null"';
+      }
+    }
+    return go(ast);
+  }
+
+  // ==================== Rabin 64 指纹 ====================
+  var MASK64 = (BigInt(1) << BigInt(64)) - BigInt(1);
+  var EMPTY64 = BigInt('0xc15d213aa4d7a795');
+  var FP_TABLE = null;
+  function initTable(){
+    FP_TABLE = [];
+    for (var i = 0; i < 256; i++){
+      var fp = BigInt(i);
+      for (var j = 0; j < 8; j++){
+        var lsb = fp & BigInt(1);
+        fp = (fp >> BigInt(1)) ^ (lsb ? EMPTY64 : BigInt(0));
+        fp &= MASK64;
+      }
+      FP_TABLE.push(fp);
+    }
+  }
+  function utf8Bytes(str){
+    var out = [];
+    for (var i = 0; i < str.length; i++){
+      var c = str.charCodeAt(i);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800){ out.push(0xC0 | (c >> 6), 0x80 | (c & 63)); }
+      else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < str.length){
+        var c2 = str.charCodeAt(i + 1); i++;
+        var cp = 0x10000 + ((c - 0xD800) << 10) + (c2 - 0xDC00);
+        out.push(0xF0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+      } else out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    }
+    return out;
+  }
+  function fingerprint64(pcf){
+    if (!FP_TABLE) initTable();
+    var bytes = utf8Bytes(String(pcf));
+    var fp = EMPTY64;
+    for (var i = 0; i < bytes.length; i++){
+      var idx = Number((fp ^ BigInt(bytes[i])) & BigInt(0xff));
+      fp = ((fp >> BigInt(8)) ^ FP_TABLE[idx]) & MASK64;
+    }
+    return fp;
+  }
+  function fpHex(fp){
+    var h = fp.toString(16);
+    while (h.length < 16) h = '0' + h;
+    return h;
+  }
+  function fpSigned(fp){
+    return (fp >= (BigInt(1) << BigInt(63))) ? (fp - (BigInt(1) << BigInt(64))) : fp;
+  }
+  // Avro 单对象编码头：C3 01 + 8 字节小端指纹
+  function singleObjectHeader(fp){
+    var out = ['c3', '01'];
+    var v = fp;
+    for (var i = 0; i < 8; i++){
+      out.push(('0' + (v & BigInt(0xff)).toString(16)).slice(-2));
+      v >>= BigInt(8);
+    }
+    return out.join(' ');
+  }
+
+  // ==================== 演进兼容性 ====================
+  function typeName(n){
+    if (n.kind === 'primitive') return n.type;
+    if (n.kind === 'ref') return n.type;
+    return n.name || n.kind;
+  }
+  function matches(w, r, path, notes, depth){
+    depth = depth || 0;
+    if (depth > 40){ notes.push({path:path, text:'类型嵌套过深，停止比较'}); return false; }
+    function no(msg){ notes.push({path:path, text:msg}); return false; }
+
+    if (r.kind === 'union'){
+      if (w.kind === 'union'){
+        for (var i = 0; i < w.branches.length; i++){
+          var ok = false;
+          for (var j = 0; j < r.branches.length; j++)
+            if (matches(w.branches[i], r.branches[j], path, [], depth + 1)){ ok = true; break; }
+          if (!ok) return no('写端联合分支 ' + typeName(w.branches[i]) + ' 在读端联合中找不到可接收的分支');
+        }
+        return true;
+      }
+      for (var k = 0; k < r.branches.length; k++)
+        if (matches(w, r.branches[k], path, [], depth + 1)) return true;
+      return no('写端类型 ' + typeName(w) + ' 不匹配读端联合中的任何分支');
+    }
+    if (w.kind === 'union'){
+      for (var m = 0; m < w.branches.length; m++)
+        if (!matches(w.branches[m], r, path, [], depth + 1))
+          return no('写端是联合类型，其分支 ' + typeName(w.branches[m]) + ' 无法被读端的 ' + typeName(r) + ' 接收');
+      return true;
+    }
+
+    if (w.kind === 'primitive' && r.kind === 'primitive'){
+      if (w.type === r.type) return true;
+      if (PROMOTE[w.type] && PROMOTE[w.type].indexOf(r.type) >= 0) return true;
+      return no('类型不兼容：写端 ' + w.type + ' 无法提升为读端 ' + r.type);
+    }
+    if (w.kind === 'array' && r.kind === 'array') return matches(w.items, r.items, path + '[]', notes, depth + 1);
+    if (w.kind === 'map' && r.kind === 'map') return matches(w.values, r.values, path + '{}', notes, depth + 1);
+    if (w.kind === 'fixed' && r.kind === 'fixed'){
+      if (w.name !== r.name) return no('fixed 名称不同：写端 ' + w.name + '，读端 ' + r.name);
+      if (w.size !== r.size) return no('fixed「' + w.name + '」长度不同：写端 ' + w.size + ' 字节，读端 ' + r.size + ' 字节');
+      return true;
+    }
+    if (w.kind === 'enum' && r.kind === 'enum'){
+      if (w.name !== r.name) return no('enum 名称不同：写端 ' + w.name + '，读端 ' + r.name);
+      var missing = w.symbols.filter(function(s){ return r.symbols.indexOf(s) < 0; });
+      if (missing.length && r.enumDefault === undefined)
+        return no('enum「' + w.name + '」缺少符号 ' + missing.join('、') + '，且读端未声明 default，遇到这些值会直接报错');
+      if (missing.length) notes.push({path:path, text:'enum「' + w.name + '」的 ' + missing.join('、') + ' 会被读成默认值 ' + r.enumDefault, soft:true});
+      return true;
+    }
+    if (w.kind === 'record' && r.kind === 'record'){
+      if (w.name !== r.name) return no('record 名称不同：写端 ' + w.name + '，读端 ' + r.name + '（Avro 按全名匹配，改名会直接不兼容）');
+      var okAll = true;
+      for (var f = 0; f < r.fields.length; f++){
+        var rf = r.fields[f];
+        var wf = null;
+        for (var g = 0; g < w.fields.length; g++) if (w.fields[g].name === rf.name){ wf = w.fields[g]; break; }
+        if (!wf){
+          if (!rf.hasDefault){ okAll = no('读端新增字段「' + rf.name + '」但没有 default：读旧数据时无法填值'); }
+          else notes.push({path:path + '.' + rf.name, text:'读端新增字段「' + rf.name + '」有 default，读旧数据时会自动填充', soft:true});
+          continue;
+        }
+        if (!matches(wf.type, rf.type, path + '.' + rf.name, notes, depth + 1)) okAll = false;
+      }
+      for (var h = 0; h < w.fields.length; h++){
+        var wfd = w.fields[h], found = false;
+        for (var q = 0; q < r.fields.length; q++) if (r.fields[q].name === wfd.name){ found = true; break; }
+        if (!found) notes.push({path:path + '.' + wfd.name, text:'写端字段「' + wfd.name + '」在读端已删除，读取时会被跳过', soft:true});
+      }
+      return okAll;
+    }
+    if (w.kind === 'ref' || r.kind === 'ref'){
+      if (typeName(w) === typeName(r)) return true;
+      return no('命名引用不一致：写端 ' + typeName(w) + '，读端 ' + typeName(r));
+    }
+    return no('结构不兼容：写端是 ' + typeName(w) + '，读端是 ' + typeName(r));
+  }
+
+  function compatibility(writerText, readerText){
+    var w = parse(writerText); if (w.error) return {error:'写端 schema：' + w.error};
+    var r = parse(readerText); if (r.error) return {error:'读端 schema：' + r.error};
+    var fwd = [], bwd = [];
+    var canRead = matches(w.value, r.value, '', fwd, 0);      // 新读端读旧数据 = 向后兼容
+    var canReadOld = matches(r.value, w.value, '', bwd, 0);   // 旧读端读新数据 = 向前兼容
+    var verdict = canRead && canReadOld ? 'FULL' : (canRead ? 'BACKWARD' : (canReadOld ? 'FORWARD' : 'NONE'));
+    var CN = {
+      FULL:'完全兼容：新旧读端都能读对方写出的数据，可以任意顺序升级',
+      BACKWARD:'向后兼容：新读端能读旧数据，但旧读端读不了新数据，必须先升级消费者',
+      FORWARD:'向前兼容：旧读端能读新数据，但新读端读不了旧数据，必须先升级生产者',
+      NONE:'不兼容：双向都无法读取，属于破坏性变更，需要新建 subject 或走双写迁移'
+    };
+    return {
+      verdict: verdict,
+      verdictCn: CN[verdict],
+      backward: canRead,
+      forward: canReadOld,
+      backwardNotes: fwd,
+      forwardNotes: bwd
+    };
+  }
+
+  // ==================== 汇总 ====================
+  function stats(ast){
+    var c = {record:0, enum:0, fixed:0, array:0, map:0, union:0, field:0, primitive:0}, depth = 0;
+    var seen = {};
+    function go(n, d){
+      if (d > depth) depth = d;
+      if (!n) return;
+      if (n.kind === 'primitive'){ c.primitive++; return; }
+      if (n.kind === 'ref') return;
+      if (n.kind === 'union'){ c.union++; n.branches.forEach(function(b){ go(b, d + 1); }); return; }
+      if (n.kind === 'array'){ c.array++; go(n.items, d + 1); return; }
+      if (n.kind === 'map'){ c.map++; go(n.values, d + 1); return; }
+      if (seen[n.name]) return;
+      seen[n.name] = 1;
+      if (n.kind === 'record'){ c.record++; n.fields.forEach(function(f){ c.field++; go(f.type, d + 1); }); return; }
+      if (n.kind === 'enum'){ c.enum++; return; }
+      if (n.kind === 'fixed'){ c.fixed++; return; }
+    }
+    go(ast, 1);
+    return {counts:c, depth:depth};
+  }
+
+  function advice(ast, errors){
+    var out = [];
+    function go(n, path){
+      if (!n || n.kind === 'ref' || n.kind === 'primitive') return;
+      if (n.kind === 'union'){
+        var hasNull = n.branches.some(function(b){ return b.kind === 'primitive' && b.type === 'null'; });
+        if (hasNull && !(n.branches[0].kind === 'primitive' && n.branches[0].type === 'null'))
+          out.push({level:'warn', text:path + ' 的联合把 null 放在了非首位：默认值必须匹配第一个分支，把 "null" 提到最前面才能写 default: null'});
+        n.branches.forEach(function(b, i){ go(b, path + '/union[' + i + ']'); });
+        return;
+      }
+      if (n.kind === 'array'){ go(n.items, path + '/items'); return; }
+      if (n.kind === 'map'){ go(n.values, path + '/values'); return; }
+      if (n.kind === 'record'){
+        if (n.name.indexOf('.') < 0)
+          out.push({level:'info', text:'record「' + n.name + '」没有 namespace：跨系统共享时容易和别人的同名类型冲突，建议加上反向域名式命名空间'});
+        n.fields.forEach(function(f){
+          var isNullableUnion = f.type.kind === 'union' && f.type.branches.some(function(b){ return b.kind === 'primitive' && b.type === 'null'; });
+          if (!f.hasDefault && !isNullableUnion)
+            out.push({level:'info', text:'字段「' + n.name + '.' + f.name + '」既不可空也没有 default：以后想删掉它就是破坏性变更，新增字段建议一律写成 ["null", T] 并给 default: null'});
+          go(f.type, path + '/' + f.name);
+        });
+        return;
+      }
+      if (n.kind === 'enum' && n.enumDefault === undefined)
+        out.push({level:'warn', text:'enum「' + n.name + '」没有声明 default：一旦写端新增符号，旧读端会直接解析失败'});
+    }
+    go(ast, '');
+    return out;
+  }
+
+  function analyze(text){
+    var p = parse(text);
+    if (p.error) return {error:p.error};
+    var ast = p.value;
+    var pcf = canonicalForm(ast);
+    var fp = fingerprint64(pcf);
+    var tips = advice(ast, p.errors);
+    var issues = p.errors.map(function(e){ return {level:'err', text:(e.path && e.path !== '<root>' ? '[' + e.path + '] ' : '') + e.text}; })
+                         .concat(tips);
+    return {
+      ast: ast,
+      rootName: ast.name || (ast.kind === 'primitive' ? ast.type : ast.kind),
+      canonical: pcf,
+      fingerprintHex: fpHex(fp),
+      fingerprintDec: fpSigned(fp).toString(),
+      singleObject: singleObjectHeader(fp),
+      stats: stats(ast),
+      issues: issues,
+      errCount: issues.filter(function(x){ return x.level === 'err'; }).length,
+      warnCount: issues.filter(function(x){ return x.level === 'warn'; }).length
+    };
+  }
+
+  var api = {parse:parse, canonicalForm:canonicalForm, canonical:canonical,
+             fingerprint64:fingerprint64, fpHex:fpHex, fpSigned:fpSigned,
+             singleObjectHeader:singleObjectHeader, compatibility:compatibility,
+             matches:matches, stats:stats, advice:advice, analyze:analyze,
+             isName:isName, fullName:fullName, utf8Bytes:utf8Bytes};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {AvroForgePure:AvroForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = AvroForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function $(id){ return document.getElementById(id); }
+
+  var DEMO1 = JSON.stringify({
+    type:'record', name:'User', namespace:'com.example',
+    fields:[
+      {name:'id', type:'long'},
+      {name:'name', type:'string'},
+      {name:'email', type:['null','string'], 'default':null},
+      {name:'status', type:{type:'enum', name:'Status', symbols:['ACTIVE','LOCKED','GONE'], 'default':'ACTIVE'}}
+    ]
+  }, null, 2);
+
+  var DEMO2 = JSON.stringify({
+    type:'record', name:'Order', namespace:'com.example.shop',
+    fields:[
+      {name:'orderId', type:{type:'string', logicalType:'uuid'}},
+      {name:'amount', type:{type:'bytes', logicalType:'decimal', precision:12, scale:2}},
+      {name:'createdAt', type:{type:'long', logicalType:'timestamp-micros'}},
+      {name:'items', type:{type:'array', items:{
+        type:'record', name:'Item', fields:[
+          {name:'sku', type:'string'},
+          {name:'qty', type:'int', 'default':1}
+        ]}}},
+      {name:'tags', type:{type:'map', values:'string'}, 'default':{}},
+      {name:'buyer', type:['null',{type:'record', name:'Party', fields:[{name:'partyId', type:'long'}]}], 'default':null}
+    ]
+  }, null, 2);
+
+  var DEMO3_OLD = JSON.stringify({
+    type:'record', name:'User', namespace:'com.example',
+    fields:[{name:'id', type:'long'}, {name:'name', type:'string'}]
+  }, null, 2);
+
+  var DEMO3_NEW = JSON.stringify({
+    type:'record', name:'User', namespace:'com.example',
+    fields:[
+      {name:'id', type:'long'},
+      {name:'name', type:'string'},
+      {name:'nickname', type:['null','string'], 'default':null}
+    ]
+  }, null, 2);
+
+  function issueRows(list){
+    var h = '';
+    for (var j = 0; j < list.length; j++){
+      var it = list[j];
+      var col = it.level === 'err' ? '#EF4444' : (it.level === 'warn' ? 'var(--warn)' : 'var(--muted)');
+      var tag = it.level === 'err' ? '错误' : (it.level === 'warn' ? '警告' : '建议');
+      h += '<div class="kv"><b style="color:' + col + '">' + tag + '</b><span>' + esc(it.text) + '</span></div>';
+    }
+    return h;
+  }
+
+  function run(){
+    var r = P.analyze($('av-src').value);
+    var $e = $('av-err'), $o = $('av-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var c = r.stats.counts;
+    var h = '';
+    h += '<div class="kv"><b>根类型</b><span>' + esc(r.rootName) + '</span></div>';
+    h += '<div class="kv"><b>Rabin 64 指纹</b><span><code>0x' + r.fingerprintHex + '</code> · 十进制 ' + esc(r.fingerprintDec) + '</span></div>';
+    h += '<div class="kv"><b>单对象编码头</b><span><code>' + esc(r.singleObject) + '</code></span></div>';
+    h += '<div class="kv"><b>结构统计</b><span>record ' + c.record + ' · 字段 ' + c.field + ' · enum ' + c['enum'] +
+         ' · fixed ' + c.fixed + ' · array ' + c.array + ' · map ' + c.map + ' · union ' + c.union +
+         ' · 最大深度 ' + r.stats.depth + '</span></div>';
+    h += '<div class="kv"><b>错误 / 警告</b><span><span style="color:' + (r.errCount ? '#EF4444' : 'var(--ok)') +
+         ';font-weight:700">' + r.errCount + '</span> / <span style="color:var(--warn)">' + r.warnCount + '</span></span></div>';
+
+    h += '<div class="sec-h">解析规范形式（指纹就是对它算的）</div>';
+    h += '<pre class="pcf">' + esc(r.canonical) + '</pre>';
+
+    h += '<div class="sec-h">Schema 体检</div>';
+    h += r.issues.length ? issueRows(r.issues) : '<div class="kv"><b>结论</b><span style="color:var(--ok)">未发现问题</span></div>';
+    $o.innerHTML = h;
+  }
+
+  function cmp(){
+    var $e = $('av-err'), $o = $('av-out');
+    var oldTxt = $('av-old').value;
+    if (!oldTxt.replace(/\s/g, '')){ $e.textContent = '请先在下方填入写端 / 旧版本 schema'; return; }
+    var r = P.compatibility(oldTxt, $('av-src').value);
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var col = r.verdict === 'FULL' ? 'var(--ok)' : (r.verdict === 'NONE' ? '#EF4444' : 'var(--warn)');
+    var h = '';
+    h += '<div class="kv"><b>兼容性结论</b><span style="color:' + col + ';font-weight:700">' + r.verdict + '</span></div>';
+    h += '<div class="kv"><b>含义</b><span>' + esc(r.verdictCn) + '</span></div>';
+    h += '<div class="kv"><b>新读端读旧数据</b><span style="color:' + (r.backward ? 'var(--ok)' : '#EF4444') + '">' +
+         (r.backward ? '可以' : '不可以') + '</span></div>';
+    h += '<div class="kv"><b>旧读端读新数据</b><span style="color:' + (r.forward ? 'var(--ok)' : '#EF4444') + '">' +
+         (r.forward ? '可以' : '不可以') + '</span></div>';
+    function notes(title, arr){
+      if (!arr.length) return '';
+      var s = '<div class="sec-h">' + title + '</div>';
+      for (var i = 0; i < arr.length; i++)
+        s += '<div class="kv"><b>' + esc(arr[i].path || '根') + '</b><span>' + esc(arr[i].text) + '</span></div>';
+      return s;
+    }
+    h += notes('新读端读旧数据时的细节', r.backwardNotes);
+    h += notes('旧读端读新数据时的细节', r.forwardNotes);
+    $o.innerHTML = h;
+  }
+
+  $('av-go').addEventListener('click', run);
+  $('av-cmp').addEventListener('click', cmp);
+  $('av-demo').addEventListener('click', function(){ $('av-src').value = DEMO1; run(); });
+  $('av-demo2').addEventListener('click', function(){ $('av-src').value = DEMO2; run(); });
+  $('av-demo3').addEventListener('click', function(){
+    $('av-old').value = DEMO3_OLD; $('av-src').value = DEMO3_NEW; cmp();
+  });
+  $('av-clr').addEventListener('click', function(){
+    $('av-src').value = ''; $('av-old').value = '';
+    $('av-err').textContent = ''; $('av-out').innerHTML = '';
+  });
+  $('av-src').value = DEMO1;
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

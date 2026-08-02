@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<link rel="icon" href="favicon.svg">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inkwell · 本地优先知识库</title>
+  <meta property="og:image" content="og.svg">
+
+<style>
+  :root{
+    --bg:#08090A; --surface:#101113; --surface2:#151719; --line:#1C1D1F;
+    --text:#E6E7EA; --muted:#9A9CA3; --accent:#5e6ad2; --accent2:#8B93F0;
+    --green:#3FB950; --pink:#FF7AB6; --amber:#FFD166; --cyan:#56D4DD; --radius:10px;
+    --shadow:0 8px 30px rgba(0,0,0,.45);
+  }
+  [data-theme="light"]{
+    --bg:#F7F8FA; --surface:#FFFFFF; --surface2:#F0F1F4; --line:#E3E5EA;
+    --text:#1A1B1E; --muted:#5C5F66; --accent:#5e6ad2; --accent2:#6B75E6;
+    --green:#1A7F37; --pink:#C2417A; --amber:#B08900; --cyan:#0B7C86;
+    --shadow:0 8px 30px rgba(20,20,40,.12);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",Noto Sans SC,sans-serif;
+    font-size:14px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+  /* layout */
+  #app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  .topbar{
+    display:flex;align-items:center;gap:12px;padding:10px 16px;
+    background:rgba(16,17,19,.85);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line);flex:0 0 auto;z-index:5;
+  }
+  [data-theme="light"] .topbar{background:rgba(255,255,255,.85)}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+  .brand .logo{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;color:#fff;font-size:13px;box-shadow:0 2px 10px rgba(94,106,210,.5)}
+  .search{flex:1;max-width:420px;position:relative}
+  .search input{
+    width:100%;padding:8px 12px 8px 32px;border-radius:8px;border:1px solid var(--line);
+    background:var(--surface2);color:var(--text);outline:none;font-size:13px;
+  }
+  .search input:focus{border-color:var(--accent)}
+  .search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.5}
+  .spacer{flex:1}
+  .tbtn{
+    padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);
+    color:var(--text);cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;
+  }
+  .tbtn:hover{border-color:var(--accent);color:var(--accent2)}
+  .tbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .tbtn.primary:hover{background:var(--accent2);color:#fff}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:var(--surface2);border:0;color:var(--muted);padding:7px 12px;cursor:pointer;font-size:13px}
+  .seg button.on{background:var(--accent);color:#fff}
+
+  .body{display:flex;flex:1;min-height:0}
+  .sidebar{
+    width:280px;flex:0 0 auto;border-right:1px solid var(--line);background:var(--surface);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  .side-head{padding:12px 14px 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;
+    display:flex;justify-content:space-between;align-items:center}
+  .notes{overflow:auto;flex:1;padding:0 8px 12px}
+  .note-item{padding:9px 10px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid transparent}
+  .note-item:hover{background:var(--surface2)}
+  .note-item.on{background:var(--surface2);border-color:var(--accent)}
+  .note-item .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .note-item .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .note-item .m{font-size:11px;color:var(--muted);opacity:.7;margin-top:2px}
+  .empty{padding:30px 16px;color:var(--muted);text-align:center;font-size:13px}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .view-edit{display:flex;flex:1;min-height:0}
+  .editor,.preview{flex:1;min-width:0;display:flex;flex-direction:column}
+  .editor{border-right:1px solid var(--line)}
+  .pane-head{padding:8px 14px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;background:var(--surface)}
+  #editor{
+    flex:1;width:100%;border:0;resize:none;padding:16px;background:var(--bg);color:var(--text);
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Cascadia Mono",monospace;font-size:13.5px;
+    line-height:1.7;outline:none;
+  }
+  .preview{padding:8px 22px 40px;overflow:auto;background:var(--bg)}
+  .preview h1,.preview h2,.preview h3,.preview h4{line-height:1.3;margin:1.1em 0 .5em}
+  .preview h1{font-size:1.7em;border-bottom:1px solid var(--line);padding-bottom:.25em}
+  .preview h2{font-size:1.4em;border-bottom:1px solid var(--line);padding-bottom:.2em}
+  .preview h3{font-size:1.18em}
+  .preview p{margin:.6em 0}
+  .preview code{background:var(--surface2);padding:2px 6px;border-radius:5px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em}
+  .preview pre{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;overflow:auto}
+  .preview pre code{background:0;padding:0}
+  .preview blockquote{margin:.7em 0;padding:.4em 1em;border-left:3px solid var(--accent);color:var(--muted);background:var(--surface)}
+  .preview ul,.preview ol{padding-left:1.4em;margin:.5em 0}
+  .preview a{color:var(--accent2);text-decoration:none}
+  .preview a:hover{text-decoration:underline}
+  .preview a.wl{color:var(--pink);background:rgba(255,122,182,.12);padding:0 5px;border-radius:5px;cursor:pointer}
+  .preview a.wl:hover{background:rgba(255,122,182,.22)}
+  .preview hr{border:0;border-top:1px solid var(--line);margin:1.2em 0}
+  .preview table{border-collapse:collapse;margin:.6em 0}
+  .preview th,.preview td{border:1px solid var(--line);padding:6px 10px}
+  .preview th{background:var(--surface2)}
+
+  .view-graph{flex:1;position:relative;min-height:0;background:
+    radial-gradient(1200px 600px at 70% -10%, rgba(94,106,210,.10), transparent 60%),
+    radial-gradient(900px 500px at 10% 110%, rgba(86,212,221,.08), transparent 55%);
+  }
+  #graph{width:100%;height:100%;display:block}
+  .graph-hint{position:absolute;left:16px;bottom:14px;font-size:12px;color:var(--muted);
+    background:var(--surface);border:1px solid var(--line);padding:6px 10px;border-radius:8px}
+  .node-label{position:absolute;transform:translate(-50%,-150%);font-size:11px;color:var(--text);
+    background:var(--surface);border:1px solid var(--line);padding:1px 6px;border-radius:6px;pointer-events:none;white-space:nowrap}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--surface);border:1px solid var(--accent);color:var(--text);padding:10px 16px;
+    border-radius:10px;box-shadow:var(--shadow);opacity:0;transition:.25s;pointer-events:none;z-index:50;font-size:13px}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .hidden{display:none!important}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+
+  <meta name="theme-color" content="#0A0A0B">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:title" content="Inkwell · 本地优先知识库">
+  <meta property="og:type" content="website">
+  <meta name="description" content="本地优先 Markdown 知识库：双向链接、力导向关系图、实时预览，数据全存本地。">
+<meta property="og:description" content="本地优先 Markdown 知识库：双向链接、力导向关系图、实时预览，数据全存本地。">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Inkwell · 本地优先知识库">
+<meta name="twitter:description" content="本地优先 Markdown 知识库：双向链接、力导向关系图、实时预览，数据全存本地。">
+<meta name="twitter:image" content="og.svg">
+<style id="nano-a11y">
+:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">Inkwell · 本地优先知识库</h1>
+<div id="app">
+  <div class="topbar">
+    <div class="brand"><span class="logo">✒</span> Inkwell</div>
+    <div class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="search" placeholder="搜索笔记内容 / 标题…" autocomplete="off">
+    </div>
+    <div class="spacer"></div>
+    <button class="tbtn" id="newBtn">＋ 新建</button>
+    <button class="tbtn" id="importBtn">导入</button>
+    <button class="tbtn" id="exportBtn">导出</button>
+    <div class="seg" id="viewSeg">
+      <button data-view="edit" class="on">编辑</button>
+      <button data-view="graph">图谱</button>
+    </div>
+    <button class="tbtn" id="themeBtn" title="切换主题">◐</button>
+    <input type="file" id="fileInput" accept=".json,.md,.markdown" class="hidden">
+  </div>
+  <div class="body">
+    <div class="sidebar">
+      <div class="side-head"><span id="noteCount">笔记</span><span id="totalTok" style="text-transform:none;letter-spacing:0"></span></div>
+      <div class="notes" id="notesList"></div>
+    </div>
+    <div class="main">
+      <div class="view-edit" id="viewEdit">
+        <div class="editor">
+          <div class="pane-head"><span>编辑器</span><span id="wordCount">0 字</span></div>
+          <textarea id="editor" placeholder="开始写作… 支持 Markdown，用 [[笔记标题]] 建立双向链接。"></textarea>
+        </div>
+        <div class="preview">
+          <div class="pane-head"><span>预览</span><span style="text-transform:none;letter-spacing:0">实时渲染</span></div>
+          <div id="preview"></div>
+        </div>
+      </div>
+      <div class="view-graph hidden" id="viewGraph">
+        <canvas id="graph"></canvas>
+        <div class="graph-hint">力导向知识图谱 · 节点=笔记，连线=[[双向链接]] · 点击节点可跳转</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============ 存储（本地优先，localStorage 兜底） ============ */
+var Store = (function(){
+  var KEY='inkwell_notes_v1';
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY)||'{}'); } catch(e){ return {}; } }
+  function save(o){ try { localStorage.setItem(KEY, JSON.stringify(o)); } catch(e){} }
+  return {
+    getAll:function(){ return Promise.resolve(load()); },
+    get:function(id){ return Promise.resolve(load()[id]||null); },
+    put:function(n){ var o=load(); o[n.id]=n; save(o); return Promise.resolve(n); },
+    del:function(id){ var o=load(); delete o[id]; save(o); return Promise.resolve(); },
+    clear:function(){ save({}); return Promise.resolve(); },
+    raw:load
+  };
+})();
+
+/* ============ 工具函数 ============ */
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function slug(s){ return String(s).trim().toLowerCase(); }
+function uid(){ return 'n'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function fmtDate(ts){ try{ var d=new Date(ts); return (d.getMonth()+1)+'/'+d.getDate()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }catch(e){ return ''; } }
+function snippet(txt){ return txt.replace(/[#*`>\[\]]/g,'').replace(/\n+/g,' ').trim().slice(0,60); }
+
+/* ============ Markdown 解析（自实现，足够覆盖常用语法） ============ */
+function inlineMd(s){
+  s = esc(s);
+  s = s.replace(/`([^`]+)`/g, function(_,c){ return '<code>'+c+'</code>'; });
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+  s = s.replace(/(^|[^_])_([^_]+)_/g, '$1<em>$2</em>');
+  s = s.replace(/\[\[([^\]]+)\]\]/g, function(_,n){ return '<a class="wl" data-wl="'+esc(n.trim())+'">'+esc(n.trim())+'</a>'; });
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, function(_,t,u){ return '<a href="'+u+'" target="_blank" rel="noopener">'+t+'</a>'; });
+  s = s.replace(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g, function(_,a,u){ return '<img alt="'+a+'" src="'+u+'" style="max-width:100%;border-radius:8px">'; });
+  return s;
+}
+function mdToHtml(md){
+  md = String(md||'').replace(/\r\n/g,'\n');
+  var lines = md.split('\n'), html='', i=0, listType=null;
+  function closeList(){ if(listType){ html+='</'+listType+'>'; listType=null; } }
+  while(i<lines.length){
+    var line=lines[i];
+    if(/^```/.test(line)){
+      var code=[]; i++;
+      while(i<lines.length && !/^```/.test(lines[i])){ code.push(lines[i]); i++; }
+      i++;
+      html+='<pre><code>'+esc(code.join('\n'))+'</code></pre>';
+      continue;
+    }
+    if(/^\s*$/.test(line)){ closeList(); i++; continue; }
+    var h=line.match(/^(#{1,6})\s+(.*)$/);
+    if(h){ closeList(); var lv=h[1].length; html+='<h'+lv+'>'+inlineMd(h[2])+'</h'+lv+'>'; i++; continue; }
+    if(/^>\s?/.test(line)){ closeList(); html+='<blockquote>'+inlineMd(line.replace(/^>\s?/,''))+'</blockquote>'; i++; continue; }
+    if(/^(-{3,}|\*{3,}|_{3,})$/.test(line)){ closeList(); html+='<hr>'; i++; continue; }
+    var tbl=line.match(/^\|(.+)\|$/);
+    if(tbl && i+1<lines.length && /^\|[\s:|-]+\|$/.test(lines[i+1])){
+      closeList();
+      var head=tbl[1].split('|').map(function(c){return c.trim();});
+      var rows=[]; i+=2;
+      while(i<lines.length && /^\|(.+)\|$/.test(lines[i])){
+        rows.push(lines[i].match(/^\|(.+)\|$/)[1].split('|').map(function(c){return c.trim();})); i++;
+      }
+      html+='<table><thead><tr>'+head.map(function(c){return '<th>'+inlineMd(c)+'</th>';}).join('')+'</tr></thead><tbody>';
+      rows.forEach(function(r){ html+='<tr>'+r.map(function(c){return '<td>'+inlineMd(c)+'</td>';}).join('')+'</tr>'; });
+      html+='</tbody></table>';
+      continue;
+    }
+    var ul=line.match(/^\s*[-*]\s+(.*)$/);
+    if(ul){ if(listType!=='ul'){ closeList(); html+='<ul>'; listType='ul'; } html+='<li>'+inlineMd(ul[1])+'</li>'; i++; continue; }
+    var ol=line.match(/^\s*\d+\.\s+(.*)$/);
+    if(ol){ if(listType!=='ol'){ closeList(); html+='<ol>'; listType='ol'; } html+='<li>'+inlineMd(ol[1])+'</li>'; i++; continue; }
+    closeList();
+    html+='<p>'+inlineMd(line)+'</p>';
+    i++;
+  }
+  closeList();
+  return html;
+}
+
+/* ============ 双向链接解析 ============ */
+function parseWikilinks(text){
+  var re=/\[\[([^\]]+)\]\]/g, m, out={};
+  while((m=re.exec(text||''))){ out[m[1].trim()]=1; }
+  return Object.keys(out);
+}
+
+/* ============ 知识图谱（力导向布局） ============ */
+function buildGraph(notes){
+  var byTitle={};
+  notes.forEach(function(n){ byTitle[slug(n.title)]=n.id; });
+  var nodes=notes.map(function(n){ return {id:n.id,label:n.title,x:0,y:0,r:Math.max(7,Math.min(18,6+Math.sqrt((n.content||'').length)/40))}; });
+  var edges=[];
+  notes.forEach(function(n){
+    parseWikilinks(n.content).forEach(function(t){
+      var tid=byTitle[slug(t)];
+      if(tid && tid!==n.id) edges.push({s:n.id,t:tid});
+    });
+  });
+  return {nodes:nodes, edges:edges};
+}
+function forceLayout(g, w, h, iters){
+  var N=g.nodes.length, k=Math.sqrt(w*h/Math.max(1,N))*0.9, cx=w/2, cy=h/2;
+  g.nodes.forEach(function(n,idx){ var a=idx/Math.max(1,N)*Math.PI*2; n.x=cx+Math.cos(a)*(Math.min(w,h)/3); n.y=cy+Math.sin(a)*(Math.min(w,h)/3); });
+  iters=iters||320;
+  for(var it=0; it<iters; it++){
+    for(var i=0;i<N;i++) for(var j=i+1;j<N;j++){
+      var a=g.nodes[i], b=g.nodes[j];
+      var dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy+0.01, d=Math.sqrt(d2);
+      var f=k*k/d2, fx=dx/d*f, fy=dy/d*f;
+      a.x+=fx; a.y+=fy; b.x-=fx; b.y-=fy;
+    }
+    g.edges.forEach(function(e){
+      var a=byId(g,e.s), b=byId(g,e.t); if(!a||!b) return;
+      var dx=b.x-a.x, dy=b.y-a.y, d=Math.sqrt(dx*dx+dy*dy)+0.01, f=(d-k)*0.4, fx=dx/d*f, fy=dy/d*f;
+      a.x+=fx; a.y+=fy; b.x-=fx; b.y-=fy;
+    });
+    g.nodes.forEach(function(n){
+      n.x+=(cx-n.x)*0.012; n.y+=(cy-n.y)*0.012;
+      n.x=Math.max(24,Math.min(w-24,n.x)); n.y=Math.max(24,Math.min(h-24,n.y));
+    });
+  }
+  return g;
+}
+function byId(g,id){ for(var i=0;i<g.nodes.length;i++) if(g.nodes[i].id===id) return g.nodes[i]; return null; }
+
+/* ============ 应用状态与逻辑 ============ */
+var state={ notes:[], currentId:null, view:'edit', theme:'dark' };
+var $ = function(s){ return document.querySelector(s); };
+
+function toast(msg){
+  var t=$('#toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(function(){ t.classList.remove('show'); },1800);
+}
+function sampleNotes(){
+  return [
+    { id:uid(), title:'欢迎使用 Inkwell', created:Date.now(), updated:Date.now(),
+      content:'# 欢迎使用 Inkwell ✒\n\n这是一个**本地优先**的 Markdown 知识库，所有数据只存在你的浏览器里，不上传任何服务器。\n\n## 它能做什么\n- 多笔记管理、实时预览\n- 全文搜索\n- 用 `[[笔记标题]]` 建立*双向链接*\n- 自动生成知识图谱（点右上角「图谱」）\n- 一键导入 / 导出\n\n试着新建一篇笔记，并在里面写 `[[欢迎使用 Inkwell]]` 看看图谱变化。还可以读读 [[Markdown 语法速查]] 与 [[知识图谱是什么]]。' },
+    { id:uid(), title:'Markdown 语法速查', created:Date.now(), updated:Date.now(),
+      content:'# Markdown 语法速查\n\n## 标题\n```\n# H1  ## H2  ### H3\n```\n\n## 强调\n- **粗体** 用 `**文字**`\n- *斜体* 用 `*文字*`\n- `行内代码` 用反引号\n\n## 列表\n- 无序：`- 项目`\n- 有序：`1. 项目`\n\n## 引用与分割线\n> 这是引用\n\n---\n\n## 表格\n| 名称 | 说明 |\n| --- | --- |\n| 链接 | [[欢迎使用 Inkwell]] |\n\n## 链接\n- 外链：[示例](https://example.com)\n- 双链：`[[笔记标题]]`' },
+    { id:uid(), title:'知识图谱是什么', created:Date.now(), updated:Date.now(),
+      content:'# 知识图谱是什么\n\n知识图谱把每篇笔记画成一个**节点**，把 `[[双向链接]]` 画成**连线**。\n\n它能帮你直观看到：\n- 哪些笔记彼此关联\n- 知识的聚类结构\n\n在 Inkwell 里，图谱是自动从你的笔记内容生成的，你只需要正常写 `[[链接]]` 即可。相关概念参见 [[Markdown 语法速查]]。' }
+  ];
+}
+
+function loadAll(){
+  return Store.getAll().then(function(map){
+    var arr=Object.keys(map).map(function(k){ return map[k]; });
+    if(!arr.length){
+      arr=sampleNotes();
+      arr.forEach(function(n){ Store.put(n); });
+    }
+    arr.sort(function(a,b){ return (b.updated||0)-(a.updated||0); });
+    state.notes=arr;
+    state.currentId=arr.length?arr[0].id:null;
+  });
+}
+function current(){ return state.notes.filter(function(n){ return n.id===state.currentId; })[0]||null; }
+function findNoteByTitle(t){ var s=slug(t); return state.notes.filter(function(n){ return slug(n.title)===s; })[0]||null; }
+
+function renderSidebar(filter){
+  var list=$('#notesList'); filter=(filter||'').toLowerCase();
+  var shown=state.notes.filter(function(n){
+    if(!filter) return true;
+    return slug(n.title).indexOf(filter)>=0 || slug(n.content).indexOf(filter)>=0;
+  });
+  $('#noteCount').textContent='笔记 '+shown.length+' / '+state.notes.length;
+  var totalTok=state.notes.reduce(function(s,n){ return s+(n.content||'').length; },0);
+  $('#totalTok').textContent='≈'+Math.round(totalTok/2)+' tokens';
+  if(!shown.length){ list.innerHTML='<div class="empty">没有匹配的笔记</div>'; return; }
+  list.innerHTML=shown.map(function(n){
+    return '<div class="note-item'+(n.id===state.currentId?' on':'')+'" data-id="'+n.id+'">'+
+      '<div class="t">'+esc(n.title||'无标题')+'</div>'+
+      '<div class="s">'+esc(snippet(n.content||''))+'</div>'+
+      '<div class="m">'+fmtDate(n.updated||n.created||0)+'</div></div>';
+  }).join('');
+}
+function renderEditor(){
+  var c=current();
+  $('#editor').value=c?c.content:'';
+  $('#wordCount').textContent=(c?(c.content||'').length:0)+' 字';
+}
+function renderPreviewFrom(text){
+  var c=current();
+  if(!c){ $('#preview').innerHTML='<p style="color:var(--muted)">还没有笔记，点「＋ 新建」开始。</p>'; return; }
+  $('#preview').innerHTML=mdToHtml(text==null?c.content:text);
+}
+function renderPreview(){ renderPreviewFrom(); }
+function renderAll(filter){ renderSidebar(filter); renderEditor(); renderPreview(); }
+
+function selectNote(id){
+  state.currentId=id;
+  renderAll($('#search').value);
+  if(state.view==='graph') drawGraph();
+}
+function newNote(){
+  var n={ id:uid(), title:'未命名笔记 '+ (state.notes.length+1), created:Date.now(), updated:Date.now(), content:'' };
+  state.notes.unshift(n); Store.put(n);
+  state.currentId=n.id; renderAll($('#search').value);
+  $('#editor').focus();
+  toast('已新建笔记');
+}
+function saveCurrent(){
+  var c=current(); if(!c) return;
+  c.content=$('#editor').value; c.updated=Date.now();
+  // 自动从首行 # 标题更新标题
+  var first=c.content.split('\n').map(function(l){return l.trim();}).filter(Boolean)[0]||'';
+  var ht=first.match(/^#\s+(.*)$/);
+  if(ht) c.title=ht[1].trim();
+  Store.put(c);
+  // 侧栏与图谱轻量刷新（不抢焦点）
+  state.notes.sort(function(a,b){ return (b.updated||0)-(a.updated||0); });
+  renderSidebar($('#search').value);
+  if(state.view==='graph') drawGraph();
+}
+function deleteNote(id){
+  state.notes=state.notes.filter(function(n){ return n.id!==id; });
+  Store.del(id);
+  if(state.currentId===id) state.currentId=state.notes.length?state.notes[0].id:null;
+  renderAll($('#search').value);
+  if(state.view==='graph') drawGraph();
+}
+
+/* ============ 图谱绘制 ============ */
+var gfx=null;
+function drawGraph(){
+  var canvas=$('#graph'); if(!canvas) return;
+  var w=canvas.clientWidth||canvas.parentNode.clientWidth, h=canvas.clientHeight||canvas.parentNode.clientHeight;
+  canvas.width=w*devicePixelRatio; canvas.height=h*devicePixelRatio;
+  var ctx=canvas.getContext&&canvas.getContext('2d');
+  if(!ctx){ return; } // jsdom 等无 canvas 环境跳过绘制
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  ctx.clearRect(0,0,w,h);
+  var g=buildGraph(state.notes);
+  forceLayout(g, w, h, 300);
+  gfx=g;
+  // 连线
+  ctx.strokeStyle='rgba(150,153,163,.35)'; ctx.lineWidth=1;
+  g.edges.forEach(function(e){
+    var a=byId(g,e.s), b=byId(g,e.t); if(!a||!b) return;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  });
+  // 节点
+  g.nodes.forEach(function(n){
+    var on=n.id===state.currentId;
+    ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
+    ctx.fillStyle=on?'#5E6AD2':'#8B93F0'; ctx.globalAlpha=on?1:.85; ctx.fill(); ctx.globalAlpha=1;
+    if(on){ ctx.lineWidth=2; ctx.strokeStyle='#fff'; ctx.stroke(); }
+    ctx.fillStyle=getComputedStyle(document.body).getPropertyValue('--text');
+    ctx.font='11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(n.label.slice(0,14), n.x, n.y+n.r+12);
+  });
+}
+function graphClick(ev){
+  if(!gfx) return;
+  var rect=$('#graph').getBoundingClientRect();
+  var x=ev.clientX-rect.left, y=ev.clientY-rect.top, hit=null;
+  gfx.nodes.forEach(function(n){ if(Math.hypot(n.x-x,n.y-y)<=n.r+4) hit=n; });
+  if(hit){ selectNote(hit.id); }
+}
+
+/* ============ 导入 / 导出 ============ */
+function download(filename, text, type){
+  var blob=new Blob([text], {type:type||'text/plain;charset=utf-8'});
+  var url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+function exportAll(){
+  download('inkwell-export.json', JSON.stringify(state.notes,null,2), 'application/json');
+  toast('已导出全部笔记（JSON）');
+}
+function exportCurrent(){
+  var c=current(); if(!c){ toast('没有可导出的笔记'); return; }
+  download((c.title||'note')+'.md', c.content, 'text/markdown');
+  toast('已导出当前笔记（Markdown）');
+}
+function importFile(file){
+  var reader=new FileReader();
+  reader.onload=function(){
+    var txt=reader.result;
+    if(/\.json$/i.test(file.name)){
+      try{
+        var data=JSON.parse(txt);
+        if(!Array.isArray(data)) data=[data];
+        data.forEach(function(n){
+          if(!n.id) n.id=uid();
+          if(!n.title) n.title='导入笔记';
+          if(!n.content) n.content='';
+          if(!n.created) n.created=Date.now();
+          if(!n.updated) n.updated=Date.now();
+          state.notes.push(n); Store.put(n);
+        });
+        state.currentId=state.notes[0].id;
+        renderAll($('#search').value);
+        toast('导入了 '+data.length+' 篇笔记');
+      }catch(e){ toast('JSON 解析失败'); }
+    } else {
+      var title=file.name.replace(/\.(md|markdown)$/i,'');
+      var n={ id:uid(), title:title, created:Date.now(), updated:Date.now(), content:txt };
+      state.notes.unshift(n); Store.put(n); state.currentId=n.id;
+      renderAll($('#search').value);
+      toast('导入：'+title);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ============ 主题 ============ */
+function applyTheme(t){
+  state.theme=t; document.documentElement.setAttribute('data-theme',t);
+  try{ localStorage.setItem('inkwell_theme',t); }catch(e){}
+}
+function toggleTheme(){
+  applyTheme(state.theme==='dark'?'light':'dark');
+  if(state.view==='graph') drawGraph();
+}
+
+/* ============ 事件绑定 ============ */
+function initApp(){
+  // 还原主题
+  try{ var t=localStorage.getItem('inkwell_theme'); if(t) applyTheme(t); }catch(e){}
+  loadAll().then(function(){
+    renderAll('');
+    $('#editor').addEventListener('input', function(){
+      $('#wordCount').textContent=$('#editor').value.length+' 字';
+      renderPreviewFrom($('#editor').value);
+      clearTimeout(saveCurrent._t); saveCurrent._t=setTimeout(saveCurrent, 400);
+    });
+    $('#search').addEventListener('input', function(){ renderSidebar($('#search').value); });
+    $('#notesList').addEventListener('click', function(e){
+      var it=e.target.closest('.note-item'); if(it) selectNote(it.dataset.id);
+    });
+    $('#notesList').addEventListener('contextmenu', function(e){
+      var it=e.target.closest('.note-item'); if(!it) return;
+      e.preventDefault();
+      var n=state.notes.filter(function(x){ return x.id===it.dataset.id; })[0];
+      if(confirm('删除笔记「'+(n?n.title:'')+'」？此操作不可撤销。')){
+        deleteNote(it.dataset.id);
+      }
+    });
+    $('#newBtn').addEventListener('click', newNote);
+    $('#themeBtn').addEventListener('click', toggleTheme);
+    $('#exportBtn').addEventListener('click', function(){
+      if(state.notes.length>1) exportAll(); else exportCurrent();
+    });
+    $('#importBtn').addEventListener('click', function(){ $('#fileInput').click(); });
+    $('#fileInput').addEventListener('change', function(e){ if(e.target.files[0]) importFile(e.target.files[0]); e.target.value=''; });
+    $('#viewSeg').addEventListener('click', function(e){
+      var b=e.target.closest('button[data-view]'); if(!b) return;
+      state.view=b.dataset.view;
+      document.querySelectorAll('#viewSeg button').forEach(function(x){ x.classList.toggle('on', x===b); });
+      $('#viewEdit').classList.toggle('hidden', state.view!=='edit');
+      $('#viewGraph').classList.toggle('hidden', state.view!=='graph');
+      if(state.view==='graph') setTimeout(drawGraph,30);
+    });
+    $('#preview').addEventListener('click', function(e){
+      var wl=e.target.closest('a.wl'); if(wl){
+        var t=findNoteByTitle(wl.dataset.wl);
+        if(t){ selectNote(t.id); toast('跳转到 '+t.title); }
+        else toast('尚未创建笔记：「'+wl.dataset.wl+'」');
+      }
+    });
+    $('#graph').addEventListener('click', graphClick);
+    window.addEventListener('resize', function(){ if(state.view==='graph') drawGraph(); });
+    // 全局拖入 .md/.json 导入
+    ['dragover','drop'].forEach(function(ev){
+      window.addEventListener(ev, function(e){ if(e.dataTransfer && e.dataTransfer.types.indexOf('Files')>=0){ e.preventDefault(); } });
+    });
+    window.addEventListener('drop', function(e){
+      if(e.dataTransfer && e.dataTransfer.files[0]){ e.preventDefault(); importFile(e.dataTransfer.files[0]); }
+    });
+  });
+}
+
+if (typeof document !== 'undefined' && document.body){
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
+  else initApp();
+}
+if (typeof module !== 'undefined' && module.exports){
+  module.exports = { esc:esc, slug:slug, mdToHtml:mdToHtml, parseWikilinks:parseWikilinks, buildGraph:buildGraph, forceLayout:forceLayout, byId:byId, Store:Store, inlineMd:inlineMd };
+}
+})();
+</script>
+
+<footer id="nt-foot">
+<style>
+  .nt-foot{position:relative;z-index:2;margin-top:56px;border-top:1px solid rgba(255,255,255,.08);background:#0A0A0B;color:#71717A;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6}
+  .nt-foot *{box-sizing:border-box}
+  .nt-foot a{text-decoration:none}
+  .nt-in{max-width:1080px;margin:0 auto;padding:34px 24px 30px}
+  .nt-row{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .nt-id{min-width:0}
+  .nt-brand{display:flex;align-items:center;gap:10px;font-weight:700;color:#fff;font-size:15px;letter-spacing:-.02em}
+  .nt-brand .mk{width:26px;height:26px;border-radius:7px;background:#5E6AD2;display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px}
+  .nt-tag{margin-top:4px;color:#71717A;font-size:12.5px}
+  .nt-cta{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:9px;background:#5E6AD2;color:#fff;font-weight:600;font-size:13.5px;border:1px solid #5E6AD2;transition:transform .18s ease,background .2s ease,box-shadow .2s ease}
+  .nt-cta:hover{transform:translateY(-1px);background:#7C84E8;box-shadow:0 6px 20px rgba(94,106,210,.3)}
+  .nt-sep{height:1px;background:rgba(255,255,255,.08);margin:22px 0 16px}
+  .nt-rel{display:flex;flex-wrap:wrap;gap:8px}
+  .nt-rel a{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:#141417;border:1px solid rgba(255,255,255,.08);color:#A1A1AA;font-size:12.5px;font-weight:600;transition:all .18s ease}
+  .nt-rel a:hover{border-color:#5E6AD2;color:#fff}
+  .nt-cur{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(94,106,210,.12);border:1px solid #5E6AD2;color:#fff;font-size:12.5px;font-weight:700}
+  .nt-meta{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#71717A;font-size:12px}
+  .nt-meta a{color:#A1A1AA;border-bottom:1px dashed rgba(255,255,255,.08)}
+  .nt-meta a:hover{color:#5E6AD2}
+  @media(max-width:560px){.nt-row{flex-direction:column;align-items:flex-start}.nt-cta{width:100%;justify-content:center}}
+</style>
+<div class="nt-in">
+  <div class="nt-row">
+    <div class="nt-id">
+      <div class="nt-brand"><span class="mk">n</span> nano-tools</div>
+      <div class="nt-tag">单文件 · 零依赖 · 本地优先的开发者工具集</div>
+    </div>
+    <a class="nt-cta" href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">浏览全部 328 款工具 &rarr;</a>
+  </div>
+  <div class="nt-sep"></div>
+  <div class="nt-rel">
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BaseForge/" target="_blank" rel="noopener">BaseForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BoxKit/" target="_blank" rel="noopener">BoxKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CSSKit/" target="_blank" rel="noopener">CSSKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Chartify/" target="_blank" rel="noopener">Chartify</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ColorForge/" target="_blank" rel="noopener">ColorForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ContextLens/" target="_blank" rel="noopener">ContextLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronForge/" target="_blank" rel="noopener">CronForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronText/" target="_blank" rel="noopener">CronText</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DataForge/" target="_blank" rel="noopener">DataForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DiffLens/" target="_blank" rel="noopener">DiffLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Graphite/" target="_blank" rel="noopener">Graphite</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/HashKit/" target="_blank" rel="noopener">HashKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/IconForge/" target="_blank" rel="noopener">IconForge</a>
+      <span class="nt-cur">Inkwell &middot; 当前</span>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/JsonForge/" target="_blank" rel="noopener">JsonForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MarkForge/" target="_blank" rel="noopener">MarkForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MockForge/" target="_blank" rel="noopener">MockForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PalettePro/" target="_blank" rel="noopener">PalettePro</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PassForge/" target="_blank" rel="noopener">PassForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RESTKit/" target="_blank" rel="noopener">RESTKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RegexLab/" target="_blank" rel="noopener">RegexLab</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SVGForge/" target="_blank" rel="noopener">SVGForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SnapCompress/" target="_blank" rel="noopener">SnapCompress</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/UniConvert/" target="_blank" rel="noopener">UniConvert</a>
+  </div>
+  <div class="nt-meta">
+    <span>&copy; <span id="nt-yr"></span> nano-tools &middot; 由 HTML5 + 原生 JS 构建 &middot; 零依赖</span>
+    <span><a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> &middot; <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/Inkwell" target="_blank" rel="noopener">本工具源码</a></span>
+  </div>
+</div>
+<script>
+(function(){var y=document.getElementById('nt-yr');if(y)y.textContent=new Date().getFullYear();})();
+</script>
+</footer>
+
+
+
+
+
+<!-- nano-i18n:start -->
+<script>
+window.NANO_I18N_EXTRA = {
+  "Inkwell · 本地优先知识库":"Inkwell · Local-first Knowledge Base",
+  "欢迎使用 Inkwell ✒":"Welcome to Inkwell ✒"
+};
+/* NANO_I18N_RUNTIME */
+(function(){
+  // nano-tools 通用双语运行时：翻译可见 UI 文本（按钮/标签/标题/hero），不入脚本/样式/输入区。
+  var COMMON = {
+    "复制":"Copy","复制结果":"Copy result","复制链接":"Copy link","复制代码":"Copy code",
+    "清空":"Clear","清除":"Clear","清除全部":"Clear all","清空全部":"Clear all",
+    "粘贴":"Paste","生成":"Generate","运行":"Run","执行":"Run","停止":"Stop","暂停":"Pause",
+    "继续":"Resume","重试":"Retry","格式化":"Format","压缩":"Minify","美化":"Beautify","压缩美化":"Minify",
+    "导出":"Export","导入":"Import","保存":"Save","删除":"Delete","移除":"Remove","添加":"Add",
+    "重置":"Reset","还原":"Reset","搜索":"Search","提交":"Submit","取消":"Cancel","确定":"OK",
+    "确认":"Confirm","关闭":"Close","输入":"Input","输出":"Output","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","名称":"Name","值":"Value","类型":"Type",
+    "大小":"Size","数量":"Count","颜色":"Color","文本":"Text","内容":"Content","编码":"Encode",
+    "解码":"Decode","加密":"Encrypt","解密":"Decrypt","校验":"Verify","计算":"Calculate",
+    "转换":"Convert","上传":"Upload","下载":"Download","全选":"Select all","折叠":"Collapse",
+    "展开":"Expand","开始":"Start","帮助":"Help","关于":"About","更多":"More","更少":"Less",
+    "示例":"Example","随机":"Random","全部":"All","中文":"中文","English":"English","浅色":"Light",
+    "深色":"Dark","亮色":"Light","暗色":"Dark","复制成功":"Copied","已复制":"Copied",
+    "加载中":"Loading…","暂无数据":"No data","请输入":"Please enter","或":"or","拖拽":"Drag",
+    "拖到此处":"Drop here","选择文件":"Choose file","字数":"Words","字符":"Characters",
+    "行数":"Lines","用时":"Time","耗时":"Elapsed","共":"Total","项":"items","条":"items",
+    "历史":"History","清空历史":"Clear history","复制结果":"Copy result","复制":"Copy",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh","应用":"Apply",
+    "不区分大小写":"Case-insensitive","忽略空白":"Ignore whitespace","换行":"Line break",
+    "正则表达式":"Regex","模式":"Mode","选项":"Options","高级":"Advanced","基础":"Basic",
+    "开启":"On","关闭":"Off","启用":"Enable","禁用":"Disable","显示":"Show","隐藏":"Hide",
+    "复制 SVG":"Copy SVG","下载 SVG":"Download SVG","复制 PNG":"Copy PNG","下载 PNG":"Download PNG",
+    "复制 CSS":"Copy CSS","复制 URL":"Copy URL","复制到剪贴板":"Copy to clipboard",
+    "已保存到本地":"Saved locally","解析中":"Parsing…","分析中":"Analyzing…","生成中":"Generating…",
+    "请选择":"Please select","请先":"Please first","不支持":"Not supported","错误":"Error",
+    "成功":"Success","失败":"Failed","完成":"Done","下一步":"Next","上一步":"Previous",
+    "当前":"Current","总计":"Total","平均":"Average","最大":"Max","最小":"Min",
+    "字符数":"Chars","词数":"Words","句数":"Sentences","段落":"Paragraphs",
+    "浅色模式":"Light mode","深色模式":"Dark mode","切换主题":"Toggle theme","切换语言":"Switch language",
+    "打开文件":"Open file","保存文件":"Save file","导出文件":"Export file","导入文件":"Import file",
+    "复制全部":"Copy all","清除结果":"Clear result","清空结果":"Clear result",
+    "全屏":"Fullscreen","退出全屏":"Exit fullscreen","适应屏幕":"Fit screen","缩放":"Zoom",
+    "放大":"Zoom in","缩小":"Zoom out","重置视图":"Reset view","居中":"Center",
+    "添加节点":"Add node","删除节点":"Delete node","添加连线":"Add edge","删除连线":"Delete edge",
+    "自动布局":"Auto layout","适应视图":"Fit view","导出 JSON":"Export JSON","导出 Markdown":"Export Markdown",
+    "开始分析":"Start analysis","停止分析":"Stop analysis","分析文件夹":"Analyze folder",
+    "拖拽文件夹到此处":"Drop a folder here","或点击选择":"or click to choose","粘贴文本":"Paste text",
+    "复制结果":"Copy result","复制代码":"Copy code"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p = node.parentElement;
+    while(p){
+      var t = p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  var current = 'zh';
+  function applyLang(lang){
+    var d = full();
+    var root = document.documentElement;
+    current = lang;
+    // 翻译 <title>（浏览器标签 / 分享卡片）
+    var rawTitle = document.title;
+    if(lang==='en'){
+      if(d[rawTitle]) document.title = d[rawTitle];
+    } else {
+      var ex = window.NANO_I18N_EXTRA || {};
+      for(var _k in ex){ if(ex[_k] === rawTitle){ document.title = _k; break; } }
+    }
+    if(lang==='en'){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n = w.nextNode()){ n.__zh = n.nodeValue; n.nodeValue = d[n.nodeValue.trim()]; }
+      // 整元素翻译（hero 含子结构，如彩色词 <span>）
+      var els = root.querySelectorAll('[data-i18n-html]');
+      for(var ei=0; ei<els.length; ei++){ var el=els[ei]; if(el.__zhtml===undefined){ el.__zhtml = el.innerHTML; } el.innerHTML = el.getAttribute('data-i18n-html'); }
+    } else {
+      var w2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m = w2.nextNode()){ m.nodeValue = m.__zh; m.__zh = undefined; }
+      // 还原整元素翻译
+      var els2 = root.querySelectorAll('[data-i18n-html]');
+      for(var ej=0; ej<els2.length; ej++){ var el2=els2[ej]; if(el2.__zhtml!==undefined){ el2.innerHTML = el2.__zhtml; el2.__zhtml = undefined; } }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en' ? 'zh' : 'en');
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand = document.createElement('a');
+    brand.id = 'nano-brand';
+    brand.href = 'https://wangzifan396-wzf.github.io/WB/';
+    brand.target = '_blank';
+    brand.rel = 'noopener';
+    brand.textContent = 'nano·tools';
+    brand.title = 'nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter = function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave = function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b = document.createElement('button');
+    b.id = 'nano-lang-btn';
+    b.title = 'Switch language / 切换语言';
+    b.textContent = 'EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter = function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave = function(){ b.style.transform='none'; };
+    b.onclick = toggle;
+    bar.appendChild(brand);
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved = localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved = ((navigator.language||'zh').slice(0,2).toLowerCase()==='en') ? 'en' : 'zh'; }
+    applyLang(saved);
+    mountBtn();
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (saved==='en'?'中':'EN');
+    // 捕获渲染后注入的静态文本（动态节点）
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+
+</script>
+<!-- nano-i18n:end -->
+</body>
+</html>

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HabitForge · 习惯追踪器</title>
+<meta name="description" content="单文件离线习惯追踪器：每日打卡、连击统计、完成率、年度热力图、JSON 导入导出。数据只存本地，零依赖。">
+<meta property="og:title" content="HabitForge · 习惯追踪器">
+<meta property="og:description" content="每日打卡 / 连击统计 / 完成率 / 年度热力图，数据只存本地，单文件零依赖。">
+<meta property="og:image" content="og.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0A0A0B">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --panel:#1A1B1E;
+  --text:#FFFFFF; --text2:#A1A1AA; --text3:#71717A;
+  --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.14);
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA; --bad:#EF4444;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;line-height:1.6}
+.wrap{max-width:960px;margin:0 auto;padding:32px 20px 64px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#10B981,#5E6AD2);display:flex;align-items:center;justify-content:center;flex:none}
+.logo svg{width:20px;height:20px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.sub{color:var(--text3);font-size:13px;margin-bottom:24px}
+.addrow{display:flex;gap:10px;margin-bottom:20px}
+input[type=text]{background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 14px;font-size:14px;font-family:inherit;outline:none;flex:1}
+input:focus{border-color:var(--accent)}
+button.act{background:var(--accent);border:none;border-radius:8px;color:#fff;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;flex:none;font-family:inherit}
+button.act:hover{opacity:.88}
+button.ghost{background:var(--panel);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:8px 13px;font-size:13px;cursor:pointer;flex:none;font-family:inherit}
+button.ghost:hover{border-color:var(--border2);color:var(--text)}
+.habit{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.hb-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.chk{width:26px;height:26px;border-radius:8px;border:2px solid var(--border2);background:transparent;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.chk.done{background:var(--ok);border-color:var(--ok)}
+.chk svg{width:14px;height:14px;opacity:0;transition:opacity .15s}
+.chk.done svg{opacity:1}
+.hb-name{font-size:15px;font-weight:600;flex:1;min-width:120px}
+.hb-meta{display:flex;gap:14px;font-size:12px;color:var(--text3);flex-wrap:wrap}
+.hb-meta b{color:var(--text2);font-weight:600}
+.hb-meta .fire{color:var(--warn)}
+.hb-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px;flex:none}
+.hb-del:hover{color:var(--bad)}
+.heat{margin-top:12px;overflow-x:auto;padding-bottom:4px}
+.heat svg{display:block}
+.empty{color:var(--text3);font-size:14px;text-align:center;padding:40px 0;background:var(--card);border:1px dashed var(--border2);border-radius:12px;margin-bottom:14px}
+.iobar{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.hint{color:var(--text3);font-size:12px;margin-top:10px}
+footer{margin-top:40px;color:var(--text3);font-size:12px;display:flex;gap:14px;flex-wrap:wrap}
+footer a{color:var(--text2);text-decoration:none}
+footer a:hover{color:var(--text)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<script>
+/* HabitForge 纯函数内核：习惯数据模型 + 连击/完成率/热力图（无 DOM 依赖） */
+var HF = (function(){
+  'use strict';
+  function pad2(n){ return (n<10?'0':'')+n; }
+  function isLeap(y){ return (y%4===0 && y%100!==0) || y%400===0; }
+  var DIM = [31,28,31,30,31,30,31,31,30,31,30,31];
+  function dim(y,m){ return m===2 && isLeap(y) ? 29 : DIM[m-1]; }
+  function toSerial(y,m,d){
+    var yy = y - (m<=2?1:0), era = Math.floor(yy/400), yoe = yy - era*400;
+    var doy = Math.floor((153*(m+(m>2?-3:9))+2)/5)+d-1;
+    var doe = yoe*365 + Math.floor(yoe/4) - Math.floor(yoe/100) + doy;
+    return era*146097 + doe - 719468;
+  }
+  function fromSerial(n){
+    var z = n+719468, era = Math.floor(z/146097), doe = z-era*146097;
+    var yoe = Math.floor((doe - Math.floor(doe/1460) + Math.floor(doe/36524) - Math.floor(doe/146096))/365);
+    var y = yoe + era*400, doy = doe - (365*yoe + Math.floor(yoe/4) - Math.floor(yoe/100));
+    var mp = Math.floor((5*doy+2)/153), d = doy - Math.floor((153*mp+2)/5) + 1, m = mp + (mp<10?3:-9);
+    return { y: y + (m<=2?1:0), m:m, d:d };
+  }
+  function keyOf(o){ return o.y+'-'+pad2(o.m)+'-'+pad2(o.d); }
+  function parseKey(k){
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(k||'');
+    if(!m) return null;
+    var o = { y:+m[1], m:+m[2], d:+m[3] };
+    if(o.m<1||o.m>12||o.d<1||o.d>dim(o.y,o.m)) return null;
+    return o;
+  }
+  function serialOfKey(k){ var o = parseKey(k); return o ? toSerial(o.y,o.m,o.d) : null; }
+  function keyOfSerial(n){ return keyOf(fromSerial(n)); }
+
+  /* ---- 数据模型 ---- */
+  function makeState(){ return { habits: [], nextId: 1 }; }
+  function addHabit(state, name){
+    name = String(name||'').trim();
+    if(!name) return null;
+    var h = { id: state.nextId++, name: name, days: {} };  /* days: {"2026-07-27": 1} */
+    state.habits.push(h);
+    return h;
+  }
+  function removeHabit(state, id){
+    var i = state.habits.findIndex(function(h){ return h.id === id; });
+    if(i < 0) return false;
+    state.habits.splice(i,1);
+    return true;
+  }
+  function findHabit(state, id){
+    for(var i=0;i<state.habits.length;i++) if(state.habits[i].id===id) return state.habits[i];
+    return null;
+  }
+  function toggle(state, id, key){
+    var h = findHabit(state, id);
+    if(!h || serialOfKey(key)===null) return null;
+    if(h.days[key]) delete h.days[key];
+    else h.days[key] = 1;
+    return !!h.days[key];
+  }
+  function isDone(h, key){ return !!(h && h.days && h.days[key]); }
+
+  /* ---- 统计 ---- */
+  /* 当前连击：从 refKey 往前数连续天；refKey 当天未打卡则看昨天起算 */
+  function currentStreak(h, refKey){
+    var s = serialOfKey(refKey);
+    if(s===null || !h) return 0;
+    if(!h.days[keyOfSerial(s)]) s -= 1;   /* 今天还没打卡不清零，从昨天算 */
+    var n = 0;
+    while(h.days[keyOfSerial(s)]){ n++; s--; }
+    return n;
+  }
+  function longestStreak(h){
+    if(!h) return 0;
+    var ks = Object.keys(h.days).map(serialOfKey).filter(function(x){ return x!==null; }).sort(function(a,b){ return a-b; });
+    var best = 0, cur = 0, prev = null;
+    for(var i=0;i<ks.length;i++){
+      if(prev!==null && ks[i]===prev+1) cur++;
+      else cur = 1;
+      if(cur>best) best = cur;
+      prev = ks[i];
+    }
+    return best;
+  }
+  function totalDone(h){ return h ? Object.keys(h.days).length : 0; }
+  /* 完成率：最近 n 天（含 refKey 当天） */
+  function rate(h, refKey, n){
+    var s = serialOfKey(refKey);
+    if(s===null || !h || n<=0) return 0;
+    var cnt = 0;
+    for(var i=0;i<n;i++) if(h.days[keyOfSerial(s-i)]) cnt++;
+    return Math.round(cnt/n*1000)/10;
+  }
+  /* 热力图数据：过去 weeks 周（对齐到 refKey 所在周的周日结尾），返回列数组 [{key,level,inRange}] */
+  function heatCells(h, refKey, weeks){
+    var s = serialOfKey(refKey);
+    if(s===null) return [];
+    weeks = weeks || 26;
+    var dow = ((s+3)%7+7)%7;          /* 0=周一…6=周日 */
+    var end = s + (6-dow);            /* 本周周日 */
+    var start = end - weeks*7 + 1;
+    var cells = [];
+    for(var n=start;n<=end;n++){
+      cells.push({ key: keyOfSerial(n), done: !!(h && h.days[keyOfSerial(n)]), future: n>s });
+    }
+    return cells;                     /* 长度 = weeks*7，按列（周）切片 */
+  }
+  /* ---- 序列化 ---- */
+  function exportJSON(state){
+    return JSON.stringify({ app:'HabitForge', version:1, habits: state.habits, nextId: state.nextId });
+  }
+  function importJSON(str){
+    var o;
+    try { o = JSON.parse(str); } catch(e){ return null; }
+    if(!o || o.app!=='HabitForge' || !Array.isArray(o.habits)) return null;
+    var st = makeState();
+    var maxId = 0;
+    for(var i=0;i<o.habits.length;i++){
+      var h = o.habits[i];
+      if(!h || typeof h.name!=='string' || !h.name.trim()) continue;
+      var days = {};
+      if(h.days && typeof h.days==='object'){
+        for(var k in h.days){ if(serialOfKey(k)!==null && h.days[k]) days[k] = 1; }
+      }
+      var id = (typeof h.id==='number' && h.id>0) ? Math.floor(h.id) : (maxId+1);
+      st.habits.push({ id:id, name:h.name.trim(), days:days });
+      if(id>maxId) maxId = id;
+    }
+    st.nextId = Math.max(maxId+1, (typeof o.nextId==='number' && o.nextId>maxId) ? Math.floor(o.nextId) : maxId+1);
+    return st;
+  }
+  function todayKey(){
+    var d = new Date();
+    return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+  }
+  return {
+    pad2:pad2, dim:dim, toSerial:toSerial, fromSerial:fromSerial,
+    keyOf:keyOf, parseKey:parseKey, serialOfKey:serialOfKey, keyOfSerial:keyOfSerial,
+    makeState:makeState, addHabit:addHabit, removeHabit:removeHabit, findHabit:findHabit,
+    toggle:toggle, isDone:isDone,
+    currentStreak:currentStreak, longestStreak:longestStreak, totalDone:totalDone, rate:rate,
+    heatCells:heatCells, exportJSON:exportJSON, importJSON:importJSON, todayKey:todayKey
+  };
+})();
+if(typeof module!=='undefined' && module.exports){ module.exports = HF; }
+if(typeof window!=='undefined'){ window.__HABITFORGE__ = HF; }
+</script>
+
+<div class="wrap">
+  <header>
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></div>
+    <h1>HabitForge</h1>
+  </header>
+  <div class="sub">每日打卡 · 连击统计 · 完成率 · 半年热力图 —— 数据只存本地 / 单文件 / 零依赖</div>
+
+  <div class="addrow">
+    <input type="text" id="habitName" placeholder="新习惯名称，如：早起 / 阅读 30 分钟 / 跑步…" maxlength="40">
+    <button class="act" id="addGo">添加习惯</button>
+  </div>
+
+  <div id="habitList"></div>
+
+  <div class="iobar">
+    <button class="ghost" id="expGo">导出 JSON</button>
+    <button class="ghost" id="impGo">导入 JSON</button>
+    <input type="file" id="impFile" accept="application/json" style="display:none">
+  </div>
+  <div class="hint">数据仅保存在浏览器 localStorage，不上传任何服务器。清除浏览器数据前请先导出备份。</div>
+
+  <footer>
+    <span>HabitForge · nano-tools</span>
+    <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/HabitForge" rel="noopener">GitHub</a>
+    <a href="https://wangzifan396-wzf.github.io/WB/" rel="noopener">全部工具</a>
+  </footer>
+</div>
+
+<script>
+if(typeof window!=='undefined' && window.document){
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var LS_KEY = 'habitforge-v1';
+  var state = null;
+
+  function load(){
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if(raw){ var st = HF.importJSON(raw); if(st) return st; }
+    } catch(e){}
+    return HF.makeState();
+  }
+  function save(){
+    try { localStorage.setItem(LS_KEY, HF.exportJSON(state)); } catch(e){}
+  }
+  state = load();
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+  function heatSVG(h, refKey){
+    var weeks = 26, cell = 11, gap = 3;
+    var cells = HF.heatCells(h, refKey, weeks);
+    var w = weeks*(cell+gap), ht = 7*(cell+gap);
+    var out = '<svg width="'+w+'" height="'+ht+'" viewBox="0 0 '+w+' '+ht+'" role="img" aria-label="打卡热力图">';
+    for(var i=0;i<cells.length;i++){
+      var col = Math.floor(i/7), row = i%7;
+      var c = cells[i];
+      var fill = c.future ? 'rgba(255,255,255,0.02)' : (c.done ? '#10B981' : 'rgba(255,255,255,0.06)');
+      out += '<rect x="'+(col*(cell+gap))+'" y="'+(row*(cell+gap))+'" width="'+cell+'" height="'+cell+'" rx="2.5" fill="'+fill+'"><title>'+c.key+(c.done?' ✓':'')+'</title></rect>';
+    }
+    return out + '</svg>';
+  }
+
+  function render(){
+    var box = $('habitList');
+    var tk = HF.todayKey();
+    if(!state.habits.length){
+      box.innerHTML = '<div class="empty">还没有习惯 —— 在上方输入名称，开始第一天打卡。</div>';
+      return;
+    }
+    box.innerHTML = state.habits.map(function(h){
+      var done = HF.isDone(h, tk);
+      var cs = HF.currentStreak(h, tk), ls = HF.longestStreak(h);
+      var r30 = HF.rate(h, tk, 30);
+      return '<div class="habit" data-id="'+h.id+'">' +
+        '<div class="hb-top">' +
+          '<button class="chk'+(done?' done':'')+'" data-act="toggle" aria-label="打卡">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>' +
+          '</button>' +
+          '<div class="hb-name">'+esc(h.name)+'</div>' +
+          '<div class="hb-meta">' +
+            '<span class="fire">🔥 连击 <b>'+cs+'</b> 天</span>' +
+            '<span>最长 <b>'+ls+'</b> 天</span>' +
+            '<span>近 30 天 <b>'+r30+'%</b></span>' +
+            '<span>累计 <b>'+HF.totalDone(h)+'</b> 次</span>' +
+          '</div>' +
+          '<button class="hb-del" data-act="del" aria-label="删除">✕</button>' +
+        '</div>' +
+        '<div class="heat">'+heatSVG(h, tk)+'</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  $('addGo').addEventListener('click', function(){
+    var name = $('habitName').value;
+    if(HF.addHabit(state, name)){ $('habitName').value=''; save(); render(); }
+  });
+  $('habitName').addEventListener('keydown', function(e){ if(e.key==='Enter') $('addGo').click(); });
+
+  $('habitList').addEventListener('click', function(e){
+    var btn = e.target.closest('[data-act]');
+    if(!btn) return;
+    var card = btn.closest('.habit');
+    var id = +card.getAttribute('data-id');
+    if(btn.getAttribute('data-act')==='toggle'){
+      HF.toggle(state, id, HF.todayKey());
+      save(); render();
+    } else if(btn.getAttribute('data-act')==='del'){
+      var h = HF.findHabit(state, id);
+      if(h && confirm('删除习惯「'+h.name+'」及其全部打卡记录？')){ HF.removeHabit(state, id); save(); render(); }
+    }
+  });
+
+  $('expGo').addEventListener('click', function(){
+    var blob = new Blob([HF.exportJSON(state)], {type:'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'habitforge-' + HF.todayKey() + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  $('impGo').addEventListener('click', function(){ $('impFile').click(); });
+  $('impFile').addEventListener('change', function(){
+    var f = this.files[0];
+    if(!f) return;
+    var rd = new FileReader();
+    rd.onload = function(){
+      var st = HF.importJSON(String(rd.result));
+      if(st){ state = st; save(); render(); }
+      else alert('导入失败：不是有效的 HabitForge JSON。');
+    };
+    rd.readAsText(f);
+    this.value = '';
+  });
+
+  render();
+
+  if('serviceWorker' in navigator && location.protocol !== 'file:'){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+})();
+}
+</script>
+</body>
+</html>

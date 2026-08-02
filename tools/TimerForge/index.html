@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TimerForge — 离线秒表 / 倒计时：精确到 0.1 秒</title>
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.preview{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;justify-content:center;align-items:center;min-height:90px}
+.preview svg{max-width:100%}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.big{font:40px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
+.kv{color:var(--muted);font-size:13px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线秒表 / 倒计时：精确到 0.1 秒，支持秒或 mm:ss 输入。">
+</head>
+<body>
+<div class="app">
+  <h1>TimerForge</h1>
+  <p class="sub">离线秒表 / 倒计时：精确到 0.1 秒 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="row" style="gap:32px">
+  <div>
+    <h3 style="margin:0 0 8px">秒表</h3>
+    <div class="big" id="sw">00:00.0</div>
+    <div class="row">
+      <button id="swStart">开始</button>
+      <button id="swStop" class="ghost">暂停</button>
+      <button id="swReset" class="ghost">复位</button>
+    </div>
+  </div>
+  <div>
+    <h3 style="margin:0 0 8px">倒计时</h3>
+    <div class="big" id="cd">00:00</div>
+    <div class="row">
+      <input id="cdSet" type="text" placeholder="秒 或 mm:ss" value="00:10" style="max-width:130px">
+      <button id="cdStart">开始</button>
+      <button id="cdReset" class="ghost">复位</button>
+    </div>
+  </div>
+</div>
+<script>
+function formatMs(ms, withMs){
+  ms=Math.max(0, Math.floor(ms));
+  var totalSec=Math.floor(ms/1000);
+  var h=Math.floor(totalSec/3600), m=Math.floor((totalSec%3600)/60), s=totalSec%60;
+  var base = (h>0 ? (h<10?'0':'')+h+':' : '') + (m<10?'0':'')+m + ':' + (s<10?'0':'')+s;
+  if(withMs){ var cs=Math.floor((ms%1000)/100); base += '.'+cs; }
+  return base;
+}
+function parseCountdown(str){
+  str=String(str).trim();
+  if(str.indexOf(':')>=0){
+    var p=str.split(':').map(function(x){ return parseInt(x,10)||0; });
+    var sec=0; for(var i=0;i<p.length;i++) sec=sec*60+p[i];
+    return sec;
+  }
+  return parseInt(str,10)||0;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { formatMs:formatMs, parseCountdown:parseCountdown };
+}
+if (typeof window !== 'undefined') {
+  window.TimerForgePure = { formatMs:formatMs, parseCountdown:parseCountdown };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.TimerForgePure;
+    var swT=null, swStartTs=0, swAcc=0, swRunning=false;
+    function swNow(){ return swAcc + (swRunning? Date.now()-swStartTs:0); }
+    function swTick(){ $('sw').textContent=P.formatMs(swNow(),true); }
+    $('swStart').onclick=function(){ if(swRunning) return; swRunning=true; swStartTs=Date.now(); swT=setInterval(swTick,100); };
+    $('swStop').onclick=function(){ if(!swRunning) return; swAcc+=Date.now()-swStartTs; swRunning=false; clearInterval(swT); swTick(); };
+    $('swReset').onclick=function(){ swRunning=false; clearInterval(swT); swAcc=0; $('sw').textContent='00:00.0'; };
+    swTick();
+    var cdT=null, cdEnd=0, cdRunning=false;
+    function cdTick(){ var left=cdEnd-Date.now(); if(left<=0){ $('cd').textContent='00:00'; clearInterval(cdT); cdRunning=false; return; } $('cd').textContent=P.formatMs(left,false); }
+    $('cdStart').onclick=function(){ if(cdRunning) return; var sec=P.parseCountdown($('cdSet').value)||0; cdEnd=Date.now()+sec*1000; cdRunning=true; cdT=setInterval(cdTick,200); cdTick(); };
+    $('cdReset').onclick=function(){ cdRunning=false; clearInterval(cdT); $('cd').textContent='00:00'; };
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

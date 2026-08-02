@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>JuliaForge — Julia 集分形渲染器：可调复参数 c 与迭代深度，内置 5 组经典参数，平滑着色 Canvas 渲染，与 Mandelbrot 互为对偶，离线可用。</title>
+<meta property="og:title" content="JuliaForge">
+<meta property="og:description" content="Julia 集分形渲染器：可调复参数 c 与迭代深度，内置 5 组经典参数，平滑着色 Canvas 渲染，与 Mandelbrot 互为对偶，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Julia 集分形渲染器：可调复参数 c 与迭代深度，内置 5 组经典参数，平滑着色 Canvas 渲染，与 Mandelbrot 互为对偶，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>JuliaForge</h1>
+  <p class="sub">Julia 集分形渲染器：可调复参数 c 与迭代深度，内置 5 组经典参数，平滑着色 Canvas 渲染，与 Mandelbrot 互为对偶，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="row">
+  <label style="margin:0">c 实部</label>
+  <input id="cre" type="number" value="-0.7" step="0.01" style="width:90px">
+  <label style="margin:0">c 虚部</label>
+  <input id="cim" type="number" value="0.27015" step="0.01" style="width:90px">
+  <label style="margin:0">迭代</label>
+  <input id="iter" type="number" value="80" min="10" max="500" style="width:80px">
+</div>
+<div class="row">
+  <label style="margin:0">经典参数</label>
+  <select id="preset">
+    <option value="-0.7,0.27015" selected>海马谷</option>
+    <option value="-0.4,0.6">漩涡</option>
+    <option value="0.285,0.01">星云</option>
+    <option value="-0.8,0.156">闪电</option>
+    <option value="-0.70176,-0.3842">龙形</option>
+  </select>
+  <button id="render">渲染</button>
+  <span class="sub" id="stat" style="margin:0"></span>
+</div>
+<canvas id="cv" width="480" height="320" style="width:100%;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0A0A0B;"></canvas>
+<script>
+function jlEscape(zx, zy, cx, cy, maxIter){
+  var x=zx, y=zy, i=0;
+  while(i<maxIter && x*x+y*y<=4){
+    var nx=x*x-y*y+cx, ny=2*x*y+cy;
+    x=nx; y=ny; i++;
+  }
+  if(i>=maxIter) return { iter:maxIter, inside:true, smooth:maxIter };
+  var mag=Math.sqrt(x*x+y*y);
+  var sm=i+1-Math.log(Math.log(Math.max(mag,1.0000001)))/Math.LN2;
+  return { iter:i, inside:false, smooth:Math.max(0,sm) };
+}
+function jlMap(px, py, w, h, scale){
+  scale=scale||1.6;
+  return { x:(px-w/2)/(w/2)*scale, y:(py-h/2)/(h/2)*scale*h/w };
+}
+function jlColor(smooth, maxIter){
+  if(smooth>=maxIter) return [10,10,11];
+  var t=Math.min(1,smooth/maxIter);
+  var h=(220+t*160)%360, s=0.7, l=0.16+0.5*Math.pow(t,0.5);
+  var c=(1-Math.abs(2*l-1))*s, hp=h/60, xx=c*(1-Math.abs(hp%2-1));
+  var r=0,g=0,b=0;
+  if(hp<1){r=c;g=xx;} else if(hp<2){r=xx;g=c;} else if(hp<3){g=c;b=xx;} else if(hp<4){g=xx;b=c;} else if(hp<5){r=xx;b=c;} else {r=c;b=xx;}
+  var m=l-c/2;
+  return [Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];
+}
+function jlPresets(){ return { seahorse:[-0.7,0.27015], swirl:[-0.4,0.6], nebula:[0.285,0.01], lightning:[-0.8,0.156], dragon:[-0.70176,-0.3842] }; }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { jlEscape:jlEscape, jlMap:jlMap, jlColor:jlColor, jlPresets:jlPresets };
+}
+if (typeof window !== 'undefined') {
+  window.JuliaForgePure = { jlEscape:jlEscape, jlMap:jlMap, jlColor:jlColor, jlPresets:jlPresets };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.JuliaForgePure;
+    var W=480, H=320;
+    function render(){
+      var cx=Number($('cre').value)||0, cy=Number($('cim').value)||0;
+      var maxIter=Math.max(10,Math.min(500,Number($('iter').value)||80));
+      var t0=Date.now();
+      var cv=$('cv'); var ctx=cv.getContext('2d');
+      if(ctx){
+        var img=ctx.createImageData(W,H), data=img.data;
+        for(var py=0;py<H;py++){
+          for(var px=0;px<W;px++){
+            var z=P.jlMap(px,py,W,H);
+            var e=P.jlEscape(z.x,z.y,cx,cy,maxIter);
+            var c=P.jlColor(e.smooth,maxIter);
+            var o=(py*W+px)*4; data[o]=c[0]; data[o+1]=c[1]; data[o+2]=c[2]; data[o+3]=255;
+          }
+        }
+        ctx.putImageData(img,0,0);
+      }
+      $('stat').textContent='c = '+cx+' + '+cy+'i · '+(Date.now()-t0)+'ms';
+    }
+    $('preset').addEventListener('change', function(){
+      var v=$('preset').value.split(',');
+      $('cre').value=v[0]; $('cim').value=v[1];
+      render();
+    });
+    $('render').addEventListener('click', render);
+    render();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

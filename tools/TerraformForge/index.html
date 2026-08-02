@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>TerraformForge — Terraform/HCL 辅助台：解析与格式化配置，校验 provider/resource/variable 引用一致性，展开 module 与 count/for_each，离线可用。</title>
+<meta property="og:title" content="TerraformForge">
+<meta property="og:description" content="Terraform/HCL 辅助台：解析与格式化 Terraform 配置，校验 provider/resource/variable 引用一致性，展开 module 调用与 count/for_each，统计资源数与 provider 分布。调试 IaC、做变更前评审的好帮手，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Terraform/HCL 辅助台：解析与格式化 Terraform 配置，校验 provider/resource/variable 引用一致性，展开 module 调用与 count/for_each，统计资源数与 provider 分布。调试 IaC、做变更前评审的好帮手，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+pre.pcf{white-space:pre-wrap;word-break:break-all;background:var(--surface);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin:6px 0 0}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+.pbar{display:inline-block;width:70px;height:6px;background:rgba(255,255,255,.08);
+      border-radius:3px;vertical-align:middle;overflow:hidden;margin-left:6px}
+.pbar>span{display:block;height:100%;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>TerraformForge</h1>
+  <p class="sub">Terraform · HCL · IaC</p>
+
+<label for="tf-src">Terraform 配置（HCL2）</label>
+<textarea id="tf-src" rows="12" placeholder='resource "aws_instance" "web" {&#10;  ami = var.ami_id&#10;}'></textarea>
+<div class="row">
+  <button id="tf-go">解析并体检</button>
+  <button class="ghost" id="tf-fmt">套用规范格式</button>
+  <button class="ghost" id="tf-demo">示例配置</button>
+  <button class="ghost" id="tf-clr">清空</button>
+</div>
+<div class="err" id="tf-err"></div>
+<div class="out" id="tf-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 373 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function TerraformForgePure(){
+  // ==================== HCL2 扫描 ====================
+  // 逐字符扫描，能正确跳过注释、双引号字符串与 heredoc，并跟踪括号深度。
+  function scan(src){
+    var s = String(src == null ? '' : src);
+    var i = 0, n = s.length, line = 1;
+    var toks = [];
+    function push(t, v, ln){ toks.push({t:t, v:v, line:(ln === undefined ? line : ln)}); }
+    while (i < n){
+      var ch = s[i];
+      if (ch === '\n'){ push('nl', '\n'); line++; i++; continue; }
+      if (ch === ' ' || ch === '\t' || ch === '\r'){ i++; continue; }
+      // 注释
+      if (ch === '#' || (ch === '/' && s[i+1] === '/')){
+        var st = i; while (i < n && s[i] !== '\n') i++;
+        push('comment', s.slice(st, i)); continue;
+      }
+      if (ch === '/' && s[i+1] === '*'){
+        var st2 = i; i += 2;
+        while (i < n && !(s[i] === '*' && s[i+1] === '/')){ if (s[i] === '\n') line++; i++; }
+        i += 2; push('comment', s.slice(st2, i)); continue;
+      }
+      // heredoc  <<EOT / <<-EOT
+      if (ch === '<' && s[i+1] === '<'){
+        var j = i + 2, dash = false;
+        if (s[j] === '-'){ dash = true; j++; }
+        var tagStart = j;
+        while (j < n && /[A-Za-z0-9_]/.test(s[j])) j++;
+        var tag = s.slice(tagStart, j);
+        if (tag){
+          var startLine = line;
+          var k = j;
+          while (k < n && s[k] !== '\n') k++;
+          k++; line++;
+          var bodyStart = k;
+          while (k < n){
+            var le = s.indexOf('\n', k); if (le < 0) le = n;
+            var lineTxt = s.slice(k, le);
+            if (lineTxt.replace(/^\s+/, '') === tag){ break; }
+            k = le + 1; line++;
+          }
+          var le2 = s.indexOf('\n', k); if (le2 < 0) le2 = n;
+          push('heredoc', s.slice(i, le2), startLine);
+          i = le2; continue;
+        }
+      }
+      // 双引号字符串
+      if (ch === '"'){
+        var st3 = i; i++;
+        while (i < n){
+          if (s[i] === '\\'){ i += 2; continue; }
+          if (s[i] === '"'){ i++; break; }
+          if (s[i] === '\n') line++;
+          i++;
+        }
+        push('str', s.slice(st3, i)); continue;
+      }
+      // 标识符 / 数字
+      if (/[A-Za-z0-9_.\-]/.test(ch)){
+        var st4 = i;
+        while (i < n && /[A-Za-z0-9_.\-]/.test(s[i])) i++;
+        push('id', s.slice(st4, i)); continue;
+      }
+      push('punct', ch); i++;
+    }
+    push('eof', '');
+    return toks;
+  }
+
+  // ==================== 解析为块树 ====================
+  function parse(src){
+    var toks = scan(src), p = 0;
+    var errors = [];
+    function cur(){ return toks[p]; }
+    function skipTrivia(keepComments, sink){
+      while (cur().t === 'nl' || cur().t === 'comment'){
+        if (cur().t === 'comment' && keepComments && sink) sink.push(cur().v);
+        p++;
+      }
+    }
+    function readExprRaw(){
+      var depth = 0, parts = [];
+      while (true){
+        var t = cur();
+        if (t.t === 'eof') break;
+        if (t.t === 'nl'){ if (depth === 0) break; parts.push('\n'); p++; continue; }
+        if (t.t === 'comment'){ p++; continue; }
+        if (t.t === 'punct'){
+          if (t.v === '{' || t.v === '[' || t.v === '(') depth++;
+          if (t.v === '}' || t.v === ']' || t.v === ')'){
+            if (depth === 0) break;
+            depth--;
+          }
+        }
+        parts.push(t.v); p++;
+      }
+      return parts;
+    }
+    function joinRaw(parts){
+      var out = '';
+      for (var i = 0; i < parts.length; i++){
+        var cu = parts[i], pv = out.slice(-1);
+        var noSpaceBefore = (cu === ',' || cu === ')' || cu === ']' || cu === '}' || cu === '.' || cu === '\n');
+        var noSpaceAfter  = (pv === '(' || pv === '[' || pv === '.' || pv === '' || pv === '\n' || pv === '{');
+        if (!noSpaceBefore && !noSpaceAfter) out += ' ';
+        out += cu;
+      }
+      return out.replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n ').trim();
+    }
+    function parseBody(depth){
+      var items = [];
+      while (true){
+        var pending = [];
+        skipTrivia(true, pending);
+        var t = cur();
+        if (t.t === 'eof') break;
+        if (t.t === 'punct' && t.v === '}'){ break; }
+        if (t.t !== 'id' && t.t !== 'str'){
+          errors.push({line:t.line, text:'无法解析的记号：' + t.v});
+          p++; continue;
+        }
+        var head = t.v, headLine = t.line; p++;
+        // 属性？
+        while (cur().t === 'comment') p++;
+        if (cur().t === 'punct' && cur().v === '='){
+          p++;
+          var raw = joinRaw(readExprRaw());
+          items.push({kind:'attr', name:head, value:raw, line:headLine, comments:pending});
+          continue;
+        }
+        // 块：读标签直到 '{'
+        var labels = [];
+        var guard = 0;
+        while (guard++ < 64){
+          while (cur().t === 'comment' || cur().t === 'nl') p++;
+          var c = cur();
+          if (c.t === 'punct' && c.v === '{'){ p++; break; }
+          if (c.t === 'str'){ labels.push(c.v.slice(1, -1)); p++; continue; }
+          if (c.t === 'id'){ labels.push(c.v); p++; continue; }
+          errors.push({line:c.line, text:'块 “' + head + '” 缺少左花括号'});
+          break;
+        }
+        var body = parseBody(depth + 1);
+        while (cur().t === 'comment' || cur().t === 'nl') p++;
+        if (cur().t === 'punct' && cur().v === '}') p++;
+        else errors.push({line:headLine, text:'块 “' + head + '” 未正确闭合'});
+        items.push({kind:'block', type:head, labels:labels, body:body, line:headLine, comments:pending});
+      }
+      return items;
+    }
+    var root = parseBody(0);
+    return {items:root, errors:errors};
+  }
+
+  // ==================== 引用提取 ====================
+  var REF_RE = /\b(var|local|module|data|each|count|path|terraform)\.[A-Za-z0-9_.\[\]"\-]+|\b([a-z][a-z0-9]*_[a-z0-9_]+)\.([A-Za-z0-9_-]+)\.[A-Za-z0-9_]+/g;
+  function refsIn(text){
+    var out = [], m;
+    REF_RE.lastIndex = 0;
+    while ((m = REF_RE.exec(String(text || '')))){
+      if (m[1]){
+        var seg = m[0].split('.');
+        if (m[1] === 'var' || m[1] === 'local' || m[1] === 'module') out.push({kind:m[1], name:seg[1]});
+        else if (m[1] === 'data' && seg.length >= 3) out.push({kind:'data', name:seg[1] + '.' + seg[2]});
+        else out.push({kind:m[1], name:seg.slice(1).join('.')});
+      } else if (m[2]){
+        out.push({kind:'resource', name:m[2] + '.' + m[3]});
+      }
+    }
+    return out;
+  }
+  function collectRefs(items, acc){
+    acc = acc || [];
+    for (var i = 0; i < items.length; i++){
+      var it = items[i];
+      if (it.kind === 'attr'){
+        var rr = refsIn(it.value);
+        for (var j = 0; j < rr.length; j++) acc.push(rr[j]);
+      } else collectRefs(it.body, acc);
+    }
+    return acc;
+  }
+  function findAttr(body, name){
+    for (var i = 0; i < body.length; i++){
+      if (body[i].kind === 'attr' && body[i].name === name) return body[i];
+    }
+    return null;
+  }
+  function findBlocks(body, type){
+    var out = [];
+    for (var i = 0; i < body.length; i++){
+      if (body[i].kind === 'block' && body[i].type === type) out.push(body[i]);
+    }
+    return out;
+  }
+
+  // ==================== 依赖图 ====================
+  function graph(items){
+    var nodes = [], edges = [];
+    function addr(b){
+      if (b.type === 'resource') return b.labels.join('.');
+      if (b.type === 'data') return 'data.' + b.labels.join('.');
+      if (b.type === 'module') return 'module.' + b.labels[0];
+      if (b.type === 'output') return 'output.' + b.labels[0];
+      if (b.type === 'variable') return 'var.' + b.labels[0];
+      return b.type + (b.labels.length ? '.' + b.labels.join('.') : '');
+    }
+    for (var i = 0; i < items.length; i++){
+      var b = items[i];
+      if (b.kind !== 'block') continue;
+      if (['resource','data','module','output'].indexOf(b.type) < 0) continue;
+      var a = addr(b);
+      nodes.push({id:a, type:b.type});
+      var rs = collectRefs(b.body);
+      var seen = {};
+      for (var j = 0; j < rs.length; j++){
+        var r = rs[j];
+        var target = (r.kind === 'resource') ? r.name
+                   : (r.kind === 'data') ? 'data.' + r.name
+                   : (r.kind === 'module') ? 'module.' + r.name
+                   : (r.kind === 'var') ? 'var.' + r.name
+                   : (r.kind === 'local') ? 'local.' + r.name : null;
+        if (!target || target === a) continue;
+        if (seen[target]) continue;
+        seen[target] = 1;
+        edges.push({from:a, to:target});
+      }
+    }
+    return {nodes:nodes, edges:edges};
+  }
+
+  // ==================== 体检 ====================
+  var SECRET_KEY_RE = /(password|passwd|secret|token|api_key|apikey|access_key|secret_key|private_key|credential)/i;
+  function lint(items){
+    var issues = [];
+    function add(level, line, text){ issues.push({level:level, line:line, text:text}); }
+
+    var declaredVars = {}, declaredLocals = {}, usedVars = {}, usedLocals = {};
+    var resourceAddrs = {}, moduleNames = {}, dataAddrs = {};
+
+    var vblocks = findBlocks(items, 'variable');
+    for (var i = 0; i < vblocks.length; i++){
+      var v = vblocks[i];
+      if (v.labels.length !== 1){ add('err', v.line, 'variable 块必须且只能有一个名称标签'); continue; }
+      var vn = v.labels[0];
+      if (declaredVars[vn]) add('err', v.line, '重复声明的变量：var.' + vn);
+      declaredVars[vn] = v;
+      if (!findAttr(v.body, 'description')) add('info', v.line, '变量 var.' + vn + ' 缺少 description，团队协作时不易理解用途');
+      if (!findAttr(v.body, 'type')) add('info', v.line, '变量 var.' + vn + ' 缺少 type 约束，建议显式声明');
+      var dflt = findAttr(v.body, 'default');
+      if (dflt && SECRET_KEY_RE.test(vn) && /^"[^"]+"$/.test(dflt.value) && dflt.value !== '""')
+        add('err', dflt.line, '敏感变量 var.' + vn + ' 带有明文 default 值，应改为运行时注入');
+    }
+    var lblocks = findBlocks(items, 'locals');
+    for (var l = 0; l < lblocks.length; l++){
+      for (var la = 0; la < lblocks[l].body.length; la++){
+        var at = lblocks[l].body[la];
+        if (at.kind === 'attr') declaredLocals[at.name] = at;
+      }
+    }
+
+    for (var b = 0; b < items.length; b++){
+      var blk = items[b];
+      if (blk.kind !== 'block') continue;
+
+      if (blk.type === 'resource' || blk.type === 'data'){
+        if (blk.labels.length !== 2){
+          add('err', blk.line, blk.type + ' 块需要两个标签（类型与名称），当前有 ' + blk.labels.length + ' 个');
+        } else {
+          var key = blk.labels.join('.');
+          var reg = (blk.type === 'resource') ? resourceAddrs : dataAddrs;
+          if (reg[key]) add('err', blk.line, '重复的地址：' + (blk.type === 'data' ? 'data.' : '') + key);
+          reg[key] = 1;
+        }
+      }
+      if (blk.type === 'module'){
+        if (blk.labels.length !== 1) add('err', blk.line, 'module 块需要一个名称标签');
+        else {
+          if (moduleNames[blk.labels[0]]) add('err', blk.line, '重复的模块名：module.' + blk.labels[0]);
+          moduleNames[blk.labels[0]] = 1;
+        }
+        if (!findAttr(blk.body, 'source')) add('err', blk.line, 'module “' + blk.labels[0] + '” 缺少 source');
+        var srcA = findAttr(blk.body, 'source');
+        if (srcA && !findAttr(blk.body, 'version') && /^"[^./]/.test(srcA.value))
+          add('info', blk.line, 'module “' + blk.labels[0] + '” 引用了 registry 源但未锁定 version');
+      }
+
+      // count 与 for_each 互斥
+      if (findAttr(blk.body, 'count') && findAttr(blk.body, 'for_each'))
+        add('err', blk.line, '同一个块不能同时使用 count 与 for_each');
+
+      // 明文密钥 / 全开放网段
+      (function walk(body){
+        for (var k = 0; k < body.length; k++){
+          var it = body[k];
+          if (it.kind === 'block'){ walk(it.body); continue; }
+          if (SECRET_KEY_RE.test(it.name) && /^"[^"$]{6,}"$/.test(it.value))
+            add('err', it.line, '疑似明文凭据：' + it.name + ' 直接写死了字符串值');
+          if (/0\.0\.0\.0\/0/.test(it.value) || /"::\/0"/.test(it.value))
+            add('warn', it.line, it.name + ' 放开了 0.0.0.0/0（全网可达），请确认是否必要');
+          if (it.name === 'source' && /\?ref=(main|master)"/.test(it.value))
+            add('warn', it.line, 'module source 指向可变分支（main/master），建议固定 tag 或 commit');
+        }
+      })(blk.body);
+    }
+
+    var allRefs = collectRefs(items);
+    for (var r = 0; r < allRefs.length; r++){
+      var rf = allRefs[r];
+      if (rf.kind === 'var'){
+        usedVars[rf.name] = 1;
+        if (!declaredVars[rf.name]) add('err', 0, '引用了未声明的变量：var.' + rf.name);
+      }
+      if (rf.kind === 'local'){
+        usedLocals[rf.name] = 1;
+        if (!declaredLocals[rf.name]) add('err', 0, '引用了未定义的局部值：local.' + rf.name);
+      }
+    }
+    Object.keys(declaredVars).forEach(function(k){
+      if (!usedVars[k]) add('info', declaredVars[k].line, '变量 var.' + k + ' 已声明但从未被引用');
+    });
+    Object.keys(declaredLocals).forEach(function(k){
+      if (!usedLocals[k]) add('info', declaredLocals[k].line, '局部值 local.' + k + ' 已定义但从未被引用');
+    });
+
+    // 去重（同一行同一句只报一次）
+    var seen = {}, uniq = [];
+    for (var q = 0; q < issues.length; q++){
+      var sig = issues[q].level + '|' + issues[q].line + '|' + issues[q].text;
+      if (seen[sig]) continue;
+      seen[sig] = 1; uniq.push(issues[q]);
+    }
+    return uniq;
+  }
+
+  // ==================== 规范化格式化（terraform fmt 风格）====================
+  function fmt(items, indent){
+    indent = indent || 0;
+    var pad = '  '.repeat(indent);
+    var out = [];
+    // 连续属性成组，组内 '=' 对齐
+    var i = 0;
+    while (i < items.length){
+      var it = items[i];
+      if (it.kind === 'attr'){
+        var group = [];
+        while (i < items.length && items[i].kind === 'attr'){ group.push(items[i]); i++; }
+        var w = 0;
+        for (var g = 0; g < group.length; g++) w = Math.max(w, group[g].name.length);
+        for (var g2 = 0; g2 < group.length; g2++){
+          var a = group[g2];
+          for (var c = 0; c < (a.comments || []).length; c++) out.push(pad + a.comments[c]);
+          var val = a.value.indexOf('\n') >= 0
+            ? a.value.split('\n').map(function(ln, ix){ return ix ? pad + '  ' + ln.trim() : ln; }).join('\n')
+            : a.value;
+          out.push(pad + a.name + ' '.repeat(w - a.name.length) + ' = ' + val);
+        }
+        continue;
+      }
+      for (var c2 = 0; c2 < (it.comments || []).length; c2++) out.push(pad + it.comments[c2]);
+      var head = it.type;
+      for (var lb = 0; lb < it.labels.length; lb++) head += ' "' + it.labels[lb] + '"';
+      if (!it.body.length){ out.push(pad + head + ' {}'); }
+      else {
+        out.push(pad + head + ' {');
+        out.push(fmt(it.body, indent + 1));
+        out.push(pad + '}');
+      }
+      if (indent === 0 && i < items.length - 1) out.push('');
+      i++;
+    }
+    return out.join('\n');
+  }
+
+  function summary(items){
+    var counts = {};
+    for (var i = 0; i < items.length; i++){
+      if (items[i].kind !== 'block') continue;
+      var t = items[i].type;
+      counts[t] = (counts[t] || 0) + 1;
+    }
+    return Object.keys(counts).sort().map(function(k){ return {k:k, n:counts[k]}; });
+  }
+
+  function analyze(src){
+    var s = String(src == null ? '' : src);
+    if (!s.trim()) return {error:'请粘贴 Terraform（HCL2）配置'};
+    var pr = parse(s);
+    var g = graph(pr.items);
+    var issues = lint(pr.items);
+    for (var i = 0; i < pr.errors.length; i++)
+      issues.unshift({level:'err', line:pr.errors[i].line, text:'语法：' + pr.errors[i].text});
+    return {
+      error:null, items:pr.items, summary:summary(pr.items),
+      graph:g, issues:issues,
+      errCount: issues.filter(function(x){ return x.level === 'err'; }).length,
+      formatted: fmt(pr.items, 0)
+    };
+  }
+
+  var api = {scan:scan, parse:parse, graph:graph, lint:lint, fmt:fmt,
+             refsIn:refsIn, collectRefs:collectRefs, analyze:analyze,
+             findAttr:findAttr, findBlocks:findBlocks, summary:summary};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {TerraformForgePure:TerraformForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = TerraformForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var DEMO = [
+    'variable "region" {',
+    '  type = string',
+    '  description = "部署区域"',
+    '  default = "ap-east-1"',
+    '}',
+    '',
+    'variable "db_password" {',
+    '  default = "hunter2-plaintext"',
+    '}',
+    '',
+    'variable "unused_flag" {',
+    '  type = bool',
+    '  default = false',
+    '}',
+    '',
+    'locals {',
+    '  name_prefix = "checkout"',
+    '  tags = { Env = "prod", Owner = "platform" }',
+    '}',
+    '',
+    'resource "aws_security_group" "web" {',
+    '  name = "${local.name_prefix}-web"',
+    '  ingress {',
+    '    from_port = 443',
+    '    to_port = 443',
+    '    protocol = "tcp"',
+    '    cidr_blocks = ["0.0.0.0/0"]',
+    '  }',
+    '}',
+    '',
+    'resource "aws_instance" "web" {',
+    '  ami = data.aws_ami.ubuntu.id',
+    '  instance_type = var.instance_type',
+    '  vpc_security_group_ids = [aws_security_group.web.id]',
+    '  tags = local.tags',
+    '}',
+    '',
+    'data "aws_ami" "ubuntu" {',
+    '  most_recent = true',
+    '}',
+    '',
+    'module "network" {',
+    '  source = "terraform-aws-modules/vpc/aws"',
+    '  region = var.region',
+    '}',
+    '',
+    'output "instance_ip" {',
+    '  value = aws_instance.web.private_ip',
+    '}'
+  ].join('\n');
+
+  function run(){
+    var r = P.analyze(document.getElementById('tf-src').value);
+    var $e = document.getElementById('tf-err'), $o = document.getElementById('tf-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var h = '';
+    h += '<div class="kv"><b>顶层块</b><span>' + r.summary.map(function(x){ return x.k + ' × ' + x.n; }).join('，') + '</span></div>';
+    h += '<div class="kv"><b>依赖节点 / 边</b><span>' + r.graph.nodes.length + ' / ' + r.graph.edges.length + '</span></div>';
+    h += '<div class="kv"><b>阻断问题</b><span style="color:' + (r.errCount ? '#EF4444' : 'var(--ok)') + ';font-weight:700">' +
+         r.errCount + '</span></div>';
+
+    if (r.issues.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">体检结果</div>';
+      for (var i = 0; i < r.issues.length; i++){
+        var it = r.issues[i];
+        var col = it.level === 'err' ? '#EF4444' : (it.level === 'warn' ? 'var(--warn)' : 'var(--muted)');
+        var tag = it.level === 'err' ? '严重' : (it.level === 'warn' ? '警告' : '建议');
+        h += '<div class="kv"><b style="color:' + col + '">' + tag + (it.line ? ' L' + it.line : '') +
+             '</b><span>' + esc(it.text) + '</span></div>';
+      }
+    } else {
+      h += '<div class="kv"><b>体检结果</b><span style="color:var(--ok)">未发现问题</span></div>';
+    }
+
+    if (r.graph.edges.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">引用依赖（谁依赖谁）</div>';
+      for (var j = 0; j < r.graph.edges.length; j++){
+        var ed = r.graph.edges[j];
+        h += '<div class="kv"><b>' + esc(ed.from) + '</b><span>&rarr; ' + esc(ed.to) + '</span></div>';
+      }
+    }
+    $o.innerHTML = h;
+  }
+
+  document.getElementById('tf-go').addEventListener('click', run);
+  document.getElementById('tf-fmt').addEventListener('click', function(){
+    var r = P.analyze(document.getElementById('tf-src').value);
+    if (r.error){ document.getElementById('tf-err').textContent = r.error; return; }
+    document.getElementById('tf-src').value = r.formatted;
+    run();
+  });
+  document.getElementById('tf-demo').addEventListener('click', function(){
+    document.getElementById('tf-src').value = DEMO; run();
+  });
+  document.getElementById('tf-clr').addEventListener('click', function(){
+    document.getElementById('tf-src').value = '';
+    document.getElementById('tf-out').innerHTML = '';
+    document.getElementById('tf-err').textContent = '';
+  });
+  document.getElementById('tf-src').value = DEMO;
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

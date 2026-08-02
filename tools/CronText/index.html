@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<link rel="icon" href="favicon.svg">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CronText · Cron 表达式解释器</title>
+  <meta property="og:image" content="og.svg">
+
+<meta name="description" content="单文件、零依赖、本地优先的 Cron 表达式解释器：把 crontab 表达式翻译成人话，并预测未来运行时间。支持 * , - / 语法与常见示例库，打开即用。" />
+<style>
+  :root{
+    --bg:#08090A; --surface:#101113; --surface2:#15171a; --line:#1C1D1F; --line2:#26282b;
+    --text:#E6E7E9; --muted:#9A9DA3; --accent:#5e6ad2; --accent2:#8A93F2; --green:#3FB950;
+    --pink:#FF7AB6; --amber:#FFB84D; --red:#F85149; --radius:8px;
+    --mono:Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Noto Sans SC,Roboto,Helvetica,Arial,sans-serif;
+  }
+  [data-theme="light"]{
+    --bg:#F7F8FA; --surface:#FFFFFF; --surface2:#F0F1F4; --line:#E3E5E9; --line2:#D4D7DD;
+    --text:#1B1C1E; --muted:#62656B; --accent:#5e6ad2; --accent2:#6B74E0; --green:#1A7F37;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent2);text-decoration:none}
+  .wrap{max-width:900px;margin:0 auto;padding:18px 18px 60px}
+  header{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);background:color-mix(in srgb,var(--surface) 80%,transparent);border-bottom:1px solid var(--line)}
+  .bar{display:flex;align-items:center;gap:12px;max-width:900px;margin:0 auto;padding:12px 18px}
+  .brand{font-weight:700;font-size:17px;display:flex;align-items:center;gap:9px}
+  .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;font-family:var(--mono)}
+  .brand small{color:var(--muted);font-weight:500;font-size:12px}
+  .spacer{flex:1}
+  .iconbtn{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:transform .15s,border-color .15s}
+  .iconbtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .hero{padding:24px 4px 12px}
+  .hero h1{font-size:30px;margin:0 0 8px;letter-spacing:-.5px}
+  .hero h1 .g{background:linear-gradient(135deg,var(--accent2),var(--pink));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .hero p{color:var(--muted);margin:0;max-width:640px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:16px}
+  .cronin{display:flex;align-items:stretch;background:var(--surface2);border:1px solid var(--line);border-radius:10px;overflow:hidden;transition:border-color .15s}
+  .cronin:focus-within{border-color:var(--accent)}
+  .cronin input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:22px;padding:14px 16px;letter-spacing:1px;text-align:center}
+  .fields{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
+  .fcell{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:10px 8px;text-align:center}
+  .fcell .v{font-family:var(--mono);font-size:18px;color:var(--accent2)}
+  .fcell .n{font-size:11px;color:var(--muted);margin-top:3px}
+  .fcell .d{font-size:11px;color:var(--text);margin-top:5px;min-height:14px}
+  .desc{margin-top:16px;padding:16px;border-radius:10px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line))}
+  .desc .big{font-size:18px;font-weight:600;line-height:1.5}
+  .desc.err{background:color-mix(in srgb,var(--red) 12%,var(--surface));border-color:color-mix(in srgb,var(--red) 35%,var(--line))}
+  .desc.err .big{color:var(--red)}
+  h3{font-size:13px;color:var(--muted);font-weight:600;margin:0 0 10px;letter-spacing:.3px}
+  .runs{display:flex;flex-direction:column;gap:6px}
+  .run{display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:9px 13px;font-family:var(--mono);font-size:14px}
+  .run .rel{color:var(--muted);font-size:12px;font-family:var(--sans)}
+  .run .dt{color:var(--text)}
+  .run .wd{color:var(--accent2);font-size:12px}
+  .examples{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+  .ex{background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:11px 12px;cursor:pointer;transition:.15s}
+  .ex:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .ex .c{font-family:var(--mono);font-size:14px;color:var(--accent2)}
+  .ex .t{font-size:12px;color:var(--muted);margin-top:3px}
+  footer{color:var(--muted);font-size:12.5px;margin-top:28px;text-align:center;line-height:1.7}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+
+  <meta name="theme-color" content="#0A0A0B">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:title" content="CronText · Cron 表达式解释器">
+  <meta property="og:type" content="website">
+<meta property="og:description" content="单文件、零依赖、本地优先的 Cron 表达式解释器：把 crontab 表达式翻译成人话，并预测未来运行时间。支持 * , - / 语法与常见示例库，打开即用。">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="CronText · Cron 表达式解释器">
+<meta name="twitter:description" content="单文件、零依赖、本地优先的 Cron 表达式解释器：把 crontab 表达式翻译成人话，并预测未来运行时间。支持 * , - / 语法与常见示例库，打开即用。">
+<meta name="twitter:image" content="og.svg">
+<style id="nano-a11y">
+:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<header><div class="bar">
+  <div class="brand"><span class="logo">Cr</span> CronText <small>v1.0</small></div>
+  <div class="spacer"></div>
+  <button class="iconbtn" id="themeBtn" title="切换主题">🌙</button>
+</div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <h1 data-i18n-html="Cron Expression <span class=&quot;g&quot;>Explainer</span>">Cron 表达式<span class="g">解释器</span></h1>
+    <p>把晦涩的 crontab 表达式翻译成一句人话，并预测接下来几次的运行时间。支持 <code>* , - /</code> 语法，内置常见示例。纯本地运行。</p>
+  </div>
+
+  <div class="panel">
+    <div class="cronin">
+      <input id="cron" spellcheck="false" value="*/5 9-17 * * 1-5" placeholder="分 时 日 月 周，例如 */5 9-17 * * 1-5" />
+    </div>
+    <div class="fields" id="fields"></div>
+    <div class="desc" id="desc"><div class="big">—</div></div>
+  </div>
+
+  <div class="panel">
+    <h3>接下来 8 次运行时间</h3>
+    <div class="runs" id="runs"></div>
+  </div>
+
+  <div class="panel">
+    <h3>常见示例（点击填入）</h3>
+    <div class="examples" id="examples"></div>
+  </div>
+
+  <footer>
+    CronText · 单文件 / 零依赖 / 本地优先 · 采用标准 5 字段 crontab 语法（分 时 日 月 周）。<br/>
+    运行时间基于你本机的当前时区计算，不上传任何数据。
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var FIELD_RANGES=[[0,59],[0,23],[1,31],[1,12],[0,6]];
+  var FIELD_NAMES=['分钟','小时','日','月','星期'];
+  var MONTH_NAMES=['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  var DOW_NAMES=['周日','周一','周二','周三','周四','周五','周六'];
+  var MON_ALIAS={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  var DOW_ALIAS={sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6};
+
+  // 解析单个字段为升序去重整数数组
+  function parseField(field, min, max, aliasMap){
+    field=String(field).trim().toLowerCase();
+    if(field==='') throw new Error('字段为空');
+    var result={};
+    var parts=field.split(',');
+    for(var p=0;p<parts.length;p++){
+      var seg=parts[p];
+      var step=1;
+      var slash=seg.split('/');
+      if(slash.length>2) throw new Error('多余的 /');
+      if(slash.length===2){
+        step=parseInt(slash[1],10);
+        if(!(step>0)) throw new Error('步长无效: '+slash[1]);
+      }
+      var rangePart=slash[0];
+      var lo, hi;
+      if(rangePart==='*'){ lo=min; hi=max; }
+      else{
+        var dash=rangePart.split('-');
+        if(dash.length===1){
+          lo=resolveVal(dash[0], aliasMap);
+          hi = (slash.length===2) ? max : lo; // a/step 视为 a..max
+        }else if(dash.length===2){
+          lo=resolveVal(dash[0], aliasMap);
+          hi=resolveVal(dash[1], aliasMap);
+        }else throw new Error('区间格式错误: '+rangePart);
+      }
+      if(isNaN(lo)||isNaN(hi)) throw new Error('非法数值: '+rangePart);
+      if(lo<min||hi>max||lo>hi) throw new Error('超出范围 '+min+'-'+max+': '+rangePart);
+      for(var v=lo; v<=hi; v+=step){ result[v]=true; }
+    }
+    return Object.keys(result).map(Number).sort(function(a,b){return a-b;});
+  }
+  function resolveVal(s, aliasMap){
+    s=String(s).trim();
+    if(aliasMap && aliasMap[s]!==undefined) return aliasMap[s];
+    return parseInt(s,10);
+  }
+
+  // 解析整条 cron
+  function parseCron(expr){
+    var tokens=String(expr).trim().split(/\s+/);
+    if(tokens.length!==5) throw new Error('需要 5 个字段（分 时 日 月 周），当前 '+tokens.length+' 个');
+    var minute=parseField(tokens[0],0,59,null);
+    var hour=parseField(tokens[1],0,23,null);
+    var dom=parseField(tokens[2],1,31,null);
+    var month=parseField(tokens[3],1,12,MON_ALIAS);
+    // 星期：7 视为 0（周日）
+    var dowRaw=String(tokens[4]).toLowerCase().replace(/\b7\b/g,'0');
+    var dow=parseField(dowRaw,0,6,DOW_ALIAS);
+    return {
+      minute:minute, hour:hour, dom:dom, month:month, dow:dow,
+      domStar: tokens[2]==='*', dowStar: tokens[4]==='*',
+      raw: tokens
+    };
+  }
+
+  // 字段人话
+  function fieldPhrase(vals, star, type){
+    var min=FIELD_RANGES[type][0], max=FIELD_RANGES[type][1];
+    var full=(max-min+1);
+    if(type===0){ // 分钟
+      if(star||vals.length===full) return '每分钟';
+      var st=detectStep(vals,min,max); if(st) return '每 '+st+' 分钟';
+      if(vals.length===1) return '第 '+vals[0]+' 分';
+      return '第 '+vals.join('、')+' 分';
+    }
+    if(type===1){ // 小时
+      if(star||vals.length===full) return '每小时';
+      var st2=detectStep(vals,min,max); if(st2) return '每 '+st2+' 小时';
+      if(vals.length===1) return vals[0]+' 时';
+      if(isContig(vals)) return vals[0]+'-'+vals[vals.length-1]+' 时';
+      return vals.join('、')+' 时';
+    }
+    if(type===2){ // 日
+      if(star||vals.length===full) return '每天';
+      if(vals.length===1) return vals[0]+' 号';
+      return vals.join('、')+' 号';
+    }
+    if(type===3){ // 月
+      if(star||vals.length===full) return '每月';
+      return vals.map(function(v){return MONTH_NAMES[v];}).join('、');
+    }
+    if(type===4){ // 星期
+      if(star||vals.length===7) return '每天（不限星期）';
+      if(isContig(vals)) return DOW_NAMES[vals[0]]+' 至 '+DOW_NAMES[vals[vals.length-1]];
+      return vals.map(function(v){return DOW_NAMES[v];}).join('、');
+    }
+  }
+  function detectStep(vals,min,max){
+    if(vals.length<2) return 0;
+    var d=vals[1]-vals[0];
+    if(d<=1) return 0;
+    for(var i=1;i<vals.length;i++){ if(vals[i]-vals[i-1]!==d) return 0; }
+    if(vals[0]!==min && vals[0]!==0) return 0; // 仅当从起点开始才叫“每 d”
+    return d;
+  }
+  function isContig(vals){
+    for(var i=1;i<vals.length;i++){ if(vals[i]-vals[i-1]!==1) return false; }
+    return vals.length>1;
+  }
+
+  // 整体描述
+  function describe(parsed){
+    var mp=fieldPhrase(parsed.minute, false, 0);
+    var hp=fieldPhrase(parsed.hour, parsed.raw[1]==='*', 1);
+    var timePart;
+    // 组合时+分
+    if(mp==='每分钟' && hp==='每小时') timePart='每分钟';
+    else if(hp==='每小时') timePart=hp+'的'+mp;
+    else if(mp==='每分钟') timePart=hp+'内每分钟';
+    else if(parsed.minute.length===1 && parsed.hour.length===1)
+      timePart='在 '+pad(parsed.hour[0])+':'+pad(parsed.minute[0]);
+    else timePart=hp+' 的 '+mp;
+
+    var parts=[timePart];
+    var domP=fieldPhrase(parsed.dom, parsed.domStar, 2);
+    var monP=fieldPhrase(parsed.month, parsed.raw[3]==='*', 3);
+    var dowP=fieldPhrase(parsed.dow, parsed.dowStar, 4);
+
+    // 日/星期组合（标准 cron：两者都限制时为“或”）
+    var dayPart='';
+    if(!parsed.domStar && !parsed.dowStar) dayPart=domP+' 或 '+dowP;
+    else if(!parsed.domStar) dayPart=domP;
+    else if(!parsed.dowStar) dayPart=dowP;
+    if(dayPart) parts.push(dayPart);
+    if(monP!=='每月') parts.push(monP);
+
+    return '执行：'+parts.join('，');
+  }
+  function pad(n){ return (n<10?'0':'')+n; }
+
+  // 某个 Date 是否匹配
+  function matches(parsed, d){
+    if(parsed.minute.indexOf(d.getMinutes())<0) return false;
+    if(parsed.hour.indexOf(d.getHours())<0) return false;
+    if(parsed.month.indexOf(d.getMonth()+1)<0) return false;
+    var domOk=parsed.dom.indexOf(d.getDate())>=0;
+    var dowOk=parsed.dow.indexOf(d.getDay())>=0;
+    if(parsed.domStar && parsed.dowStar) return true;
+    if(parsed.domStar) return dowOk;
+    if(parsed.dowStar) return domOk;
+    return domOk||dowOk; // 都限制 → 或
+  }
+
+  // 未来 N 次运行
+  function nextRuns(parsed, from, count){
+    var out=[];
+    var d=new Date(from.getTime());
+    d.setSeconds(0,0);
+    d.setMinutes(d.getMinutes()+1); // 从下一分钟起
+    var guard=0, maxIter=366*24*60*4; // 约 4 年
+    while(out.length<count && guard<maxIter){
+      guard++;
+      if(matches(parsed,d)) out.push(new Date(d.getTime()));
+      d.setMinutes(d.getMinutes()+1);
+    }
+    return out;
+  }
+
+  var EXAMPLES=[
+    {c:'* * * * *', t:'每分钟'},
+    {c:'*/5 * * * *', t:'每 5 分钟'},
+    {c:'0 * * * *', t:'每小时整点'},
+    {c:'0 0 * * *', t:'每天午夜'},
+    {c:'30 9 * * 1-5', t:'工作日 9:30'},
+    {c:'0 9-17 * * *', t:'白天每小时'},
+    {c:'0 0 1 * *', t:'每月 1 号'},
+    {c:'0 0 * * 0', t:'每周日午夜'},
+    {c:'15 10 1,15 * *', t:'每月 1/15 号 10:15'},
+    {c:'0 0 1 1 *', t:'每年元旦'},
+    {c:'*/15 9-18 * * 1-5', t:'工作时间每 15 分'},
+    {c:'0 8 * * 1', t:'每周一 8:00'}
+  ];
+
+  /* 导出给 node 测试 */
+  if (typeof module !== 'undefined' && module.exports){
+    module.exports = { parseField:parseField, parseCron:parseCron, describe:describe, matches:matches, nextRuns:nextRuns, fieldPhrase:fieldPhrase, EXAMPLES:EXAMPLES };
+  }
+  if (typeof window === 'undefined') return;
+
+  /* ---------- UI ---------- */
+  var $=function(id){ return document.getElementById(id); };
+  var theme='dark';
+  try{ var t=localStorage.getItem('ct_theme'); if(t) theme=t; }catch(e){}
+  document.documentElement.setAttribute('data-theme', theme);
+  $('themeBtn').textContent = theme==='dark'?'🌙':'☀️';
+
+  var WD=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+  function fmtDate(d){
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  function relTime(d, now){
+    var diff=Math.round((d.getTime()-now.getTime())/1000);
+    if(diff<60) return '约 '+diff+' 秒后';
+    var mins=Math.round(diff/60);
+    if(mins<60) return mins+' 分钟后';
+    var hrs=Math.round(mins/60);
+    if(hrs<24) return hrs+' 小时后';
+    var days=Math.round(hrs/24);
+    return days+' 天后';
+  }
+
+  function render(){
+    var expr=$('cron').value;
+    var parsed, err=null;
+    try{ parsed=parseCron(expr); }catch(e){ err=e.message; }
+
+    // 字段卡片
+    var tokens=String(expr).trim().split(/\s+/);
+    var fhtml='';
+    for(var i=0;i<5;i++){
+      var val=tokens[i]!==undefined?tokens[i]:'—';
+      var dd='';
+      if(parsed){
+        try{ dd=fieldPhrase(
+          i===0?parsed.minute:i===1?parsed.hour:i===2?parsed.dom:i===3?parsed.month:parsed.dow,
+          i===2?parsed.domStar:i===4?parsed.dowStar:tokens[i]==='*', i); }catch(e){ dd=''; }
+      }
+      fhtml+='<div class="fcell"><div class="v">'+escapeHtml(val)+'</div><div class="n">'+FIELD_NAMES[i]+'</div><div class="d">'+escapeHtml(dd)+'</div></div>';
+    }
+    $('fields').innerHTML=fhtml;
+
+    var descEl=$('desc');
+    if(err){
+      descEl.className='desc err';
+      descEl.innerHTML='<div class="big">✗ '+escapeHtml(err)+'</div>';
+      $('runs').innerHTML='<div style="color:var(--muted);font-size:13px">表达式无效，无法计算运行时间</div>';
+      return;
+    }
+    descEl.className='desc';
+    descEl.innerHTML='<div class="big">'+escapeHtml(describe(parsed))+'</div>';
+
+    var now=new Date();
+    var runs=nextRuns(parsed, now, 8);
+    if(!runs.length){
+      $('runs').innerHTML='<div style="color:var(--muted);font-size:13px">在可预见范围内没有匹配（可能是不存在的日期，如 2 月 30 号）</div>';
+      return;
+    }
+    $('runs').innerHTML=runs.map(function(d){
+      return '<div class="run"><span class="dt">'+fmtDate(d)+' <span class="wd">'+WD[d.getDay()]+'</span></span><span class="rel">'+relTime(d,now)+'</span></div>';
+    }).join('');
+  }
+  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  $('cron').addEventListener('input', render);
+  $('themeBtn').addEventListener('click', function(){
+    theme=theme==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    this.textContent=theme==='dark'?'🌙':'☀️';
+    try{ localStorage.setItem('ct_theme', theme); }catch(e){}
+  });
+  $('examples').innerHTML=EXAMPLES.map(function(x,i){
+    return '<div class="ex" data-i="'+i+'"><div class="c">'+escapeHtml(x.c)+'</div><div class="t">'+escapeHtml(x.t)+'</div></div>';
+  }).join('');
+  $('examples').addEventListener('click', function(e){
+    var el=e.target.closest('.ex'); if(!el) return;
+    $('cron').value=EXAMPLES[+el.dataset.i].c; render();
+  });
+
+  render();
+})();
+</script>
+
+<footer id="nt-foot">
+<style>
+  .nt-foot{position:relative;z-index:2;margin-top:56px;border-top:1px solid rgba(255,255,255,.08);background:#0A0A0B;color:#71717A;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6}
+  .nt-foot *{box-sizing:border-box}
+  .nt-foot a{text-decoration:none}
+  .nt-in{max-width:1080px;margin:0 auto;padding:34px 24px 30px}
+  .nt-row{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .nt-id{min-width:0}
+  .nt-brand{display:flex;align-items:center;gap:10px;font-weight:700;color:#fff;font-size:15px;letter-spacing:-.02em}
+  .nt-brand .mk{width:26px;height:26px;border-radius:7px;background:#5E6AD2;display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px}
+  .nt-tag{margin-top:4px;color:#71717A;font-size:12.5px}
+  .nt-cta{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:9px;background:#5E6AD2;color:#fff;font-weight:600;font-size:13.5px;border:1px solid #5E6AD2;transition:transform .18s ease,background .2s ease,box-shadow .2s ease}
+  .nt-cta:hover{transform:translateY(-1px);background:#7C84E8;box-shadow:0 6px 20px rgba(94,106,210,.3)}
+  .nt-sep{height:1px;background:rgba(255,255,255,.08);margin:22px 0 16px}
+  .nt-rel{display:flex;flex-wrap:wrap;gap:8px}
+  .nt-rel a{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:#141417;border:1px solid rgba(255,255,255,.08);color:#A1A1AA;font-size:12.5px;font-weight:600;transition:all .18s ease}
+  .nt-rel a:hover{border-color:#5E6AD2;color:#fff}
+  .nt-cur{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(94,106,210,.12);border:1px solid #5E6AD2;color:#fff;font-size:12.5px;font-weight:700}
+  .nt-meta{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#71717A;font-size:12px}
+  .nt-meta a{color:#A1A1AA;border-bottom:1px dashed rgba(255,255,255,.08)}
+  .nt-meta a:hover{color:#5E6AD2}
+  @media(max-width:560px){.nt-row{flex-direction:column;align-items:flex-start}.nt-cta{width:100%;justify-content:center}}
+</style>
+<div class="nt-in">
+  <div class="nt-row">
+    <div class="nt-id">
+      <div class="nt-brand"><span class="mk">n</span> nano-tools</div>
+      <div class="nt-tag">单文件 · 零依赖 · 本地优先的开发者工具集</div>
+    </div>
+    <a class="nt-cta" href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">浏览全部 328 款工具 &rarr;</a>
+  </div>
+  <div class="nt-sep"></div>
+  <div class="nt-rel">
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BaseForge/" target="_blank" rel="noopener">BaseForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BoxKit/" target="_blank" rel="noopener">BoxKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CSSKit/" target="_blank" rel="noopener">CSSKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Chartify/" target="_blank" rel="noopener">Chartify</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ColorForge/" target="_blank" rel="noopener">ColorForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ContextLens/" target="_blank" rel="noopener">ContextLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronForge/" target="_blank" rel="noopener">CronForge</a>
+      <span class="nt-cur">CronText &middot; 当前</span>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DataForge/" target="_blank" rel="noopener">DataForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DiffLens/" target="_blank" rel="noopener">DiffLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Graphite/" target="_blank" rel="noopener">Graphite</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/HashKit/" target="_blank" rel="noopener">HashKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/IconForge/" target="_blank" rel="noopener">IconForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Inkwell/" target="_blank" rel="noopener">Inkwell</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/JsonForge/" target="_blank" rel="noopener">JsonForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MarkForge/" target="_blank" rel="noopener">MarkForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MockForge/" target="_blank" rel="noopener">MockForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PalettePro/" target="_blank" rel="noopener">PalettePro</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PassForge/" target="_blank" rel="noopener">PassForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RESTKit/" target="_blank" rel="noopener">RESTKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RegexLab/" target="_blank" rel="noopener">RegexLab</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SVGForge/" target="_blank" rel="noopener">SVGForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SnapCompress/" target="_blank" rel="noopener">SnapCompress</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/UniConvert/" target="_blank" rel="noopener">UniConvert</a>
+  </div>
+  <div class="nt-meta">
+    <span>&copy; <span id="nt-yr"></span> nano-tools &middot; 由 HTML5 + 原生 JS 构建 &middot; 零依赖</span>
+    <span><a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> &middot; <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/CronText" target="_blank" rel="noopener">本工具源码</a></span>
+  </div>
+</div>
+<script>
+(function(){var y=document.getElementById('nt-yr');if(y)y.textContent=new Date().getFullYear();})();
+</script>
+</footer>
+
+
+
+
+
+<!-- nano-i18n:start -->
+<script>
+window.NANO_I18N_EXTRA = {
+  "CronText · Cron 表达式解释器":"CronText · Cron Expression Explainer"
+};
+/* NANO_I18N_RUNTIME */
+(function(){
+  // nano-tools 通用双语运行时：翻译可见 UI 文本（按钮/标签/标题/hero），不入脚本/样式/输入区。
+  var COMMON = {
+    "复制":"Copy","复制结果":"Copy result","复制链接":"Copy link","复制代码":"Copy code",
+    "清空":"Clear","清除":"Clear","清除全部":"Clear all","清空全部":"Clear all",
+    "粘贴":"Paste","生成":"Generate","运行":"Run","执行":"Run","停止":"Stop","暂停":"Pause",
+    "继续":"Resume","重试":"Retry","格式化":"Format","压缩":"Minify","美化":"Beautify","压缩美化":"Minify",
+    "导出":"Export","导入":"Import","保存":"Save","删除":"Delete","移除":"Remove","添加":"Add",
+    "重置":"Reset","还原":"Reset","搜索":"Search","提交":"Submit","取消":"Cancel","确定":"OK",
+    "确认":"Confirm","关闭":"Close","输入":"Input","输出":"Output","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","名称":"Name","值":"Value","类型":"Type",
+    "大小":"Size","数量":"Count","颜色":"Color","文本":"Text","内容":"Content","编码":"Encode",
+    "解码":"Decode","加密":"Encrypt","解密":"Decrypt","校验":"Verify","计算":"Calculate",
+    "转换":"Convert","上传":"Upload","下载":"Download","全选":"Select all","折叠":"Collapse",
+    "展开":"Expand","开始":"Start","帮助":"Help","关于":"About","更多":"More","更少":"Less",
+    "示例":"Example","随机":"Random","全部":"All","中文":"中文","English":"English","浅色":"Light",
+    "深色":"Dark","亮色":"Light","暗色":"Dark","复制成功":"Copied","已复制":"Copied",
+    "加载中":"Loading…","暂无数据":"No data","请输入":"Please enter","或":"or","拖拽":"Drag",
+    "拖到此处":"Drop here","选择文件":"Choose file","字数":"Words","字符":"Characters",
+    "行数":"Lines","用时":"Time","耗时":"Elapsed","共":"Total","项":"items","条":"items",
+    "历史":"History","清空历史":"Clear history","复制结果":"Copy result","复制":"Copy",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh","应用":"Apply",
+    "不区分大小写":"Case-insensitive","忽略空白":"Ignore whitespace","换行":"Line break",
+    "正则表达式":"Regex","模式":"Mode","选项":"Options","高级":"Advanced","基础":"Basic",
+    "开启":"On","关闭":"Off","启用":"Enable","禁用":"Disable","显示":"Show","隐藏":"Hide",
+    "复制 SVG":"Copy SVG","下载 SVG":"Download SVG","复制 PNG":"Copy PNG","下载 PNG":"Download PNG",
+    "复制 CSS":"Copy CSS","复制 URL":"Copy URL","复制到剪贴板":"Copy to clipboard",
+    "已保存到本地":"Saved locally","解析中":"Parsing…","分析中":"Analyzing…","生成中":"Generating…",
+    "请选择":"Please select","请先":"Please first","不支持":"Not supported","错误":"Error",
+    "成功":"Success","失败":"Failed","完成":"Done","下一步":"Next","上一步":"Previous",
+    "当前":"Current","总计":"Total","平均":"Average","最大":"Max","最小":"Min",
+    "字符数":"Chars","词数":"Words","句数":"Sentences","段落":"Paragraphs",
+    "浅色模式":"Light mode","深色模式":"Dark mode","切换主题":"Toggle theme","切换语言":"Switch language",
+    "打开文件":"Open file","保存文件":"Save file","导出文件":"Export file","导入文件":"Import file",
+    "复制全部":"Copy all","清除结果":"Clear result","清空结果":"Clear result",
+    "全屏":"Fullscreen","退出全屏":"Exit fullscreen","适应屏幕":"Fit screen","缩放":"Zoom",
+    "放大":"Zoom in","缩小":"Zoom out","重置视图":"Reset view","居中":"Center",
+    "添加节点":"Add node","删除节点":"Delete node","添加连线":"Add edge","删除连线":"Delete edge",
+    "自动布局":"Auto layout","适应视图":"Fit view","导出 JSON":"Export JSON","导出 Markdown":"Export Markdown",
+    "开始分析":"Start analysis","停止分析":"Stop analysis","分析文件夹":"Analyze folder",
+    "拖拽文件夹到此处":"Drop a folder here","或点击选择":"or click to choose","粘贴文本":"Paste text",
+    "复制结果":"Copy result","复制代码":"Copy code"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p = node.parentElement;
+    while(p){
+      var t = p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  var current = 'zh';
+  function applyLang(lang){
+    var d = full();
+    var root = document.documentElement;
+    current = lang;
+    // 翻译 <title>（浏览器标签 / 分享卡片）
+    var rawTitle = document.title;
+    if(lang==='en'){
+      if(d[rawTitle]) document.title = d[rawTitle];
+    } else {
+      var ex = window.NANO_I18N_EXTRA || {};
+      for(var _k in ex){ if(ex[_k] === rawTitle){ document.title = _k; break; } }
+    }
+    if(lang==='en'){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n = w.nextNode()){ n.__zh = n.nodeValue; n.nodeValue = d[n.nodeValue.trim()]; }
+      // 整元素翻译（hero 含子结构，如彩色词 <span>）
+      var els = root.querySelectorAll('[data-i18n-html]');
+      for(var ei=0; ei<els.length; ei++){ var el=els[ei]; if(el.__zhtml===undefined){ el.__zhtml = el.innerHTML; } el.innerHTML = el.getAttribute('data-i18n-html'); }
+    } else {
+      var w2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m = w2.nextNode()){ m.nodeValue = m.__zh; m.__zh = undefined; }
+      // 还原整元素翻译
+      var els2 = root.querySelectorAll('[data-i18n-html]');
+      for(var ej=0; ej<els2.length; ej++){ var el2=els2[ej]; if(el2.__zhtml!==undefined){ el2.innerHTML = el2.__zhtml; el2.__zhtml = undefined; } }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en' ? 'zh' : 'en');
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand = document.createElement('a');
+    brand.id = 'nano-brand';
+    brand.href = 'https://wangzifan396-wzf.github.io/WB/';
+    brand.target = '_blank';
+    brand.rel = 'noopener';
+    brand.textContent = 'nano·tools';
+    brand.title = 'nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter = function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave = function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b = document.createElement('button');
+    b.id = 'nano-lang-btn';
+    b.title = 'Switch language / 切换语言';
+    b.textContent = 'EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter = function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave = function(){ b.style.transform='none'; };
+    b.onclick = toggle;
+    bar.appendChild(brand);
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved = localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved = ((navigator.language||'zh').slice(0,2).toLowerCase()==='en') ? 'en' : 'zh'; }
+    applyLang(saved);
+    mountBtn();
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (saved==='en'?'中':'EN');
+    // 捕获渲染后注入的静态文本（动态节点）
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+
+</script>
+<!-- nano-i18n:end -->
+</body>
+</html>

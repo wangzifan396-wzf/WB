@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FontForge · 字体预览与排版样张工作台</title>
+<style>
+  :root{
+    --bg:#0A0A0B; --surface:#141417; --surface-2:#1A1B1E;
+    --border:rgba(255,255,255,0.08); --border-strong:rgba(255,255,255,0.14);
+    --text:#FFFFFF; --text-2:#A1A1AA; --text-3:#71717A;
+    --accent:#5E6AD2; --accent-2:#7C84E8; --accent-soft:rgba(94,106,210,0.12);
+    --green:#10B981; --amber:#F5A623; --radius:10px; --radius-lg:14px;
+    --ease:cubic-bezier(.2,.7,.3,1);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  button,input,select,textarea{font-family:inherit}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 24px 64px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .mark{width:38px;height:38px;border-radius:10px;background:var(--accent);display:grid;place-items:center;color:#fff;box-shadow:0 6px 18px rgba(94,106,210,.35)}
+  .brand h1{font-size:19px;font-weight:800;letter-spacing:-.02em}
+  .brand p{font-size:12.5px;color:var(--text-3)}
+  .badge{font-size:11px;color:var(--accent-2);border:1px solid var(--border-strong);padding:3px 9px;border-radius:999px;background:var(--accent-soft)}
+  .layout{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}
+  @media(max-width:880px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:14px;font-weight:700}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:12.5px;color:var(--text-2);margin-bottom:7px;font-weight:600}
+  .field .val{float:right;color:var(--text);font-family:ui-monospace,monospace;font-size:12px}
+  input[type=range]{width:100%;accent-color:var(--accent);height:4px}
+  select,input[type=text],textarea{
+    width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+    border-radius:9px;padding:9px 11px;font-size:13.5px;outline:none;transition:border-color .18s ease}
+  select:focus,input[type=text]:focus,textarea:focus{border-color:var(--accent)}
+  textarea{resize:vertical;min-height:84px;line-height:1.5}
+  .drop{border:1.5px dashed var(--border-strong);border-radius:12px;padding:18px;text-align:center;color:var(--text-2);font-size:13px;cursor:pointer;transition:border-color .2s ease,background .2s ease}
+  .drop:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .drop b{color:var(--text)}
+  .drop.drag{border-color:var(--accent);background:var(--accent-soft)}
+  .swatches{display:flex;gap:7px;flex-wrap:wrap}
+  .sw{width:24px;height:24px;border-radius:7px;border:1px solid var(--border-strong);cursor:pointer;transition:transform .15s ease}
+  .sw:hover{transform:scale(1.1)}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .seg{display:flex;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface-2)}
+  .seg button{background:transparent;border:none;color:var(--text-2);padding:7px 12px;font-size:12.5px;cursor:pointer;transition:background .15s ease,color .15s ease}
+  .seg button.on{background:var(--accent);color:#fff}
+  .btn{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 15px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13.5px;font-weight:600;cursor:pointer;transition:transform .18s ease,border-color .2s ease,background .2s ease;white-space:nowrap}
+  .btn:hover{transform:translateY(-1px);border-color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:var(--accent-2);box-shadow:0 6px 20px rgba(94,106,210,.35)}
+  .preview{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:0;overflow:hidden;min-height:320px}
+  .preview-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--surface-2);flex-wrap:wrap}
+  .preview-bar .name{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--text-3)}
+  .dot.ok{background:var(--green);box-shadow:0 0 0 3px rgba(16,185,129,.22)}
+  .stage{flex:1;min-height:300px;display:flex;align-items:center;justify-content:center;padding:32px;overflow:auto}
+  .stage #liveText{outline:none;width:100%;word-break:break-word;white-space:pre-wrap}
+  .glyphs{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;padding:16px}
+  .glyph{border:1px solid var(--border);border-radius:8px;aspect-ratio:1;display:grid;place-items:center;font-size:26px;cursor:pointer;position:relative;transition:border-color .15s ease,background .15s ease;color:var(--text)}
+  .glyph:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .glyph .u{position:absolute;bottom:2px;right:4px;font-size:8px;color:var(--text-3);font-family:ui-monospace,monospace}
+  .info{font-size:12px;color:var(--text-2);line-height:1.9}
+  .info b{color:var(--text);font-weight:700}
+  .info .k{color:var(--text-3)}
+  .hint{font-size:11.5px;color:var(--text-3);margin-top:6px}
+  .samples{display:flex;flex-wrap:wrap;gap:6px}
+  .samples button{font-size:11.5px;padding:5px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);cursor:pointer}
+  .samples button:hover{border-color:var(--accent);color:var(--text)}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);padding:11px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease;z-index:99}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  footer{margin-top:26px;text-align:center;color:var(--text-3);font-size:12px}
+  footer a{color:var(--accent-2)}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="字体预览与排版样张工作台：拖入字体即时渲染，调节字号 / 行高 / 字距 / 字重，字形表与可移植样张导出，本地优先。">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="mark" id="brandIcon"></div>
+      <div>
+        <h1>FontForge</h1>
+        <p>字体预览与排版样张工作台</p>
+      </div>
+    </div>
+    <span class="badge">单文件 · 零依赖 · 本地优先</span>
+  </div>
+
+  <div class="layout">
+    <!-- 控制面板 -->
+    <aside class="panel">
+      <h2>字体来源</h2>
+      <div class="field">
+        <div class="drop" id="drop">
+          <b>拖入</b> 或 <b>点击上传</b> 字体文件<br>
+          <span style="font-size:11.5px;color:var(--text-3)">.ttf / .otf / .woff / .woff2 · 仅在本地解析，不上传</span>
+          <input type="file" id="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" hidden>
+        </div>
+      </div>
+      <div class="field">
+        <label>或使用内置网页字体</label>
+        <select id="builtin">
+          <option value="system-ui, sans-serif">system-ui（系统默认）</option>
+          <option value="serif">serif（衬线）</option>
+          <option value="monospace">monospace（等宽）</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Times New Roman', serif">Times New Roman</option>
+          <option value="Arial, sans-serif">Arial</option>
+          <option value="'Courier New', monospace">Courier New</option>
+          <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+          <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+        </select>
+      </div>
+
+      <h2 style="margin-top:20px">预览样式</h2>
+      <div class="field">
+        <label>字号 <span class="val" id="sizeV">64px</span></label>
+        <input type="range" id="size" min="12" max="200" value="64">
+      </div>
+      <div class="field">
+        <label>行高 <span class="val" id="lhV">1.3</span></label>
+        <input type="range" id="lh" min="0.8" max="3" step="0.05" value="1.3">
+      </div>
+      <div class="field">
+        <label>字间距 <span class="val" id="lsV">0em</span></label>
+        <input type="range" id="ls" min="-0.08" max="0.5" step="0.01" value="0">
+      </div>
+      <div class="field">
+        <label>字重 <span class="val" id="wV">400</span></label>
+        <input type="range" id="weight" min="100" max="900" step="100" value="400">
+      </div>
+      <div class="field">
+        <label>字体样式</label>
+        <div class="seg" id="style">
+          <button data-v="normal" class="on">常规</button>
+          <button data-v="italic">斜体</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>对齐</label>
+        <div class="seg" id="align">
+          <button data-v="left" class="on">左</button>
+          <button data-v="center">中</button>
+          <button data-v="right">右</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>文字颜色</label>
+        <div class="swatches" id="colorS"></div>
+      </div>
+      <div class="field">
+        <label>背景颜色</label>
+        <div class="swatches" id="bgS"></div>
+      </div>
+    </aside>
+
+    <!-- 主区 -->
+    <main>
+      <section class="preview">
+        <div class="preview-bar">
+          <div class="name"><span class="dot" id="statusDot"></span><span id="fontName">system-ui</span></div>
+          <div class="row">
+            <button class="btn" id="specSVG">导出样张 SVG</button>
+            <button class="btn primary" id="specPNG">导出样张 PNG</button>
+          </div>
+        </div>
+        <div class="stage">
+          <div id="liveText" contenteditable="true" spellcheck="false">永和九年，岁在癸丑，暮春之初，会于会稽山阴之兰亭。The quick brown fox jumps over the lazy dog · 1234567890</div>
+        </div>
+      </section>
+
+      <div class="samples" style="margin:14px 0 10px">
+        <span style="font-size:12px;color:var(--text-3);align-self:center">示例文本：</span>
+        <button data-t="永和九年，岁在癸丑，暮春之初，会于会稽山阴之兰亭。">中文</button>
+        <button data-t="The quick brown fox jumps over the lazy dog">英文 pangram</button>
+        <button data-t="ABCDEFGHIJKLMNOPQRSTUVWXYZ">大写字母</button>
+        <button data-t="abcdefghijklmnopqrstuvwxyz">小写字母</button>
+        <button data-t="0123456789 !@#$%^&*()">数字符号</button>
+        <button data-t="永和九年岁在癸丑暮春之初会于会稽山阴之兰亭">繁体篆意</button>
+      </div>
+
+      <h2 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin:18px 0 10px;font-weight:700">字形表 <span style="color:var(--text-3);font-weight:400;text-transform:none;letter-spacing:0">（点击复制字符）</span></h2>
+      <div class="panel" style="padding:0">
+        <div class="glyphs" id="glyphs"></div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <h2>字体信息</h2>
+        <div class="info" id="info">
+          <div><span class="k">状态：</span><b id="iStatus">未加载字体文件</b></div>
+          <div><span class="k">族名：</span><b id="iFamily">—</b></div>
+          <div><span class="k">样式 / 字重：</span><b id="iStyle">—</b></div>
+          <div><span class="k">文件大小：</span><b id="iSize">—</b></div>
+        </div>
+        <p class="hint">提示：上传的字体仅在本浏览器内存中解析，不会发送到任何服务器。</p>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    FontForge · 单文件零依赖字体工作台 · 灵感来自 nano-tools 工具集 ·
+    <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">wangzifan396-wzf</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ============ 纯函数层（可被 _test.js 在 Node 中提取并执行，无 window/document 依赖） ============ -->
+<script>
+// 纯工具函数：可在 Node 中测试，不触碰 DOM（顶层声明，浏览器与 Node 均可见）
+function esc(s){
+  return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});
+}
+function formatBytes(n){
+  n=Number(n)||0;
+  if(n<=0) return "0 B";
+  var u=["B","KB","MB","GB"]; var i=0;
+  while(n>=1024&&i<u.length-1){n/=1024;i++;}
+  return (n>=100||i===0?Math.round(n):n.toFixed(1))+" "+u[i];
+}
+// 标准字形集合：大写 / 小写 / 数字 / 标点
+function buildGlyphSet(){
+  var s="";
+  for(var i=65;i<=90;i++) s+=String.fromCharCode(i);
+  for(var j=97;j<=122;j++) s+=String.fromCharCode(j);
+  for(var k=48;k<=57;k++) s+=String.fromCharCode(k);
+  s+="!@#$%^&*()_+-={}[]:;\"'<>,.?/|\\~";
+  return s.split("");
+}
+// 生成可移植的样张 SVG（fontB64 为 base64 字体数据，可嵌入使其独立可用）
+function buildSpecimenSVG(o){
+  o=o||{};
+  var name=o.name||"Font";
+  var text=o.text||"The quick brown fox jumps over the lazy dog";
+  var glyphs=o.glyphs||[];
+  var opts=o.opts||{};
+  var size=opts.size||64;
+  var color=opts.color||"#FFFFFF";
+  var bg=opts.bg||"#0A0A0B";
+  var align=opts.align||"left";
+  var weight=opts.weight||400;
+  var fontB64=o.fontB64||null;
+  var family="SpecFont";
+  var face=fontB64?('@font-face{font-family:"'+family+'";src:url(data:font/woff2;base64,'+fontB64+') format("woff2");font-display:block;font-weight:100 900;}'):'';
+  var w=1200,h=760;
+  var perRow=12, cellW=(w-80)/perRow, cellH=cellW;
+  var grid="";
+  glyphs.slice(0,84).forEach(function(ch,idx){
+    var col=idx%perRow, row=Math.floor(idx/perRow);
+    var x=40+col*cellW, y=380+row*cellH;
+    grid+='<rect x="'+x+'" y="'+y+'" width="'+(cellW-4)+'" height="'+(cellH-4)+'" fill="none" stroke="rgba(255,255,255,0.08)"/>';
+    grid+='<text x="'+(x+cellW/2)+'" y="'+(y+cellH/2+size*0.28)+'" font-size="'+Math.min(size*0.62,cellH*0.55)+'" fill="'+color+'" text-anchor="middle" font-family="'+family+',sans-serif">'+esc(ch)+'</text>';
+  });
+  var anchor=align==="center"?"middle":(align==="right"?"end":"start");
+  var tx=align==="center"?w/2:(align==="right"?w-40:40);
+  var svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'
+    +'<defs>'+face+'</defs>'
+    +'<rect width="'+w+'" height="'+h+'" fill="'+bg+'"/>'
+    +'<text x="40" y="74" font-size="34" font-weight="700" fill="'+color+'" font-family="'+family+',sans-serif">'+esc(name)+'</text>'
+    +'<text x="40" y="104" font-size="13" fill="rgba(255,255,255,0.5)" font-family="sans-serif">TYPE SPECIMEN · generated by FontForge</text>'
+    +'<text x="'+tx+'" y="190" font-size="'+size+'" font-weight="'+weight+'" fill="'+color+'" text-anchor="'+anchor+'" font-family="'+family+',sans-serif">'+esc(text)+'</text>'
+    +'<text x="40" y="350" font-size="15" fill="rgba(255,255,255,0.5)" font-family="sans-serif" letter-spacing="2">GLYPH SET</text>'
+    +grid
+    +'</svg>';
+  return svg;
+}
+if(typeof module!=='undefined'&&module.exports){
+  module.exports={esc:esc,formatBytes:formatBytes,buildGlyphSet:buildGlyphSet,buildSpecimenSVG:buildSpecimenSVG};
+}
+if(typeof window!=='undefined'){
+  window.FontForgePure={esc:esc,formatBytes:formatBytes,buildGlyphSet:buildGlyphSet,buildSpecimenSVG:buildSpecimenSVG};
+}
+</script>
+
+<!-- ============ UI 层（仅浏览器中运行） ============ -->
+<script>
+if(typeof window!=='undefined'){
+  (function(){
+    var $=function(s){return document.querySelector(s);};
+    var PALETTE=["#FFFFFF","#A1A1AA","#5E6AD2","#10B981","#F5A623","#22D3EE","#A78BFA","#0A0A0B"];
+    var BGPALETTE=["#0A0A0B","#141417","#1A1B1E","#FFFFFF","#5E6AD2","#10B981"];
+    var state={
+      family:"system-ui, sans-serif",
+      customFamily:null,        // 上传字体的 FontFace 族名
+      fontBytes:null,           // ArrayBuffer
+      fontB64:null,             // base64
+      fontMeta:null,            // {family,style,weight,size}
+      color:"#FFFFFF", bg:"#0A0A0B",
+      size:64, lh:1.3, ls:0, weight:400, style:"normal", align:"left"
+    };
+
+    // 品牌图标
+    $("#brandIcon").innerHTML='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19h12"/><path d="M12 4l4 15"/><path d="M12 4 8 19"/><path d="M9.5 13h5"/></svg>';
+
+    // 色板
+    function buildSwatches(boxId,colors,key){
+      var box=$(boxId);
+      colors.forEach(function(c){
+        var d=document.createElement("div");
+        d.className="sw"; d.style.background=c; d.title=c;
+        d.onclick=function(){ state[key]=c; applyStyle(); markSw(boxId,c); };
+        box.appendChild(d);
+      });
+      function markSw(id,sel){ Array.prototype.forEach.call($(id).children,function(el){ el.style.outline=(el.style.background===sel||rgbEq(el.style.background,sel))?"2px solid var(--accent)":"none"; }); }
+    }
+    function rgbEq(a,b){ return a.replace(/\s/g,"")===b.replace(/\s/g,""); }
+    buildSwatches("#colorS",PALETTE,"color");
+    buildSwatches("#bgS",BGPALETTE,"bg");
+
+    // 字形表
+    function renderGlyphs(){
+      var box=$("#glyphs"); box.innerHTML="";
+      var set=FontForgePure.buildGlyphSet();
+      set.forEach(function(ch){
+        var g=document.createElement("div"); g.className="glyph";
+        g.style.fontFamily=currentFamily();
+        g.style.fontStyle=state.style; g.style.fontWeight=state.weight;
+        g.textContent=ch;
+        var u=document.createElement("span"); u.className="u";
+        u.textContent="U+"+("0000"+ch.charCodeAt(0).toString(16).toUpperCase()).slice(-4);
+        g.appendChild(u);
+        g.onclick=function(){ copy(ch); };
+        box.appendChild(g);
+      });
+    }
+    function currentFamily(){ return state.customFamily||state.family; }
+
+    function applyStyle(){
+      var t=$("#liveText");
+      t.style.fontFamily=currentFamily();
+      t.style.fontSize=state.size+"px";
+      t.style.lineHeight=state.lh;
+      t.style.letterSpacing=state.ls+"em";
+      t.style.fontWeight=state.weight;
+      t.style.fontStyle=state.style;
+      t.style.textAlign=state.align;
+      t.style.color=state.color;
+      t.parentElement.parentElement.style.background=state.bg;
+      // 同步字形表
+      Array.prototype.forEach.call($("#glyphs").children,function(g){
+        g.style.fontFamily=currentFamily(); g.style.fontStyle=state.style; g.style.fontWeight=state.weight;
+      });
+    }
+
+    function setStatus(loaded,name){
+      $("#statusDot").className="dot"+(loaded?" ok":"");
+      $("#fontName").textContent=name;
+      $("#iStatus").textContent=loaded?"已加载":"未加载字体文件";
+      $("#iFamily").textContent=state.fontMeta?state.fontMeta.family:"—";
+      $("#iStyle").textContent=state.fontMeta?(""+state.fontMeta.style+" / "+state.fontMeta.weight):"—";
+      $("#iSize").textContent=state.fontMeta?FontForgePure.formatBytes(state.fontMeta.size):"—";
+    }
+
+    // 上传字体
+    function arrayBufferToBase64(buf){
+      var bytes=new Uint8Array(buf); var bin=""; var chunk=0x8000;
+      for(var i=0;i<bytes.length;i+=chunk){ bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk)); }
+      return btoa(bin);
+    }
+    function loadFontFile(file){
+      var reader=new FileReader();
+      reader.onload=function(){
+        var buf=reader.result;
+        var fam="FF_"+Date.now();
+        var ff=new FontFace(fam, buf);
+        ff.load().then(function(loaded){
+          document.fonts.add(loaded);
+          state.customFamily=fam;
+          state.fontBytes=buf; state.fontB64=arrayBufferToBase64(buf);
+          state.fontMeta={family:loaded.family||file.name,style:loaded.style||"normal",weight:loaded.weight||"variable",size:buf.byteLength};
+          applyStyle(); setStatus(true, loaded.family||file.name);
+          toast("已加载："+(loaded.family||file.name));
+        }).catch(function(err){ toast("字体解析失败："+err.message); });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // 事件绑定
+    var drop=$("#drop"), fileInput=$("#file");
+    drop.onclick=function(){ fileInput.click(); };
+    fileInput.onchange=function(){ if(fileInput.files[0]) loadFontFile(fileInput.files[0]); };
+    ["dragenter","dragover"].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add("drag");}); });
+    ["dragleave","drop"].forEach(function(ev){ drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove("drag");}); });
+    drop.addEventListener("drop",function(e){ var f=e.dataTransfer.files[0]; if(f) loadFontFile(f); });
+
+    $("#builtin").onchange=function(){ state.family=this.value; state.customFamily=null; applyStyle(); setStatus(false,this.value.split(",")[0]); };
+
+    $("#size").oninput=function(){ state.size=+this.value; $("#sizeV").textContent=this.value+"px"; applyStyle(); };
+    $("#lh").oninput=function(){ state.lh=+this.value; $("#lhV").textContent=(+this.value).toFixed(2); applyStyle(); };
+    $("#ls").oninput=function(){ state.ls=+this.value; $("#lsV").textContent=(+this.value).toFixed(2)+"em"; applyStyle(); };
+    $("#weight").oninput=function(){ state.weight=+this.value; $("#wV").textContent=this.value; applyStyle(); };
+
+    function seg(id,key){ Array.prototype.forEach.call($(id).children,function(b){ b.onclick=function(){ Array.prototype.forEach.call($(id).children,function(x){x.classList.remove("on");}); b.classList.add("on"); state[key]=b.dataset.v; applyStyle(); }; }); }
+    seg("#style","style"); seg("#align","align");
+
+    document.querySelectorAll(".samples button").forEach(function(b){
+      b.onclick=function(){ $("#liveText").textContent=b.dataset.t; };
+    });
+
+    function copy(s){ var ta=document.createElement("textarea"); ta.value=s; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");}catch(e){} document.body.removeChild(ta); toast("已复制："+s); }
+    var toastT;
+    function toast(msg){ var el=$("#toast"); el.textContent=msg; el.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(function(){el.classList.remove("show");},1800); }
+
+    // 导出样张
+    function getOpts(){ return {size:state.size,lh:state.lh,ls:state.ls,weight:state.weight,style:state.style,align:state.align,color:state.color,bg:state.bg}; }
+    function specimenName(){ return state.fontMeta?state.fontMeta.family:"FontForge Preview"; }
+
+    $("#specSVG").onclick=function(){
+      var svg=FontForgePure.buildSpecimenSVG({name:specimenName(),text:$("#liveText").textContent,glyphs:FontForgePure.buildGlyphSet(),opts:getOpts(),fontB64:state.fontB64});
+      var blob=new Blob([svg],{type:"image/svg+xml"}); var url=URL.createObjectURL(blob);
+      var a=document.createElement("a"); a.href=url; a.download="fontforge-specimen.svg"; a.click(); URL.revokeObjectURL(url);
+      toast("已导出 SVG 样张");
+    };
+    $("#specPNG").onclick=function(){
+      var w=1200,h=760, cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+      var ctx=cv.getContext("2d");
+      ctx.fillStyle=state.bg; ctx.fillRect(0,0,w,h);
+      ctx.fillStyle=state.color; ctx.textBaseline="alphabetic";
+      ctx.font="700 34px "+currentFamily();
+      ctx.fillText(specimenName(),40,74);
+      ctx.font="13px sans-serif"; ctx.fillStyle="rgba(255,255,255,0.5)";
+      ctx.fillText("TYPE SPECIMEN · generated by FontForge",40,104);
+      ctx.fillStyle=state.color; ctx.font=state.weight+" "+(state.size*1.4).toFixed(0)+"px "+currentFamily();
+      ctx.textAlign=state.align;
+      var tx=state.align==="center"?w/2:(state.align==="right"?w-40:40);
+      ctx.fillText($("#liveText").textContent,tx,190);
+      // 字形表
+      var set=FontForgePure.buildGlyphSet().slice(0,84), perRow=12, cellW=(w-80)/perRow;
+      ctx.textAlign="center"; ctx.font=state.weight+" "+Math.min(state.size*0.62,cellW*0.5).toFixed(0)+"px "+currentFamily();
+      set.forEach(function(ch,idx){
+        var col=idx%perRow, row=Math.floor(idx/perRow);
+        var x=40+col*cellW, y=380+row*cellW;
+        ctx.strokeStyle="rgba(255,255,255,0.08)"; ctx.strokeRect(x,y,cellW-4,cellW-4);
+        ctx.fillStyle=state.color; ctx.fillText(ch,x+(cellW)/2,y+cellW/2+state.size*0.18);
+      });
+      cv.toBlob(function(blob){ var url=URL.createObjectURL(blob); var a=document.createElement("a"); a.href=url; a.download="fontforge-specimen.png"; a.click(); URL.revokeObjectURL(url); toast("已导出 PNG 样张"); });
+    };
+
+    // 初始化
+    renderGlyphs();
+    applyStyle();
+    setStatus(false,"system-ui");
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>NoiseForge — Perlin 噪声：生成 2D 噪声场，灰度或地形色带渲染，可调缩放与种子，离线可用。</title>
+<meta property="og:title" content="NoiseForge">
+<meta property="og:description" content="Perlin 噪声：生成 2D 噪声场，灰度或地形色带渲染，可调缩放与种子，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Perlin 噪声：生成 2D 噪声场，灰度或地形色带渲染，可调缩放与种子，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>NoiseForge</h1>
+  <p class="sub">Perlin 噪声：生成 2D 噪声场，灰度或地形色带渲染，可调缩放与种子，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>缩放（越小越平滑）</label>
+<input id="scale" type="number" value="0.08" min="0.01" max="0.5" step="0.01">
+<label>种子</label>
+<input id="seed" type="number" value="7" min="0">
+<label>色带</label>
+<select id="ramp">
+  <option value="gray">灰度</option>
+  <option value="terrain">地形</option>
+</select>
+<div class="row">
+  <button id="draw">生成</button>
+  <button id="rand" class="ghost">随机种子</button>
+</div>
+<div class="err" id="err"></div>
+<canvas id="cv" width="384" height="384"></canvas>
+<script>
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function nzFade(t){ return t*t*t*(t*(t*6-15)+10); }
+function nzLerp(a,b,t){ return a+(b-a)*t; }
+function nzGrad(h,x,y){ var u=(h&1)?-x:x, v=(h&2)?-y:y; return u+v; }
+function nzPerm(seed){
+  var rnd=mulberry32(seed||1), p=[]; for(var i=0;i<256;i++) p[i]=i;
+  for(var i=255;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=p[i]; p[i]=p[j]; p[j]=t; }
+  var perm=[]; for(var i=0;i<512;i++) perm[i]=p[i&255]; return perm;
+}
+function nzPerlin2D(x,y,perm){
+  var X=Math.floor(x)&255, Y=Math.floor(y)&255, xf=x-Math.floor(x), yf=y-Math.floor(y);
+  var u=nzFade(xf), v=nzFade(yf);
+  var aa=perm[perm[X]+Y], ab=perm[perm[X]+Y+1], ba=perm[perm[X+1]+Y], bb=perm[perm[X+1]+Y+1];
+  var x1=nzLerp(nzGrad(aa,xf,yf), nzGrad(ba,xf-1,yf), u);
+  var x2=nzLerp(nzGrad(ab,xf,yf-1), nzGrad(bb,xf-1,yf-1), u);
+  return (nzLerp(x1,x2,v)+1)/2;
+}
+function nzField(w,h,scale,seed){
+  var perm=nzPerm(seed), f=[];
+  for(var y=0;y<h;y++){ var row=[]; for(var x=0;x<w;x++){ row.push(nzPerlin2D(x*scale, y*scale, perm)); } f.push(row); }
+  return f;
+}
+function nzRamp(v, kind){
+  if(kind==='terrain'){
+    // water -> grass -> rock -> snow
+    if(v<0.35) return [30,70,140];
+    if(v<0.5) return [60,120,200];
+    if(v<0.65) return [70,150,70];
+    if(v<0.8) return [120,140,80];
+    return [220,220,230];
+  }
+  var c=Math.floor(v*255); return [c,c,c];
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { mulberry32:mulberry32, nzPerm:nzPerm, nzPerlin2D:nzPerlin2D, nzField:nzField, nzRamp:nzRamp };
+}
+if (typeof window !== 'undefined') {
+  window.NoiseForgePure = { mulberry32:mulberry32, nzPerm:nzPerm, nzPerlin2D:nzPerlin2D, nzField:nzField, nzRamp:nzRamp };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.NoiseForgePure;
+    function draw(){
+      var w=384,h=384, scale=Number($('scale').value)||0.08, seed=Number($('seed').value)||0, kind=$('ramp').value;
+      var f=P.nzField(w,h,scale,seed), cv=$('cv'), ctx=cv.getContext('2d'), img=ctx.createImageData(w,h);
+      for(var y=0;y<h;y++) for(var x=0;x<w;x++){ var c=P.nzRamp(f[y][x], kind), i=(y*w+x)*4; img.data[i]=c[0]; img.data[i+1]=c[1]; img.data[i+2]=c[2]; img.data[i+3]=255; }
+      ctx.putImageData(img,0,0);
+    }
+    $('draw').addEventListener('click', draw);
+    $('ramp').addEventListener('change', draw);
+    $('rand').addEventListener('click', function(){ $('seed').value=Math.floor(Math.random()*99999); draw(); });
+    draw();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

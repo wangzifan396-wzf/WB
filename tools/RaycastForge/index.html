@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>RaycastForge — 2.5D 光线投射引擎：DDA 网格步进渲染复古第一人称视角，方向键漫游迷你地图，离线可用。</title>
+<meta property="og:title" content="RaycastForge">
+<meta property="og:description" content="2.5D 光线投射引擎：DDA 网格步进渲染复古第一人称视角，方向键漫游迷你地图，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="2.5D 光线投射引擎：DDA 网格步进渲染复古第一人称视角，方向键漫游迷你地图，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>RaycastForge</h1>
+  <p class="sub">2.5D 光线投射引擎：DDA 网格步进渲染复古第一人称视角，方向键漫游迷你地图，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<p style="color:#A1A1AA;font-size:13px;">点击画布聚焦后用 <b style="color:#FFF;">W/S</b> 前进后退、<b style="color:#FFF;">A/D</b> 转向。</p>
+<div class="row">
+  <button id="reset">重置位置</button>
+</div>
+<div class="err" id="err"></div>
+<canvas id="cv" width="640" height="360" tabindex="0" style="width:100%;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0A0A0B;outline:none;"></canvas>
+<script>
+var RC_MAP = [
+  "111111111111",
+  "1..........1",
+  "1..22..33..1",
+  "1..2....3..1",
+  "1..........1",
+  "1..4....5..1",
+  "1..44..55..1",
+  "1..........1",
+  "111111111111"
+];
+function rcCell(map, x, y){
+  var r = map[Math.floor(y)];
+  if(r === undefined) return 1;
+  var c = r[Math.floor(x)];
+  if(c === undefined || c === '1') return 1;
+  return c === '.' ? 0 : Number(c);
+}
+function rcCast(map, px, py, ang){
+  var dx = Math.cos(ang), dy = Math.sin(ang);
+  var mapX = Math.floor(px), mapY = Math.floor(py);
+  var ddx = dx === 0 ? 1e30 : Math.abs(1/dx), ddy = dy === 0 ? 1e30 : Math.abs(1/dy);
+  var stepX = dx < 0 ? -1 : 1, stepY = dy < 0 ? -1 : 1;
+  var sdx = dx < 0 ? (px - mapX) * ddx : (mapX + 1 - px) * ddx;
+  var sdy = dy < 0 ? (py - mapY) * ddy : (mapY + 1 - py) * ddy;
+  var side = 0, tile = 0;
+  for(var i=0;i<64;i++){
+    if(sdx < sdy){ sdx += ddx; mapX += stepX; side = 0; }
+    else { sdy += ddy; mapY += stepY; side = 1; }
+    tile = rcCell(map, mapX + 0.5, mapY + 0.5);
+    if(tile > 0) break;
+  }
+  var dist = side === 0 ? sdx - ddx : sdy - ddy;
+  return { dist: Math.max(dist, 1e-6), side: side, tile: tile };
+}
+function rcFrame(map, px, py, ang, w, fov){
+  var cols = [];
+  for(var x=0;x<w;x++){
+    var ra = ang + (x/w - 0.5) * fov;
+    var hit = rcCast(map, px, py, ra);
+    var corr = hit.dist * Math.cos(ra - ang);
+    cols.push({ h: 1/Math.max(corr, 1e-6), side: hit.side, tile: hit.tile });
+  }
+  return cols;
+}
+function rcMove(map, px, py, ang, forward){
+  var nx = px + Math.cos(ang) * 0.2 * forward;
+  var ny = py + Math.sin(ang) * 0.2 * forward;
+  if(rcCell(map, nx, py) === 0) px = nx;
+  if(rcCell(map, px, ny) === 0) py = ny;
+  return { x: px, y: py };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { RC_MAP:RC_MAP, rcCell:rcCell, rcCast:rcCast, rcFrame:rcFrame, rcMove:rcMove };
+}
+if (typeof window !== 'undefined') {
+  window.RaycastForgePure = { RC_MAP:RC_MAP, rcCell:rcCell, rcCast:rcCast, rcFrame:rcFrame, rcMove:rcMove };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.RaycastForgePure;
+    var W = 640, H = 360, FOV = Math.PI/3;
+    var TILE_COLORS = { 1:['#5E6AD2','#484FA0'], 2:['#10B981','#0C8A61'], 3:['#F5A623','#B87D1A'], 4:['#22D3EE','#1A9FB4'], 5:['#A78BFA','#7E68BD'] };
+    var st = { x: 2.5, y: 2.5, ang: 0.3 };
+    var keys = {};
+    function draw(){
+      var cv = $('cv'), ctx = cv.getContext('2d');
+      if(!ctx) return;
+      ctx.fillStyle = '#141417'; ctx.fillRect(0,0,W,H/2);
+      ctx.fillStyle = '#0A0A0B'; ctx.fillRect(0,H/2,W,H/2);
+      var cols = P.rcFrame(P.RC_MAP, st.x, st.y, st.ang, W, FOV);
+      for(var x=0;x<W;x++){
+        var c = cols[x], hh = Math.min(H, c.h * H * 0.9);
+        var pal = TILE_COLORS[c.tile] || TILE_COLORS[1];
+        ctx.fillStyle = c.side === 1 ? pal[1] : pal[0];
+        ctx.fillRect(x, (H-hh)/2, 1, hh);
+      }
+    }
+    function tick(){
+      if(keys['w']) { var p = P.rcMove(P.RC_MAP, st.x, st.y, st.ang, 1); st.x = p.x; st.y = p.y; }
+      if(keys['s']) { var p2 = P.rcMove(P.RC_MAP, st.x, st.y, st.ang, -1); st.x = p2.x; st.y = p2.y; }
+      if(keys['a']) st.ang -= 0.06;
+      if(keys['d']) st.ang += 0.06;
+      draw();
+      if(typeof requestAnimationFrame === 'function') requestAnimationFrame(tick);
+    }
+    var cv = $('cv');
+    cv.addEventListener('keydown', function(e){ keys[e.key.toLowerCase()] = true; });
+    cv.addEventListener('keyup', function(e){ keys[e.key.toLowerCase()] = false; });
+    $('reset').addEventListener('click', function(){ st = { x: 2.5, y: 2.5, ang: 0.3 }; draw(); });
+    draw();
+    tick();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

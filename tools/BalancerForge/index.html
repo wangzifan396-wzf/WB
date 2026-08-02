@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>BalancerForge — 负载均衡实验台：对比加权轮询、最少连接、P2C 与一致性哈希的分流结果，量化不均衡度与扩缩容抖动，离线可用。</title>
+<meta property="og:title" content="BalancerForge">
+<meta property="og:description" content="负载均衡实验台：定义后端节点与权重，对比平滑加权轮询（SWRR）、最少连接、P2C 二选一与一致性哈希环的分流结果，量化各节点命中分布与不均衡度，并模拟增删节点时一致性哈希的键迁移比例。选型网关分流算法、评估扩缩容抖动，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="负载均衡实验台：定义后端节点与权重，对比平滑加权轮询（SWRR）、最少连接、P2C 二选一与一致性哈希环的分流结果，量化各节点命中分布与不均衡度，并模拟增删节点时一致性哈希的键迁移比例。选型网关分流算法、评估扩缩容抖动，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>BalancerForge</h1>
+  <p class="sub">负载均衡 · 一致性哈希 · 分流</p>
+
+<label for="bl-nodes">后端节点（每行 name=weight，权重可省略默认 1）</label>
+<textarea id="bl-nodes" rows="5" placeholder="app-a=5&#10;app-b=1&#10;app-c=1"></textarea>
+<div class="grid">
+  <div><label for="bl-n">请求数</label><input type="text" id="bl-n" value="1000"></div>
+  <div><label for="bl-v">一致性哈希虚拟节点数</label><input type="text" id="bl-v" value="160"></div>
+</div>
+<div class="row">
+  <button id="bl-go">模拟</button>
+  <button class="ghost" id="bl-eq">等权 4 节点</button>
+  <button class="ghost" id="bl-wt">加权 5:1:1</button>
+  <button class="ghost" id="bl-v1">虚拟节点=1（对照）</button>
+</div>
+<div class="err" id="bl-err"></div>
+<div class="out" id="bl-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 381 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function BalancerForgePure(){
+  // ==================== FNV-1a 32 位哈希（确定性，跨平台一致）====================
+  function utf8Bytes(s){
+    var out = [], i, c;
+    for (i = 0; i < s.length; i++){
+      c = s.charCodeAt(i);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800){ out.push(0xC0 | (c >> 6), 0x80 | (c & 63)); }
+      else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < s.length){
+        var c2 = s.charCodeAt(i + 1);
+        var cp = 0x10000 + ((c - 0xD800) << 10) + (c2 - 0xDC00); i++;
+        out.push(0xF0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+      } else { out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+    }
+    return out;
+  }
+  function fnv1a(str){
+    var b = utf8Bytes(String(str)), h = 0x811c9dc5;
+    for (var i = 0; i < b.length; i++){
+      h ^= b[i];
+      h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+    }
+    return h >>> 0;
+  }
+
+  // FNV-1a 对 "a#0" / "a#1" 这类只差末字符的短串雪崩不足，
+  // 直接拿它当虚拟节点坐标会让同一节点的点扎堆，环占比严重失衡（实测 4 节点 ×200 vnode 会偏到 16% : 33%）。
+  // 这里在 FNV 之后再套一层 murmur3 终混，只用于哈希环，fnv1a 本身保持标准实现不变。
+  function mix32(h){
+    h = (h ^ (h >>> 16)) >>> 0;
+    h = Math.imul(h, 0x85ebca6b) >>> 0;
+    h = (h ^ (h >>> 13)) >>> 0;
+    h = Math.imul(h, 0xc2b2ae35) >>> 0;
+    h = (h ^ (h >>> 16)) >>> 0;
+    return h;
+  }
+  function ringHash(str){ return mix32(fnv1a(str)); }
+
+  // ==================== 后端解析 ====================
+  function parseBackends(text){
+    var s = String(text == null ? '' : text).trim();
+    if (s === '') return {error:'请至少输入一个后端节点'};
+    var lines = s.replace(/\r\n/g, '\n').split(/[\n,]/), out = [], seen = {};
+    for (var i = 0; i < lines.length; i++){
+      var ln = lines[i];
+      var hash = ln.indexOf('#'); if (hash >= 0) ln = ln.slice(0, hash);
+      ln = ln.trim();
+      if (ln === '') continue;
+      var name, w = 1;
+      var m = /^(\S+)\s*[=\s]\s*(\d+(?:\.\d+)?)$/.exec(ln);
+      if (m){ name = m[1]; w = Number(m[2]); }
+      else if (/\s/.test(ln)) return {error:'无法解析节点行：' + ln + '（应为 name 或 name=weight）'};
+      else name = ln;
+      if (seen[name]) return {error:'重复的节点名：' + name};
+      if (!(w > 0)) return {error:'节点 ' + name + ' 的权重必须大于 0'};
+      seen[name] = 1;
+      out.push({name:name, weight:w});
+    }
+    if (!out.length) return {error:'请至少输入一个后端节点'};
+    if (out.length > 500) return {error:'节点数量过多（上限 500）'};
+    return {error:null, backends:out};
+  }
+
+  // ==================== 分布统计 ====================
+  function stats(counts, backends){
+    var names = [], vals = [], total = 0, i;
+    for (i = 0; i < backends.length; i++){
+      names.push(backends[i].name);
+      var v = counts[backends[i].name] || 0;
+      vals.push(v); total += v;
+    }
+    var mean = vals.length ? total / vals.length : 0;
+    var max = -Infinity, min = Infinity, sq = 0;
+    for (i = 0; i < vals.length; i++){
+      if (vals[i] > max) max = vals[i];
+      if (vals[i] < min) min = vals[i];
+      sq += (vals[i] - mean) * (vals[i] - mean);
+    }
+    if (!vals.length){ max = 0; min = 0; }
+    var sd = vals.length ? Math.sqrt(sq / vals.length) : 0;
+    // 相对期望份额的最大偏差（按权重归一）
+    var wTotal = 0;
+    for (i = 0; i < backends.length; i++) wTotal += backends[i].weight;
+    var maxDev = 0;
+    for (i = 0; i < backends.length; i++){
+      var expect = total * backends[i].weight / wTotal;
+      if (expect > 0) maxDev = Math.max(maxDev, Math.abs(vals[i] - expect) * 100 / expect);
+    }
+    return {
+      names:names, values:vals, total:total, mean:mean, max:max, min:min,
+      stddev:sd, cv:(mean ? sd / mean : 0),
+      imbalancePct:(mean ? (max - mean) * 100 / mean : 0),
+      maxWeightDevPct:maxDev
+    };
+  }
+
+  // ==================== 1. 轮询 ====================
+  function roundRobin(backends, n){
+    var seq = [], counts = {};
+    for (var i = 0; i < n; i++){
+      var b = backends[i % backends.length].name;
+      seq.push(b); counts[b] = (counts[b] || 0) + 1;
+    }
+    return {seq:seq, counts:counts};
+  }
+
+  // ==================== 2. 平滑加权轮询（nginx SWRR）====================
+  function smoothWeightedRR(backends, n){
+    var cur = [], total = 0, i;
+    for (i = 0; i < backends.length; i++){ cur.push(0); total += backends[i].weight; }
+    var seq = [], counts = {};
+    for (var k = 0; k < n; k++){
+      var best = -1, bestVal = -Infinity;
+      for (i = 0; i < backends.length; i++){
+        cur[i] += backends[i].weight;
+        if (cur[i] > bestVal){ bestVal = cur[i]; best = i; }
+      }
+      cur[best] -= total;
+      var nm = backends[best].name;
+      seq.push(nm); counts[nm] = (counts[nm] || 0) + 1;
+    }
+    return {seq:seq, counts:counts};
+  }
+
+  // ==================== 3. 最少连接（含权重）====================
+  function leastConn(backends, n, serviceTicks){
+    var st = serviceTicks || 3;
+    var ends = [], cw = [], i;
+    for (i = 0; i < backends.length; i++){ ends.push([]); cw.push(0); }
+    var seq = [], counts = {}, peak = 0;
+    for (var t = 0; t < n; t++){
+      for (i = 0; i < backends.length; i++){
+        ends[i] = ends[i].filter(function(e){ return e > t; });
+      }
+      // 先按「连接数 / 权重」取最小负载，再在并列者之间用平滑加权轮询决胜
+      // （nginx least_conn 的做法：否则连接数相同时会永远命中第一个节点，末位节点被饿死）
+      var bestLoad = Infinity, load;
+      for (i = 0; i < backends.length; i++){
+        load = ends[i].length / backends[i].weight;
+        if (load < bestLoad - 1e-9) bestLoad = load;
+      }
+      var tied = [], sumW = 0;
+      for (i = 0; i < backends.length; i++){
+        load = ends[i].length / backends[i].weight;
+        if (load < bestLoad + 1e-9){ tied.push(i); sumW += backends[i].weight; }
+      }
+      var best = tied[0];
+      if (tied.length > 1){
+        var bestCw = -Infinity;
+        for (var k = 0; k < tied.length; k++){
+          var idx = tied[k];
+          cw[idx] += backends[idx].weight;
+          if (cw[idx] > bestCw){ bestCw = cw[idx]; best = idx; }
+        }
+        cw[best] -= sumW;
+      }
+      ends[best].push(t + st);
+      var live = 0;
+      for (i = 0; i < backends.length; i++) live += ends[i].length;
+      if (live > peak) peak = live;
+      var nm = backends[best].name;
+      seq.push(nm); counts[nm] = (counts[nm] || 0) + 1;
+    }
+    return {seq:seq, counts:counts, peakConcurrency:peak};
+  }
+
+  // ==================== 4. 两次随机选优（P2C，确定性 LCG）====================
+  function p2c(backends, n, seed, serviceTicks){
+    var st = serviceTicks || 3, s = (seed === undefined ? 12345 : seed) >>> 0;
+    function rnd(){ s = (Math.imul(s, 1103515245) + 12345) >>> 0; return s % 2147483648; }
+    var ends = [], i;
+    for (i = 0; i < backends.length; i++) ends.push([]);
+    var seq = [], counts = {};
+    for (var t = 0; t < n; t++){
+      for (i = 0; i < backends.length; i++) ends[i] = ends[i].filter(function(e){ return e > t; });
+      var a = rnd() % backends.length, b = rnd() % backends.length;
+      if (backends.length > 1){ var guard = 0; while (b === a && guard++ < 8) b = rnd() % backends.length; }
+      var la = ends[a].length / backends[a].weight, lb = ends[b].length / backends[b].weight;
+      var pick = (la <= lb) ? a : b;
+      ends[pick].push(t + st);
+      var nm = backends[pick].name;
+      seq.push(nm); counts[nm] = (counts[nm] || 0) + 1;
+    }
+    return {seq:seq, counts:counts};
+  }
+
+  // ==================== 5. 一致性哈希环 ====================
+  function buildRing(backends, vnodes){
+    var v = vnodes || 160, pts = [];
+    for (var i = 0; i < backends.length; i++){
+      for (var j = 0; j < v; j++){
+        pts.push({h:ringHash(backends[i].name + '#' + j), node:backends[i].name});
+      }
+    }
+    pts.sort(function(a, b){ return a.h - b.h || (a.node < b.node ? -1 : a.node > b.node ? 1 : 0); });
+    return {points:pts, vnodes:v};
+  }
+  function ringLookup(ring, key){
+    var pts = ring.points;
+    if (!pts.length) return null;
+    var h = ringHash(key), lo = 0, hi = pts.length - 1, ans = -1;
+    while (lo <= hi){
+      var mid = (lo + hi) >> 1;
+      if (pts[mid].h >= h){ ans = mid; hi = mid - 1; } else lo = mid + 1;
+    }
+    if (ans < 0) ans = 0;   // 环形回绕
+    return pts[ans].node;
+  }
+  function ringShare(ring){
+    var pts = ring.points, share = {}, i;
+    if (!pts.length) return share;
+    var TOTAL = 4294967296;
+    for (i = 0; i < pts.length; i++){
+      var prev = (i === 0) ? pts[pts.length - 1].h - TOTAL : pts[i - 1].h;
+      var span = pts[i].h - prev;
+      share[pts[i].node] = (share[pts[i].node] || 0) + span;
+    }
+    for (var k in share) if (Object.prototype.hasOwnProperty.call(share, k)) share[k] = share[k] * 100 / TOTAL;
+    return share;
+  }
+  function consistentHash(backends, keys, vnodes){
+    var ring = buildRing(backends, vnodes), counts = {}, map = {};
+    for (var i = 0; i < keys.length; i++){
+      var node = ringLookup(ring, keys[i]);
+      map[keys[i]] = node;
+      counts[node] = (counts[node] || 0) + 1;
+    }
+    return {counts:counts, map:map, ring:ring, share:ringShare(ring)};
+  }
+  function moduloHash(backends, keys){
+    var counts = {}, map = {};
+    for (var i = 0; i < keys.length; i++){
+      var node = backends[fnv1a(keys[i]) % backends.length].name;
+      map[keys[i]] = node;
+      counts[node] = (counts[node] || 0) + 1;
+    }
+    return {counts:counts, map:map};
+  }
+
+  function migration(before, after){
+    var moved = 0, total = 0, k;
+    for (k in before){
+      if (!Object.prototype.hasOwnProperty.call(before, k)) continue;
+      total++;
+      if (after[k] !== before[k]) moved++;
+    }
+    return {moved:moved, total:total, pct:(total ? moved * 100 / total : 0)};
+  }
+
+  function genKeys(n, prefix){
+    var out = [], p = prefix === undefined ? 'key' : prefix;
+    for (var i = 0; i < n; i++) out.push(p + i);
+    return out;
+  }
+
+  // 摘除一个节点后的迁移率对比：一致性哈希 vs 取模
+  function ejectionReport(backends, keyCount, vnodes, ejectName){
+    if (backends.length < 2) return {error:'至少需要 2 个节点才能演示摘除'};
+    var keys = genKeys(keyCount);
+    var victim = ejectName || backends[backends.length - 1].name;
+    var rest = backends.filter(function(b){ return b.name !== victim; });
+    if (rest.length === backends.length) return {error:'找不到要摘除的节点：' + victim};
+
+    var chBefore = consistentHash(backends, keys, vnodes);
+    var chAfter = consistentHash(rest, keys, vnodes);
+    var moBefore = moduloHash(backends, keys);
+    var moAfter = moduloHash(rest, keys);
+
+    // 一致性哈希的关键性质：不属于被摘除节点的 key 不应发生迁移
+    var collateral = 0;
+    for (var k in chBefore.map){
+      if (!Object.prototype.hasOwnProperty.call(chBefore.map, k)) continue;
+      if (chBefore.map[k] !== victim && chAfter.map[k] !== chBefore.map[k]) collateral++;
+    }
+    return {
+      error:null, victim:victim, keys:keys.length, vnodes:(vnodes || 160),
+      consistent:migration(chBefore.map, chAfter.map),
+      modulo:migration(moBefore.map, moAfter.map),
+      collateralMoves:collateral,
+      shareBefore:chBefore.share, shareAfter:chAfter.share
+    };
+  }
+
+  // ==================== 权重表达力体检 ====================
+  // 最少连接只有在「在途并发 ≥ 权重之和」时才表达得出权重差异：
+  // 并发太低时，权重 5 的节点还没攒够 5 条连接，负载（连接数/权重）就已经比对手高，
+  // 分流会退化成接近等分，看起来像是权重没生效。
+  function weightExpression(backends, peakConcurrency){
+    var wTotal = 0, wMax = 1, i;
+    for (i = 0; i < backends.length; i++){
+      wTotal += backends[i].weight;
+      if (backends[i].weight > wMax) wMax = backends[i].weight;
+    }
+    var peak = Number(peakConcurrency) || 0;
+    var sufficient = peak >= wTotal;
+    return {
+      weightTotal:wTotal, maxWeight:wMax, peakConcurrency:peak,
+      needConcurrency:wTotal, sufficient:sufficient,
+      note:sufficient
+        ? '在途并发 ' + peak + ' ≥ 权重之和 ' + wTotal + '，最少连接能如实表达权重比例'
+        : '在途并发 ' + peak + ' 低于权重之和 ' + wTotal + '，最少连接表达不出权重差异，分流会退化成接近等分；想按权重分流请改用平滑加权轮询'
+    };
+  }
+
+  // ==================== 汇总对比 ====================
+  var ALGOS = ['roundRobin','swrr','leastConn','p2c','consistentHash'];
+  function compare(backends, n, opts){
+    var o = opts || {};
+    var keys = genKeys(n);
+    var res = {};
+    res.roundRobin = roundRobin(backends, n);
+    res.swrr = smoothWeightedRR(backends, n);
+    res.leastConn = leastConn(backends, n, o.serviceTicks);
+    res.p2c = p2c(backends, n, o.seed, o.serviceTicks);
+    res.consistentHash = consistentHash(backends, keys, o.vnodes);
+    var out = [];
+    for (var i = 0; i < ALGOS.length; i++){
+      var a = ALGOS[i];
+      out.push({algo:a, counts:res[a].counts, stats:stats(res[a].counts, backends)});
+    }
+    return {rows:out, raw:res};
+  }
+
+  function analyze(text, n, opts){
+    var pb = parseBackends(text);
+    if (pb.error) return {error:pb.error};
+    var reqs = Number(n) || 0;
+    if (reqs < 1 || reqs > 200000) return {error:'请求数需在 1..200000'};
+    var o = opts || {};
+    var cmp = compare(pb.backends, reqs, o);
+    var ej = ejectionReport(pb.backends, Math.min(reqs, 20000), o.vnodes, o.eject);
+    var wTotal = 0;
+    for (var i = 0; i < pb.backends.length; i++) wTotal += pb.backends[i].weight;
+    return {
+      error:null, backends:pb.backends, requests:reqs, weightTotal:wTotal,
+      rows:cmp.rows, swrrSeq:cmp.raw.swrr.seq.slice(0, 32),
+      peakConcurrency:cmp.raw.leastConn.peakConcurrency,
+      weightExpression:weightExpression(pb.backends, cmp.raw.leastConn.peakConcurrency),
+      ejection:ej
+    };
+  }
+
+  var api = {fnv1a:fnv1a, mix32:mix32, ringHash:ringHash, parseBackends:parseBackends, stats:stats, roundRobin:roundRobin,
+             smoothWeightedRR:smoothWeightedRR, leastConn:leastConn, p2c:p2c,
+             buildRing:buildRing, ringLookup:ringLookup, ringShare:ringShare,
+             consistentHash:consistentHash, moduloHash:moduloHash, migration:migration,
+             genKeys:genKeys, ejectionReport:ejectionReport, weightExpression:weightExpression,
+             compare:compare, analyze:analyze,
+             ALGOS:ALGOS};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {BalancerForgePure:BalancerForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = BalancerForgePure();
+  var LABEL = {roundRobin:'轮询 RR', swrr:'平滑加权轮询 SWRR', leastConn:'最少连接 LC',
+               p2c:'两次随机选优 P2C', consistentHash:'一致性哈希 CH'};
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function bar(v, maxv){
+    var w = maxv > 0 ? Math.round(v * 100 / maxv) : 0;
+    return '<span style="display:inline-block;width:90px;height:8px;background:var(--surface);border-radius:4px;vertical-align:middle;overflow:hidden">' +
+           '<span style="display:block;height:8px;width:' + w + '%;background:var(--accent)"></span></span>';
+  }
+  function run(){
+    var r = P.analyze(document.getElementById('bl-nodes').value,
+                      document.getElementById('bl-n').value,
+                      {vnodes: Math.max(1, parseInt(document.getElementById('bl-v').value, 10) || 160)});
+    var $e = document.getElementById('bl-err'), $o = document.getElementById('bl-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var h = '';
+    h += '<div class="kv"><b>节点 / 权重合计 / 请求数</b><span>' + r.backends.length + ' 个 · ' + r.weightTotal + ' · ' + r.requests + '</span></div>';
+    h += '<div class="kv"><b>最少连接峰值并发</b><span>' + r.peakConcurrency + '</span></div>';
+    h += '<div class="kv"><b>权重表达力</b><span>' + esc(r.weightExpression.note) + '</span></div>';
+    h += '<div class="kv"><b>SWRR 前 32 次挑选</b><span style="word-break:break-all">' + esc(r.swrrSeq.join(' ')) + '</span></div>';
+
+    for (var i = 0; i < r.rows.length; i++){
+      var row = r.rows[i], st = row.stats;
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">' + LABEL[row.algo] +
+           ' · 变异系数 CV=' + st.cv.toFixed(3) + ' · 相对权重最大偏差 ' + st.maxWeightDevPct.toFixed(1) + '%</div>';
+      for (var j = 0; j < st.names.length; j++){
+        h += '<div class="kv"><b>' + esc(st.names[j]) + '</b><span>' + bar(st.values[j], st.max) + ' &nbsp;' +
+             st.values[j] + ' &nbsp;(' + (st.total ? (st.values[j] * 100 / st.total).toFixed(1) : '0.0') + '%)</span></div>';
+      }
+    }
+
+    var ej = r.ejection;
+    h += '<div style="margin-top:16px;color:var(--dim);font-size:12px">摘除节点后的 key 迁移（虚拟节点 ' + ej.vnodes + '，' + ej.keys + ' 个 key）</div>';
+    if (ej.error){
+      h += '<div class="kv"><b>说明</b><span style="color:var(--muted)">' + esc(ej.error) + '</span></div>';
+    } else {
+      h += '<div class="kv"><b>摘除节点</b><span>' + esc(ej.victim) + '</span></div>';
+      h += '<div class="kv"><b>一致性哈希迁移率</b><span style="color:var(--ok);font-weight:700">' + ej.consistent.pct.toFixed(1) + '% (' + ej.consistent.moved + ')</span></div>';
+      h += '<div class="kv"><b>取模哈希迁移率</b><span style="color:#EF4444;font-weight:700">' + ej.modulo.pct.toFixed(1) + '% (' + ej.modulo.moved + ')</span></div>';
+      h += '<div class="kv"><b>无辜 key 被牵连</b><span style="color:' + (ej.collateralMoves ? '#EF4444' : 'var(--ok)') + '">' +
+           ej.collateralMoves + ' 个</span></div>';
+      var sh = ej.shareBefore, keys = [];
+      for (var k in sh) if (Object.prototype.hasOwnProperty.call(sh, k)) keys.push(k);
+      keys.sort();
+      var line = [];
+      for (var m = 0; m < keys.length; m++) line.push(keys[m] + ' ' + sh[keys[m]].toFixed(1) + '%');
+      h += '<div class="kv"><b>环空间占比</b><span style="word-break:break-all">' + esc(line.join(' · ')) + '</span></div>';
+    }
+    $o.innerHTML = h;
+  }
+  function set(nodes, n, v){
+    document.getElementById('bl-nodes').value = nodes;
+    document.getElementById('bl-n').value = n;
+    document.getElementById('bl-v').value = v;
+    run();
+  }
+  document.getElementById('bl-go').addEventListener('click', run);
+  document.getElementById('bl-eq').addEventListener('click', function(){ set('app-a\napp-b\napp-c\napp-d', '1000', '160'); });
+  document.getElementById('bl-wt').addEventListener('click', function(){ set('app-a=5\napp-b=1\napp-c=1', '700', '160'); });
+  document.getElementById('bl-v1').addEventListener('click', function(){ set('app-a\napp-b\napp-c\napp-d', '1000', '1'); });
+  document.getElementById('bl-nodes').value = 'app-a=5\napp-b=1\napp-c=1';
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

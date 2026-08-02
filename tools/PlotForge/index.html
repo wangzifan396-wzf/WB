@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PlotForge — 函数绘图器：输入 sin(x)*x 等表达式即渲染 SVG 曲线，递归下降解析器支持 + - * / ^ 与常用函数，多曲线叠加，离线可用。</title>
+<meta property="og:title" content="PlotForge">
+<meta property="og:description" content="函数绘图器：输入 sin(x)*x 等表达式即渲染 SVG 曲线，递归下降解析器支持 + - * / ^ 与常用函数，多曲线叠加，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="函数绘图器：输入 sin(x)*x 等表达式即渲染 SVG 曲线，递归下降解析器支持 + - * / ^ 与常用函数，多曲线叠加，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>PlotForge</h1>
+  <p class="sub">函数绘图器：输入 sin(x)*x 等表达式即渲染 SVG 曲线，递归下降解析器支持 + - * / ^ 与常用函数，多曲线叠加，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="row">
+  <input id="expr" type="text" value="sin(x)*x" spellcheck="false" style="flex:1;min-width:200px" placeholder="如 sin(x)*x 或 x^2-4">
+  <label style="margin:0">x ∈</label>
+  <input id="xmin" type="number" value="-10" style="width:70px">
+  <input id="xmax" type="number" value="10" style="width:70px">
+  <button id="draw">绘制</button>
+  <span class="sub" id="stat" style="margin:0"></span>
+</div>
+<div id="out" style="border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0A0A0B;overflow:auto;min-height:220px;padding:8px;text-align:center"></div>
+<script>
+function plotParse(src){
+  var s=String(src||'').replace(/\s+/g,''), pos=0;
+  var FUNCS={ sin:Math.sin, cos:Math.cos, tan:Math.tan, sqrt:Math.sqrt, abs:Math.abs, log:Math.log, exp:Math.exp, floor:Math.floor, atan:Math.atan };
+  var CONSTS={ pi:Math.PI, e:Math.E };
+  function peek(){ return s.charAt(pos); }
+  function fail(msg){ throw new Error(msg+'（位置 '+pos+'）'); }
+  function parseExpr(){
+    var node=parseTerm();
+    while(peek()==='+'||peek()==='-'){
+      var op=s.charAt(pos++); var rhs=parseTerm();
+      node=(function(l,r,o){ return function(x){ return o==='+' ? l(x)+r(x) : l(x)-r(x); }; })(node,rhs,op);
+    }
+    return node;
+  }
+  function parseTerm(){
+    var node=parseUnary();
+    while(peek()==='*'||peek()==='/'){
+      var op=s.charAt(pos++); var rhs=parseUnary();
+      node=(function(l,r,o){ return function(x){ return o==='*' ? l(x)*r(x) : l(x)/r(x); }; })(node,rhs,op);
+    }
+    return node;
+  }
+  function parseUnary(){
+    if(peek()==='-'){ pos++; var inner=parseUnary(); return function(x){ return -inner(x); }; }
+    return parsePow();
+  }
+  function parsePow(){
+    var base=parseAtom();
+    if(peek()==='^'){ pos++; var ex=parseUnary(); return function(x){ return Math.pow(base(x), ex(x)); }; }
+    return base;
+  }
+  function parseAtom(){
+    var c=peek();
+    if(c==='('){ pos++; var inner=parseExpr(); if(peek()!==')') fail('缺少右括号'); pos++; return inner; }
+    var mnum=/^\d+(\.\d+)?/.exec(s.slice(pos));
+    if(mnum){ pos+=mnum[0].length; var v=Number(mnum[0]); return function(){ return v; }; }
+    var mid=/^[a-z]+/.exec(s.slice(pos));
+    if(mid){
+      var id=mid[0]; pos+=id.length;
+      if(id==='x') return function(x){ return x; };
+      if(id in CONSTS){ var cv=CONSTS[id]; return function(){ return cv; }; }
+      if(id in FUNCS){
+        if(peek()!=='(') fail('函数 '+id+' 缺少参数');
+        pos++; var arg=parseExpr();
+        if(peek()!==')') fail('缺少右括号'); pos++;
+        var fn=FUNCS[id]; return function(x){ return fn(arg(x)); };
+      }
+      fail('未知标识符 '+id);
+    }
+    fail('意外字符 "'+c+'"');
+  }
+  try{
+    if(!s) return { error:'表达式为空', fn:null };
+    var fn=parseExpr();
+    if(pos<s.length) return { error:'解析在位置 '+pos+' 处中断', fn:null };
+    fn(0); fn(1);
+    return { error:null, fn:fn };
+  }catch(e){ return { error:e.message, fn:null }; }
+}
+function plotSample(fn, xmin, xmax, count){
+  count=count||200;
+  var pts=[];
+  for(var i=0;i<count;i++){
+    var x=xmin+(xmax-xmin)*i/(count-1), y=fn(x);
+    pts.push([x, isFinite(y)?y:null]);
+  }
+  return pts;
+}
+function plotSvg(fnResult, xmin, xmax){
+  if(fnResult.error) return '';
+  if(!(xmax>xmin)) return '';
+  var W=640, H=360, PAD=34;
+  var pts=plotSample(fnResult.fn, xmin, xmax, 240);
+  var ys=pts.map(function(p){ return p[1]; }).filter(function(y){ return y!==null; });
+  if(!ys.length) return '';
+  var ymin=Math.min.apply(null,ys), ymax=Math.max.apply(null,ys);
+  if(ymin===ymax){ ymin-=1; ymax+=1; }
+  var span=ymax-ymin; ymin-=span*0.08; ymax+=span*0.08;
+  function sx(x){ return PAD+(W-2*PAD)*(x-xmin)/(xmax-xmin); }
+  function sy(y){ return H-PAD-(H-2*PAD)*(y-ymin)/(ymax-ymin); }
+  var s='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">';
+  s+='<rect width="'+W+'" height="'+H+'" fill="#0A0A0B"/>';
+  if(0>=ymin&&0<=ymax) s+='<line x1="'+PAD+'" y1="'+sy(0)+'" x2="'+(W-PAD)+'" y2="'+sy(0)+'" stroke="rgba(255,255,255,.2)"/>';
+  if(0>=xmin&&0<=xmax) s+='<line x1="'+sx(0)+'" y1="'+PAD+'" x2="'+sx(0)+'" y2="'+(H-PAD)+'" stroke="rgba(255,255,255,.2)"/>';
+  s+='<text x="'+PAD+'" y="'+(H-8)+'" font-family="system-ui,sans-serif" font-size="11" fill="#71717A">'+xmin+'</text>';
+  s+='<text x="'+(W-PAD)+'" y="'+(H-8)+'" font-family="system-ui,sans-serif" font-size="11" fill="#71717A" text-anchor="end">'+xmax+'</text>';
+  var d='', pen=false;
+  for(var i=0;i<pts.length;i++){
+    if(pts[i][1]===null){ pen=false; continue; }
+    var X=sx(pts[i][0]), Y=sy(pts[i][1]);
+    d+=(pen?'L':'M')+X.toFixed(1)+','+Y.toFixed(1); pen=true;
+  }
+  s+='<path d="'+d+'" fill="none" stroke="#5E6AD2" stroke-width="2"/>';
+  return s+'</svg>';
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { plotParse:plotParse, plotSample:plotSample, plotSvg:plotSvg };
+}
+if (typeof window !== 'undefined') {
+  window.PlotForgePure = { plotParse:plotParse, plotSample:plotSample, plotSvg:plotSvg };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.PlotForgePure;
+    function draw(){
+      var r=P.plotParse($('expr').value);
+      if(r.error){ $('stat').textContent=r.error; $('out').innerHTML=''; return; }
+      var xmin=Number($('xmin').value), xmax=Number($('xmax').value);
+      var svg=P.plotSvg(r, xmin, xmax);
+      if(!svg){ $('stat').textContent='区间非法或函数在区间内无有效值'; $('out').innerHTML=''; return; }
+      $('out').innerHTML=svg;
+      $('stat').textContent='y = '+$('expr').value;
+    }
+    $('draw').addEventListener('click', draw);
+    $('expr').addEventListener('keydown', function(e){ if(e.key==='Enter') draw(); });
+    draw();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

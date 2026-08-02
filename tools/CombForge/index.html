@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>CombForge — BigInt 组合数学：nCr/nPr/阶乘/卡特兰数/帕斯卡三角，大数精确</title>
+<meta property="og:title" content="CombForge">
+<meta property="og:description" content="BigInt 组合数学：nCr/nPr/阶乘/卡特兰数/帕斯卡三角，大数精确">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="BigInt 组合数学：nCr/nPr/阶乘/卡特兰数/帕斯卡三角，大数精确 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>CombForge</h1>
+  <p class="sub">BigInt 组合数学：nCr/nPr/阶乘/卡特兰数/帕斯卡三角，大数精确 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="opt">
+  <label>n <input id="n" type="number" value="52" style="width:90px"></label>
+  <label>r <input id="r" type="number" value="5" style="width:90px"></label>
+  <label>计算
+    <select id="mode">
+      <option value="ncr">组合数 C(n,r)</option>
+      <option value="npr">排列数 P(n,r)</option>
+      <option value="fact">阶乘 n!</option>
+      <option value="catalan">卡特兰数 Cat(n)</option>
+      <option value="pascal">帕斯卡三角前 n 行</option>
+    </select>
+  </label>
+</div>
+<div class="row">
+  <button id="run">计算</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>结果（BigInt 精确值，不丢精度）</label>
+<div class="out" id="out" aria-live="polite">C(52,5) = 扑克起手牌数</div>
+<script>
+function cbCheck(n, r, needR){
+  if(typeof n!=='number'||!isFinite(n)||Math.floor(n)!==n||n<0) return 'n 必须是非负整数';
+  if(n>5000) return 'n 过大（≤5000）';
+  if(needR){
+    if(typeof r!=='number'||!isFinite(r)||Math.floor(r)!==r||r<0) return 'r 必须是非负整数';
+    if(r>n) return 'r 不能大于 n';
+  }
+  return null;
+}
+function cbFact(n){
+  var e=cbCheck(n,0,false); if(e) return { value:null, error:e };
+  var v=1n;
+  for(var i=2n;i<=BigInt(n);i++) v*=i;
+  return { value:v, error:null };
+}
+function cbNcr(n,r){
+  var e=cbCheck(n,r,true); if(e) return { value:null, error:e };
+  var k=Math.min(r,n-r), v=1n;
+  for(var i=0;i<k;i++) v=v*BigInt(n-i)/BigInt(i+1);
+  return { value:v, error:null };
+}
+function cbNpr(n,r){
+  var e=cbCheck(n,r,true); if(e) return { value:null, error:e };
+  var v=1n;
+  for(var i=0;i<r;i++) v*=BigInt(n-i);
+  return { value:v, error:null };
+}
+function cbCatalan(n){
+  var e=cbCheck(n,0,false); if(e) return { value:null, error:e };
+  var c=cbNcr(2*n>5000?0:2*n, n);
+  if(2*n>5000) return { value:null, error:'n 过大（Catalan 需 2n≤5000）' };
+  return { value:c.value/BigInt(n+1), error:null };
+}
+function cbPascal(rows){
+  if(typeof rows!=='number'||Math.floor(rows)!==rows||rows<1||rows>50) return { value:null, error:'行数需 1..50' };
+  var tri=[[1n]];
+  for(var i=1;i<rows;i++){
+    var prev=tri[i-1], row=[1n];
+    for(var j=1;j<i;j++) row.push(prev[j-1]+prev[j]);
+    row.push(1n);
+    tri.push(row);
+  }
+  return { value:tri, error:null };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { cbFact:cbFact, cbNcr:cbNcr, cbNpr:cbNpr, cbCatalan:cbCatalan, cbPascal:cbPascal };
+}
+if (typeof window !== 'undefined') {
+  window.CombForgePure = { cbFact:cbFact, cbNcr:cbNcr, cbNpr:cbNpr, cbCatalan:cbCatalan, cbPascal:cbPascal };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.CombForgePure;
+    function grp(s){ return String(s).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      var n=Number($('n').value), r=Number($('r').value), mode=$('mode').value;
+      var res;
+      if(mode==='ncr'){ res=P.cbNcr(n,r); if(!res.error) $('out').textContent='C('+n+','+r+') = '+grp(res.value)+'\n位数: '+String(res.value).length; }
+      else if(mode==='npr'){ res=P.cbNpr(n,r); if(!res.error) $('out').textContent='P('+n+','+r+') = '+grp(res.value); }
+      else if(mode==='fact'){ res=P.cbFact(n); if(!res.error) $('out').textContent=n+'! = '+grp(res.value)+'\n位数: '+String(res.value).length; }
+      else if(mode==='catalan'){ res=P.cbCatalan(n); if(!res.error) $('out').textContent='Catalan('+n+') = '+grp(res.value); }
+      else { res=P.cbPascal(Math.min(n,50));
+        if(!res.error) $('out').textContent=res.value.map(function(row){ return row.join(' '); }).join('\n'); }
+      if(res.error) $('err').textContent=res.error;
+    });
+    $('clear').addEventListener('click', function(){ $('out').textContent=''; $('err').textContent=''; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

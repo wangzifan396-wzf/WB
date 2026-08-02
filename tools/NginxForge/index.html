@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NginxForge · Nginx 配置生成器</title>
+<meta name="description" content="单文件离线 Nginx 配置生成器：静态站 / SPA / 反向代理 / 负载均衡预设，HTTPS·HTTP/2·gzip·安全头·WebSocket·限流 一键生成。零依赖，本地优先。">
+<meta property="og:title" content="NginxForge · Nginx 配置生成器">
+<meta property="og:description" content="静态站 / SPA / 反代 / 负载均衡 四大预设 + HTTPS/HTTP2/gzip/安全头/WebSocket/限流，单文件零依赖离线可用。">
+<meta property="og:image" content="og.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0A0A0B">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --panel:#1A1B1E;
+  --text:#FFFFFF; --text2:#A1A1AA; --text3:#71717A;
+  --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.14);
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA; --bad:#EF4444;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding:32px 20px 64px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#10B981,#22D3EE);display:flex;align-items:center;justify-content:center;flex:none}
+.logo svg{width:20px;height:20px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.sub{color:var(--text3);font-size:13px;margin-bottom:24px}
+.cols{display:grid;grid-template-columns:380px 1fr;gap:16px}
+@media (max-width:860px){.cols{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text2);font-size:13px;cursor:pointer;transition:all .15s}
+.tab:hover{border-color:var(--border2);color:var(--text)}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.field label{font-size:12px;color:var(--text3)}
+input[type=text],input[type=number],textarea,select{background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 12px;font-size:14px;font-family:"SF Mono",Consolas,"Cascadia Mono",monospace;outline:none;width:100%}
+textarea{resize:vertical;line-height:1.7;font-size:13px}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.opt{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text2);cursor:pointer;user-select:none}
+.opt:hover{border-color:var(--border2)}
+.opt input{accent-color:var(--accent)}
+button.act{background:var(--accent);border:none;border-radius:8px;color:#fff;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s;font-family:inherit}
+button.act:hover{opacity:.88}
+button.ghost{background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text2);padding:10px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+button.ghost:hover{border-color:var(--border2);color:var(--text)}
+pre.out{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;font-family:"SF Mono",Consolas,"Cascadia Mono",monospace;font-size:12.5px;line-height:1.7;overflow:auto;max-height:640px;white-space:pre;color:var(--text2)}
+pre.out .d{color:var(--info)}
+.errs{margin-bottom:10px;display:flex;flex-direction:column;gap:6px}
+.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--bad)}
+.hint{color:var(--text3);font-size:12px;margin-top:10px}
+.hide{display:none}
+.btnrow{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+footer{margin-top:40px;color:var(--text3);font-size:12px;display:flex;gap:14px;flex-wrap:wrap}
+footer a{color:var(--text2);text-decoration:none}
+footer a:hover{color:var(--text)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<script>
+/* NginxForge 纯函数内核：结构化配置 → nginx.conf 字符串 */
+var NF = (function(){
+  'use strict';
+  var PRESETS = {
+    'static': { label: '静态站点', needsRoot: true,  needsUpstream: false },
+    'spa':    { label: 'SPA 单页应用', needsRoot: true,  needsUpstream: false },
+    'proxy':  { label: '反向代理', needsRoot: false, needsUpstream: true },
+    'lb':     { label: '负载均衡', needsRoot: false, needsUpstream: true }
+  };
+  function defaults(preset){
+    return {
+      preset: preset || 'static',
+      domain: 'example.com',
+      root: '/var/www/html',
+      upstreamName: 'backend',
+      upstreams: preset === 'lb' ? ['127.0.0.1:3000', '127.0.0.1:3001'] : ['127.0.0.1:3000'],
+      lbMethod: 'round_robin',
+      https: true, http2: true, forceHttps: true,
+      certPath: '/etc/letsencrypt/live/example.com/fullchain.pem',
+      keyPath: '/etc/letsencrypt/live/example.com/privkey.pem',
+      gzip: true, securityHeaders: true, websocket: false,
+      rateLimit: false, rateLimitRps: 10,
+      cacheAssets: true,
+      clientMaxBody: '16m'
+    };
+  }
+  function validate(cfg){
+    var errs = [];
+    var p = PRESETS[cfg.preset];
+    if(!p) errs.push('未知预设: ' + cfg.preset);
+    if(!cfg.domain || !/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(cfg.domain)) errs.push('域名无效');
+    if(p && p.needsRoot && (!cfg.root || cfg.root[0] !== '/')) errs.push('root 必须是绝对路径');
+    if(p && p.needsUpstream){
+      var ups = (cfg.upstreams || []).filter(Boolean);
+      if(!ups.length) errs.push('至少填写一个上游地址');
+      for(var i=0;i<ups.length;i++){
+        if(!/^[A-Za-z0-9._-]+(:\d{1,5})?$/.test(ups[i]) && !/^unix:/.test(ups[i])) errs.push('上游地址无效: ' + ups[i]);
+      }
+      if(cfg.preset === 'lb' && ups.length < 2) errs.push('负载均衡至少需要 2 个上游');
+    }
+    if(cfg.https && (!cfg.certPath || !cfg.keyPath)) errs.push('HTTPS 需要证书与私钥路径');
+    if(cfg.rateLimit && !(cfg.rateLimitRps > 0)) errs.push('限流速率必须 > 0');
+    if(cfg.clientMaxBody && !/^\d+[kmg]?$/i.test(cfg.clientMaxBody)) errs.push('client_max_body_size 格式无效（如 16m）');
+    return errs;
+  }
+  function generate(cfg){
+    var errs = validate(cfg);
+    if(errs.length) throw new Error(errs.join('; '));
+    var p = PRESETS[cfg.preset];
+    var L = [];
+    L.push('# ' + p.label + ' - generated by NginxForge (nano-tools)');
+    L.push('# https://wangzifan396-wzf.github.io/WB/tools/NginxForge/');
+    L.push('');
+    if(cfg.rateLimit){
+      L.push('limit_req_zone $binary_remote_addr zone=nf_rl:10m rate=' + cfg.rateLimitRps + 'r/s;');
+      L.push('');
+    }
+    if(p.needsUpstream){
+      L.push('upstream ' + cfg.upstreamName + ' {');
+      if(cfg.preset === 'lb' && cfg.lbMethod === 'least_conn') L.push('    least_conn;');
+      if(cfg.preset === 'lb' && cfg.lbMethod === 'ip_hash') L.push('    ip_hash;');
+      var ups = cfg.upstreams.filter(Boolean);
+      for(var i=0;i<ups.length;i++) L.push('    server ' + ups[i] + ';');
+      if(cfg.preset === 'lb') L.push('    keepalive 32;');
+      L.push('}');
+      L.push('');
+    }
+    if(cfg.https && cfg.forceHttps){
+      L.push('server {');
+      L.push('    listen 80;');
+      L.push('    listen [::]:80;');
+      L.push('    server_name ' + cfg.domain + ';');
+      L.push('    return 301 https://' + cfg.domain + '$request_uri;');
+      L.push('}');
+      L.push('');
+    }
+    L.push('server {');
+    if(cfg.https){
+      L.push('    listen 443 ssl;');
+      L.push('    listen [::]:443 ssl;');
+      if(cfg.http2) L.push('    http2 on;');
+      L.push('    server_name ' + cfg.domain + ';');
+      L.push('');
+      L.push('    ssl_certificate     ' + cfg.certPath + ';');
+      L.push('    ssl_certificate_key ' + cfg.keyPath + ';');
+      L.push('    ssl_protocols TLSv1.2 TLSv1.3;');
+      L.push('    ssl_prefer_server_ciphers on;');
+      L.push('    ssl_session_cache shared:SSL:10m;');
+      L.push('    ssl_session_timeout 1d;');
+    } else {
+      L.push('    listen 80;');
+      L.push('    listen [::]:80;');
+      L.push('    server_name ' + cfg.domain + ';');
+    }
+    if(cfg.clientMaxBody){
+      L.push('');
+      L.push('    client_max_body_size ' + cfg.clientMaxBody + ';');
+    }
+    if(cfg.securityHeaders){
+      L.push('');
+      L.push('    add_header X-Frame-Options "SAMEORIGIN" always;');
+      L.push('    add_header X-Content-Type-Options "nosniff" always;');
+      L.push('    add_header Referrer-Policy "strict-origin-when-cross-origin" always;');
+      L.push('    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;');
+      if(cfg.https) L.push('    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;');
+    }
+    if(cfg.gzip){
+      L.push('');
+      L.push('    gzip on;');
+      L.push('    gzip_vary on;');
+      L.push('    gzip_min_length 256;');
+      L.push('    gzip_comp_level 5;');
+      L.push('    gzip_types text/plain text/css text/xml application/json application/javascript application/xml+rss image/svg+xml;');
+    }
+    if(p.needsRoot){
+      L.push('');
+      L.push('    root ' + cfg.root + ';');
+      L.push('    index index.html;');
+      L.push('');
+      L.push('    location / {');
+      if(cfg.rateLimit) L.push('        limit_req zone=nf_rl burst=' + (cfg.rateLimitRps * 2) + ' nodelay;');
+      if(cfg.preset === 'spa') L.push('        try_files $uri $uri/ /index.html;');
+      else L.push('        try_files $uri $uri/ =404;');
+      L.push('    }');
+      if(cfg.cacheAssets){
+        L.push('');
+        L.push('    location ~* \\.(css|js|png|jpg|jpeg|gif|svg|webp|avif|ico|woff2?)$ {');
+        L.push('        expires 30d;');
+        L.push('        add_header Cache-Control "public, immutable";');
+        L.push('        access_log off;');
+        L.push('    }');
+      }
+    } else {
+      L.push('');
+      L.push('    location / {');
+      if(cfg.rateLimit) L.push('        limit_req zone=nf_rl burst=' + (cfg.rateLimitRps * 2) + ' nodelay;');
+      L.push('        proxy_pass http://' + cfg.upstreamName + ';');
+      L.push('        proxy_set_header Host $host;');
+      L.push('        proxy_set_header X-Real-IP $remote_addr;');
+      L.push('        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;');
+      L.push('        proxy_set_header X-Forwarded-Proto $scheme;');
+      if(cfg.websocket || cfg.preset === 'lb'){
+        L.push('        proxy_http_version 1.1;');
+      }
+      if(cfg.websocket){
+        L.push('        proxy_set_header Upgrade $http_upgrade;');
+        L.push('        proxy_set_header Connection "upgrade";');
+        L.push('        proxy_read_timeout 86400s;');
+      }
+      L.push('        proxy_connect_timeout 5s;');
+      L.push('    }');
+    }
+    L.push('}');
+    L.push('');
+    return L.join('\n');
+  }
+  return { presets: PRESETS, defaults: defaults, validate: validate, generate: generate };
+})();
+if(typeof module!=='undefined' && module.exports){ module.exports = NF; }
+if(typeof window!=='undefined'){ window.__NGINXFORGE__ = NF; }
+</script>
+
+<div class="wrap">
+  <header>
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M8 9v6l8-6v6"/></svg></div>
+    <h1>NginxForge</h1>
+  </header>
+  <div class="sub">静态站 / SPA / 反向代理 / 负载均衡 · HTTPS · HTTP/2 · gzip · 安全头 · WebSocket · 限流 —— 单文件 / 零依赖 / 离线可用</div>
+
+  <div class="tabs" id="presetTabs">
+    <button class="tab on" data-preset="static" id="tabStatic">静态站点</button>
+    <button class="tab" data-preset="spa" id="tabSpa">SPA 单页应用</button>
+    <button class="tab" data-preset="proxy" id="tabProxy">反向代理</button>
+    <button class="tab" data-preset="lb" id="tabLb">负载均衡</button>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <div class="field"><label>域名（server_name）</label><input type="text" id="fDomain" value="example.com" spellcheck="false"></div>
+      <div class="field" id="rowRoot"><label>站点根目录（root）</label><input type="text" id="fRoot" value="/var/www/html" spellcheck="false"></div>
+      <div class="field hide" id="rowUps"><label>上游地址（每行一个 host:port）</label><textarea id="fUps" rows="3" spellcheck="false">127.0.0.1:3000</textarea></div>
+      <div class="field hide" id="rowLb"><label>负载均衡策略</label>
+        <select id="fLbMethod">
+          <option value="round_robin">round robin（默认轮询）</option>
+          <option value="least_conn">least_conn（最少连接）</option>
+          <option value="ip_hash">ip_hash（会话保持）</option>
+        </select>
+      </div>
+      <div class="opts">
+        <label class="opt"><input type="checkbox" id="oHttps" checked> HTTPS (443)</label>
+        <label class="opt"><input type="checkbox" id="oHttp2" checked> HTTP/2</label>
+        <label class="opt"><input type="checkbox" id="oForce" checked> 80 → 301 跳转</label>
+        <label class="opt"><input type="checkbox" id="oGzip" checked> gzip 压缩</label>
+        <label class="opt"><input type="checkbox" id="oSec" checked> 安全响应头</label>
+        <label class="opt"><input type="checkbox" id="oWs"> WebSocket</label>
+        <label class="opt"><input type="checkbox" id="oCache" checked> 静态资源缓存</label>
+        <label class="opt"><input type="checkbox" id="oRl"> 请求限流</label>
+      </div>
+      <div class="field" id="rowRps"><label>限流速率（req/s）</label><input type="number" id="fRps" value="10" min="1"></div>
+      <div class="field"><label>证书路径（fullchain.pem）</label><input type="text" id="fCert" value="/etc/letsencrypt/live/example.com/fullchain.pem" spellcheck="false"></div>
+      <div class="field"><label>私钥路径（privkey.pem）</label><input type="text" id="fKey" value="/etc/letsencrypt/live/example.com/privkey.pem" spellcheck="false"></div>
+      <div class="field"><label>client_max_body_size</label><input type="text" id="fBody" value="16m" spellcheck="false"></div>
+      <div class="hint">修改任意字段即时重新生成；生成结果放入 /etc/nginx/conf.d/&lt;域名&gt;.conf 后 nginx -t 验证。</div>
+    </div>
+
+    <div class="card">
+      <div class="btnrow">
+        <button class="act" id="copyOut">复制配置</button>
+        <button class="ghost" id="dlOut">下载 .conf</button>
+      </div>
+      <div class="errs hide" id="errBox"></div>
+      <pre class="out" id="confOut"></pre>
+    </div>
+  </div>
+
+  <footer>
+    <span>NginxForge · nano-tools</span>
+    <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/NginxForge" rel="noopener">GitHub</a>
+    <a href="https://wangzifan396-wzf.github.io/WB/" rel="noopener">全部工具</a>
+  </footer>
+</div>
+
+<script>
+if(typeof window!=='undefined' && window.document){
+(function(){
+  'use strict';
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var preset = 'static';
+
+  function readCfg(){
+    return {
+      preset: preset,
+      domain: $('fDomain').value.trim(),
+      root: $('fRoot').value.trim(),
+      upstreamName: 'backend',
+      upstreams: $('fUps').value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean),
+      lbMethod: $('fLbMethod').value,
+      https: $('oHttps').checked, http2: $('oHttp2').checked, forceHttps: $('oForce').checked,
+      certPath: $('fCert').value.trim(), keyPath: $('fKey').value.trim(),
+      gzip: $('oGzip').checked, securityHeaders: $('oSec').checked, websocket: $('oWs').checked,
+      rateLimit: $('oRl').checked, rateLimitRps: parseInt($('fRps').value, 10) || 10,
+      cacheAssets: $('oCache').checked,
+      clientMaxBody: $('fBody').value.trim()
+    };
+  }
+  function render(){
+    var cfg = readCfg();
+    var errs = NF.validate(cfg);
+    var eb = $('errBox');
+    if(errs.length){
+      eb.innerHTML = errs.map(function(e){ return '<div class="err">'+esc(e)+'</div>'; }).join('');
+      eb.classList.remove('hide');
+      $('confOut').textContent = '';
+      return;
+    }
+    eb.classList.add('hide');
+    $('confOut').textContent = NF.generate(cfg);
+    try { localStorage.setItem('nf.cfg', JSON.stringify(cfg)); } catch(e){}
+  }
+  function applyPreset(p){
+    preset = p;
+    var needsRoot = NF.presets[p].needsRoot, needsUp = NF.presets[p].needsUpstream;
+    $('rowRoot').classList.toggle('hide', !needsRoot);
+    $('rowUps').classList.toggle('hide', !needsUp);
+    $('rowLb').classList.toggle('hide', p !== 'lb');
+    $('oCache').parentNode ? null : null;
+    if(p === 'lb' && $('fUps').value.split('\n').filter(Boolean).length < 2){
+      $('fUps').value = '127.0.0.1:3000\n127.0.0.1:3001';
+    }
+    render();
+  }
+
+  var tabs = document.querySelectorAll('#presetTabs .tab');
+  for(var i=0;i<tabs.length;i++){
+    tabs[i].addEventListener('click', function(){
+      for(var j=0;j<tabs.length;j++) tabs[j].classList.remove('on');
+      this.classList.add('on');
+      applyPreset(this.getAttribute('data-preset'));
+    });
+  }
+  var inputs = document.querySelectorAll('input,textarea,select');
+  for(var k=0;k<inputs.length;k++){
+    inputs[k].addEventListener('input', render);
+    inputs[k].addEventListener('change', render);
+  }
+  $('copyOut').addEventListener('click', function(){
+    var txt = $('confOut').textContent;
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).catch(function(){});
+  });
+  $('dlOut').addEventListener('click', function(){
+    var txt = $('confOut').textContent;
+    var blob = new Blob([txt], { type: 'text/plain' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = ($('fDomain').value.trim() || 'site') + '.conf';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  render();
+
+  if('serviceWorker' in navigator && location.protocol !== 'file:'){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+})();
+}
+</script>
+</body>
+</html>

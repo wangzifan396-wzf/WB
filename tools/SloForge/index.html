@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SloForge — SLO 错误预算计算器：把可用性目标换算成允许停机时长，计算预算消耗、燃尽速率与多窗口多燃尽率告警阈值，离线可用。</title>
+<meta property="og:title" content="SloForge">
+<meta property="og:description" content="SLO 错误预算计算器：输入可用性目标（99.9% 或 three nines）与统计窗口，换算成允许的停机时长与失败请求数，按实际流量计算错误预算消耗比例、燃尽速率与预计耗尽时刻，并生成 Google SRE 多窗口多燃尽率（MWMBR）告警阈值表。做 SLO 评审、配置告警规则的利器，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="SLO 错误预算计算器：输入可用性目标（99.9% 或 three nines）与统计窗口，换算成允许的停机时长与失败请求数，按实际流量计算错误预算消耗比例、燃尽速率与预计耗尽时刻，并生成 Google SRE 多窗口多燃尽率（MWMBR）告警阈值表。做 SLO 评审、配置告警规则的利器，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SloForge</h1>
+  <p class="sub">SLO · 错误预算 · 告警</p>
+
+<div class="grid">
+  <div><label for="slo-obj">可用性目标（如 99.9 / 99.95）</label><input type="text" id="slo-obj" value="99.9"></div>
+  <div><label for="slo-win">统计窗口（天）</label><input type="text" id="slo-win" value="30"></div>
+  <div><label for="slo-total">窗口内总请求数</label><input type="text" id="slo-total" value="10000000"></div>
+  <div><label for="slo-bad">其中失败请求数</label><input type="text" id="slo-bad" value="6000"></div>
+</div>
+<div class="row">
+  <button id="slo-go">计算</button>
+  <button class="ghost" id="slo-a">99.9% / 30 天</button>
+  <button class="ghost" id="slo-b">99.99% / 30 天</button>
+  <button class="ghost" id="slo-c">预算已烧穿</button>
+</div>
+<div class="err" id="slo-err"></div>
+<div class="out" id="slo-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 381 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function SloForgePure(){
+  var NINES = [
+    {pct:90,     label:'一个九 90%'},
+    {pct:99,     label:'两个九 99%'},
+    {pct:99.5,   label:'99.5%'},
+    {pct:99.9,   label:'三个九 99.9%'},
+    {pct:99.95,  label:'99.95%'},
+    {pct:99.99,  label:'四个九 99.99%'},
+    {pct:99.995, label:'99.995%'},
+    {pct:99.999, label:'五个九 99.999%'}
+  ];
+
+  // Google SRE Workbook 第 5 章推荐的多窗口多燃尽率告警
+  var ALERT_SPEC = [
+    {sev:'页面告警 Page',   longHours:1,  shortHours:1/12, consumed:0.02, note:'1 小时内烧掉 2% 预算，立即呼叫值班'},
+    {sev:'页面告警 Page',   longHours:6,  shortHours:0.5,  consumed:0.05, note:'6 小时内烧掉 5% 预算，持续性事故'},
+    {sev:'工单告警 Ticket', longHours:24, shortHours:2,    consumed:0.10, note:'1 天内烧掉 10% 预算，下个工作日处理'},
+    {sev:'工单告警 Ticket', longHours:72, shortHours:6,    consumed:0.10, note:'3 天内烧掉 10% 预算，慢性劣化'}
+  ];
+
+  function num(v, name){
+    var n = Number(v);
+    if (!isFinite(n)) return {error:name + ' 不是合法数字：' + v};
+    return {value:n};
+  }
+
+  function parseObjective(v){
+    var s = String(v == null ? '' : v).trim().replace(/%$/, '');
+    var mn = /^([0-9]+)\s*(?:个\s*9|个\s*九|nines?)$/i.exec(s);
+    if (mn){
+      var k = parseInt(mn[1], 10);
+      if (k < 1 || k > 9) return {error:'“九”的个数需在 1..9'};
+      return {value:100 - Math.pow(10, 2 - k)};
+    }
+    var n = Number(s);
+    if (!isFinite(n)) return {error:'无法解析可用性目标：' + v};
+    if (n <= 0 || n >= 100) return {error:'可用性目标必须落在 (0, 100) 之间，当前 ' + n};
+    return {value:n};
+  }
+
+  function ninesLabel(pct){
+    for (var i = 0; i < NINES.length; i++){
+      if (Math.abs(NINES[i].pct - pct) < 1e-9) return NINES[i].label;
+    }
+    return pct + '%';
+  }
+
+  function fmtDuration(sec){
+    if (!isFinite(sec)) return '∞';
+    if (sec < 0) return '0 秒';
+    if (sec < 1) return (Math.round(sec * 1000)) + ' 毫秒';
+    var s = sec;
+    var d = Math.floor(s / 86400); s -= d * 86400;
+    var h = Math.floor(s / 3600);  s -= h * 3600;
+    var m = Math.floor(s / 60);    s -= m * 60;
+    var out = [];
+    if (d) out.push(d + ' 天');
+    if (h) out.push(h + ' 小时');
+    if (m) out.push(m + ' 分');
+    if (s > 0.0005 || !out.length) out.push((Math.round(s * 10) / 10) + ' 秒');
+    return out.join(' ');
+  }
+
+  // 目标可用性 → 各时间窗口内允许的不可用时长
+  function budget(objectivePct, windowDays){
+    var po = parseObjective(objectivePct);
+    if (po.error) return {error:po.error};
+    var wd = Number(windowDays);
+    if (!isFinite(wd) || wd <= 0 || wd > 3650) return {error:'统计窗口需为 0..3650 天'};
+    var slo = po.value / 100;
+    var unavailable = 1 - slo;
+    var windowSec = wd * 86400;
+    var allowed = windowSec * unavailable;
+    return {
+      error:null,
+      objectivePct:po.value, label:ninesLabel(po.value),
+      windowDays:wd, windowSeconds:windowSec,
+      unavailableFraction:unavailable,
+      allowedSeconds:allowed, allowedText:fmtDuration(allowed),
+      perDaySeconds:86400 * unavailable, perDayText:fmtDuration(86400 * unavailable),
+      perWeekSeconds:604800 * unavailable, perWeekText:fmtDuration(604800 * unavailable),
+      perMonthSeconds:2592000 * unavailable, perMonthText:fmtDuration(2592000 * unavailable),
+      perYearSeconds:31536000 * unavailable, perYearText:fmtDuration(31536000 * unavailable)
+    };
+  }
+
+  // 由实际请求量计算预算消耗
+  function consume(totalRequests, badRequests, objectivePct, windowDays){
+    var b = budget(objectivePct, windowDays || 30);
+    if (b.error) return {error:b.error};
+    var t = num(totalRequests, '总请求数'); if (t.error) return {error:t.error};
+    var bad = num(badRequests, '失败请求数'); if (bad.error) return {error:bad.error};
+    if (t.value <= 0) return {error:'总请求数必须大于 0'};
+    if (bad.value < 0) return {error:'失败请求数不能为负'};
+    if (bad.value > t.value) return {error:'失败请求数不能超过总请求数'};
+    var errorRate = bad.value / t.value;
+    var budgetRequests = t.value * b.unavailableFraction;
+    var usedPct = budgetRequests > 0 ? (bad.value * 100 / budgetRequests) : 0;
+    var remainingPct = 100 - usedPct;
+    var burn = b.unavailableFraction > 0 ? errorRate / b.unavailableFraction : 0;
+    var status = usedPct >= 100 ? 'EXHAUSTED' : (usedPct >= 75 ? 'AT_RISK' : (usedPct >= 25 ? 'WATCH' : 'HEALTHY'));
+    return {
+      error:null, base:b,
+      errorRatePct:errorRate * 100,
+      availabilityPct:(1 - errorRate) * 100,
+      budgetRequests:budgetRequests,
+      usedRequests:bad.value,
+      remainingRequests:budgetRequests - bad.value,
+      usedPct:usedPct, remainingPct:remainingPct,
+      burnRate:burn, status:status,
+      meetsObjective:((1 - errorRate) * 100 >= b.objectivePct - 1e-12)
+    };
+  }
+
+  // 按当前燃尽率，剩余预算还能烧多久
+  function timeToExhaust(burnRate, windowDays, remainingPct){
+    var br = Number(burnRate), wd = Number(windowDays), rp = Number(remainingPct);
+    if (!isFinite(br) || br <= 0) return {error:'燃尽率必须大于 0', hours:Infinity};
+    if (!isFinite(wd) || wd <= 0) return {error:'统计窗口必须大于 0'};
+    if (!isFinite(rp) || rp < 0) return {error:'剩余预算百分比不能为负'};
+    var hours = (rp / 100) * wd * 24 / br;
+    return {error:null, hours:hours, text:fmtDuration(hours * 3600)};
+  }
+
+  // 多窗口多燃尽率告警阈值
+  function multiWindow(objectivePct, windowDays){
+    var b = budget(objectivePct, windowDays || 30);
+    if (b.error) return {error:b.error};
+    var rows = [];
+    for (var i = 0; i < ALERT_SPEC.length; i++){
+      var a = ALERT_SPEC[i];
+      var burn = a.consumed * b.windowDays * 24 / a.longHours;
+      var thr = burn * b.unavailableFraction;
+      rows.push({
+        sev:a.sev, longHours:a.longHours, shortHours:a.shortHours,
+        consumedPct:a.consumed * 100, burnRate:burn,
+        thresholdErrorRatePct:Math.min(thr * 100, 100),
+        capped:(thr > 1),
+        note:a.note,
+        longLabel:(a.longHours >= 24 ? (a.longHours / 24) + ' 天' : a.longHours + ' 小时'),
+        shortLabel:(a.shortHours < 1 ? Math.round(a.shortHours * 60) + ' 分钟' : a.shortHours + ' 小时')
+      });
+    }
+    return {error:null, base:b, rows:rows};
+  }
+
+  // 复合可用性：串行依赖相乘，冗余副本 1-(1-a)^n
+  function composite(list){
+    if (!list || !list.length) return {error:'请至少输入一个依赖的可用性'};
+    var prod = 1, parsed = [];
+    for (var i = 0; i < list.length; i++){
+      var p = parseObjective(list[i]);
+      if (p.error) return {error:'第 ' + (i+1) + ' 项：' + p.error};
+      parsed.push(p.value);
+      prod *= p.value / 100;
+    }
+    return {error:null, items:parsed, serialPct:prod * 100,
+            serialDowntimePerMonth:fmtDuration(2592000 * (1 - prod))};
+  }
+  function redundant(objectivePct, replicas){
+    var p = parseObjective(objectivePct);
+    if (p.error) return {error:p.error};
+    var n = Number(replicas);
+    if (!isFinite(n) || n < 1 || n > 50 || Math.floor(n) !== n) return {error:'副本数需为 1..50 的整数'};
+    var f = 1 - p.value / 100;
+    var avail = 1 - Math.pow(f, n);
+    return {error:null, replicas:n, availabilityPct:avail * 100,
+            downtimePerYear:fmtDuration(31536000 * Math.pow(f, n))};
+  }
+
+  function availabilityFromDowntime(downtimeSeconds, windowDays){
+    var d = Number(downtimeSeconds), wd = Number(windowDays);
+    if (!isFinite(d) || d < 0) return {error:'停机时长不能为负'};
+    if (!isFinite(wd) || wd <= 0) return {error:'统计窗口必须大于 0'};
+    var w = wd * 86400;
+    if (d > w) return {error:'停机时长超过了统计窗口'};
+    return {error:null, availabilityPct:(1 - d / w) * 100, label:ninesLabel((1 - d / w) * 100)};
+  }
+
+  function analyze(objectivePct, windowDays, totalRequests, badRequests){
+    var b = budget(objectivePct, windowDays);
+    if (b.error) return {error:b.error};
+    var c = consume(totalRequests, badRequests, objectivePct, windowDays);
+    if (c.error) return {error:c.error};
+    var mw = multiWindow(objectivePct, windowDays);
+    var tte = timeToExhaust(c.burnRate, b.windowDays, c.remainingPct);
+    return {error:null, budget:b, consume:c, alerts:mw.rows, exhaust:tte, table:NINES};
+  }
+
+  var api = {NINES:NINES, ALERT_SPEC:ALERT_SPEC, parseObjective:parseObjective, ninesLabel:ninesLabel,
+             fmtDuration:fmtDuration, budget:budget, consume:consume, timeToExhaust:timeToExhaust,
+             multiWindow:multiWindow, composite:composite, redundant:redundant,
+             availabilityFromDowntime:availabilityFromDowntime, analyze:analyze};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {SloForgePure:SloForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = SloForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var STATUS = {HEALTHY:{t:'健康', c:'var(--ok)'}, WATCH:{t:'关注', c:'var(--info)'},
+                AT_RISK:{t:'告警', c:'var(--warn)'}, EXHAUSTED:{t:'已烧穿', c:'#EF4444'}};
+  function run(){
+    var r = P.analyze(document.getElementById('slo-obj').value,
+                      document.getElementById('slo-win').value,
+                      document.getElementById('slo-total').value,
+                      document.getElementById('slo-bad').value);
+    var $e = document.getElementById('slo-err'), $o = document.getElementById('slo-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var b = r.budget, c = r.consume, h = '';
+    h += '<div class="kv"><b>目标</b><span>' + esc(b.label) + ' · 窗口 ' + b.windowDays + ' 天</span></div>';
+    h += '<div class="kv"><b>窗口内允许不可用</b><span style="font-weight:700">' + esc(b.allowedText) + '</span></div>';
+    h += '<div class="kv"><b>折算每天 / 每周</b><span>' + esc(b.perDayText) + ' &nbsp;/&nbsp; ' + esc(b.perWeekText) + '</span></div>';
+    h += '<div class="kv"><b>折算每月 / 每年</b><span>' + esc(b.perMonthText) + ' &nbsp;/&nbsp; ' + esc(b.perYearText) + '</span></div>';
+
+    var st = STATUS[c.status];
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">错误预算消耗</div>';
+    h += '<div class="kv"><b>当前可用性</b><span style="color:' + (c.meetsObjective ? 'var(--ok)' : '#EF4444') + ';font-weight:700">' +
+         c.availabilityPct.toFixed(4) + '% ' + (c.meetsObjective ? '（达标）' : '（未达标）') + '</span></div>';
+    h += '<div class="kv"><b>错误率</b><span>' + c.errorRatePct.toFixed(4) + '%</span></div>';
+    h += '<div class="kv"><b>预算总量 / 已用</b><span>' + Math.round(c.budgetRequests).toLocaleString() + ' / ' +
+         Math.round(c.usedRequests).toLocaleString() + ' 次失败</span></div>';
+    var used = Math.max(0, Math.min(100, c.usedPct));
+    h += '<div class="kv"><b>预算已用</b><span><span style="display:inline-block;width:110px;height:8px;background:var(--surface);border-radius:4px;vertical-align:middle;overflow:hidden">' +
+         '<span style="display:block;height:8px;width:' + used.toFixed(1) + '%;background:' + st.c + '"></span></span> &nbsp;' +
+         c.usedPct.toFixed(1) + '%</span></div>';
+    h += '<div class="kv"><b>状态</b><span style="color:' + st.c + ';font-weight:700">' + st.t + '</span></div>';
+    h += '<div class="kv"><b>当前燃尽率</b><span>' + c.burnRate.toFixed(2) + 'x' +
+         (c.burnRate > 1 ? '（快于预算允许速度）' : '（在预算内）') + '</span></div>';
+    h += '<div class="kv"><b>按此速度预算耗尽</b><span>' + (r.exhaust.error ? '不会耗尽' : esc(r.exhaust.text) + '后') + '</span></div>';
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">多窗口多燃尽率告警阈值（Google SRE）</div>';
+    for (var i = 0; i < r.alerts.length; i++){
+      var a = r.alerts[i];
+      h += '<div class="kv"><b>' + esc(a.sev) + ' · ' + esc(a.longLabel) + '</b><span>燃尽率 ≥ ' + a.burnRate.toFixed(1) +
+           'x（错误率 ≥ ' + a.thresholdErrorRatePct.toFixed(3) + '%），短窗口 ' + esc(a.shortLabel) + '</span></div>';
+    }
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">常见目标对照（每月允许不可用）</div>';
+    for (var j = 0; j < r.table.length; j++){
+      var t = r.table[j], bb = P.budget(t.pct, 30);
+      h += '<div class="kv"><b>' + esc(t.label) + '</b><span>' + esc(bb.allowedText) + '</span></div>';
+    }
+    $o.innerHTML = h;
+  }
+  function set(o, w, t, b){
+    document.getElementById('slo-obj').value = o;
+    document.getElementById('slo-win').value = w;
+    document.getElementById('slo-total').value = t;
+    document.getElementById('slo-bad').value = b;
+    run();
+  }
+  document.getElementById('slo-go').addEventListener('click', run);
+  document.getElementById('slo-a').addEventListener('click', function(){ set('99.9', '30', '10000000', '6000'); });
+  document.getElementById('slo-b').addEventListener('click', function(){ set('99.99', '30', '50000000', '3000'); });
+  document.getElementById('slo-c').addEventListener('click', function(){ set('99.95', '30', '2000000', '3000'); });
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

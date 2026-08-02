@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TotpForge — 离线 TOTP 身份验证器：RFC 4226/6238，纯 JS HMAC-SHA1</title>
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.preview{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;justify-content:center;align-items:center;min-height:90px}
+.preview svg{max-width:100%}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.big{font:40px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
+.kv{color:var(--muted);font-size:13px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线 TOTP 身份验证器：纯 JS HMAC-SHA1（RFC 4226/6238 验证），Base32/ASCII 密钥，实时倒计时。">
+</head>
+<body>
+<div class="app">
+  <h1>TotpForge</h1>
+  <p class="sub">离线 TOTP 身份验证器：RFC 4226/6238，纯 JS HMAC-SHA1 · 单文件 · 零依赖 · 本地优先</p>
+
+<style>
+.totp-code{font:44px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:6px;text-align:center;margin:10px 0;color:var(--fg)}
+.totp-bar{height:6px;background:var(--surface);border-radius:999px;overflow:hidden;margin-top:6px}
+.totp-bar > i{display:block;height:100%;background:var(--accent);transition:width .25s linear}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+</style>
+<label for="secret">密钥（Base32 或 ASCII，留空用演示密钥）</label>
+<input id="secret" type="text" value="JBSWY3DPEHPK3PXP" placeholder="Base32 如 JBSWY3DPEHPK3PXP，或 ASCII">
+<div class="row">
+  <label style="margin:0">位数</label>
+  <select id="digits"><option>6</option><option>8</option></select>
+  <label style="margin:0">周期(秒)</label>
+  <input id="period" type="number" value="30" min="10" max="120">
+  <label style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="ascii" style="width:auto"> 密钥为 ASCII</label>
+</div>
+<div class="row">
+  <button id="copy">复制当前验证码</button>
+  <button id="reveal" class="ghost">显示/隐藏密钥</button>
+</div>
+<div class="totp-code" id="code">------</div>
+<div class="totp-bar"><i id="bar" style="width:100%"></i></div>
+<div class="err" id="err"></div>
+<script>
+function rotl(x,n){ return (x<<n)|(x>>>(32-n)); }
+function sha1bytes(bytes){
+  function r1(x,n){ return (x<<n)|(x>>>(32-n)); }
+  var h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476,h4=0xC3D2E1F0;
+  var msg=bytes.slice(); var bitLen=msg.length*8; msg.push(0x80);
+  while(msg.length%64!==56) msg.push(0);
+  var hi=Math.floor(bitLen/4294967296), lo=bitLen>>>0;
+  for(var s=3;s>=0;s--) msg.push((hi>>>(8*s))&0xff);
+  for(var s=3;s>=0;s--) msg.push((lo>>>(8*s))&0xff);
+  for(var off=0; off<msg.length; off+=64){
+    var w=new Array(80);
+    for(var t=0;t<16;t++){ w[t]=((msg[off+4*t]<<24)|(msg[off+4*t+1]<<16)|(msg[off+4*t+2]<<8)|(msg[off+4*t+3]))>>>0; }
+    for(var t=16;t<80;t++){ w[t]=r1(w[t-3]^w[t-8]^w[t-14]^w[t-16],1)>>>0; }
+    var a=h0,b=h1,c=h2,d=h3,e=h4;
+    for(var t=0;t<80;t++){
+      var f,k;
+      if(t<20){ f=(b&c)|((~b)&d); k=0x5A827999; }
+      else if(t<40){ f=b^c^d; k=0x6ED9EBA1; }
+      else if(t<60){ f=(b&c)|(b&d)|(c&d); k=0x8F1BBCDC; }
+      else { f=b^c^d; k=0xCA62C1D6; }
+      var tmp=(r1(a,5)+f+e+k+(w[t]>>>0))>>>0;
+      e=d; d=c; c=r1(b,30); b=a; a=tmp;
+    }
+    h0=(h0+a)>>>0; h1=(h1+b)>>>0; h2=(h2+c)>>>0; h3=(h3+d)>>>0; h4=(h4+e)>>>0;
+  }
+  var out=[]; [h0,h1,h2,h3,h4].forEach(function(x){ for(var s=3;s>=0;s--) out.push((x>>>(8*s))&0xff); });
+  return out;
+}
+function hmacSha1(keyBytes, msgBytes){
+  var B=64;
+  if(keyBytes.length>B) keyBytes=sha1bytes(keyBytes);
+  var k=new Array(B).fill(0);
+  for(var i=0;i<keyBytes.length;i++) k[i]=keyBytes[i];
+  var ipad=new Array(B), opad=new Array(B);
+  for(var i=0;i<B;i++){ ipad[i]=k[i]^0x36; opad[i]=k[i]^0x5c; }
+  var inner=ipad.concat(msgBytes);
+  var innerHash=sha1bytes(inner);
+  var outer=opad.concat(innerHash);
+  return sha1bytes(outer);
+}
+function hotp(keyBytes, counter, digits){
+  digits=digits||6;
+  var c=counter>>>0;
+  var C=[0,0,0,0,(c>>>24)&0xff,(c>>>16)&0xff,(c>>>8)&0xff,c&0xff];
+  var mac=hmacSha1(keyBytes, C);
+  var off=mac[19]&0x0f;
+  var bin=((mac[off]&0x7f)<<24)|((mac[off+1]&0xff)<<16)|((mac[off+2]&0xff)<<8)|(mac[off+3]&0xff);
+  var otp=(bin%Math.pow(10,digits)).toString();
+  while(otp.length<digits) otp='0'+otp;
+  return otp;
+}
+function totp(keyBytes, opts){
+  opts=opts||{};
+  var X=opts.period||30;
+  var T=opts.time!=null?opts.time:(Date.now()/1000);
+  var counter=Math.floor(T/X);
+  return hotp(keyBytes, counter, opts.digits||6);
+}
+function base32Decode(s){
+  s=String(s).toUpperCase().replace(/=+$/,'').replace(/\s+/g,'');
+  var alpha='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  var bits=0, value=0, out=[];
+  for(var i=0;i<s.length;i++){
+    var idx=alpha.indexOf(s[i]); if(idx<0) continue;
+    value=(value<<5)|idx; bits+=5;
+    if(bits>=8){ out.push((value>>>(bits-8))&0xff); bits-=8; }
+  }
+  return out;
+}
+function asciiBytes(s){ var o=[]; s=String(s); for(var i=0;i<s.length;i++) o.push(s.charCodeAt(i)&0xff); return o; }
+function secretToBytes(s, isAscii){
+  if(isAscii) return asciiBytes(s);
+  var b=base32Decode(s);
+  if(b.length) return b;
+  return asciiBytes(s);
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { sha1bytes:sha1bytes, hmacSha1:hmacSha1, hotp:hotp, totp:totp, base32Decode:base32Decode, asciiBytes:asciiBytes, secretToBytes:secretToBytes };
+}
+if (typeof window !== 'undefined') {
+  window.TotpForgePure = { sha1bytes:sha1bytes, hmacSha1:hmacSha1, hotp:hotp, totp:totp, base32Decode:base32Decode, asciiBytes:asciiBytes, secretToBytes:secretToBytes };
+}
+</script>
+<script>
+if (typeof window !== 'undefined' && window.document) {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.TotpForgePure;
+    var timer=null;
+    function b32(){ return $('ascii').checked ? $('secret').value : ($('secret').value||'JBSWY3DPEHPK3PXP'); }
+    function tick(){
+      $('err').textContent='';
+      try {
+        var key=P.secretToBytes(b32(), $('ascii').checked);
+        var code=P.totp(key,{digits:parseInt($('digits').value,10)||6, period:parseInt($('period').value,10)||30});
+        $('code').textContent=code;
+        var X=parseInt($('period').value,10)||30;
+        var rem=X-Math.floor((Date.now()/1000)%X);
+        $('bar').style.width=((rem/X)*100)+'%';
+      } catch(e){ $('err').textContent=e.message; }
+    }
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    ['secret','digits','period','ascii'].forEach(function(id){ $(id).addEventListener('input', tick); $(id).addEventListener('change', tick); });
+    $('copy').addEventListener('click', function(){ copyText($('code').textContent); });
+    $('reveal').addEventListener('click', function(){ var i=$('secret'); if(i.type==='password'){i.type='text';} else {i.type='password';} });
+    $('secret').type='password';
+    tick(); timer=setInterval(tick,1000);
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

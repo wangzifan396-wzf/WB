@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>JwsForge — JWS 工作台：解析紧凑 / JSON（general / flattened）/ detached 序列化，用 JWK 验签 HS*/RS*/ES*，并用私钥签发，全程纯 JS 同步、零依赖、离线可用。</title>
+<meta property="og:title" content="JwsForge">
+<meta property="og:description" content="JWS 工作台：手写实现 RFC 7515 的紧凑与 JSON（general / flattened）序列化解析，支持 detached 载荷；用 JWK 验签 HS256/384/512、RS256/384/512、ES256/384/512（RSA-PSS 提示走浏览器端 WebCrypto），并用私钥 JWK 签发上述算法的紧凑 JWS，全部纯 JS 同步、不依赖 WebCrypto、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="JWS 工作台：手写实现 RFC 7515 的紧凑与 JSON（general / flattened）序列化解析，支持 detached 载荷；用 JWK 验签 HS256/384/512、RS256/384/512、ES256/384/512（RSA-PSS 提示走浏览器端 WebCrypto），并用私钥 JWK 签发上述算法的紧凑 JWS，全部纯 JS 同步、不依赖 WebCrypto、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>JwsForge</h1>
+  <p class="sub">JWS 解析 · 验签 · 签发</p>
+  <div class="tabs" id="jws_tabs">
+    <button class="ghost on" data-tab="verify">解析与验签</button>
+    <button class="ghost" data-tab="sign">签发</button>
+  </div>
+
+  <section id="jws_verify_sec">
+    <label for="jws_in">JWS（紧凑 `header.payload.signature`，或 JSON 序列化的 general / flattened；detached 写成 `header..signature`）</label>
+    <textarea id="jws_in" rows="6" spellcheck="false" placeholder="eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"></textarea>
+    <div class="row">
+      <button id="jws_parse">解析结构</button>
+      <button id="jws_verify">用下方密钥验签</button>
+      <button id="jws_load" class="ghost">载入示例 (RFC 7515 A.1)</button>
+      <button id="jws_clear" class="ghost">清空</button>
+    </div>
+    <label for="jws_key">验证用密钥（JWK）：HMAC 用 <code>{"kty":"oct","k":"..."}</code>，RSA 用 <code>n/e</code>，EC 用 <code>x/y</code>；不填也能看结构</label>
+    <textarea id="jws_key" rows="5" spellcheck="false" placeholder='{"kty":"oct","k":"AyM1SysPpbyDfgZld3umj1qzKObwVMkoqQ-EstJQLr_T-1qS0gZH75aKtMN3Yj0iPS4hcgUuTwjAzZr1Z9CAow"}'></textarea>
+    <label for="jws_detached">原始载荷（仅 detached JWS 验签需要；留空则按 detached 只解析结构）</label>
+    <textarea id="jws_detached" rows="2" spellcheck="false" placeholder="detached JWS 对应的原始 payload 原文（UTF-8）"></textarea>
+    <div class="err" id="jws_err"></div>
+    <div class="out" id="jws_out"></div>
+  </section>
+
+  <section id="jws_sign_sec" style="display:none">
+    <label>签名算法 alg</label>
+    <div class="row" id="jws_algs"></div>
+    <label for="jws_priv">签名用私钥（JWK）：oct 含 <code>k</code>，RSA 含 <code>n/d</code>，EC 含 <code>crv/d</code></label>
+    <textarea id="jws_priv" rows="5" spellcheck="false" placeholder='{"kty":"oct","k":"AyM1SysPpbyDfgZld3umj1qzKObwVMkoqQ-EstJQLr_T-1qS0gZH75aKtMN3Yj0iPS4hcgUuTwjAzZr1Z9CAow"}'></textarea>
+    <label for="jws_hdr">附加受保护头（JSON；alg 自动填，typ/kid/cty 之类写这里）</label>
+    <textarea id="jws_hdr" rows="2" spellcheck="false">{"typ":"JWT"}</textarea>
+    <label for="jws_payload">载荷（payload，会按 UTF-8 做 base64url 编码后参与签名）</label>
+    <textarea id="jws_payload" rows="4" spellcheck="false">{"iss":"me","sub":"you","iat":1700000000}</textarea>
+    <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="jws_detach" style="width:auto">导出为 detached JWS（载荷不写进结果，需另行传输）</label>
+    <div class="row">
+      <button id="jws_sign">签发</button>
+      <button id="jws_scopy" class="ghost">复制 JWS</button>
+    </div>
+    <div class="err" id="jws_signerr"></div>
+    <textarea id="jws_result" rows="4" readonly spellcheck="false"></textarea>
+  </section>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 357 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+/* ============ 共享原语：字节 / 编码 / 摘要 / ASN.1 / SSH wire ============
+   这一段在四款工具里是同一份代码。之所以每个单文件都内联一遍而不抽包，
+   是因为 nano-tools 的硬约束是「一个 HTML 双击即用、零依赖、可离线」。
+   全部同步纯函数，不碰 WebCrypto，Node 里能直接跑已知答案向量。 */
+
+function utf8Bytes(str){
+  var b=[];
+  for(var i=0;i<str.length;i++){
+    var c=str.charCodeAt(i);
+    if(c<0x80) b.push(c);
+    else if(c<0x800) b.push(0xc0|(c>>6),0x80|(c&0x3f));
+    else if(c>=0xd800&&c<=0xdbff){
+      var c2=str.charCodeAt(i+1), cp=0x10000+((c&0x3ff)<<10)+(c2&0x3ff);
+      b.push(0xf0|(cp>>18),0x80|((cp>>12)&0x3f),0x80|((cp>>6)&0x3f),0x80|(cp&0x3f)); i++;
+    } else b.push(0xe0|(c>>12),0x80|((c>>6)&0x3f),0x80|(c&0x3f));
+  }
+  return b;
+}
+function bytesToUtf8(b){
+  var s='',i=0;
+  while(i<b.length){
+    var c=b[i];
+    if(c<0x80){ s+=String.fromCharCode(c); i++; }
+    else if(c<0xe0){ s+=String.fromCharCode(((c&0x1f)<<6)|(b[i+1]&0x3f)); i+=2; }
+    else if(c<0xf0){ s+=String.fromCharCode(((c&0x0f)<<12)|((b[i+1]&0x3f)<<6)|(b[i+2]&0x3f)); i+=3; }
+    else {
+      var cp=((c&0x07)<<18)|((b[i+1]&0x3f)<<12)|((b[i+2]&0x3f)<<6)|(b[i+3]&0x3f);
+      cp-=0x10000; s+=String.fromCharCode(0xd800+(cp>>10),0xdc00+(cp&0x3ff)); i+=4;
+    }
+  }
+  return s;
+}
+function toHex(b){ var s=''; for(var i=0;i<b.length;i++) s+=('0'+(b[i]&0xff).toString(16)).slice(-2); return s; }
+function fromHex(h){
+  h=String(h).replace(/[^0-9a-fA-F]/g,'');
+  if(h.length%2) h='0'+h;
+  var b=[]; for(var i=0;i<h.length;i+=2) b.push(parseInt(h.substr(i,2),16));
+  return b;
+}
+function colonHex(b){ var p=[]; for(var i=0;i<b.length;i++) p.push(('0'+(b[i]&0xff).toString(16)).slice(-2)); return p.join(':'); }
+
+var B64A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function b64encode(b){
+  var s='',i;
+  for(i=0;i+2<b.length;i+=3){
+    var n=(b[i]<<16)|(b[i+1]<<8)|b[i+2];
+    s+=B64A[(n>>18)&63]+B64A[(n>>12)&63]+B64A[(n>>6)&63]+B64A[n&63];
+  }
+  var rem=b.length-i;
+  if(rem===1){ var m=b[i]<<16; s+=B64A[(m>>18)&63]+B64A[(m>>12)&63]+'=='; }
+  else if(rem===2){ var k=(b[i]<<16)|(b[i+1]<<8); s+=B64A[(k>>18)&63]+B64A[(k>>12)&63]+B64A[(k>>6)&63]+'='; }
+  return s;
+}
+/* 宽容解码：吃掉空白与换行，同时接受 url-safe 字母表与缺失的 padding。
+   真实世界里 PEM、JWK、authorized_keys 三种来源的 base64 长得都不太一样。 */
+function b64decode(s){
+  s=String(s).replace(/[\s\r\n]/g,'').replace(/-/g,'+').replace(/_/g,'/').replace(/=+$/,'');
+  var b=[],buf=0,bits=0;
+  for(var i=0;i<s.length;i++){
+    var v=B64A.indexOf(s[i]);
+    if(v<0) throw new Error('base64 含非法字符 "'+s[i]+'"（第 '+(i+1)+' 位）');
+    buf=(buf<<6)|v; bits+=6;
+    if(bits>=8){ bits-=8; b.push((buf>>bits)&0xff); }
+  }
+  return b;
+}
+function b64url(b){ return b64encode(b).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64urlDecode(s){ return b64decode(s); }
+
+var SHA256_K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256Bytes(bytes){
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var bitLo=(bytes.length*8)>>>0, bitHi=Math.floor(bytes.length/536870912)>>>0;
+  var w=bytes.slice(); w.push(0x80);
+  while(w.length%64!==56) w.push(0);
+  w.push((bitHi>>>24)&0xff,(bitHi>>>16)&0xff,(bitHi>>>8)&0xff,bitHi&0xff,
+         (bitLo>>>24)&0xff,(bitLo>>>16)&0xff,(bitLo>>>8)&0xff,bitLo&0xff);
+  function rotr(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }
+  var W=new Array(64),i,off;
+  for(off=0;off<w.length;off+=64){
+    for(i=0;i<16;i++) W[i]=((w[off+i*4]<<24)|(w[off+i*4+1]<<16)|(w[off+i*4+2]<<8)|w[off+i*4+3])>>>0;
+    for(i=16;i<64;i++){
+      var s0=(rotr(W[i-15],7)^rotr(W[i-15],18)^(W[i-15]>>>3))>>>0;
+      var s1=(rotr(W[i-2],17)^rotr(W[i-2],19)^(W[i-2]>>>10))>>>0;
+      W[i]=(W[i-16]+s0+W[i-7]+s1)>>>0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(i=0;i<64;i++){
+      var S1=(rotr(e,6)^rotr(e,11)^rotr(e,25))>>>0, ch=((e&f)^((~e)&g))>>>0;
+      var t1=(h+S1+ch+SHA256_K[i]+W[i])>>>0;
+      var S0=(rotr(a,2)^rotr(a,13)^rotr(a,22))>>>0, maj=((a&b)^(a&c)^(b&c))>>>0;
+      var t2=(S0+maj)>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0;H[5]=(H[5]+f)>>>0;H[6]=(H[6]+g)>>>0;H[7]=(H[7]+h)>>>0;
+  }
+  var out=[];
+  for(i=0;i<8;i++) out.push((H[i]>>>24)&0xff,(H[i]>>>16)&0xff,(H[i]>>>8)&0xff,H[i]&0xff);
+  return out;
+}
+function sha1Bytes(bytes){
+  var H=[0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0];
+  var bitLo=(bytes.length*8)>>>0, bitHi=Math.floor(bytes.length/536870912)>>>0;
+  var w=bytes.slice(); w.push(0x80);
+  while(w.length%64!==56) w.push(0);
+  w.push((bitHi>>>24)&0xff,(bitHi>>>16)&0xff,(bitHi>>>8)&0xff,bitHi&0xff,
+         (bitLo>>>24)&0xff,(bitLo>>>16)&0xff,(bitLo>>>8)&0xff,bitLo&0xff);
+  function rol(n,c){ return ((n<<c)|(n>>>(32-c)))>>>0; }
+  var W=new Array(80),i,off;
+  for(off=0;off<w.length;off+=64){
+    for(i=0;i<16;i++) W[i]=((w[off+i*4]<<24)|(w[off+i*4+1]<<16)|(w[off+i*4+2]<<8)|w[off+i*4+3])>>>0;
+    for(i=16;i<80;i++) W[i]=rol((W[i-3]^W[i-8]^W[i-14]^W[i-16])>>>0,1);
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4];
+    for(i=0;i<80;i++){
+      var f,k;
+      if(i<20){ f=((b&c)|((~b)&d))>>>0; k=0x5A827999; }
+      else if(i<40){ f=(b^c^d)>>>0; k=0x6ED9EBA1; }
+      else if(i<60){ f=((b&c)|(b&d)|(c&d))>>>0; k=0x8F1BBCDC; }
+      else { f=(b^c^d)>>>0; k=0xCA62C1D6; }
+      var t=(rol(a,5)+f+e+k+W[i])>>>0;
+      e=d; d=c; c=rol(b,30); b=a; a=t;
+    }
+    H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;H[4]=(H[4]+e)>>>0;
+  }
+  var out=[];
+  for(i=0;i<5;i++) out.push((H[i]>>>24)&0xff,(H[i]>>>16)&0xff,(H[i]>>>8)&0xff,H[i]&0xff);
+  return out;
+}
+var MD5_S=[7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+           5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+           4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+           6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+var MD5_K=(function(){ var k=[]; for(var i=0;i<64;i++) k.push((Math.floor(Math.abs(Math.sin(i+1))*4294967296))>>>0); return k; })();
+function md5Bytes(bytes){
+  function rol(n,c){ return ((n<<c)|(n>>>(32-c)))>>>0; }
+  var a0=0x67452301,b0=0xefcdab89,c0=0x98badcfe,d0=0x10325476;
+  var m=bytes.slice(); m.push(0x80);
+  while(m.length%64!==56) m.push(0);
+  var lo=(bytes.length*8)>>>0, hi=Math.floor(bytes.length/536870912)>>>0;
+  m.push(lo&0xff,(lo>>>8)&0xff,(lo>>>16)&0xff,(lo>>>24)&0xff,hi&0xff,(hi>>>8)&0xff,(hi>>>16)&0xff,(hi>>>24)&0xff);
+  for(var off=0;off<m.length;off+=64){
+    var M=[],j;
+    for(j=0;j<16;j++) M[j]=((m[off+j*4])|(m[off+j*4+1]<<8)|(m[off+j*4+2]<<16)|(m[off+j*4+3]<<24))>>>0;
+    var A=a0,B=b0,C=c0,D=d0;
+    for(var i=0;i<64;i++){
+      var F,g;
+      if(i<16){ F=((B&C)|((~B)&D))>>>0; g=i; }
+      else if(i<32){ F=((D&B)|((~D)&C))>>>0; g=(5*i+1)%16; }
+      else if(i<48){ F=(B^C^D)>>>0; g=(3*i+5)%16; }
+      else { F=(C^(B|((~D)>>>0)))>>>0; g=(7*i)%16; }
+      F=(F+A+MD5_K[i]+M[g])>>>0;
+      A=D; D=C; C=B; B=(B+rol(F,MD5_S[i]))>>>0;
+    }
+    a0=(a0+A)>>>0; b0=(b0+B)>>>0; c0=(c0+C)>>>0; d0=(d0+D)>>>0;
+  }
+  var out=[],v=[a0,b0,c0,d0];
+  for(var q=0;q<4;q++) out.push(v[q]&0xff,(v[q]>>>8)&0xff,(v[q]>>>16)&0xff,(v[q]>>>24)&0xff);
+  return out;
+}
+function hmacGeneric(hashFn, blockSize, key, msg){
+  var k=key.slice();
+  if(k.length>blockSize) k=hashFn(k);
+  while(k.length<blockSize) k.push(0);
+  var ipad=[],opad=[];
+  for(var i=0;i<blockSize;i++){ ipad.push(k[i]^0x36); opad.push(k[i]^0x5c); }
+  return hashFn(opad.concat(hashFn(ipad.concat(msg))));
+}
+function hmacSha256(key,msg){ return hmacGeneric(sha256Bytes,64,key,msg); }
+function hmacSha1(key,msg){ return hmacGeneric(sha1Bytes,64,key,msg); }
+
+/* ---- SHA-512 / SHA-384：64 位字用 BigInt 实现（JS 原生 number 只有 53 位精度，不够） ---- */
+var SHA512_MASK64=(1n<<64n)-1n;
+var SHA512_K=[
+0x428a2f98d728ae22n,0x7137449123ef65cdn,0xb5c0fbcfec4d3b2fn,0xe9b5dba58189dbbcn,
+0x3956c25bf348b538n,0x59f111f1b605d019n,0x923f82a4af194f9bn,0xab1c5ed5da6d8118n,
+0xd807aa98a3030242n,0x12835b0145706fben,0x243185be4ee4b28cn,0x550c7dc3d5ffb4e2n,
+0x72be5d74f27b896fn,0x80deb1fe3b1696b1n,0x9bdc06a725c71235n,0xc19bf174cf692694n,
+0xe49b69c19ef14ad2n,0xefbe4786384f25e3n,0xfc19dc68b8cd5b5n,0x240ca1cc77ac9c65n,
+0x2de92c6f592b0275n,0x4a7484aa6ea6e483n,0x5cb0a9dcbd41fbd4n,0x76f988da831153b5n,
+0x983e5152ee66dfabn,0xa831c66d2db43210n,0xb00327c898fb213fn,0xbf597fc7beef0ee4n,
+0xc6e00bf33da88fc2n,0xd5a79147930aa725n,0x6ca6351e003826fn,0x142929670a0e6e70n,
+0x27b70a8546d22ffcn,0x2e1b21385c26c926n,0x4d2c6dfc5ac42aedn,0x53380d139d95b3dfn,
+0x650a73548baf63den,0x766a0abb3c77b2a8n,0x81c2c92e47edaee6n,0x92722c851482353bn,
+0xa2bfe8a14cf10364n,0xa81a664bbc423001n,0xc24b8b70d0f89791n,0xc76c51a30654be30n,
+0xd192e819d6ef5218n,0xd69906245565a910n,0xf40e35855771202an,0x106aa07032bbd1b8n,
+0x19a4c116b8d2d0c8n,0x1e376c085141ab53n,0x2748774cdf8eeb99n,0x34b0bcb5e19b48a8n,
+0x391c0cb3c5c95a63n,0x4ed8aa4ae3418acbn,0x5b9cca4f7763e373n,0x682e6ff3d6b2b8a3n,
+0x748f82ee5defb2fcn,0x78a5636f43172f60n,0x84c87814a1f0ab72n,0x8cc702081a6439ecn,
+0x90befffa23631e28n,0xa4506cebde82bde9n,0xbef9a3f7b2c67915n,0xc67178f2e372532bn,
+0xca273eceea26619cn,0xd186b8c721c0c207n,0xeada7dd6cde0eb1en,0xf57d4f7fee6ed178n,
+0x6f067aa72176fban,0xa637dc5a2c898a6n,0x113f9804bef90daen,0x1b710b35131c471bn,
+0x28db77f523047d84n,0x32caab7b40c72493n,0x3c9ebe0a15c9bebcn,0x431d67c49c100d4cn,
+0x4cc5d4becb3e42b6n,0x597f299cfc657e2an,0x5fcb6fab3ad6faecn,0x6c44198c4a475817n
+];
+function sha512Family(bytes, H0, digestLen){
+  var H=H0.slice(), K=SHA512_K;
+  var bitLen=BigInt(bytes.length)*8n;
+  var m=bytes.slice(); m.push(0x80);
+  while(m.length%128!==112) m.push(0);
+  for(var li=0;li<16;li++) m.push(Number((bitLen>>BigInt((15-li)*8))&0xffn));
+  function rotr(x,n){ n=BigInt(n); return ((x>>n)|((x<<(64n-n))&SHA512_MASK64))&SHA512_MASK64; }
+  var W=new Array(80),i,off;
+  for(off=0;off<m.length;off+=128){
+    for(i=0;i<16;i++){
+      var w=0n;
+      for(var j=0;j<8;j++) w=(w<<8n)|BigInt(m[off+i*8+j]);
+      W[i]=w;
+    }
+    for(i=16;i<80;i++){
+      var s0=rotr(W[i-15],1n)^rotr(W[i-15],8n)^(W[i-15]>>7n);
+      var s1=rotr(W[i-2],19n)^rotr(W[i-2],61n)^(W[i-2]>>6n);
+      W[i]=(W[i-16]+s0+W[i-7]+s1)&SHA512_MASK64;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(i=0;i<80;i++){
+      var S1=rotr(e,14n)^rotr(e,18n)^rotr(e,41n);
+      var ch=(e&f)^((~e)&SHA512_MASK64&g);
+      var t1=(h+S1+ch+K[i]+W[i])&SHA512_MASK64;
+      var S0=rotr(a,28n)^rotr(a,34n)^rotr(a,39n);
+      var maj=(a&b)^(a&c)^(b&c);
+      var t2=(S0+maj)&SHA512_MASK64;
+      h=g;g=f;f=e;e=(d+t1)&SHA512_MASK64;d=c;c=b;b=a;a=(t1+t2)&SHA512_MASK64;
+    }
+    H[0]=(H[0]+a)&SHA512_MASK64;H[1]=(H[1]+b)&SHA512_MASK64;H[2]=(H[2]+c)&SHA512_MASK64;H[3]=(H[3]+d)&SHA512_MASK64;
+    H[4]=(H[4]+e)&SHA512_MASK64;H[5]=(H[5]+f)&SHA512_MASK64;H[6]=(H[6]+g)&SHA512_MASK64;H[7]=(H[7]+h)&SHA512_MASK64;
+  }
+  var out=[];
+  for(i=0;i<digestLen/8;i++){
+    var v=H[i];
+    for(var j=7;j>=0;j--) out.push(Number((v>>BigInt(j*8))&0xffn));
+  }
+  return out;
+}
+var SHA512_H0=[0x6a09e667f3bcc908n,0xbb67ae8584caa73bn,0x3c6ef372fe94f82bn,0xa54ff53a5f1d36f1n,
+0x510e527fade682d1n,0x9b05688c2b3e6c1fn,0x1f83d9abfb41bd6bn,0x5be0cd19137e2179n];
+var SHA384_H0=[0xcbbb9d5dc1059ed8n,0x629a292a367cd507n,0x9159015a3070dd17n,0x152fecd8f70e5939n,
+0x67332667ffc00b31n,0x8eb44a8768581511n,0xdb0c2e0d64f98fa7n,0x47b5481dbefa4fa4n];
+function sha512Bytes(b){ return sha512Family(b, SHA512_H0, 64); }
+function sha384Bytes(b){ return sha512Family(b, SHA384_H0, 48); }
+function hmacSha384(key,msg){ return hmacGeneric(sha384Bytes,128,key,msg); }
+function hmacSha512(key,msg){ return hmacGeneric(sha512Bytes,128,key,msg); }
+
+/* ---- ASN.1 DER：只实现 PKI 里真正用得上的那一小撮标签 ---- */
+function derLenBytes(n){
+  if(n<0x80) return [n];
+  var b=[],v=n;
+  while(v>0){ b.unshift(v&0xff); v=Math.floor(v/256); }
+  return [0x80|b.length].concat(b);
+}
+function tlv(tag, content){ return [tag].concat(derLenBytes(content.length), content); }
+function derUInt(mag){
+  var b=mag.slice();
+  while(b.length>1 && b[0]===0) b.shift();
+  if(b.length && (b[0]&0x80)) b.unshift(0);
+  if(!b.length) b=[0];
+  return tlv(0x02,b);
+}
+function derBitString(bytes){ return tlv(0x03,[0].concat(bytes)); }
+function derSeq(){
+  var out=[];
+  for(var i=0;i<arguments.length;i++) out=out.concat(arguments[i]);
+  return tlv(0x30,out);
+}
+function derRead(buf, off){
+  off=off||0;
+  if(off+2>buf.length) return null;
+  var tag=buf[off], i=off+1, l=buf[i++], len;
+  if(l<0x80) len=l;
+  else {
+    var n=l&0x7f;
+    if(n===0||n>4||i+n>buf.length) return null;
+    len=0; for(var k=0;k<n;k++) len=len*256+buf[i++];
+  }
+  var start=i, end=i+len;
+  if(end>buf.length) return null;
+  return {tag:tag, len:len, header:off, start:start, end:end, content:buf.slice(start,end)};
+}
+function derChildren(content){
+  var out=[],off=0;
+  while(off<content.length){
+    var n=derRead(content,off);
+    if(!n) break;
+    out.push(n); off=n.end;
+  }
+  return out;
+}
+function encodeOid(dotted){
+  var p=String(dotted).split('.').map(Number);
+  if(p.length<2) return [];
+  var out=[p[0]*40+p[1]];
+  for(var i=2;i<p.length;i++){
+    var v=p[i], st=[v&0x7f];
+    v=Math.floor(v/128);
+    while(v>0){ st.unshift((v&0x7f)|0x80); v=Math.floor(v/128); }
+    out=out.concat(st);
+  }
+  return out;
+}
+function decodeOid(bytes){
+  if(!bytes.length) return '';
+  var first=bytes[0], out;
+  if(first<40) out=[0,first];
+  else if(first<80) out=[1,first-40];
+  else out=[2,first-80];
+  var v=0;
+  for(var i=1;i<bytes.length;i++){
+    v=v*128+(bytes[i]&0x7f);
+    if(!(bytes[i]&0x80)){ out.push(v); v=0; }
+  }
+  return out.join('.');
+}
+
+/* ---- SSH wire format（RFC 4251 §5）：一串 uint32 长度前缀的二进制块 ---- */
+function sshStr(bytes){
+  var n=bytes.length;
+  return [(n>>>24)&0xff,(n>>>16)&0xff,(n>>>8)&0xff,n&0xff].concat(bytes);
+}
+function sshRead(buf){
+  var out=[],i=0,trunc=null;
+  while(i<buf.length){
+    if(i+4>buf.length){ trunc={at:i, reason:'长度前缀不足 4 字节'}; break; }
+    var n=((buf[i]<<24)|(buf[i+1]<<16)|(buf[i+2]<<8)|buf[i+3])>>>0;
+    i+=4;
+    if(n>buf.length-i){ trunc={at:i, reason:'声明 '+n+' 字节，实际只剩 '+(buf.length-i)+' 字节'}; break; }
+    out.push(buf.slice(i,i+n)); i+=n;
+  }
+  return {fields:out, trunc:trunc, consumed:i};
+}
+function bitLen(bytes){
+  var i=0;
+  while(i<bytes.length && bytes[i]===0) i++;
+  if(i===bytes.length) return 0;
+  var b=bytes[i], n=(bytes.length-i-1)*8;
+  while(b){ n++; b>>=1; }
+  return n;
+}
+function wrap64(s,width){
+  width=width||64;
+  var out=[];
+  for(var i=0;i<s.length;i+=width) out.push(s.slice(i,i+width));
+  return out.join('\n');
+}
+function pemWrap(label, der){
+  return '-----BEGIN '+label+'-----\n'+wrap64(b64encode(der),64)+'\n-----END '+label+'-----';
+}
+function pemUnwrap(text){
+  var m=/-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----/.exec(String(text));
+  if(!m) return {error:'没找到成对的 PEM 头尾（-----BEGIN X----- / -----END X-----）'};
+  var body=m[2].replace(/[\s\r\n]/g,'');
+  if(!body) return {error:'PEM 头尾之间是空的'};
+  try { return {label:m[1], der:b64decode(body)}; }
+  catch(e){ return {error:'PEM 主体不是合法 base64：'+e.message}; }
+}
+
+
+/* ============ JwsForge 内核 ============ */
+
+/* ---- BigInt 辅助（RSA / ECDSA 需要超过 53 位精度的整数运算） ---- */
+function bnFromBytes(b){ var x=0n; for(var i=0;i<b.length;i++) x=(x<<8n)|BigInt(b[i]&0xff); return x; }
+function bnToBytes(x, len){
+  x = ((x % (1n<<BigInt(len*8))) + (1n<<BigInt(len*8))) % (1n<<BigInt(len*8));
+  var b=[]; for(var i=len-1;i>=0;i--) b.push(Number((x>>BigInt(i*8))&0xffn));
+  return b;
+}
+function modExp(base, exp, mod){
+  base%=mod; if(base<0n) base+=mod; var r=1n;
+  while(exp>0n){ if(exp&1n) r=(r*base)%mod; base=(base*base)%mod; exp>>=1n; }
+  return r;
+}
+function egcd(a,b){ if(a===0n) return [b,0n,1n]; var g=egcd(b%a,a); return [g[0], g[2]-(b/a)*g[1], g[1]]; }
+function modInv(a,m){ if(m===1n) return 0n; var g=egcd(((a%m)+m)%m, m); return ((g[1]%m)+m)%m; }
+
+/* ---- 椭圆曲线参数（Weierstrass 素数域，a = p-3 以避免负系数） ---- */
+var EC = {
+  'P-256':{ p:0xffffffff00000001000000000000000000000000ffffffffffffffffffffffffn,
+            a:0xffffffff00000001000000000000000000000000fffffffffffffffffffffffcn,
+            b:0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604bn,
+            gx:0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296n,
+            gy:0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5n,
+            n:0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n, flen:32 },
+  'P-384':{ p:0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffff0000000000000000ffffffffn,
+            a:0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffff0000000000000000fffffffcn,
+            b:0xb3312fa7e23ee7e4988e056be3f82d19181d9c6efe8141120314088f5013875ac656398d8a2ed19d2a85c8edd3ec2aefn,
+            gx:0xaa87ca22be8b05378eb1c71ef320ad746e1d3b628ba79b9859f741e082542a385502f25dbf55296c3a545e3872760ab7n,
+            gy:0x3617de4a96262c6f5d9e98bf9292dc29f8f41dbd289a147ce9da3113b5f0b8c00a60b1ce1d7e819d7a431d7c90ea0e5fn,
+            n:0xffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973n, flen:48 },
+  'P-521':{ p:0x01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn,
+            a:0x01fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffcn,
+            b:0x0051953eb9618e1c9a1f929a21a0b68540eea2da725b99b315f3b8b489918ef109e156193951ec7e937b1652c0bd3bb1bf073573df883d2c34f1ef451fd46b503f00n,
+            gx:0x00c6858e06b70404e9cd9e3ecb662395b4429c648139053fb521f828af606b4d3dbaa14b5e77efe75928fe1dc127a2ffa8de3348b3c1856a429bf97e7e31c2e5bd66n,
+            gy:0x011839296a789a3bc0045c8a5fb42c7d1bd998f54449579b446817afbd17273e662c97ee72995ef42640c550b9013fad0761353c7086a272c24088be94769fd16650n,
+            n:0x01fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa51868783bf2f966b7fcc0148f709a5d03bb5c9b8899c47aebb6fb71e91386409n, flen:66 }
+};
+function ecAdd(P, Q, c){
+  if(!P) return Q; if(!Q) return P;
+  var p=c.p;
+  if(P.x===Q.x && ((P.y+Q.y)%p)===0n) return null;
+  var lam;
+  if(P.x===Q.x && P.y===Q.y){
+    lam = (3n*P.x*P.x + c.a) * modInv(2n*P.y, p) % p;
+  } else {
+    lam = (Q.y - P.y) * modInv((((Q.x-P.x)%p)+p)%p, p) % p;
+  }
+  lam=((lam%p)+p)%p;
+  var x3=((lam*lam - P.x - Q.x)%p+p)%p;
+  var y3=((lam*(P.x-x3) - P.y)%p+p)%p;
+  return {x:x3, y:y3};
+}
+function ecMul(k, P, c){
+  if(k===0n) return null;
+  k=((k%c.n)+c.n)%c.n;
+  var R=null, add=P;
+  while(k>0n){
+    if(k&1n) R=ecAdd(R, add, c);
+    add=ecAdd(add, add, c);
+    k>>=1n;
+  }
+  return R;
+}
+function bits2int(b, qlen){
+  var v=bnFromBytes(b);
+  var blen=b.length*8;
+  if(blen>qlen) v >>= BigInt(blen-qlen);
+  return v;
+}
+/* RFC 6979 确定性 k —— 纯同步、无需随机数，保证签名可复现、可被测已知向量校验 */
+function genK(crv, d, h, hashName){
+  var c=EC[crv], n=c.n, rlen=n.toString(2).length;
+  var hlen=h.length;
+  var V=[]; for(var i=0;i<hlen;i++) V.push(0x01);
+  var K=[]; for(var i=0;i<hlen;i++) K.push(0x00);
+  var xb=bnToBytes(d, Math.ceil(rlen/8));
+  function hmacK(prefix){ return hmacByName(hashName, K, prefix); }
+  K = hmacK(V.concat([0x00]).concat(xb).concat(h));
+  V = hmacK(V);
+  K = hmacK(V.concat([0x01]).concat(xb).concat(h));
+  V = hmacK(V);
+  while(true){
+    var T=[];
+    while(T.length < Math.ceil(rlen/8)){ V=hmacK(V); T=T.concat(V); }
+    var k=bits2int(T, rlen);
+    if(k>=1n && k<n) return k;
+    K=hmacK(V.concat([0x00])); V=hmacK(K.length?K:K);
+    V=hmacK(V);
+  }
+}
+function ecdsaSign(crv, d, h, hashName){
+  var c=EC[crv], n=c.n, rlen=n.toString(2).length;
+  var z=bits2int(h, rlen);
+  var k=genK(crv, d, h, hashName);
+  var R=ecMul(k, {x:c.gx, y:c.gy}, c);
+  if(!R) return null;
+  var r=R.x % n;
+  if(r===0n) return null;
+  var s=((modInv(k,n))*((z + r*d)%n))%n;
+  if(s===0n) return null;
+  return {r:r, s:s};
+}
+function ecdsaVerify(crv, Qx, Qy, r, s, h){
+  var c=EC[crv], n=c.n;
+  if(r<1n || r>=n || s<1n || s>=n) return false;
+  var z=bits2int(h, n.toString(2).length);
+  var w=modInv(s, n);
+  var u1=(z*w)%n, u2=(r*w)%n;
+  var pt=ecAdd(ecMul(u1, {x:c.gx, y:c.gy}, c), ecMul(u2, {x:Qx, y:Qy}, c), c);
+  if(!pt) return false;
+  return (pt.x % n) === r;
+}
+
+/* ---- RSA PKCS#1 v1.5 ---- */
+function digestInfo(name, hash){
+  var oid = name==='sha256' ? [0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01]
+          : name==='sha384' ? [0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x02]
+          : [0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x03];
+  var algid=[0x30,0x0d,0x06,0x09].concat(oid,[0x05,0x00]);
+  var oct=[0x04, hash.length].concat(hash);
+  return [0x30, algid.length+oct.length].concat(algid, oct);
+}
+function rsaPkcs1Verify(nB, eB, sig, hashName, hash){
+  var N=bnFromBytes(nB), E=bnFromBytes(eB);
+  var k=nB.length;
+  if(sig.length>k || sig.length<11) return false;
+  var s=bnFromBytes(sig);
+  if(s>=N) return false;
+  var em=bnToBytes(modExp(s, E, N), k);
+  var T=digestInfo(hashName, hash);
+  if(k < T.length+11) return false;
+  var pslen=k-T.length-3;
+  var want=[0x00,0x01];
+  for(var i=0;i<pslen;i++) want.push(0xff);
+  want.push(0x00); want=want.concat(T);
+  if(want.length!==em.length) return false;
+  for(var i=0;i<em.length;i++) if(em[i]!==want[i]) return false;
+  return true;
+}
+function rsaPkcs1Sign(nB, dB, hashName, hash){
+  var N=bnFromBytes(nB), D=bnFromBytes(dB), k=nB.length;
+  var T=digestInfo(hashName, hash);
+  if(k < T.length+11) return {error:'密钥太短，放不下 PKCS#1 v1.5 填充'};
+  var pslen=k-T.length-3, EM=[0x00,0x01];
+  for(var i=0;i<pslen;i++) EM.push(0xff);
+  EM.push(0x00); EM=EM.concat(T);
+  var m=bnFromBytes(EM);
+  return bnToBytes(modExp(m, D, N), k);
+}
+
+/* ---- 哈希 / HMAC 选择器 ---- */
+function hashByName(name, msg){
+  if(name==='sha256') return sha256Bytes(msg);
+  if(name==='sha384') return sha384Bytes(msg);
+  if(name==='sha512') return sha512Bytes(msg);
+  throw new Error('不支持的哈希 '+name);
+}
+function hmacByName(name, key, msg){
+  if(name==='sha256') return hmacSha256(key,msg);
+  if(name==='sha384') return hmacSha384(key,msg);
+  if(name==='sha512') return hmacSha512(key,msg);
+  throw new Error('不支持的 HMAC '+name);
+}
+
+/* ---- alg 表 ---- */
+var JWS_ALGS = {
+  HS256:{fam:'HMAC',hash:'sha256'}, HS384:{fam:'HMAC',hash:'sha384'}, HS512:{fam:'HMAC',hash:'sha512'},
+  RS256:{fam:'RSA',hash:'sha256'}, RS384:{fam:'RSA',hash:'sha384'}, RS512:{fam:'RSA',hash:'sha512'},
+  ES256:{fam:'EC',hash:'sha256',crv:'P-256'}, ES384:{fam:'EC',hash:'sha384',crv:'P-384'}, ES512:{fam:'EC',hash:'sha512',crv:'P-521'},
+  PS256:{fam:'RSAPSS',hash:'sha256'}, PS384:{fam:'RSAPSS',hash:'sha384'}, PS512:{fam:'RSAPSS',hash:'sha512'}
+};
+
+/* ---- 解码辅助 ---- */
+function b64uStr(s){ try { return bytesToUtf8(b64urlDecode(s)); } catch(e){ return null; } }
+function prettyJson(obj){
+  try { return JSON.stringify(JSON.parse(obj), null, 2); }
+  catch(e){ try { return JSON.stringify(obj, null, 2); } catch(e2){ return String(obj); } }
+}
+function tryPretty(s){ try { var j=JSON.parse(s); return JSON.stringify(j, null, 2); } catch(e){ return s; } }
+
+/* ---- 解析：紧凑 / JSON（flattened / general） ---- */
+function parseJws(text){
+  text=String(text||'').trim();
+  if(!text) return {error:'输入为空'};
+  // 先试着当 JSON（多签名 / flattened）
+  var asJson=null;
+  try { asJson=JSON.parse(text); } catch(e){ asJson=null; }
+  if(asJson && typeof asJson==='object'){
+    if(asJson.signatures && Array.isArray(asJson.signatures)){
+      var gens=asJson.signatures.map(function(sg){
+        var prot=sg.protected||'';
+        var hdr=sg.header||{};
+        var ph=null; try { ph=JSON.parse(b64uStr(prot)||'{}'); } catch(e){ ph=null; }
+        return {protectedB64:prot, unprotected:hdr, header:ph, signature:sg.signature||''};
+      });
+      return {format:'general', payloadB64:asJson.payload||'',
+              detached:!(asJson.payload), signatures:gens};
+    }
+    if(typeof asJson.signature==='string'){
+      var prot=asJson.protected||'';
+      var ph=null; try { ph=JSON.parse(b64uStr(prot)||'{}'); } catch(e){ ph=null; }
+      return {format:'flattened', payloadB64:asJson.payload||'', protectedB64:prot,
+              detached:!(asJson.payload),
+              unprotected:asJson.header||{}, header:ph, signature:asJson.signature,
+              signatures:[{protectedB64:prot, unprotected:asJson.header||{},
+                           header:ph, signature:asJson.signature}]};
+    }
+    return {error:'JSON 序列化缺少 signature / signatures 字段'};
+  }
+  // 紧凑
+  var p=text.split('.');
+  if(p.length!==3) return {error:'紧凑序列化必须是 header.payload.signature 三段（用 . 分隔），当前为 '+p.length+' 段'};
+  var ph=null; try { ph=JSON.parse(b64uStr(p[0])||'{}'); } catch(e){ return {error:'受保护头不是合法 JSON：'+e.message}; }
+  var detached=(p[1]==='');
+  return {format:'compact', protectedB64:p[0], payloadB64:p[1], detached:detached,
+          header:ph, signature:p[2],
+          signatures:[{protectedB64:p[0], unprotected:{}, header:ph, signature:p[2]}]};
+}
+
+/* ---- 验签：对每个签名用给定 JWK 校核 ---- */
+function verifyJws(text, jwk){
+  var parsed=parseJws(text);
+  if(parsed.error) return {verdict:'error', reason:parsed.error};
+  var payloadBytes = parsed.payloadB64 ? (parsed.detached?null:b64urlDecode(parsed.payloadB64)) : null;
+  var payloadText = parsed.payloadB64 ? (parsed.detached?'(detached)':b64uStr(parsed.payloadB64)) : null;
+  var results = parsed.signatures.map(function(sg){
+    var result = {protectedHeader:sg.header, unprotected:sg.unprotected, signatureB64:sg.signature};
+    var alg = (sg.header&&sg.header.alg) || (sg.unprotected&&sg.unprotected.alg);
+    var protStr = sg.protectedB64 || '';
+    result.alg = alg;
+    if(!alg) { result.valid=false; result.reason='找不到 alg'; return result; }
+    var spec=JWS_ALGS[alg];
+    if(!spec){ result.valid=false; result.reason='暂不支持的 alg '+alg; return result; }
+    var signingInput = protStr + '.' + (parsed.payloadB64||'');
+    var msg = utf8Bytes(signingInput);
+    var hash = hashByName(spec.hash, msg);
+    var sigBytes; try { sigBytes=b64urlDecode(sg.signature); } catch(e){ result.valid=false; result.reason='签名不是合法 base64url'; return result; }
+    if(spec.fam==='HMAC'){
+      if(!jwk || jwk.kty!=='oct' || !jwk.k){ result.valid=false; result.reason='HMAC 需要 oct 类型 JWK（带 k）'; return result; }
+      var key=b64urlDecode(jwk.k), mac=hmacByName(spec.hash, key, msg);
+      if(mac.length!==sigBytes.length){ result.valid=false; result.reason='HMAC 长度不符'; return result; }
+      var ok=true; for(var i=0;i<mac.length;i++) if(mac[i]!==sigBytes[i]) ok=false;
+      result.valid=ok; result.reason=ok?('HMAC-'+spec.hash.toUpperCase()+' 匹配'):'HMAC 不匹配';
+    } else if(spec.fam==='RSA'){
+      if(!jwk || jwk.kty!=='RSA' || !jwk.n || !jwk.e){ result.valid=false; result.reason='RSA 验签需要 n/e'; return result; }
+      var ok=rsaPkcs1Verify(b64urlDecode(jwk.n), b64urlDecode(jwk.e), sigBytes, spec.hash, hash);
+      result.valid=ok; result.reason=ok?'RSA PKCS#1 v1.5 验签通过':'RSA 验签失败';
+    } else if(spec.fam==='EC'){
+      if(!jwk || jwk.kty!=='EC' || !jwk.x || !jwk.y){ result.valid=false; result.reason='EC 验签需要 x/y'; return result; }
+      if(sigBytes.length%2!==0){ result.valid=false; result.reason='ECDSA 签名长度应为偶数（r||s 等长）'; return result; }
+      var hl=sigBytes.length/2;
+      var r=bnFromBytes(sigBytes.slice(0,hl)), s=bnFromBytes(sigBytes.slice(hl));
+      var Qx=bnFromBytes(b64urlDecode(jwk.x)), Qy=bnFromBytes(b64urlDecode(jwk.y));
+      var ok=ecdsaVerify(spec.crv, Qx, Qy, r, s, hash);
+      result.valid=ok; result.reason=ok?('ECDSA '+spec.crv+' 验签通过'):'ECDSA 验签失败';
+    } else if(spec.fam==='RSAPSS'){
+      result.valid=null; result.reason='RSA-PSS 验签请在浏览器端用 WebCrypto（纯 JS 内核仅解析）';
+    } else { result.valid=false; result.reason='未知签名家族'; }
+    return result;
+  });
+  var anyValid = results.some(function(r){ return r.valid===true; });
+  return {verdict: anyValid?'VALID':'INVALID', format:parsed.format,
+          payloadBytes:payloadBytes, payloadText:payloadText, detached:!!parsed.detached,
+          results:results};
+}
+
+/* ---- 签发：用私钥 JWK 生成 JWS（紧凑序列化） ---- */
+function signJws(headerObj, payloadStr, jwk, isRawBytes){
+  var header = JSON.parse(JSON.stringify(headerObj||{}));
+  if(!header.alg) header.alg='HS256';
+  var spec=JWS_ALGS[header.alg];
+  if(!spec) return {error:'不支持的 alg '+header.alg};
+  var protectedB64 = b64url(utf8Bytes(JSON.stringify(header)));
+  var payloadBytes = isRawBytes ? (Array.isArray(payloadStr)?payloadStr:fromHex(payloadStr)) : utf8Bytes(String(payloadStr));
+  var payloadB64 = b64url(payloadBytes);
+  var msg = utf8Bytes(protectedB64 + '.' + payloadB64);
+  var hash = hashByName(spec.hash, msg);
+  var sig;
+  if(spec.fam==='HMAC'){
+    if(!jwk || jwk.kty!=='oct' || !jwk.k) return {error:'HMAC 签发需要 oct JWK（带 k）'};
+    sig = hmacByName(spec.hash, b64urlDecode(jwk.k), msg);
+  } else if(spec.fam==='RSA'){
+    if(!jwk || jwk.kty!=='RSA' || !jwk.n || !jwk.d) return {error:'RSA 签发需要 n/d'};
+    sig = rsaPkcs1Sign(b64urlDecode(jwk.n), b64urlDecode(jwk.d), spec.hash, hash);
+    if(sig.error) return sig;
+  } else if(spec.fam==='EC'){
+    if(!jwk || jwk.kty!=='EC' || !jwk.crv || !jwk.d) return {error:'EC 签发需要 crv/d'};
+    var d=bnFromBytes(b64urlDecode(jwk.d));
+    var ss=ecdsaSign(spec.crv, d, hash, spec.hash);
+    if(!ss) return {error:'ECDSA 签名失败'};
+    sig = bnToBytes(ss.r, EC[spec.crv].flen).concat(bnToBytes(ss.s, EC[spec.crv].flen));
+  } else { return {error:'alg '+header.alg+' 不支持签发'}; }
+  return {jws: protectedB64 + '.' + payloadB64 + '.' + b64url(sig)};
+}
+
+var JwsForgePure = {
+  parseJws:parseJws, verifyJws:verifyJws, signJws:signJws,
+  JWS_ALGS:JWS_ALGS, EC:EC,
+  bnFromBytes:bnFromBytes, bnToBytes:bnToBytes, modExp:modExp, modInv:modInv,
+  ecAdd:ecAdd, ecMul:ecMul, ecdsaVerify:ecdsaVerify, ecdsaSign:ecdsaSign, genK:genK,
+  rsaPkcs1Verify:rsaPkcs1Verify, rsaPkcs1Sign:rsaPkcs1Sign, digestInfo:digestInfo,
+  hashByName:hashByName, hmacByName:hmacByName, b64uStr:b64uStr, prettyJson:prettyJson, tryPretty:tryPretty,
+  b64url:b64url, b64urlDecode:b64urlDecode, utf8Bytes:utf8Bytes, bytesToUtf8:bytesToUtf8,
+  toHex:toHex, fromHex:fromHex, b64encode:b64encode, b64decode:b64decode,
+  sha256Bytes:sha256Bytes, sha384Bytes:sha384Bytes, sha512Bytes:sha512Bytes,
+  hmacSha256:hmacSha256, hmacSha384:hmacSha384, hmacSha512:hmacSha512
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = JwsForgePure;
+if (typeof window !== 'undefined') window.JwsForgePure = JwsForgePure;
+
+</script>
+<script>
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var P=window.JwsForgePure;
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  var TONE={ok:'var(--ok)', warn:'var(--warn)', info:'var(--info)'};
+
+  var state={ tab:'verify', alg:'HS256' };
+
+  /* ---------- 解码载荷辅助 ---------- */
+  function decodePayload(b64){
+    if(b64==='' || b64==null) return '(detached / 空载荷，不随 JWS 传输)';
+    var raw; try{ raw=P.b64urlDecode(b64); }catch(e){ return '(载荷段不是合法 base64url)'; }
+    if(!raw || !raw.length) return '(空载荷)';
+    var txt=null; try{ txt=P.bytesToUtf8(raw); }catch(e){}
+    if(typeof txt==='string' && txt.indexOf('�')<0 && txt.length){
+      try{ var j=JSON.parse(txt); return JSON.stringify(j,null,2); }catch(e){ return txt; }
+    }
+    return P.toHex(raw);
+  }
+  function pretty(obj){ try{ return JSON.stringify(obj,null,2); }catch(e){ return String(obj); } }
+
+  /* ---------- 示例 ---------- */
+  var A1_JWS='eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+  var A1_KEY='{"kty":"oct","k":"AyM1SysPpbyDfgZld3umj1qzKObwVMkoqQ-EstJQLr_T-1qS0gZH75aKtMN3Yj0iPS4hcgUuTwjAzZr1Z9CAow"}';
+
+  /* ---------- 解析结构 ---------- */
+  function renderParse(p){
+    var h='<div class="line"><span class="tag">格式</span>'+esc(p.format);
+    if(p.detached) h+=' <span class="tag" style="color:var(--info);border-color:var(--info)">detached</span>';
+    h+='</div>';
+    if(!p.detached) h+='<div class="line"><span class="tag">载荷</span><pre class="mono" style="white-space:pre-wrap;word-break:break-all;margin:4px 0 0">'+esc(decodePayload(p.payloadB64))+'</pre></div>';
+    var sigs=p.signatures||[];
+    for(var i=0;i<sigs.length;i++){
+      var sg=sigs[i], ph=sg.header||{};
+      h+='<div class="line" style="margin-top:8px"><span class="tag">签名 #'+(i+1)+'</span> alg='+esc(ph.alg||'(未声明)')+'</div>';
+      h+='<div class="line"><span class="tag">protected</span><pre class="mono" style="white-space:pre-wrap;word-break:break-all;margin:4px 0 0">'+esc(pretty(ph))+'</pre></div>';
+      if(sg.unprotected && Object.keys(sg.unprotected).length)
+        h+='<div class="line"><span class="tag">unprotected</span><pre class="mono" style="white-space:pre-wrap;word-break:break-all;margin:4px 0 0">'+esc(pretty(sg.unprotected))+'</pre></div>';
+      h+='<div class="line"><span class="tag">signature</span><span class="mono" style="word-break:break-all">'+esc(sg.signature)+'</span></div>';
+    }
+    return h;
+  }
+
+  /* ---------- detached 补验（内核验签需要原始载荷） ---------- */
+  function detachedVerify(parsed, jwk, payloadText){
+    var sg=(parsed.signatures||[])[0];
+    if(!sg) return {valid:false, reason:'没有可验的签名'};
+    var alg=(sg.header&&sg.header.alg)||(sg.unprotected&&sg.unprotected.alg);
+    var spec=P.JWS_ALGS[alg];
+    if(!spec) return {valid:false, reason:'不支持的 alg '+alg};
+    var protStr=sg.protectedB64||'';
+    var payloadB64=P.b64url(P.utf8Bytes(payloadText));
+    var msg=P.utf8Bytes(protStr+'.'+payloadB64);
+    var hash=P.hashByName(spec.hash, msg);
+    var sigBytes; try{ sigBytes=P.b64urlDecode(sg.signature); }catch(e){ return {valid:false, reason:'签名不是合法 base64url'}; }
+    if(spec.fam==='HMAC'){
+      if(!jwk||jwk.kty!=='oct'||!jwk.k) return {valid:false, reason:'HMAC 需要 oct JWK（带 k）'};
+      var mac=P.hmacByName(spec.hash, P.b64urlDecode(jwk.k), msg), ok=true;
+      if(mac.length!==sigBytes.length) return {valid:false, reason:'HMAC 长度不符'};
+      for(var i=0;i<mac.length;i++) if(mac[i]!==sigBytes[i]) ok=false;
+      return {valid:ok, reason:ok?('HMAC-'+spec.hash.toUpperCase()+' 匹配'):'HMAC 不匹配'};
+    }
+    if(spec.fam==='RSA'){
+      if(!jwk||jwk.kty!=='RSA'||!jwk.n||!jwk.e) return {valid:false, reason:'RSA 验签需要 n/e'};
+      var ok=P.rsaPkcs1Verify(P.b64urlDecode(jwk.n), P.b64urlDecode(jwk.e), sigBytes, spec.hash, hash);
+      return {valid:ok, reason:ok?'RSA PKCS#1 v1.5 验签通过':'RSA 验签失败'};
+    }
+    if(spec.fam==='EC'){
+      if(!jwk||jwk.kty!=='EC'||!jwk.x||!jwk.y) return {valid:false, reason:'EC 验签需要 x/y'};
+      if(sigBytes.length%2) return {valid:false, reason:'ECDSA 签名长度应为偶数（r||s 等长）'};
+      var hl=sigBytes.length/2;
+      var r=P.bnFromBytes(sigBytes.slice(0,hl)), s=P.bnFromBytes(sigBytes.slice(hl));
+      var Qx=P.bnFromBytes(P.b64urlDecode(jwk.x)), Qy=P.bnFromBytes(P.b64urlDecode(jwk.y));
+      var ok=P.ecdsaVerify(spec.crv, Qx, Qy, r, s, hash);
+      return {valid:ok, reason:ok?('ECDSA '+spec.crv+' 验签通过'):'ECDSA 验签失败'};
+    }
+    return {valid:null, reason:'暂不支持 '+spec.fam+' 的 detached 补验'};
+  }
+
+  /* ---------- 事件 ---------- */
+  function parseIn(){
+    $('jws_err').textContent='';
+    var txt=$('jws_in').value.trim();
+    if(!txt){ $('jws_out').innerHTML=''; return; }
+    var p=P.parseJws(txt);
+    if(p.error){ $('jws_err').textContent=p.error; $('jws_out').innerHTML=''; return; }
+    $('jws_out').innerHTML=renderParse(p);
+  }
+
+  function verifyIn(){
+    $('jws_err').textContent='';
+    var txt=$('jws_in').value.trim();
+    if(!txt){ $('jws_err').textContent='先填 JWS'; return; }
+    var p=P.parseJws(txt);
+    if(p.error){ $('jws_err').textContent=p.error; return; }
+    var keyJson=$('jws_key').value.trim();
+    if(!keyJson){ $('jws_err').textContent='填一下验证用 JWK（看结构可只点「解析结构」）'; return; }
+    var jwk; try{ jwk=JSON.parse(keyJson); }catch(e){ $('jws_err').textContent='JWK 不是合法 JSON：'+(e.message); return; }
+    var v, tone;
+    if(p.detached){
+      var payload=$('jws_detached').value;
+      if(!payload){ $('jws_err').textContent='detached JWS 验签需要原始载荷，填到「原始载荷」里'; return; }
+      var r=detachedVerify(p, jwk, payload);
+      v={verdict:r.valid?'VALID':'INVALID', format:p.format, results:[{alg:(p.signatures[0].header||{}).alg, valid:r.valid, reason:r.reason}]};
+    } else {
+      v=P.verifyJws(txt, jwk);
+    }
+    if(v.verdict==='error'){ $('jws_err').textContent=v.reason; return; }
+    var h='<div class="line"><span class="tag" style="color:'+(v.verdict==='VALID'?'var(--ok)':'var(--warn)')+';border-color:'+(v.verdict==='VALID'?'var(--ok)':'var(--warn)')+'">'+v.verdict+'</span>'+esc(v.format)+'</div>';
+    var res=v.results||[];
+    for(var i=0;i<res.length;i++){
+      var rr=res[i], t=rr.valid===true?'ok':(rr.valid===false?'warn':'info');
+      var label=rr.valid===true?'有效':(rr.valid===false?'无效':'跳过');
+      h+='<div class="line"><span class="tag" style="color:'+TONE[t]+';border-color:'+TONE[t]+'">'+label+'</span> alg='+esc(rr.alg||'?')+' · '+esc(rr.reason||'')+'</div>';
+    }
+    $('jws_out').innerHTML=h;
+  }
+
+  function loadExample(){
+    $('jws_in').value=A1_JWS;
+    $('jws_key').value=A1_KEY;
+    $('jws_detached').value='';
+    $('jws_err').textContent='';
+    $('jws_out').innerHTML='';
+  }
+
+  function clearAll(){
+    $('jws_in').value=''; $('jws_key').value=''; $('jws_detached').value='';
+    $('jws_err').textContent=''; $('jws_out').innerHTML='';
+  }
+
+  /* ---------- 签发 ---------- */
+  function renderAlgs(){
+    var keys=Object.keys(P.JWS_ALGS), h='';
+    for(var i=0;i<keys.length;i++){
+      var k=keys[i], fam=P.JWS_ALGS[k].fam, on=(k===state.alg);
+      var lab={HMAC:'对称', RSA:'RSA', EC:'EC', RSAPSS:'RSA-PSS'}[fam]||fam;
+      h+='<button class="ghost'+(on?' on':'')+'" data-alg="'+k+'" title="'+esc(fam)+'">'+esc(k)+'</button>';
+    }
+    $('jws_algs').innerHTML=h;
+  }
+  function sign(){
+    $('jws_signerr').textContent='';
+    var alg=state.alg, spec=P.JWS_ALGS[alg];
+    if(!spec){ $('jws_signerr').textContent='未知 alg'; return; }
+    var jwkJson=$('jws_priv').value.trim();
+    var jwk; try{ jwk=JSON.parse(jwkJson); }catch(e){ $('jws_signerr').textContent='私钥 JWK 不是合法 JSON：'+(e.message); return; }
+    var hdrJson=$('jws_hdr').value.trim()||'{}';
+    var extra; try{ extra=JSON.parse(hdrJson); }catch(e){ $('jws_signerr').textContent='附加头不是合法 JSON：'+(e.message); return; }
+    var header=JSON.parse(JSON.stringify(extra||{}));
+    header.alg=alg;
+    var payload=$('jws_payload').value;
+    var r=P.signJws(header, payload, jwk, false);
+    if(r.error){ $('jws_signerr').textContent=r.error; return; }
+    if($('jws_detach').checked){
+      var parts=r.jws.split('.');
+      r.jws=parts[0]+'.'+'.'+parts[2];
+    }
+    $('jws_result').value=r.jws;
+  }
+  function copyResult(){
+    var v=$('jws_result').value; if(!v) return;
+    var ta=document.createElement('textarea'); ta.value=v; ta.setAttribute('readonly','');
+    ta.style.position='absolute'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); }catch(e){}
+    document.body.removeChild(ta);
+    var b=$('jws_scopy'), t=b.textContent; b.textContent='已复制'; setTimeout(function(){ b.textContent=t; },1200);
+  }
+
+  /* ---------- tab 切换 ---------- */
+  function switchTab(tab){
+    state.tab=tab;
+    $('jws_verify_sec').style.display=(tab==='verify')?'':'none';
+    $('jws_sign_sec').style.display=(tab==='sign')?'':'none';
+    var btns=$('jws_tabs').getElementsByTagName('button');
+    for(var i=0;i<btns.length;i++) btns[i].className='ghost'+(btns[i].getAttribute('data-tab')===tab?' on':'');
+  }
+
+  /* ---------- 绑定 ---------- */
+  $('jws_parse').addEventListener('click', parseIn);
+  $('jws_verify').addEventListener('click', verifyIn);
+  $('jws_load').addEventListener('click', loadExample);
+  $('jws_clear').addEventListener('click', clearAll);
+  $('jws_in').addEventListener('input', parseIn);
+  $('jws_sign').addEventListener('click', sign);
+  $('jws_scopy').addEventListener('click', copyResult);
+  $('jws_detach').addEventListener('change', function(){});
+  $('jws_tabs').addEventListener('click', function(e){
+    var t=e.target.getAttribute && e.target.getAttribute('data-tab'); if(t) switchTab(t);
+  });
+  $('jws_algs').addEventListener('click', function(e){
+    var k=e.target.getAttribute && e.target.getAttribute('data-alg'); if(!k) return;
+    state.alg=k; renderAlgs();
+  });
+
+  renderAlgs();
+  parseIn();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

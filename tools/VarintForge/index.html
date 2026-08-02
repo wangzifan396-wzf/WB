@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>VarintForge — protobuf varint + ZigZag 变长整数编解码，hex 字节流互转</title>
+<meta property="og:title" content="VarintForge">
+<meta property="og:description" content="protobuf varint + ZigZag 变长整数编解码，hex 字节流互转">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="protobuf varint + ZigZag 变长整数编解码，hex 字节流互转 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>VarintForge</h1>
+  <p class="sub">protobuf varint + ZigZag 变长整数编解码，hex 字节流互转 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="opt">
+  <label>模式
+    <select id="mode">
+      <option value="enc">整数 → varint 字节</option>
+      <option value="dec">hex 字节流 → 整数序列</option>
+    </select>
+  </label>
+  <label><input id="zigzag" type="checkbox"> ZigZag（有符号）</label>
+</div>
+<label>输入（编码：逗号分隔整数；解码：hex 如 ac 02 08）</label>
+<textarea id="txt" rows="3">0, 1, 127, 128, 300</textarea>
+<div class="row">
+  <button id="run">转换</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">选择模式后转换</div>
+<script>
+var VI_MAX = 9007199254740991; // Number.MAX_SAFE_INTEGER
+function viZigzagEncode(n){
+  if(n<0) return -2*n-1;
+  return 2*n;
+}
+function viZigzagDecode(z){
+  if(z%2===0) return z/2;
+  return -(z+1)/2;
+}
+function viEncode(n){
+  if(typeof n!=='number'||!isFinite(n)||Math.floor(n)!==n) return { value:null, error:'必须是整数' };
+  if(n<0) return { value:null, error:'varint 不接受负数，请启用 ZigZag' };
+  if(n>VI_MAX) return { value:null, error:'超出安全整数范围' };
+  var out=[];
+  while(n>=128){
+    out.push((n%128)|0x80);
+    n=Math.floor(n/128);
+  }
+  out.push(n);
+  return { value:out, error:null };
+}
+function viDecodeOne(bytes, offset){
+  var result=0, shift=1, i=offset||0;
+  for(;;){
+    if(i>=bytes.length) return { value:null, length:0, error:'字节流截断' };
+    var b=bytes[i];
+    result+=(b&0x7f)*shift;
+    if(result>VI_MAX) return { value:null, length:0, error:'超出安全整数范围' };
+    i++;
+    if((b&0x80)===0) break;
+    shift*=128;
+  }
+  return { value:result, length:i-(offset||0), error:null };
+}
+function viDecodeStream(bytes){
+  var out=[], i=0;
+  while(i<bytes.length){
+    var r=viDecodeOne(bytes, i);
+    if(r.error) return { value:null, error:r.error+' (offset '+i+')' };
+    out.push(r.value); i+=r.length;
+  }
+  return { value:out, error:null };
+}
+function viHexToBytes(hex){
+  var s=String(hex).replace(/[\s,]+/g,'').toLowerCase();
+  if(s.length%2!==0) return { value:null, error:'hex 长度必须为偶数' };
+  if(!/^[0-9a-f]*$/.test(s)) return { value:null, error:'非法 hex 字符' };
+  var out=[];
+  for(var i=0;i<s.length;i+=2) out.push(parseInt(s.substr(i,2),16));
+  return { value:out, error:null };
+}
+function viBytesToHex(bytes){
+  return bytes.map(function(b){ var h=b.toString(16); return h.length<2?'0'+h:h; }).join(' ');
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { viZigzagEncode:viZigzagEncode, viZigzagDecode:viZigzagDecode,
+    viEncode:viEncode, viDecodeOne:viDecodeOne, viDecodeStream:viDecodeStream,
+    viHexToBytes:viHexToBytes, viBytesToHex:viBytesToHex };
+}
+if (typeof window !== 'undefined') {
+  window.VarintForgePure = { viZigzagEncode:viZigzagEncode, viZigzagDecode:viZigzagDecode,
+    viEncode:viEncode, viDecodeOne:viDecodeOne, viDecodeStream:viDecodeStream,
+    viHexToBytes:viHexToBytes, viBytesToHex:viBytesToHex };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.VarintForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      var mode=$('mode').value, zz=$('zigzag').checked, t=$('txt').value;
+      if(mode==='enc'){
+        var nums=t.split(',').map(function(x){ return Number(x.trim()); });
+        var lines=[];
+        for(var i=0;i<nums.length;i++){
+          var n=nums[i];
+          if(isNaN(n)){ continue; }
+          var v=zz?P.viZigzagEncode(n):n;
+          var r=P.viEncode(v);
+          if(r.error){ $('err').textContent=n+': '+r.error; return; }
+          lines.push(n+(zz?' (zigzag '+v+')':'')+' -> '+P.viBytesToHex(r.value)+' ('+r.value.length+' 字节)');
+        }
+        $('out').textContent=lines.join('\n')||'(空)';
+      } else {
+        var hb=P.viHexToBytes(t);
+        if(hb.error){ $('err').textContent=hb.error; return; }
+        var d=P.viDecodeStream(hb.value);
+        if(d.error){ $('err').textContent=d.error; return; }
+        var vals=d.value.map(function(v){ return zz?P.viZigzagDecode(v):v; });
+        $('out').textContent='解出 '+vals.length+' 个整数: '+vals.join(', ');
+      }
+    });
+    $('clear').addEventListener('click', function(){ $('txt').value=''; $('out').textContent='选择模式后转换'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

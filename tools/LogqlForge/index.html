@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>LogqlForge — LogQL 工作台：解析并解释 Loki 查询，拆解日志流选择器、标签过滤、管线与指标查询，并用表单可视化拼装，离线可用。</title>
+<meta property="og:title" content="LogqlForge">
+<meta property="og:description" content="LogQL 工作台：解析并解释 Loki 查询，拆解日志流选择器、标签过滤、管线（| line_format / | json / | label_format）与指标查询（rate/sum by），也可通过表单可视化拼装查询。排查日志告警、学习 LogQL 的利器，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="LogQL 工作台：解析并解释 Loki 查询，拆解日志流选择器、标签过滤、管线（| line_format / | json / | label_format）与指标查询（rate/sum by），也可通过表单可视化拼装查询。排查日志告警、学习 LogQL 的利器，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+pre.pcf{white-space:pre-wrap;word-break:break-all;background:var(--surface);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin:6px 0 0}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+.pbar{display:inline-block;width:70px;height:6px;background:rgba(255,255,255,.08);
+      border-radius:3px;vertical-align:middle;overflow:hidden;margin-left:6px}
+.pbar>span{display:block;height:100%;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>LogqlForge</h1>
+  <p class="sub">LogQL · Loki · 日志</p>
+
+<label for="lq-src">LogQL 查询</label>
+<textarea id="lq-src" rows="6" placeholder='sum by (status) (rate({app="api"} |= "GET" | json | status=~"5.." [5m]))'></textarea>
+<div class="row">
+  <button id="lq-go">解析并体检</button>
+  <button class="ghost" id="lq-fmt">规范化排版</button>
+  <button class="ghost" id="lq-demo">切换示例</button>
+  <button class="ghost" id="lq-clr">清空</button>
+</div>
+<div class="err" id="lq-err"></div>
+<div class="out" id="lq-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 373 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function LogqlForgePure(){
+  var RANGE_FN = ['rate', 'count_over_time', 'bytes_rate', 'bytes_over_time',
+                  'absent_over_time', 'avg_over_time', 'sum_over_time', 'min_over_time',
+                  'max_over_time', 'stdvar_over_time', 'stddev_over_time',
+                  'quantile_over_time', 'first_over_time', 'last_over_time', 'rate_counter'];
+  var AGG_FN = ['sum', 'avg', 'min', 'max', 'count', 'stddev', 'stdvar',
+                'topk', 'bottomk', 'sort', 'sort_desc'];
+  var UNWRAP_FN = ['avg_over_time', 'sum_over_time', 'min_over_time', 'max_over_time',
+                   'stdvar_over_time', 'stddev_over_time', 'quantile_over_time',
+                   'first_over_time', 'last_over_time', 'rate_counter'];
+  var HIGH_CARD = ['request_id', 'requestid', 'trace_id', 'traceid', 'span_id',
+                   'user_id', 'userid', 'uid', 'session', 'session_id', 'email',
+                   'ip', 'client_ip', 'remote_addr', 'url', 'path', 'uri',
+                   'timestamp', 'ts', 'pod_ip', 'query', 'token'];
+  var PARSERS = ['json', 'logfmt', 'pattern', 'regexp', 'unpack'];
+
+  function dur2s(d){
+    var m = /^(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m|h|d|w|y)$/.exec(String(d || '').trim());
+    if (!m) return null;
+    var n = parseFloat(m[1]);
+    var mul = {ns:1e-9, us:1e-6, 'µs':1e-6, ms:1e-3, s:1, m:60, h:3600, d:86400, w:604800, y:31536000};
+    return n * mul[m[2]];
+  }
+  function human(sec){
+    if (sec == null) return '—';
+    if (sec >= 86400) return (sec / 86400) + ' 天';
+    if (sec >= 3600) return (sec / 3600) + ' 小时';
+    if (sec >= 60) return (sec / 60) + ' 分钟';
+    return sec + ' 秒';
+  }
+
+  // 找到与 open 匹配的闭合位置（字符串感知）
+  function matchClose(s, i, open, close){
+    var depth = 0, q = null;
+    for (var k = i; k < s.length; k++){
+      var c = s[k];
+      if (q){
+        if (c === '\\' && q !== '`'){ k++; continue; }
+        if (c === q) q = null;
+        continue;
+      }
+      if (c === '"' || c === '`'){ q = c; continue; }
+      if (c === open) depth++;
+      else if (c === close){ depth--; if (depth === 0) return k; }
+    }
+    return -1;
+  }
+  function findTop(s, ch){
+    var depth = 0, q = null;
+    for (var k = 0; k < s.length; k++){
+      var c = s[k];
+      if (q){
+        if (c === '\\' && q !== '`'){ k++; continue; }
+        if (c === q) q = null;
+        continue;
+      }
+      if (c === '"' || c === '`'){ q = c; continue; }
+      if (c === '(' || c === '[' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}') depth--;
+      else if (c === ch && depth === 0) return k;
+    }
+    return -1;
+  }
+
+  function unq(s){
+    s = String(s || '').trim();
+    if (s.length >= 2){
+      if (s[0] === '"' && s[s.length-1] === '"') return s.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      if (s[0] === '`' && s[s.length-1] === '`') return s.slice(1, -1);
+    }
+    return s;
+  }
+
+  // ==================== 流选择器 ====================
+  function parseSelector(sel){
+    var body = sel.replace(/^\s*\{/, '').replace(/\}\s*$/, '').trim();
+    if (body === '') return {matchers:[], error:'流选择器为空：{} 不是合法的 LogQL，至少需要一个标签匹配器'};
+    var parts = [], depth = 0, q = null, cur = '';
+    for (var i = 0; i < body.length; i++){
+      var c = body[i];
+      if (q){ cur += c; if (c === '\\' && q !== '`'){ cur += body[++i] || ''; continue; } if (c === q) q = null; continue; }
+      if (c === '"' || c === '`'){ q = c; cur += c; continue; }
+      if (c === '(' || c === '[') depth++;
+      if (c === ')' || c === ']') depth--;
+      if (c === ',' && depth === 0){ parts.push(cur); cur = ''; continue; }
+      cur += c;
+    }
+    if (cur.trim() !== '') parts.push(cur);
+    var ms = [];
+    for (var p = 0; p < parts.length; p++){
+      var t = parts[p].trim();
+      if (t === '') continue;
+      var m = /^([A-Za-z_][A-Za-z0-9_]*)\s*(=~|!~|!=|=)\s*([\s\S]+)$/.exec(t);
+      if (!m) return {matchers:[], error:'无法解析标签匹配器：' + t};
+      var raw = m[3].trim();
+      if (!(/^"/.test(raw) || /^`/.test(raw)))
+        return {matchers:[], error:'标签值必须加引号：' + t};
+      ms.push({label:m[1], op:m[2], value:unq(raw), raw:raw});
+    }
+    return {matchers:ms};
+  }
+
+  // ==================== 管道阶段 ====================
+  function splitStages(s){
+    var out = [], depth = 0, q = null, cur = '', i = 0;
+    function flush(){ if (cur.trim() !== '') out.push(cur.trim()); cur = ''; }
+    while (i < s.length){
+      var c = s[i];
+      if (q){ cur += c; if (c === '\\' && q !== '`'){ cur += s[++i] || ''; i++; continue; } if (c === q) q = null; i++; continue; }
+      if (c === '"' || c === '`'){ q = c; cur += c; i++; continue; }
+      if (c === '(' || c === '[' || c === '{'){ depth++; cur += c; i++; continue; }
+      if (c === ')' || c === ']' || c === '}'){ depth--; cur += c; i++; continue; }
+      if (depth === 0){
+        var two = s.substr(i, 2);
+        if (two === '|=' || two === '|~' || two === '!=' || two === '!~'){
+          flush(); cur = two; i += 2; continue;
+        }
+        if (c === '|' && s[i+1] !== '|'){ flush(); cur = '|'; i++; continue; }
+      }
+      cur += c; i++;
+    }
+    flush();
+    return out;
+  }
+
+  function classifyStage(raw){
+    var t = raw.trim();
+    var two = t.substr(0, 2);
+    if (two === '|=' || two === '!=' || two === '|~' || two === '!~'){
+      var arg = t.slice(2).trim();
+      var kind = two === '|=' ? 'line_contains' : (two === '!=' ? 'line_not_contains' :
+                 (two === '|~' ? 'line_regex' : 'line_not_regex'));
+      return {kind:kind, op:two, arg:unq(arg), rawArg:arg, raw:t};
+    }
+    if (t.charAt(0) === '|'){
+      var rest = t.slice(1).trim();
+      var head = (/^([A-Za-z_][A-Za-z0-9_]*)/.exec(rest) || [])[1] || '';
+      if (PARSERS.indexOf(head) >= 0)
+        return {kind:'parser', parser:head, arg:rest.slice(head.length).trim(), raw:t};
+      if (head === 'line_format' || head === 'label_format' || head === 'decolorize' ||
+          head === 'drop' || head === 'keep' || head === 'unwrap')
+        return {kind:head, arg:rest.slice(head.length).trim(), raw:t};
+      return {kind:'label_filter', expr:rest, raw:t};
+    }
+    return {kind:'unknown', raw:t};
+  }
+
+  // ==================== 整体解析 ====================
+  function parse(q){
+    var src = String(q == null ? '' : q).replace(/\s+/g, ' ').trim();
+    if (src === '') return {error:'请输入 LogQL 查询'};
+    var open = findTop(src, '{');
+    if (open < 0){
+      open = src.indexOf('{');
+      if (open < 0) return {error:'缺少流选择器 {...}：LogQL 的每个查询都必须以标签选择器开头'};
+    }
+    var close = matchClose(src, open, '{', '}');
+    if (close < 0) return {error:'流选择器的花括号没有闭合'};
+    var prefix = src.slice(0, open).trim();
+    var selRaw = src.slice(open, close + 1);
+    var after = src.slice(close + 1);
+
+    var sel = parseSelector(selRaw);
+    if (sel.error) return {error:sel.error};
+
+    // 拆出 [range] 与尾部
+    var range = null, offset = null, stagesRaw = after, tail = '';
+    var rb = -1, depth = 0, qq = null;
+    for (var i = 0; i < after.length; i++){
+      var c = after[i];
+      if (qq){ if (c === '\\' && qq !== '`'){ i++; continue; } if (c === qq) qq = null; continue; }
+      if (c === '"' || c === '`'){ qq = c; continue; }
+      if (c === '(' || c === '{') depth++;
+      else if (c === ')' || c === '}') depth--;
+      else if (c === '[' && depth === 0){ rb = i; break; }
+      else if (c === ')' && depth < 0){ break; }
+    }
+    if (rb >= 0){
+      var re = matchClose(after, rb, '[', ']');
+      if (re < 0) return {error:'范围向量的方括号没有闭合，例如 [5m]'};
+      range = after.slice(rb + 1, re).trim();
+      stagesRaw = after.slice(0, rb);
+      tail = after.slice(re + 1);
+      if (dur2s(range) == null) return {error:'非法的范围时长：[' + range + ']（应形如 5m / 1h / 30s）'};
+    } else {
+      var endParen = -1, d2 = 0, q2 = null;
+      for (var j = 0; j < after.length; j++){
+        var ch = after[j];
+        if (q2){ if (ch === '\\' && q2 !== '`'){ j++; continue; } if (ch === q2) q2 = null; continue; }
+        if (ch === '"' || ch === '`'){ q2 = ch; continue; }
+        if (ch === '(' || ch === '[' || ch === '{') d2++;
+        else if (ch === ']' || ch === '}') d2--;
+        else if (ch === ')'){ if (d2 === 0){ endParen = j; break; } d2--; }
+      }
+      if (endParen >= 0){ stagesRaw = after.slice(0, endParen); tail = after.slice(endParen); }
+    }
+    var om = /\boffset\s+([0-9a-zµ.]+)/i.exec(tail);
+    if (om){
+      offset = om[1];
+      if (dur2s(offset) == null) return {error:'非法的 offset 时长：' + offset};
+    }
+
+    var stages = splitStages(stagesRaw).map(classifyStage);
+
+    // 前缀：从左到右依次剥出聚合函数与范围函数
+    var aggs = [], metric = null;
+    var AGG_RE = /([A-Za-z_][A-Za-z0-9_]*)\s*(?:(by|without)\s*\(([^)]*)\))?\s*\(\s*(?:([0-9.]+)\s*,\s*)?/g;
+    var mm;
+    while ((mm = AGG_RE.exec(prefix)) !== null){
+      if (AGG_FN.indexOf(mm[1]) >= 0){
+        aggs.push({fn:mm[1], group:mm[2] || null,
+                   labels:(mm[3] || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean),
+                   param:mm[4] ? parseFloat(mm[4]) : null});
+      } else if (RANGE_FN.indexOf(mm[1]) >= 0){
+        metric = {fn:mm[1], param:mm[4] ? parseFloat(mm[4]) : null};
+      } else if (mm[1] !== ''){
+        return {error:'未知的函数：' + mm[1]};
+      }
+    }
+    // 尾随的 by/without（sum(rate(...)) by (app) 写法）
+    var tm = /\b(by|without)\s*\(([^)]*)\)\s*$/.exec(tail.replace(/\)+\s*$/, function(x){ return x; }));
+    if (tm && aggs.length && !aggs[aggs.length-1].group){
+      aggs[aggs.length-1].group = tm[1];
+      aggs[aggs.length-1].labels = tm[2].split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+    }
+
+    var hasUnwrap = stages.some(function(s){ return s.kind === 'unwrap'; });
+    if (metric && !range) return {error:'指标函数 ' + metric.fn + '() 必须带范围向量，例如 [5m]'};
+    if (range && !metric) return {error:'出现了范围向量 [' + range + ']，但没有指标函数（如 rate / count_over_time）包裹'};
+
+    return {
+      value:{
+        type: metric ? 'metric' : 'log',
+        selector: sel.matchers,
+        selectorRaw: selRaw,
+        stages: stages,
+        metric: metric,
+        range: range,
+        rangeSeconds: range ? dur2s(range) : null,
+        offset: offset,
+        aggs: aggs,
+        hasUnwrap: hasUnwrap
+      }
+    };
+  }
+
+  // ==================== 逐段解释 ====================
+  function explain(ast){
+    var out = [];
+    var sel = ast.selector.map(function(m){
+      var verb = {'=':'等于', '!=':'不等于', '=~':'正则匹配', '!~':'正则不匹配'}[m.op];
+      return '标签 ' + m.label + ' ' + verb + ' 「' + m.value + '」';
+    }).join('，且');
+    out.push({part:ast.selectorRaw, text:'从日志流中挑出' + sel + ' 的那些流'});
+
+    for (var i = 0; i < ast.stages.length; i++){
+      var s = ast.stages[i], t = '';
+      switch (s.kind){
+        case 'line_contains': t = '只保留原始日志行中包含子串「' + s.arg + '」的行（子串匹配，最快的过滤器）'; break;
+        case 'line_not_contains': t = '丢弃原始日志行中包含子串「' + s.arg + '」的行'; break;
+        case 'line_regex': t = '只保留能被正则 /' + s.arg + '/ 匹配的行'; break;
+        case 'line_not_regex': t = '丢弃能被正则 /' + s.arg + '/ 匹配的行'; break;
+        case 'parser':
+          if (s.parser === 'json') t = '把日志行按 JSON 解析，字段展开成标签' + (s.arg ? '，只提取：' + s.arg : '（未指定表达式则展开全部字段）');
+          else if (s.parser === 'logfmt') t = '把日志行按 logfmt（key=value）解析成标签' + (s.arg ? '，只提取：' + s.arg : '');
+          else if (s.parser === 'pattern') t = '按占位模式 ' + s.arg + ' 抽取字段，比正则快得多';
+          else if (s.parser === 'regexp') t = '用带命名捕获组的正则 ' + s.arg + ' 抽取字段';
+          else t = '用 unpack 还原 Promtail pack 阶段打包的标签';
+          break;
+        case 'label_filter': t = '按已解析出的标签做过滤：' + s.expr; break;
+        case 'line_format': t = '重写输出的日志行内容为模板 ' + s.arg; break;
+        case 'label_format': t = '重命名或用模板改写标签：' + s.arg; break;
+        case 'decolorize': t = '去掉日志行里的 ANSI 颜色转义序列'; break;
+        case 'drop': t = '丢弃标签：' + s.arg; break;
+        case 'keep': t = '只保留标签：' + s.arg; break;
+        case 'unwrap': t = '把标签 ' + s.arg + ' 的值取出来当作数值样本，供 *_over_time 聚合使用'; break;
+        default: t = '未识别的管道阶段'; break;
+      }
+      out.push({part:s.raw, text:t});
+    }
+
+    if (ast.metric){
+      var win = '每个时间点回看 ' + human(ast.rangeSeconds) + ' 的窗口';
+      var mt = '';
+      if (ast.metric.fn === 'rate') mt = win + '，计算日志行的每秒速率（条/秒）';
+      else if (ast.metric.fn === 'count_over_time') mt = win + '，统计窗口内的日志条数（不除以时间）';
+      else if (ast.metric.fn === 'bytes_rate') mt = win + '，计算日志字节的每秒速率';
+      else if (ast.metric.fn === 'bytes_over_time') mt = win + '，统计窗口内的日志总字节数';
+      else if (ast.metric.fn === 'quantile_over_time') mt = win + '，对 unwrap 出的数值求 ' + (ast.metric.param == null ? '?' : ast.metric.param) + ' 分位数';
+      else if (UNWRAP_FN.indexOf(ast.metric.fn) >= 0) mt = win + '，对 unwrap 出的数值做 ' + ast.metric.fn.replace('_over_time', '') + ' 聚合';
+      else mt = win + '，执行 ' + ast.metric.fn;
+      out.push({part:ast.metric.fn + '(...[' + ast.range + '])', text:mt});
+    }
+    if (ast.offset) out.push({part:'offset ' + ast.offset, text:'整体向过去平移 ' + human(dur2s(ast.offset)) + '（常用于同比环比对照）'});
+    for (var a = 0; a < ast.aggs.length; a++){
+      var ag = ast.aggs[a];
+      var g = ag.group === 'by' ? '按 ' + ag.labels.join('、') + ' 分组保留这些标签' :
+              (ag.group === 'without' ? '丢掉 ' + ag.labels.join('、') + ' 后分组' : '把所有序列合并成一条');
+      out.push({part:ag.fn + (ag.group ? ' ' + ag.group + '(' + ag.labels.join(', ') + ')' : ''),
+                text:'跨序列做 ' + ag.fn + ' 聚合' + (ag.param != null ? '（取前 ' + ag.param + ' 个）' : '') + '，' + g});
+    }
+    return out;
+  }
+
+  // ==================== 体检 ====================
+  function lint(ast){
+    var iss = [];
+    function add(level, text){ iss.push({level:level, text:text}); }
+
+    var eq = ast.selector.filter(function(m){ return m.op === '='; });
+    if (!eq.length) add('err', '流选择器里没有任何等值匹配器：Loki 要求至少有一个不匹配空值的标签，纯 =~ 会被拒绝或全量扫描');
+    var seen = {};
+    for (var i = 0; i < ast.selector.length; i++){
+      var m = ast.selector[i];
+      if (m.op === '=' && seen[m.label] !== undefined && seen[m.label] !== m.value)
+        add('err', '标签 ' + m.label + ' 同时被要求等于「' + seen[m.label] + '」和「' + m.value + '」，这个查询永远不会有结果');
+      if (m.op === '=') seen[m.label] = m.value;
+      if (HIGH_CARD.indexOf(m.label.toLowerCase()) >= 0)
+        add('warn', '在流选择器里按 ' + m.label + ' 过滤：这是典型的高基数字段，把它做成标签会撑爆索引，应改为解析后用 | ' + m.label + '="..." 过滤');
+      if (m.op === '=~' && /^\.[*+]$/.test(m.value))
+        add('info', m.label + '=~"' + m.value + '" 等价于「该标签存在」，写成 ' + m.label + '!="" 更直观');
+      if ((m.op === '=~' || m.op === '!~') && /^[A-Za-z0-9_.\/-]+$/.test(m.value))
+        add('info', m.label + m.op + '"' + m.value + '" 里没有正则元字符，改用 ' + m.label + (m.op === '=~' ? '=' : '!=') + '"' + m.value + '" 会走更快的路径');
+    }
+
+    var firstParser = -1, firstLineFilter = -1;
+    for (var s = 0; s < ast.stages.length; s++){
+      var st = ast.stages[s];
+      if (st.kind === 'parser' && firstParser < 0) firstParser = s;
+      if (/^line_/.test(st.kind) && firstLineFilter < 0) firstLineFilter = s;
+      if (st.kind === 'line_regex' || st.kind === 'line_not_regex'){
+        var v = st.arg;
+        var plain = v.replace(/^\.\*/, '').replace(/\.\*$/, '');
+        if (/^[A-Za-z0-9 _\/-]+$/.test(plain))
+          add('info', '行过滤 ' + st.op + ' "' + v + '" 不含真正的正则语法，换成 ' + (st.op === '|~' ? '|=' : '!=') + ' "' + plain + '" 可以走 SIMD 子串匹配，通常快数倍');
+        if (/^\(\?i\)/.test(v) === false && /[A-Z]/.test(v) === false && /[a-z]/.test(v))
+          add('info', '正则 ' + st.op + ' "' + v + '" 区分大小写，若想忽略大小写请显式加 (?i) 前缀');
+      }
+      if (st.kind === 'line_contains' && st.arg === '')
+        add('info', '|= "" 是空过滤器，不会起任何作用，可以删掉');
+      if (st.kind === 'parser' && st.parser === 'regexp' && !/\(\?P?<[A-Za-z_]/.test(st.arg))
+        add('err', '| regexp 必须包含命名捕获组（如 (?P<status>\\d+)），否则抽不出任何标签');
+      if (st.kind === 'parser' && st.parser === 'json' && st.arg === '' && ast.stages.length > s + 1){
+        var laterFilters = ast.stages.slice(s + 1).filter(function(x){ return x.kind === 'label_filter'; });
+        if (laterFilters.length)
+          add('info', '| json 未指定表达式会展开全部字段；只要 ' + laterFilters.length + ' 个字段的话，写成 | json field="..." 能少解析很多数据');
+      }
+    }
+    if (firstParser >= 0 && firstLineFilter < 0)
+      add('warn', '直接对整条流做 ' + ast.stages[firstParser].parser + ' 解析而没有任何行过滤：解析是 LogQL 里最贵的一步，先用 |= 把数据量砍下来通常能快一个数量级');
+    else if (firstParser >= 0 && firstLineFilter > firstParser)
+      add('warn', '行过滤器写在了解析器之后：把 |= / |~ 提到 | ' + ast.stages[firstParser].parser + ' 前面，可以少解析大量无关日志行');
+
+    if (ast.hasUnwrap && ast.metric && UNWRAP_FN.indexOf(ast.metric.fn) < 0)
+      add('err', 'unwrap 只能配合 ' + UNWRAP_FN.slice(0, 4).join(' / ') + ' 等数值聚合使用，不能用于 ' + ast.metric.fn + '()');
+    if (!ast.hasUnwrap && ast.metric && UNWRAP_FN.indexOf(ast.metric.fn) >= 0)
+      add('err', ast.metric.fn + '() 需要先用 | unwrap <label> 把数值取出来');
+    if (ast.metric && ast.metric.fn === 'quantile_over_time' && ast.metric.param == null)
+      add('err', 'quantile_over_time 的第一个参数必须是分位数，例如 quantile_over_time(0.99, ...)');
+
+    if (ast.rangeSeconds != null){
+      if (ast.rangeSeconds > 86400)
+        add('warn', '范围向量 [' + ast.range + '] 超过一天：每个数据点都要重新扫这么多日志，图表会非常慢，考虑用 recording rule 预聚合');
+      if (ast.rangeSeconds < 60)
+        add('info', '范围向量 [' + ast.range + '] 小于抓取间隔的常见值，稀疏日志会出现锯齿或空洞');
+    }
+    if (ast.metric && !ast.aggs.length)
+      add('info', ast.metric.fn + '() 没有外层聚合，会为每个日志流各画一条线；加上 sum by (...) 可以收敛序列数');
+    for (var a = 0; a < ast.aggs.length; a++){
+      if (!ast.aggs[a].group && ast.aggs[a].fn !== 'sort' && ast.aggs[a].fn !== 'sort_desc')
+        add('info', ast.aggs[a].fn + '() 未写 by / without，所有序列会被压成一条；确认这是你要的粒度');
+      if ((ast.aggs[a].fn === 'topk' || ast.aggs[a].fn === 'bottomk') && ast.aggs[a].param == null)
+        add('err', ast.aggs[a].fn + ' 需要一个整数参数，例如 topk(5, ...)');
+    }
+    if (ast.type === 'log' && !ast.stages.length && ast.selector.length === 1 && ast.selector[0].op === '=')
+      add('info', '这是一条无过滤的裸流查询，会把该流的全部日志拉回来；生产环境建议至少加一个 |= 行过滤');
+    return iss;
+  }
+
+  // ==================== 规范化重排 ====================
+  function build(ast){
+    var lines = [];
+    var sel = '{' + ast.selector.map(function(m){ return m.label + m.op + '"' + m.value + '"'; }).join(', ') + '}';
+    lines.push(sel);
+    for (var i = 0; i < ast.stages.length; i++) lines.push('  ' + ast.stages[i].raw);
+    var core = lines.join('\n');
+    if (ast.metric){
+      var inner = core + (ast.range ? '\n  [' + ast.range + ']' : '') + (ast.offset ? ' offset ' + ast.offset : '');
+      core = ast.metric.fn + '(' + (ast.metric.param != null ? ast.metric.param + ', ' : '') + '\n' +
+             inner.split('\n').map(function(x){ return '  ' + x; }).join('\n') + '\n)';
+    }
+    for (var a = ast.aggs.length - 1; a >= 0; a--){
+      var ag = ast.aggs[a];
+      var head = ag.fn + (ag.group ? ' ' + ag.group + ' (' + ag.labels.join(', ') + ')' : '') + '(' +
+                 (ag.param != null ? ag.param + ', ' : '');
+      core = head + '\n' + core.split('\n').map(function(x){ return '  ' + x; }).join('\n') + '\n)';
+    }
+    return core;
+  }
+
+  // 把行过滤器提到解析器之前的优化建议
+  function optimize(ast){
+    var filters = [], rest = [], moved = false, sawParser = false;
+    for (var i = 0; i < ast.stages.length; i++){
+      var s = ast.stages[i];
+      if (s.kind === 'parser') sawParser = true;
+      if (/^line_/.test(s.kind)){
+        if (sawParser) moved = true;
+        filters.push(s);
+      } else rest.push(s);
+    }
+    var clone = {type:ast.type, selector:ast.selector, selectorRaw:ast.selectorRaw,
+                 stages:filters.concat(rest), metric:ast.metric, range:ast.range,
+                 rangeSeconds:ast.rangeSeconds, offset:ast.offset, aggs:ast.aggs, hasUnwrap:ast.hasUnwrap};
+    return {changed:moved, query:build(clone)};
+  }
+
+  function analyze(q){
+    var p = parse(q);
+    if (p.error) return {error:p.error};
+    var ast = p.value;
+    var iss = lint(ast);
+    var opt = optimize(ast);
+    return {
+      ast: ast,
+      kind: ast.type === 'metric' ? '指标查询（返回时间序列）' : '日志查询（返回日志行）',
+      explain: explain(ast),
+      issues: iss,
+      errCount: iss.filter(function(x){ return x.level === 'err'; }).length,
+      warnCount: iss.filter(function(x){ return x.level === 'warn'; }).length,
+      formatted: build(ast),
+      optimized: opt.changed ? opt.query : null,
+      stats: {
+        matchers: ast.selector.length,
+        stages: ast.stages.length,
+        aggs: ast.aggs.length,
+        window: ast.rangeSeconds == null ? '—' : human(ast.rangeSeconds)
+      }
+    };
+  }
+
+  var api = {parse:parse, parseSelector:parseSelector, splitStages:splitStages,
+             classifyStage:classifyStage, explain:explain, lint:lint, build:build,
+             optimize:optimize, analyze:analyze, dur2s:dur2s};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {LogqlForgePure:LogqlForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = LogqlForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var DEMOS = [
+    'sum by (status) (rate({app="checkout", env="prod"} | json | line_format "{{.msg}}" | status=~"5.." [5m]))',
+    '{namespace="payments"} |~ ".*timeout.*" | logfmt | duration > 2s',
+    'quantile_over_time(0.99, {app="api"} |= "latency" | json | unwrap duration_ms [10m]) by (route)',
+    'topk(5, sum by (pod) (count_over_time({job="ingest", request_id="abc"} [2d])))',
+    'count_over_time({app="web"} |= "" [30s])'
+  ];
+  var di = 0;
+
+  function run(){
+    var r = P.analyze(document.getElementById('lq-src').value);
+    var $e = document.getElementById('lq-err'), $o = document.getElementById('lq-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var h = '';
+    h += '<div class="kv"><b>查询类型</b><span>' + esc(r.kind) + '</span></div>';
+    h += '<div class="kv"><b>选择器 / 阶段 / 聚合</b><span>' + r.stats.matchers + ' / ' + r.stats.stages + ' / ' + r.stats.aggs + '</span></div>';
+    h += '<div class="kv"><b>时间窗口</b><span>' + esc(r.stats.window) + '</span></div>';
+    h += '<div class="kv"><b>严重 / 警告</b><span><span style="color:' + (r.errCount ? '#EF4444' : 'var(--ok)') + ';font-weight:700">' +
+         r.errCount + '</span> / <span style="color:var(--warn)">' + r.warnCount + '</span></span></div>';
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">逐段解释</div>';
+    for (var i = 0; i < r.explain.length; i++){
+      h += '<div class="kv"><b style="color:var(--info)">' + esc(r.explain[i].part) + '</b><span>' + esc(r.explain[i].text) + '</span></div>';
+    }
+
+    if (r.issues.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">性能与正确性体检</div>';
+      for (var j = 0; j < r.issues.length; j++){
+        var it = r.issues[j];
+        var col = it.level === 'err' ? '#EF4444' : (it.level === 'warn' ? 'var(--warn)' : 'var(--muted)');
+        var tag = it.level === 'err' ? '严重' : (it.level === 'warn' ? '警告' : '建议');
+        h += '<div class="kv"><b style="color:' + col + '">' + tag + '</b><span>' + esc(it.text) + '</span></div>';
+      }
+    } else {
+      h += '<div class="kv"><b>体检结果</b><span style="color:var(--ok)">未发现问题</span></div>';
+    }
+
+    if (r.optimized){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">重排后的等价查询（行过滤前置）</div>';
+      h += '<pre class="mono">' + esc(r.optimized) + '</pre>';
+    }
+    $o.innerHTML = h;
+  }
+
+  document.getElementById('lq-go').addEventListener('click', run);
+  document.getElementById('lq-fmt').addEventListener('click', function(){
+    var r = P.analyze(document.getElementById('lq-src').value);
+    if (r.error){ document.getElementById('lq-err').textContent = r.error; return; }
+    document.getElementById('lq-src').value = r.formatted;
+    run();
+  });
+  document.getElementById('lq-demo').addEventListener('click', function(){
+    document.getElementById('lq-src').value = DEMOS[di % DEMOS.length]; di++; run();
+  });
+  document.getElementById('lq-clr').addEventListener('click', function(){
+    document.getElementById('lq-src').value = '';
+    document.getElementById('lq-out').innerHTML = '';
+    document.getElementById('lq-err').textContent = '';
+  });
+  document.getElementById('lq-src').value = DEMOS[0]; di = 1;
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

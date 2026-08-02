@@ -1,0 +1,1076 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SshForge — OpenSSH 公钥工坊：解析单行公钥、authorized_keys 与 known_hosts，本地算出 SHA-256/MD5 指纹、randomart 与类型，并做两把密钥是否同源的配对校验。</title>
+<meta property="og:title" content="SshForge">
+<meta property="og:description" content="OpenSSH 公钥工坊：粘贴单行公钥、authorized_keys 或 known_hosts（多行混排也能认），本地算出 SHA-256 / MD5 指纹、drunken-bishop randomart 与密钥类型，并指出每行属于哪种格式；支持把任意两个条目做配对校验，判断它们是否源自同一把密钥，全部离线、不上传任何数据。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="OpenSSH 公钥工坊：粘贴单行公钥、authorized_keys 或 known_hosts（多行混排也能认），本地算出 SHA-256 / MD5 指纹、drunken-bishop randomart 与密钥类型，并指出每行属于哪种格式；支持把任意两个条目做配对校验，判断它们是否源自同一把密钥，全部离线、不上传任何数据。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SshForge</h1>
+  <p class="sub">SSH 公钥 · 指纹 · 配对校验</p>
+  <label for="ssh_in">粘贴公钥、authorized_keys 或 known_hosts（支持多行混排）</label>
+  <textarea id="ssh_in" rows="9" spellcheck="false">github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+restrict,from="10.0.0.0/8",command="/usr/local/bin/deploy --env=prod,fast" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl ci@runner
+command="/bin/backup" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+</textarea>
+  <div class="row">
+    <button id="ssh_parse">解析</button>
+    <button id="ssh_sample" class="ghost">载入疑难样例</button>
+    <button id="ssh_clear" class="ghost">清空</button>
+  </div>
+  <div class="err" id="ssh_err"></div>
+
+  <label>概览</label>
+  <div class="grid" id="ssh_stats"></div>
+
+  <label>逐条拆解</label>
+  <div class="out" id="ssh_keys"></div>
+
+  <label>体检</label>
+  <div class="out" id="ssh_lint"></div>
+
+  <label for="ssh_host">known_hosts 哈希主机名反查（<code>|1|salt|hash</code> 是 HMAC-SHA1，能验不能反推，所以只能拿主机名去比对）</label>
+  <div class="row">
+    <input type="text" id="ssh_host" value="github.com" style="flex:1;min-width:220px">
+    <button id="ssh_lookup">在上面的文本里找这台主机</button>
+  </div>
+  <div class="out" id="ssh_hostout"></div>
+
+  <label>authorized_keys 行生成器</label>
+  <div class="out" id="ssh_optbox"></div>
+  <div class="row">
+    <input type="text" id="ssh_from" placeholder='from 来源限制，例如 10.0.0.0/8,192.168.1.5' style="flex:1;min-width:220px">
+    <input type="text" id="ssh_cmd" placeholder='command 强制命令，例如 /usr/bin/rrsync /srv' style="flex:1;min-width:220px">
+  </div>
+  <label for="ssh_gen">生成结果（用上面文本里的第一把公钥）</label>
+  <textarea id="ssh_gen" rows="3" readonly spellcheck="false"></textarea>
+  <div class="row"><button id="ssh_copy" class="ghost">复制这一行</button></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 357 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+/* ============ 共享原语：字节 / 编码 / 摘要 / ASN.1 / SSH wire ============
+   这一段在四款工具里是同一份代码。之所以每个单文件都内联一遍而不抽包，
+   是因为 nano-tools 的硬约束是「一个 HTML 双击即用、零依赖、可离线」。
+   全部同步纯函数，不碰 WebCrypto，Node 里能直接跑已知答案向量。 */
+
+function utf8Bytes(str){
+  var b=[];
+  for(var i=0;i<str.length;i++){
+    var c=str.charCodeAt(i);
+    if(c<0x80) b.push(c);
+    else if(c<0x800) b.push(0xc0|(c>>6),0x80|(c&0x3f));
+    else if(c>=0xd800&&c<=0xdbff){
+      var c2=str.charCodeAt(i+1), cp=0x10000+((c&0x3ff)<<10)+(c2&0x3ff);
+      b.push(0xf0|(cp>>18),0x80|((cp>>12)&0x3f),0x80|((cp>>6)&0x3f),0x80|(cp&0x3f)); i++;
+    } else b.push(0xe0|(c>>12),0x80|((c>>6)&0x3f),0x80|(c&0x3f));
+  }
+  return b;
+}
+function bytesToUtf8(b){
+  var s='',i=0;
+  while(i<b.length){
+    var c=b[i];
+    if(c<0x80){ s+=String.fromCharCode(c); i++; }
+    else if(c<0xe0){ s+=String.fromCharCode(((c&0x1f)<<6)|(b[i+1]&0x3f)); i+=2; }
+    else if(c<0xf0){ s+=String.fromCharCode(((c&0x0f)<<12)|((b[i+1]&0x3f)<<6)|(b[i+2]&0x3f)); i+=3; }
+    else {
+      var cp=((c&0x07)<<18)|((b[i+1]&0x3f)<<12)|((b[i+2]&0x3f)<<6)|(b[i+3]&0x3f);
+      cp-=0x10000; s+=String.fromCharCode(0xd800+(cp>>10),0xdc00+(cp&0x3ff)); i+=4;
+    }
+  }
+  return s;
+}
+function toHex(b){ var s=''; for(var i=0;i<b.length;i++) s+=('0'+(b[i]&0xff).toString(16)).slice(-2); return s; }
+function fromHex(h){
+  h=String(h).replace(/[^0-9a-fA-F]/g,'');
+  if(h.length%2) h='0'+h;
+  var b=[]; for(var i=0;i<h.length;i+=2) b.push(parseInt(h.substr(i,2),16));
+  return b;
+}
+function colonHex(b){ var p=[]; for(var i=0;i<b.length;i++) p.push(('0'+(b[i]&0xff).toString(16)).slice(-2)); return p.join(':'); }
+
+var B64A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function b64encode(b){
+  var s='',i;
+  for(i=0;i+2<b.length;i+=3){
+    var n=(b[i]<<16)|(b[i+1]<<8)|b[i+2];
+    s+=B64A[(n>>18)&63]+B64A[(n>>12)&63]+B64A[(n>>6)&63]+B64A[n&63];
+  }
+  var rem=b.length-i;
+  if(rem===1){ var m=b[i]<<16; s+=B64A[(m>>18)&63]+B64A[(m>>12)&63]+'=='; }
+  else if(rem===2){ var k=(b[i]<<16)|(b[i+1]<<8); s+=B64A[(k>>18)&63]+B64A[(k>>12)&63]+B64A[(k>>6)&63]+'='; }
+  return s;
+}
+/* 宽容解码：吃掉空白与换行，同时接受 url-safe 字母表与缺失的 padding。
+   真实世界里 PEM、JWK、authorized_keys 三种来源的 base64 长得都不太一样。 */
+function b64decode(s){
+  s=String(s).replace(/[\s\r\n]/g,'').replace(/-/g,'+').replace(/_/g,'/').replace(/=+$/,'');
+  var b=[],buf=0,bits=0;
+  for(var i=0;i<s.length;i++){
+    var v=B64A.indexOf(s[i]);
+    if(v<0) throw new Error('base64 含非法字符 "'+s[i]+'"（第 '+(i+1)+' 位）');
+    buf=(buf<<6)|v; bits+=6;
+    if(bits>=8){ bits-=8; b.push((buf>>bits)&0xff); }
+  }
+  return b;
+}
+function b64url(b){ return b64encode(b).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64urlDecode(s){ return b64decode(s); }
+
+var SHA256_K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256Bytes(bytes){
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var bitLo=(bytes.length*8)>>>0, bitHi=Math.floor(bytes.length/536870912)>>>0;
+  var w=bytes.slice(); w.push(0x80);
+  while(w.length%64!==56) w.push(0);
+  w.push((bitHi>>>24)&0xff,(bitHi>>>16)&0xff,(bitHi>>>8)&0xff,bitHi&0xff,
+         (bitLo>>>24)&0xff,(bitLo>>>16)&0xff,(bitLo>>>8)&0xff,bitLo&0xff);
+  function rotr(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }
+  var W=new Array(64),i,off;
+  for(off=0;off<w.length;off+=64){
+    for(i=0;i<16;i++) W[i]=((w[off+i*4]<<24)|(w[off+i*4+1]<<16)|(w[off+i*4+2]<<8)|w[off+i*4+3])>>>0;
+    for(i=16;i<64;i++){
+      var s0=(rotr(W[i-15],7)^rotr(W[i-15],18)^(W[i-15]>>>3))>>>0;
+      var s1=(rotr(W[i-2],17)^rotr(W[i-2],19)^(W[i-2]>>>10))>>>0;
+      W[i]=(W[i-16]+s0+W[i-7]+s1)>>>0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(i=0;i<64;i++){
+      var S1=(rotr(e,6)^rotr(e,11)^rotr(e,25))>>>0, ch=((e&f)^((~e)&g))>>>0;
+      var t1=(h+S1+ch+SHA256_K[i]+W[i])>>>0;
+      var S0=(rotr(a,2)^rotr(a,13)^rotr(a,22))>>>0, maj=((a&b)^(a&c)^(b&c))>>>0;
+      var t2=(S0+maj)>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0;H[5]=(H[5]+f)>>>0;H[6]=(H[6]+g)>>>0;H[7]=(H[7]+h)>>>0;
+  }
+  var out=[];
+  for(i=0;i<8;i++) out.push((H[i]>>>24)&0xff,(H[i]>>>16)&0xff,(H[i]>>>8)&0xff,H[i]&0xff);
+  return out;
+}
+function sha1Bytes(bytes){
+  var H=[0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0];
+  var bitLo=(bytes.length*8)>>>0, bitHi=Math.floor(bytes.length/536870912)>>>0;
+  var w=bytes.slice(); w.push(0x80);
+  while(w.length%64!==56) w.push(0);
+  w.push((bitHi>>>24)&0xff,(bitHi>>>16)&0xff,(bitHi>>>8)&0xff,bitHi&0xff,
+         (bitLo>>>24)&0xff,(bitLo>>>16)&0xff,(bitLo>>>8)&0xff,bitLo&0xff);
+  function rol(n,c){ return ((n<<c)|(n>>>(32-c)))>>>0; }
+  var W=new Array(80),i,off;
+  for(off=0;off<w.length;off+=64){
+    for(i=0;i<16;i++) W[i]=((w[off+i*4]<<24)|(w[off+i*4+1]<<16)|(w[off+i*4+2]<<8)|w[off+i*4+3])>>>0;
+    for(i=16;i<80;i++) W[i]=rol((W[i-3]^W[i-8]^W[i-14]^W[i-16])>>>0,1);
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4];
+    for(i=0;i<80;i++){
+      var f,k;
+      if(i<20){ f=((b&c)|((~b)&d))>>>0; k=0x5A827999; }
+      else if(i<40){ f=(b^c^d)>>>0; k=0x6ED9EBA1; }
+      else if(i<60){ f=((b&c)|(b&d)|(c&d))>>>0; k=0x8F1BBCDC; }
+      else { f=(b^c^d)>>>0; k=0xCA62C1D6; }
+      var t=(rol(a,5)+f+e+k+W[i])>>>0;
+      e=d; d=c; c=rol(b,30); b=a; a=t;
+    }
+    H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;H[4]=(H[4]+e)>>>0;
+  }
+  var out=[];
+  for(i=0;i<5;i++) out.push((H[i]>>>24)&0xff,(H[i]>>>16)&0xff,(H[i]>>>8)&0xff,H[i]&0xff);
+  return out;
+}
+var MD5_S=[7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+           5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+           4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+           6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+var MD5_K=(function(){ var k=[]; for(var i=0;i<64;i++) k.push((Math.floor(Math.abs(Math.sin(i+1))*4294967296))>>>0); return k; })();
+function md5Bytes(bytes){
+  function rol(n,c){ return ((n<<c)|(n>>>(32-c)))>>>0; }
+  var a0=0x67452301,b0=0xefcdab89,c0=0x98badcfe,d0=0x10325476;
+  var m=bytes.slice(); m.push(0x80);
+  while(m.length%64!==56) m.push(0);
+  var lo=(bytes.length*8)>>>0, hi=Math.floor(bytes.length/536870912)>>>0;
+  m.push(lo&0xff,(lo>>>8)&0xff,(lo>>>16)&0xff,(lo>>>24)&0xff,hi&0xff,(hi>>>8)&0xff,(hi>>>16)&0xff,(hi>>>24)&0xff);
+  for(var off=0;off<m.length;off+=64){
+    var M=[],j;
+    for(j=0;j<16;j++) M[j]=((m[off+j*4])|(m[off+j*4+1]<<8)|(m[off+j*4+2]<<16)|(m[off+j*4+3]<<24))>>>0;
+    var A=a0,B=b0,C=c0,D=d0;
+    for(var i=0;i<64;i++){
+      var F,g;
+      if(i<16){ F=((B&C)|((~B)&D))>>>0; g=i; }
+      else if(i<32){ F=((D&B)|((~D)&C))>>>0; g=(5*i+1)%16; }
+      else if(i<48){ F=(B^C^D)>>>0; g=(3*i+5)%16; }
+      else { F=(C^(B|((~D)>>>0)))>>>0; g=(7*i)%16; }
+      F=(F+A+MD5_K[i]+M[g])>>>0;
+      A=D; D=C; C=B; B=(B+rol(F,MD5_S[i]))>>>0;
+    }
+    a0=(a0+A)>>>0; b0=(b0+B)>>>0; c0=(c0+C)>>>0; d0=(d0+D)>>>0;
+  }
+  var out=[],v=[a0,b0,c0,d0];
+  for(var q=0;q<4;q++) out.push(v[q]&0xff,(v[q]>>>8)&0xff,(v[q]>>>16)&0xff,(v[q]>>>24)&0xff);
+  return out;
+}
+function hmacGeneric(hashFn, blockSize, key, msg){
+  var k=key.slice();
+  if(k.length>blockSize) k=hashFn(k);
+  while(k.length<blockSize) k.push(0);
+  var ipad=[],opad=[];
+  for(var i=0;i<blockSize;i++){ ipad.push(k[i]^0x36); opad.push(k[i]^0x5c); }
+  return hashFn(opad.concat(hashFn(ipad.concat(msg))));
+}
+function hmacSha256(key,msg){ return hmacGeneric(sha256Bytes,64,key,msg); }
+function hmacSha1(key,msg){ return hmacGeneric(sha1Bytes,64,key,msg); }
+
+/* ---- SHA-512 / SHA-384：64 位字用 BigInt 实现（JS 原生 number 只有 53 位精度，不够） ---- */
+var SHA512_MASK64=(1n<<64n)-1n;
+var SHA512_K=[
+0x428a2f98d728ae22n,0x7137449123ef65cdn,0xb5c0fbcfec4d3b2fn,0xe9b5dba58189dbbcn,
+0x3956c25bf348b538n,0x59f111f1b605d019n,0x923f82a4af194f9bn,0xab1c5ed5da6d8118n,
+0xd807aa98a3030242n,0x12835b0145706fben,0x243185be4ee4b28cn,0x550c7dc3d5ffb4e2n,
+0x72be5d74f27b896fn,0x80deb1fe3b1696b1n,0x9bdc06a725c71235n,0xc19bf174cf692694n,
+0xe49b69c19ef14ad2n,0xefbe4786384f25e3n,0xfc19dc68b8cd5b5n,0x240ca1cc77ac9c65n,
+0x2de92c6f592b0275n,0x4a7484aa6ea6e483n,0x5cb0a9dcbd41fbd4n,0x76f988da831153b5n,
+0x983e5152ee66dfabn,0xa831c66d2db43210n,0xb00327c898fb213fn,0xbf597fc7beef0ee4n,
+0xc6e00bf33da88fc2n,0xd5a79147930aa725n,0x6ca6351e003826fn,0x142929670a0e6e70n,
+0x27b70a8546d22ffcn,0x2e1b21385c26c926n,0x4d2c6dfc5ac42aedn,0x53380d139d95b3dfn,
+0x650a73548baf63den,0x766a0abb3c77b2a8n,0x81c2c92e47edaee6n,0x92722c851482353bn,
+0xa2bfe8a14cf10364n,0xa81a664bbc423001n,0xc24b8b70d0f89791n,0xc76c51a30654be30n,
+0xd192e819d6ef5218n,0xd69906245565a910n,0xf40e35855771202an,0x106aa07032bbd1b8n,
+0x19a4c116b8d2d0c8n,0x1e376c085141ab53n,0x2748774cdf8eeb99n,0x34b0bcb5e19b48a8n,
+0x391c0cb3c5c95a63n,0x4ed8aa4ae3418acbn,0x5b9cca4f7763e373n,0x682e6ff3d6b2b8a3n,
+0x748f82ee5defb2fcn,0x78a5636f43172f60n,0x84c87814a1f0ab72n,0x8cc702081a6439ecn,
+0x90befffa23631e28n,0xa4506cebde82bde9n,0xbef9a3f7b2c67915n,0xc67178f2e372532bn,
+0xca273eceea26619cn,0xd186b8c721c0c207n,0xeada7dd6cde0eb1en,0xf57d4f7fee6ed178n,
+0x6f067aa72176fban,0xa637dc5a2c898a6n,0x113f9804bef90daen,0x1b710b35131c471bn,
+0x28db77f523047d84n,0x32caab7b40c72493n,0x3c9ebe0a15c9bebcn,0x431d67c49c100d4cn,
+0x4cc5d4becb3e42b6n,0x597f299cfc657e2an,0x5fcb6fab3ad6faecn,0x6c44198c4a475817n
+];
+function sha512Family(bytes, H0, digestLen){
+  var H=H0.slice(), K=SHA512_K;
+  var bitLen=BigInt(bytes.length)*8n;
+  var m=bytes.slice(); m.push(0x80);
+  while(m.length%128!==112) m.push(0);
+  for(var li=0;li<16;li++) m.push(Number((bitLen>>BigInt((15-li)*8))&0xffn));
+  function rotr(x,n){ n=BigInt(n); return ((x>>n)|((x<<(64n-n))&SHA512_MASK64))&SHA512_MASK64; }
+  var W=new Array(80),i,off;
+  for(off=0;off<m.length;off+=128){
+    for(i=0;i<16;i++){
+      var w=0n;
+      for(var j=0;j<8;j++) w=(w<<8n)|BigInt(m[off+i*8+j]);
+      W[i]=w;
+    }
+    for(i=16;i<80;i++){
+      var s0=rotr(W[i-15],1n)^rotr(W[i-15],8n)^(W[i-15]>>7n);
+      var s1=rotr(W[i-2],19n)^rotr(W[i-2],61n)^(W[i-2]>>6n);
+      W[i]=(W[i-16]+s0+W[i-7]+s1)&SHA512_MASK64;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(i=0;i<80;i++){
+      var S1=rotr(e,14n)^rotr(e,18n)^rotr(e,41n);
+      var ch=(e&f)^((~e)&SHA512_MASK64&g);
+      var t1=(h+S1+ch+K[i]+W[i])&SHA512_MASK64;
+      var S0=rotr(a,28n)^rotr(a,34n)^rotr(a,39n);
+      var maj=(a&b)^(a&c)^(b&c);
+      var t2=(S0+maj)&SHA512_MASK64;
+      h=g;g=f;f=e;e=(d+t1)&SHA512_MASK64;d=c;c=b;b=a;a=(t1+t2)&SHA512_MASK64;
+    }
+    H[0]=(H[0]+a)&SHA512_MASK64;H[1]=(H[1]+b)&SHA512_MASK64;H[2]=(H[2]+c)&SHA512_MASK64;H[3]=(H[3]+d)&SHA512_MASK64;
+    H[4]=(H[4]+e)&SHA512_MASK64;H[5]=(H[5]+f)&SHA512_MASK64;H[6]=(H[6]+g)&SHA512_MASK64;H[7]=(H[7]+h)&SHA512_MASK64;
+  }
+  var out=[];
+  for(i=0;i<digestLen/8;i++){
+    var v=H[i];
+    for(var j=7;j>=0;j--) out.push(Number((v>>BigInt(j*8))&0xffn));
+  }
+  return out;
+}
+var SHA512_H0=[0x6a09e667f3bcc908n,0xbb67ae8584caa73bn,0x3c6ef372fe94f82bn,0xa54ff53a5f1d36f1n,
+0x510e527fade682d1n,0x9b05688c2b3e6c1fn,0x1f83d9abfb41bd6bn,0x5be0cd19137e2179n];
+var SHA384_H0=[0xcbbb9d5dc1059ed8n,0x629a292a367cd507n,0x9159015a3070dd17n,0x152fecd8f70e5939n,
+0x67332667ffc00b31n,0x8eb44a8768581511n,0xdb0c2e0d64f98fa7n,0x47b5481dbefa4fa4n];
+function sha512Bytes(b){ return sha512Family(b, SHA512_H0, 64); }
+function sha384Bytes(b){ return sha512Family(b, SHA384_H0, 48); }
+function hmacSha384(key,msg){ return hmacGeneric(sha384Bytes,128,key,msg); }
+function hmacSha512(key,msg){ return hmacGeneric(sha512Bytes,128,key,msg); }
+
+/* ---- ASN.1 DER：只实现 PKI 里真正用得上的那一小撮标签 ---- */
+function derLenBytes(n){
+  if(n<0x80) return [n];
+  var b=[],v=n;
+  while(v>0){ b.unshift(v&0xff); v=Math.floor(v/256); }
+  return [0x80|b.length].concat(b);
+}
+function tlv(tag, content){ return [tag].concat(derLenBytes(content.length), content); }
+function derUInt(mag){
+  var b=mag.slice();
+  while(b.length>1 && b[0]===0) b.shift();
+  if(b.length && (b[0]&0x80)) b.unshift(0);
+  if(!b.length) b=[0];
+  return tlv(0x02,b);
+}
+function derBitString(bytes){ return tlv(0x03,[0].concat(bytes)); }
+function derSeq(){
+  var out=[];
+  for(var i=0;i<arguments.length;i++) out=out.concat(arguments[i]);
+  return tlv(0x30,out);
+}
+function derRead(buf, off){
+  off=off||0;
+  if(off+2>buf.length) return null;
+  var tag=buf[off], i=off+1, l=buf[i++], len;
+  if(l<0x80) len=l;
+  else {
+    var n=l&0x7f;
+    if(n===0||n>4||i+n>buf.length) return null;
+    len=0; for(var k=0;k<n;k++) len=len*256+buf[i++];
+  }
+  var start=i, end=i+len;
+  if(end>buf.length) return null;
+  return {tag:tag, len:len, header:off, start:start, end:end, content:buf.slice(start,end)};
+}
+function derChildren(content){
+  var out=[],off=0;
+  while(off<content.length){
+    var n=derRead(content,off);
+    if(!n) break;
+    out.push(n); off=n.end;
+  }
+  return out;
+}
+function encodeOid(dotted){
+  var p=String(dotted).split('.').map(Number);
+  if(p.length<2) return [];
+  var out=[p[0]*40+p[1]];
+  for(var i=2;i<p.length;i++){
+    var v=p[i], st=[v&0x7f];
+    v=Math.floor(v/128);
+    while(v>0){ st.unshift((v&0x7f)|0x80); v=Math.floor(v/128); }
+    out=out.concat(st);
+  }
+  return out;
+}
+function decodeOid(bytes){
+  if(!bytes.length) return '';
+  var first=bytes[0], out;
+  if(first<40) out=[0,first];
+  else if(first<80) out=[1,first-40];
+  else out=[2,first-80];
+  var v=0;
+  for(var i=1;i<bytes.length;i++){
+    v=v*128+(bytes[i]&0x7f);
+    if(!(bytes[i]&0x80)){ out.push(v); v=0; }
+  }
+  return out.join('.');
+}
+
+/* ---- SSH wire format（RFC 4251 §5）：一串 uint32 长度前缀的二进制块 ---- */
+function sshStr(bytes){
+  var n=bytes.length;
+  return [(n>>>24)&0xff,(n>>>16)&0xff,(n>>>8)&0xff,n&0xff].concat(bytes);
+}
+function sshRead(buf){
+  var out=[],i=0,trunc=null;
+  while(i<buf.length){
+    if(i+4>buf.length){ trunc={at:i, reason:'长度前缀不足 4 字节'}; break; }
+    var n=((buf[i]<<24)|(buf[i+1]<<16)|(buf[i+2]<<8)|buf[i+3])>>>0;
+    i+=4;
+    if(n>buf.length-i){ trunc={at:i, reason:'声明 '+n+' 字节，实际只剩 '+(buf.length-i)+' 字节'}; break; }
+    out.push(buf.slice(i,i+n)); i+=n;
+  }
+  return {fields:out, trunc:trunc, consumed:i};
+}
+function bitLen(bytes){
+  var i=0;
+  while(i<bytes.length && bytes[i]===0) i++;
+  if(i===bytes.length) return 0;
+  var b=bytes[i], n=(bytes.length-i-1)*8;
+  while(b){ n++; b>>=1; }
+  return n;
+}
+function wrap64(s,width){
+  width=width||64;
+  var out=[];
+  for(var i=0;i<s.length;i+=width) out.push(s.slice(i,i+width));
+  return out.join('\n');
+}
+function pemWrap(label, der){
+  return '-----BEGIN '+label+'-----\n'+wrap64(b64encode(der),64)+'\n-----END '+label+'-----';
+}
+function pemUnwrap(text){
+  var m=/-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----/.exec(String(text));
+  if(!m) return {error:'没找到成对的 PEM 头尾（-----BEGIN X----- / -----END X-----）'};
+  var body=m[2].replace(/[\s\r\n]/g,'');
+  if(!body) return {error:'PEM 头尾之间是空的'};
+  try { return {label:m[1], der:b64decode(body)}; }
+  catch(e){ return {error:'PEM 主体不是合法 base64：'+e.message}; }
+}
+
+
+/* ============ OpenSSH 公钥工坊 ============
+   处理三类文本：单行公钥、authorized_keys、known_hosts。
+   全部离线：指纹是本地算的 SHA-256/MD5，randomart 是本地跑的 drunken bishop。 */
+
+var SSH_TYPES = {
+  'ssh-rsa':                            {label:'RSA',          kind:'rsa',     names:['e','n']},
+  'ssh-dss':                            {label:'DSA',          kind:'dsa',     names:['p','q','g','y']},
+  'ecdsa-sha2-nistp256':                {label:'ECDSA P-256',  kind:'ecdsa',   names:['curve','Q']},
+  'ecdsa-sha2-nistp384':                {label:'ECDSA P-384',  kind:'ecdsa',   names:['curve','Q']},
+  'ecdsa-sha2-nistp521':                {label:'ECDSA P-521',  kind:'ecdsa',   names:['curve','Q']},
+  'ssh-ed25519':                        {label:'Ed25519',      kind:'ed25519', names:['A']},
+  'sk-ssh-ed25519@openssh.com':         {label:'Ed25519-SK',   kind:'ed25519', names:['A','application'], sk:true},
+  'sk-ecdsa-sha2-nistp256@openssh.com': {label:'ECDSA-SK',     kind:'ecdsa',   names:['curve','Q','application'], sk:true}
+};
+var CERT_SUFFIX = '-cert-v01@openssh.com';
+var CURVES = {
+  'nistp256':{bits:256, coord:32, jose:'P-256'},
+  'nistp384':{bits:384, coord:48, jose:'P-384'},
+  'nistp521':{bits:521, coord:66, jose:'P-521'}
+};
+
+/* authorized_keys 的选项表。risk 字段用来给体检打分：
+   good = 收紧了权限，warn = 打开了攻击面，info = 中性。 */
+var OPTIONS = {
+  'restrict':             {arg:false, risk:'good', desc:'一把梭收紧：关闭 pty、端口/代理/X11 转发与 user-rc，未来 OpenSSH 新增的能力也默认关闭'},
+  'cert-authority':       {arg:false, risk:'warn', desc:'把这一行当作 CA，凡是它签发的证书都被信任'},
+  'command':              {arg:true,  risk:'info', desc:'强制执行指定命令，忽略客户端请求的命令（但不自动禁用 pty/转发）'},
+  'environment':          {arg:true,  risk:'warn', desc:'注入环境变量，需服务端 PermitUserEnvironment=yes，历史上被用于提权'},
+  'expiry-time':          {arg:true,  risk:'good', desc:'过期时间 YYYYMMDD[HHMM[SS]]，过期后该行自动失效'},
+  'from':                 {arg:true,  risk:'good', desc:'限定来源主机/网段模式列表，等于给这把钥匙加了门禁'},
+  'no-agent-forwarding':  {arg:false, risk:'good', desc:'禁止 ssh-agent 转发，避免跳板机偷走 agent'},
+  'no-port-forwarding':   {arg:false, risk:'good', desc:'禁止端口转发，避免把内网当跳板'},
+  'no-pty':               {arg:false, risk:'good', desc:'不分配终端，配合 command 才算真正锁死'},
+  'no-user-rc':           {arg:false, risk:'good', desc:'不执行 ~/.ssh/rc'},
+  'no-X11-forwarding':    {arg:false, risk:'good', desc:'禁止 X11 转发'},
+  'permitopen':           {arg:true,  risk:'info', desc:'白名单形式放开本地转发目标 host:port'},
+  'permitlisten':         {arg:true,  risk:'info', desc:'白名单形式放开远程转发监听端口'},
+  'principals':           {arg:true,  risk:'info', desc:'仅对 cert-authority 行有效，限定证书中允许的 principal'},
+  'tunnel':               {arg:true,  risk:'warn', desc:'指定 tun 设备号，开的是三/二层隧道'},
+  'agent-forwarding':     {arg:false, risk:'warn', desc:'在 restrict 之后重新放开 agent 转发'},
+  'port-forwarding':      {arg:false, risk:'warn', desc:'在 restrict 之后重新放开端口转发'},
+  'pty':                  {arg:false, risk:'warn', desc:'在 restrict 之后重新放开终端分配'},
+  'user-rc':              {arg:false, risk:'warn', desc:'在 restrict 之后重新放开 ~/.ssh/rc'},
+  'X11-forwarding':       {arg:false, risk:'warn', desc:'在 restrict 之后重新放开 X11 转发'},
+  'verify-required':      {arg:false, risk:'good', desc:'FIDO2 密钥必须做用户验证（PIN 或生物特征）'},
+  'touch-required':       {arg:false, risk:'good', desc:'FIDO2 密钥每次认证都要触摸'},
+  'no-touch-required':    {arg:false, risk:'warn', desc:'FIDO2 密钥免触摸，等于把「物理在场」这层保护关掉'}
+};
+
+function fpSha256(blob){ return 'SHA256:'+b64encode(sha256Bytes(blob)).replace(/=+$/,''); }
+function fpMd5(blob){ return 'MD5:'+colonHex(md5Bytes(blob)); }
+
+/* SSH wire 游标读取器：证书里混着 uint64 和 string，纯 sshRead 扫不动。 */
+function reader(buf){
+  var i=0;
+  var R={
+    left:function(){ return buf.length-i; },
+    pos:function(){ return i; },
+    u32:function(){
+      if(i+4>buf.length) throw new Error('读 uint32 时数据不足（偏移 '+i+'）');
+      var n=((buf[i]<<24)|(buf[i+1]<<16)|(buf[i+2]<<8)|buf[i+3])>>>0; i+=4; return n;
+    },
+    u64:function(){
+      if(i+8>buf.length) throw new Error('读 uint64 时数据不足（偏移 '+i+'）');
+      var hi=((buf[i]<<24)|(buf[i+1]<<16)|(buf[i+2]<<8)|buf[i+3])>>>0;
+      var lo=((buf[i+4]<<24)|(buf[i+5]<<16)|(buf[i+6]<<8)|buf[i+7])>>>0;
+      i+=8; return hi*4294967296+lo;
+    },
+    str:function(){
+      var n=R.u32();
+      if(i+n>buf.length) throw new Error('读 string 时数据不足：声明 '+n+' 字节，只剩 '+(buf.length-i)+' 字节');
+      var b=buf.slice(i,i+n); i+=n; return b;
+    }
+  };
+  return R;
+}
+
+function parseOptions(str){
+  var out=[],cur='',q=false,i=0;
+  while(i<=str.length){
+    var ch=i<str.length?str.charAt(i):null;
+    if(ch===null || (ch===','&&!q)){
+      if(cur.length){
+        var eq=cur.indexOf('=');
+        var name = eq<0 ? cur : cur.slice(0,eq);
+        var val  = eq<0 ? null : cur.slice(eq+1);
+        if(val!==null && val.charAt(0)==='"' && val.charAt(val.length-1)==='"' && val.length>1)
+          val=val.slice(1,-1).replace(/\\"/g,'"').replace(/\\\\/g,'\\');
+        out.push({name:name, value:val, raw:cur});
+      }
+      cur=''; i++; continue;
+    }
+    if(ch==='\\' && q){ cur+=ch+(str.charAt(i+1)||''); i+=2; continue; }
+    if(ch==='"'){ q=!q; }
+    cur+=ch; i++;
+  }
+  return out;
+}
+
+function looksLikeKeyType(w){
+  return !!SSH_TYPES[w] || /^(ssh-|ecdsa-sha2-|sk-)/.test(w);
+}
+
+function parseLine(line){
+  var raw=String(line===undefined?'':line).replace(/\r$/,'');
+  var t=raw.trim();
+  if(!t) return {kind:'blank', raw:raw};
+  if(t.charAt(0)==='#') return {kind:'comment', raw:raw, text:t};
+  var marker=null;
+  if(t.charAt(0)==='@'){
+    var sp=t.search(/\s/);
+    if(sp<0) return {kind:'error', raw:raw, error:'只有标记 "'+t+'"，后面没跟密钥'};
+    marker=t.slice(0,sp); t=t.slice(sp).replace(/^\s+/,'');
+  }
+  var options=[], optRaw='';
+  var firstWord=t.split(/\s+/)[0]||'';
+  if(!looksLikeKeyType(firstWord)){
+    var i=0,q=false;
+    while(i<t.length){
+      var ch=t.charAt(i);
+      if(ch==='\\' && q){ i+=2; continue; }
+      if(ch==='"'){ q=!q; i++; continue; }
+      if(!q && /\s/.test(ch)) break;
+      i++;
+    }
+    if(q) return {kind:'error', raw:raw, error:'选项里的双引号没有闭合'};
+    optRaw=t.slice(0,i);
+    t=t.slice(i).replace(/^\s+/,'');
+    options=parseOptions(optRaw);
+  }
+  var parts=t.length?t.split(/\s+/):[];
+  var type=parts[0]||'';
+  if(!type) return {kind:'error', raw:raw, error:'没解析出密钥类型'};
+  if(!looksLikeKeyType(type)) return {kind:'error', raw:raw, error:'"'+type+'" 不像 SSH 公钥类型（应形如 ssh-ed25519 / ssh-rsa / ecdsa-sha2-nistp256）'};
+  var b64=parts[1]||'';
+  if(!b64) return {kind:'error', raw:raw, error:'密钥类型 "'+type+'" 后面没有 base64 密钥体'};
+  return {kind:'key', raw:raw, marker:marker, options:options, optionsRaw:optRaw,
+          type:type, b64:b64, comment:parts.slice(2).join(' ')};
+}
+
+/* known_hosts 的第一列是主机名模式，跟 authorized_keys 的选项列位置一样但语义不同。 */
+function parseKnownHostsLine(line){
+  var raw=String(line===undefined?'':line).replace(/\r$/,'');
+  var t=raw.trim();
+  if(!t) return {kind:'blank', raw:raw};
+  if(t.charAt(0)==='#') return {kind:'comment', raw:raw, text:t};
+  var marker=null;
+  if(t.charAt(0)==='@'){
+    var sp=t.search(/\s/);
+    if(sp<0) return {kind:'error', raw:raw, error:'只有标记 "'+t+'"'};
+    marker=t.slice(0,sp); t=t.slice(sp).replace(/^\s+/,'');
+  }
+  var parts=t.split(/\s+/);
+  if(parts.length<3) return {kind:'error', raw:raw, error:'known_hosts 至少要有「主机 类型 密钥」三列'};
+  var hostField=parts[0], hashed=null;
+  if(hostField.charAt(0)==='|'){
+    var seg=hostField.split('|');
+    if(seg.length!==4 || seg[1]!=='1') return {kind:'error', raw:raw, error:'哈希主机名格式应为 |1|salt|hash'};
+    hashed={salt:seg[2], hash:seg[3]};
+  }
+  return {kind:'host', raw:raw, marker:marker, hostField:hostField, hashed:hashed,
+          patterns:hashed?null:hostField.split(','), type:parts[1], b64:parts[2],
+          comment:parts.slice(3).join(' ')};
+}
+
+function hashKnownHost(host, salt){
+  var s=salt&&salt.length?salt:null;
+  if(!s){ s=[]; for(var i=0;i<20;i++) s.push(0); }
+  return '|1|'+b64encode(s)+'|'+b64encode(hmacSha1(s, utf8Bytes(String(host))));
+}
+function matchHashedHost(entry, host){
+  if(!entry || !entry.hashed) return false;
+  var salt, want;
+  try { salt=b64decode(entry.hashed.salt); want=b64decode(entry.hashed.hash); }
+  catch(e){ return false; }
+  var got=hmacSha1(salt, utf8Bytes(String(host)));
+  if(got.length!==want.length) return false;
+  for(var i=0;i<got.length;i++) if(got[i]!==want[i]) return false;
+  return true;
+}
+/* known_hosts 的明文模式支持 * 和 ?，还允许 [host]:port 写法。 */
+function matchHostPattern(pattern, host){
+  var neg=false, p=String(pattern);
+  if(p.charAt(0)==='!'){ neg=true; p=p.slice(1); }
+  var rx=new RegExp('^'+p.replace(/[.+^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*').replace(/\?/g,'.')+'$');
+  var hit=rx.test(String(host));
+  return neg ? (hit?'deny':false) : hit;
+}
+
+function decodeKey(type, b64){
+  var blob;
+  try { blob=b64decode(b64); }
+  catch(e){ return {error:'密钥体不是合法 base64：'+e.message}; }
+  if(!blob.length) return {error:'密钥体解出来是 0 字节'};
+  var out={blob:blob, bytes:blob.length, fields:[], warnings:[]};
+  var R=reader(blob), inner;
+  try { inner=bytesToUtf8(R.str()); }
+  catch(e){ return {error:'读取内部类型失败：'+e.message, blob:blob}; }
+  out.inner=inner;
+  out.isCert = inner.indexOf(CERT_SUFFIX)>0;
+  var base = out.isCert ? inner.slice(0, inner.length-CERT_SUFFIX.length) : inner;
+  if(base==='ssh-rsa-cert-v01') base='ssh-rsa';
+  out.base=base;
+  if(type && inner!==type)
+    out.mismatch='行首写的是 "'+type+'"，密钥体里却是 "'+inner+'"——多半是复制时串了行';
+  var spec=SSH_TYPES[base];
+  out.label = spec ? spec.label : base;
+  out.fields.push({name:'type', text:inner, bytes:utf8Bytes(inner).length});
+  try {
+    if(out.isCert) out.fields.push({name:'nonce', hex:toHex(R.str()), note:'防重放随机数'});
+    if(!spec){ out.warnings.push('未知密钥类型 "'+base+'"，后续字段不再逐个拆解'); out.rest=R.left(); return out; }
+    var names=spec.names, vals=[];
+    for(var i=0;i<names.length;i++){
+      var v=R.str(); vals.push(v);
+      var f={name:names[i], bytes:v.length};
+      if(names[i]==='curve'||names[i]==='application') f.text=bytesToUtf8(v);
+      else f.hex=toHex(v);
+      out.fields.push(f);
+    }
+    if(spec.kind==='rsa'){
+      out.bits=bitLen(vals[1]);
+      out.exponent=parseInt(toHex(vals[0]),16);
+      out.detail='e='+out.exponent+' · n 为 '+out.bits+' 位';
+    } else if(spec.kind==='dsa'){
+      out.bits=bitLen(vals[0]);
+      out.detail='p 为 '+out.bits+' 位';
+    } else if(spec.kind==='ecdsa'){
+      var cname=bytesToUtf8(vals[0]), ci=CURVES[cname];
+      out.curve=cname;
+      out.bits=ci?ci.bits:0;
+      out.jose=ci?ci.jose:null;
+      var Q=vals[1];
+      if(Q.length && Q[0]!==0x04) out.warnings.push('公钥点首字节是 0x'+('0'+Q[0].toString(16)).slice(-2)+'，不是未压缩点 0x04，OpenSSH 不接受压缩点');
+      if(ci && Q.length!==1+2*ci.coord) out.warnings.push('曲线 '+cname+' 的公钥点应为 '+(1+2*ci.coord)+' 字节，实际 '+Q.length+' 字节');
+      if(base.indexOf(cname)<0 && !spec.sk) out.warnings.push('类型名里的曲线与字段里的曲线 "'+cname+'" 对不上');
+      out.detail=cname+' 未压缩点，'+Q.length+' 字节';
+    } else if(spec.kind==='ed25519'){
+      out.bits=256;
+      if(vals[0].length!==32) out.warnings.push('Ed25519 公钥应为 32 字节，实际 '+vals[0].length+' 字节');
+      out.detail='32 字节曲线点';
+      if(spec.sk) out.detail+=' · FIDO2 application='+bytesToUtf8(vals[names.indexOf('application')]||[]);
+    }
+    if(out.isCert){
+      var c={};
+      c.serial=R.u64();
+      var ct=R.u32();
+      c.certType = ct===1?'用户证书':(ct===2?'主机证书':'未知类型 '+ct);
+      c.keyId=bytesToUtf8(R.str());
+      var pr=reader(R.str()), principals=[];
+      while(pr.left()>0) principals.push(bytesToUtf8(pr.str()));
+      c.principals=principals;
+      c.validAfter=R.u64();
+      c.validBefore=R.u64();
+      c.criticalBytes=R.str().length;
+      c.extensionBytes=R.str().length;
+      R.str();
+      var sk=R.str();
+      c.signatureKeyFp=fpSha256(sk);
+      try { c.signatureKeyType=bytesToUtf8(reader(sk).str()); } catch(e2){ c.signatureKeyType='?'; }
+      c.signatureBytes=R.str().length;
+      out.cert=c;
+    }
+  } catch(e){
+    out.error='SSH wire 解析中断：'+e.message;
+    return out;
+  }
+  out.rest=R.left();
+  if(out.rest>0) out.warnings.push('密钥体末尾还剩 '+out.rest+' 字节没被消费，格式可能不对');
+  out.sha256=fpSha256(blob);
+  out.md5=fpMd5(blob);
+  return out;
+}
+
+/* OpenSSH 的 drunken bishop：拿指纹当随机游走的方向序列，落点次数决定字符。
+   照着 sshkey_fingerprint_randomart() 的实现逐行搬过来，包括边框拼法。 */
+var ART_CHARS=' .o+=*BOX@%&#/^SE';
+function randomart(digest, title, footer){
+  var X=17, Y=9;
+  var f=[],x=Math.floor(X/2),y=Math.floor(Y/2),i,j;
+  for(i=0;i<X;i++){ f[i]=[]; for(j=0;j<Y;j++) f[i][j]=0; }
+  for(i=0;i<digest.length;i++){
+    var input=digest[i];
+    for(var k=0;k<4;k++){
+      x += (input&0x1) ? 1 : -1;
+      y += (input&0x2) ? 1 : -1;
+      x = Math.max(0, Math.min(X-1, x));
+      y = Math.max(0, Math.min(Y-1, y));
+      if(f[x][y] < ART_CHARS.length-2) f[x][y]++;
+      input >>= 2;
+    }
+  }
+  f[Math.floor(X/2)][Math.floor(Y/2)] = ART_CHARS.length-2;
+  f[x][y] = ART_CHARS.length-1;
+  function border(text){
+    var t=text?('['+text+']'):'';
+    if(t.length>X) t=t.slice(0,X);
+    var lead=Math.floor((X-t.length)/2);
+    var s='+';
+    for(var q=0;q<lead;q++) s+='-';
+    s+=t;
+    for(var q2=lead+t.length;q2<X;q2++) s+='-';
+    return s+'+';
+  }
+  var lines=[border(title)];
+  for(j=0;j<Y;j++){
+    var row='|';
+    for(i=0;i<X;i++) row+=ART_CHARS.charAt(f[i][j]);
+    lines.push(row+'|');
+  }
+  lines.push(border(footer||'SHA256'));
+  return lines.join('\n');
+}
+
+function analyze(parsed, dec){
+  var out=[];
+  function add(level,msg){ out.push({level:level, msg:msg}); }
+  if(parsed.marker==='@cert-authority')
+    add('warn','这一行是 @cert-authority：由该 CA 签发的任何证书都会被无条件接受，务必配合 principals= 限定范围');
+  if(parsed.marker==='@revoked')
+    add('info','这一行是 @revoked 吊销标记，匹配到的密钥会被直接拒绝');
+  if(dec.error){ add('bad','解析失败：'+dec.error); return out; }
+  if(dec.mismatch) add('bad', dec.mismatch);
+  for(var w=0;w<(dec.warnings||[]).length;w++) add('warn', dec.warnings[w]);
+
+  if(dec.base==='ssh-dss')
+    add('bad','DSA 从 OpenSSH 7.0 起默认关闭，9.8 起编译期就被移除，任何现存 ssh-dss 都该立刻替换');
+  if(dec.base==='ssh-rsa'){
+    if(dec.bits<1024) add('bad','RSA 只有 '+dec.bits+' 位，属于可被现成算力打穿的级别');
+    else if(dec.bits<2048) add('bad','RSA '+dec.bits+' 位低于 2048 位下限，OpenSSH 8.2+ 会直接拒绝');
+    else if(dec.bits<3072) add('info','RSA '+dec.bits+' 位仍在安全线内，长期使用建议升到 3072 位或直接换 Ed25519');
+    else add('ok','RSA '+dec.bits+' 位，强度充足');
+    if(dec.exponent!==65537) add('warn','公钥指数 e='+dec.exponent+' 不是常规的 65537，来路需要确认');
+    add('info','注意区分密钥类型与签名算法：ssh-rsa 密钥没问题，但 SHA-1 签名算法 ssh-rsa 自 OpenSSH 8.8 起默认禁用，服务端需支持 rsa-sha2-256/512');
+  }
+  if(dec.base==='ssh-ed25519') add('ok','Ed25519：128 位安全强度、68 字节公钥、抗侧信道，目前的默认推荐');
+  if((dec.base||'').indexOf('ecdsa-sha2-')===0) add('ok','ECDSA '+(dec.curve||'')+'：强度够用，但实现对随机数敏感，同等条件下 Ed25519 更省心');
+  if(SSH_TYPES[dec.base] && SSH_TYPES[dec.base].sk)
+    add('ok','FIDO2 硬件密钥：私钥留在安全芯片里，配合 verify-required 可做到「插着还得摸一下」');
+
+  if(!parsed.comment) add('info','这一行没有注释，出事时无法从 authorized_keys 里认出这是谁的钥匙，建议补上 用户@主机 或用途');
+  if(dec.isCert && dec.cert){
+    var c=dec.cert;
+    add('info','这是 OpenSSH 证书：'+c.certType+'，key id="'+c.keyId+'"，principals='+(c.principals.length?c.principals.join(','):'(全部)'));
+    if(!c.principals.length) add('warn','证书没有限定 principals，等于对所有用户名都有效');
+    if(c.validBefore>=18446744073709551615 || c.validBefore>4102444800)
+      add('warn','证书没有实际过期时间（valid before 落在 2100 年之后），失去了短时凭证的意义');
+  }
+
+  var names={}, hasRestrict=false, hasCommand=false, hasFrom=false, reopened=[];
+  for(var i=0;i<(parsed.options||[]).length;i++){
+    var o=parsed.options[i], meta=OPTIONS[o.name];
+    names[o.name]=true;
+    if(o.name==='restrict') hasRestrict=true;
+    if(o.name==='command') hasCommand=true;
+    if(o.name==='from') hasFrom=true;
+    if(!meta){ add('warn','未知选项 "'+o.name+'"：OpenSSH 遇到不认识的选项会整行拒绝，登录会直接失败'); continue; }
+    if(meta.arg && o.value===null) add('bad','选项 '+o.name+' 需要 ="值" 形式的参数');
+    if(!meta.arg && o.value!==null) add('bad','选项 '+o.name+' 不接受参数，却写成了 '+o.raw);
+    if(meta.risk==='warn') reopened.push(o.name);
+  }
+  if(hasCommand && !hasRestrict && !names['no-pty'])
+    add('warn','写了 command= 却没有 restrict 或 no-pty：客户端仍可申请终端与端口转发，强制命令不等于沙箱');
+  if((parsed.options||[]).length===0)
+    add('info','这一行没有任何限制选项。若是 CI / 部署专用密钥，建议至少加 restrict 与 from="…"');
+  else if(!hasRestrict && !names['no-port-forwarding'])
+    add('info','没有 restrict 也没有 no-port-forwarding，这把钥匙可以把机器当跳板做端口转发');
+  if(hasFrom) add('ok','带 from= 来源限定，攻击面明显收窄');
+  if(hasRestrict && reopened.length) add('info','restrict 之后又单独放开了：'+reopened.join('、')+'，请确认是有意为之');
+  return out;
+}
+
+function buildLine(opts, type, b64, comment){
+  var parts=[];
+  var o=(opts||[]).filter(function(s){ return s && String(s).length; });
+  if(o.length) parts.push(o.join(','));
+  parts.push(type||'ssh-ed25519');
+  parts.push(b64||'');
+  if(comment) parts.push(comment);
+  return parts.join(' ');
+}
+
+function parseFile(text){
+  var lines=String(text===undefined?'':text).split(/\n/);
+  var out=[];
+  for(var i=0;i<lines.length;i++){
+    var p=parseLine(lines[i]);
+    p.line=i+1;
+    if(p.kind==='key'){
+      p.decoded=decodeKey(p.type, p.b64);
+      p.issues=analyze(p, p.decoded);
+    }
+    out.push(p);
+  }
+  return out;
+}
+
+function fileStats(entries){
+  var s={total:0, byType:{}, errors:0, dupes:[], weakest:null};
+  var seen={};
+  for(var i=0;i<entries.length;i++){
+    var e=entries[i];
+    if(e.kind==='error'){ s.errors++; continue; }
+    if(e.kind!=='key') continue;
+    s.total++;
+    var d=e.decoded||{};
+    if(d.error){ s.errors++; continue; }
+    var lbl=d.label||e.type;
+    s.byType[lbl]=(s.byType[lbl]||0)+1;
+    var fp=d.sha256;
+    if(fp){
+      if(seen[fp]) s.dupes.push({fp:fp, lines:[seen[fp], e.line]});
+      else seen[fp]=e.line;
+    }
+    var score = d.base==='ssh-dss' ? 0 : (d.base==='ssh-rsa' ? d.bits : (d.base==='ssh-ed25519' ? 3072 : (d.bits||0)*12));
+    if(s.weakest===null || score<s.weakest.score) s.weakest={line:e.line, label:lbl, score:score};
+  }
+  return s;
+}
+
+var SshForgePure = {
+  SSH_TYPES:SSH_TYPES, OPTIONS:OPTIONS, CURVES:CURVES,
+  parseLine:parseLine, parseOptions:parseOptions, decodeKey:decodeKey, analyze:analyze,
+  fpSha256:fpSha256, fpMd5:fpMd5, randomart:randomart, buildLine:buildLine,
+  parseFile:parseFile, fileStats:fileStats,
+  parseKnownHostsLine:parseKnownHostsLine, hashKnownHost:hashKnownHost,
+  matchHashedHost:matchHashedHost, matchHostPattern:matchHostPattern,
+  utf8Bytes:utf8Bytes, bytesToUtf8:bytesToUtf8, toHex:toHex, b64encode:b64encode, b64decode:b64decode,
+  sha256Bytes:sha256Bytes, md5Bytes:md5Bytes, hmacSha1:hmacSha1, bitLen:bitLen
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = SshForgePure;
+if (typeof window !== 'undefined') window.SshForgePure = SshForgePure;
+
+</script>
+<script>
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var P=window.SshForgePure;
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  var LEVEL={bad:{c:'var(--warn)',t:'必须处理'},warn:{c:'var(--warn)',t:'注意'},
+             ok:{c:'var(--ok)',t:'良好'},info:{c:'var(--info)',t:'提示'}};
+
+  var SAMPLE=[
+    '# 这一段专门用来演示各种会翻车的写法',
+    '@cert-authority *.corp.example ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl corp-ca',
+    'ssh-dss AAAAB3NzaC1kc3MAAACBAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAEAAAABAAAAAQ== legacy-box',
+    'nosuchoption ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl typo-breaks-the-whole-line',
+    'ssh-rsa AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl 类型写错了',
+    '|1|F1E1AQIDBAUGBwgJCgsMDQ4PEA==|c2FsdGVkLWhhc2gtcGxhY2Vob2xkZXI= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl',
+    '完全不是公钥的一行'
+  ].join('\n');
+
+  var CHECKS=['restrict','no-pty','no-agent-forwarding','no-port-forwarding','no-X11-forwarding','no-user-rc','verify-required'];
+
+  function badge(text,color){
+    return '<span class="badge" style="color:'+color+';border-color:'+color+'33">'+esc(text)+'</span>';
+  }
+  function renderStats(entries){
+    var s=P.fileStats(entries);
+    var types=Object.keys(s.byType).map(function(k){ return k+' ×'+s.byType[k]; }).join('，')||'—';
+    var rows=[['有效密钥行',s.total],['密钥类型',types],['解析失败',s.errors],
+              ['重复密钥',s.dupes.length?s.dupes.map(function(d){return '第 '+d.lines.join(' / ')+' 行';}).join('，'):'无'],
+              ['最弱的一把',s.weakest?('第 '+s.weakest.line+' 行 · '+s.weakest.label):'—']];
+    $('ssh_stats').innerHTML=rows.map(function(r){
+      return '<div class="kv"><b>'+r[0]+'</b><span>'+esc(String(r[1]))+'</span></div>';
+    }).join('');
+  }
+  function renderKey(e){
+    var d=e.decoded||{};
+    var head='<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">'+
+      '<span style="color:var(--dim)">第 '+e.line+' 行</span>'+
+      '<b style="color:var(--accent)">'+esc(d.label||e.type)+'</b>'+
+      (d.bits?'<span style="color:var(--muted)">'+d.bits+' 位</span>':'')+
+      (e.marker?badge(e.marker,'var(--warn)'):'')+
+      (d.isCert?badge('OpenSSH 证书','var(--info)'):'')+
+      (e.comment?'<span style="color:var(--dim)">'+esc(e.comment)+'</span>':'')+
+      '</div>';
+    if(d.error) return '<div style="padding:10px 0;border-bottom:1px dashed var(--line)">'+head+
+      '<div style="color:var(--warn);margin-top:6px">'+esc(d.error)+'</div></div>';
+    var kv=[['SHA256 指纹',d.sha256],['MD5 指纹',d.md5],['密钥体',d.bytes+' 字节'],['要点',d.detail||'—']];
+    if(d.cert){
+      kv.push(['证书用途',d.cert.certType]);
+      kv.push(['key id',d.cert.keyId||'—']);
+      kv.push(['principals',d.cert.principals.length?d.cert.principals.join('，'):'（不限）']);
+      kv.push(['有效期',fmtTime(d.cert.validAfter)+' → '+fmtTime(d.cert.validBefore)]);
+      kv.push(['签发者',d.cert.signatureKeyType+' '+d.cert.signatureKeyFp]);
+    }
+    var art=P.randomart(P.sha256Bytes(d.blob), (d.label||e.type).toUpperCase()+' '+(d.bits||''), 'SHA256');
+    var fields=d.fields.map(function(f){
+      var v=f.text!==undefined ? f.text : (f.hex.length>64 ? f.hex.slice(0,64)+'…' : f.hex);
+      return '<div class="kv"><b>'+esc(f.name)+' <span style="color:var(--dim)">'+f.bytes+'B</span></b><span>'+esc(v)+'</span></div>';
+    }).join('');
+    var opts='';
+    if(e.options && e.options.length){
+      opts='<div style="margin-top:8px">'+e.options.map(function(o){
+        var meta=P.OPTIONS[o.name];
+        var c=meta?(meta.risk==='good'?'var(--ok)':(meta.risk==='warn'?'var(--warn)':'var(--info)')):'var(--warn)';
+        return '<div class="kv"><b style="color:'+c+'">'+esc(o.name)+(o.value!==null?'=':'')+'</b><span>'+
+          esc(o.value!==null?o.value:(meta?meta.desc:'未知选项'))+'</span></div>';
+      }).join('')+'</div>';
+    }
+    return '<div style="padding:10px 0;border-bottom:1px dashed var(--line)">'+head+
+      '<div class="grid">'+kv.map(function(r){
+        return '<div class="kv"><b>'+r[0]+'</b><span>'+esc(String(r[1]))+'</span></div>';
+      }).join('')+'</div>'+
+      '<pre style="margin:10px 0 0;font:12px/1.15 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted)">'+esc(art)+'</pre>'+
+      '<div style="margin-top:8px;color:var(--dim);font-size:12px">wire 字段</div>'+fields+opts+'</div>';
+  }
+  function fmtTime(sec){
+    if(sec===undefined||sec===null) return '—';
+    if(sec>4102444800) return '不限';
+    try { return new Date(sec*1000).toISOString().replace('T',' ').slice(0,19)+' UTC'; }
+    catch(err){ return String(sec); }
+  }
+  function renderLint(entries){
+    var html='';
+    for(var i=0;i<entries.length;i++){
+      var e=entries[i];
+      if(e.kind==='error'){
+        html+='<div class="kv"><b style="color:var(--warn)">第 '+e.line+' 行 · 必须处理</b><span>'+esc(e.error)+'</span></div>';
+        continue;
+      }
+      if(e.kind!=='key'||!e.issues) continue;
+      for(var j=0;j<e.issues.length;j++){
+        var it=e.issues[j], L=LEVEL[it.level]||LEVEL.info;
+        html+='<div class="kv"><b style="color:'+L.c+'">第 '+e.line+' 行 · '+L.t+'</b><span style="max-width:70%;text-align:right">'+esc(it.msg)+'</span></div>';
+      }
+    }
+    $('ssh_lint').innerHTML=html||'<span style="color:var(--muted)">没有解析出可体检的密钥行。</span>';
+  }
+  function firstKey(entries){
+    for(var i=0;i<entries.length;i++) if(entries[i].kind==='key') return entries[i];
+    return null;
+  }
+  function renderGen(entries){
+    var k=firstKey(entries);
+    var opts=[];
+    for(var i=0;i<CHECKS.length;i++){
+      var el=$('ssh_o_'+i);
+      if(el && el.checked) opts.push(CHECKS[i]);
+    }
+    var f=$('ssh_from').value.trim(), c=$('ssh_cmd').value.trim();
+    if(f) opts.unshift('from="'+f.replace(/"/g,'')+'"');
+    if(c) opts.push('command="'+c.replace(/"/g,'')+'"');
+    $('ssh_gen').value = k ? P.buildLine(opts, k.type, k.b64, k.comment||'generated-by-SshForge')
+                           : '（上面还没有可用的公钥）';
+  }
+  function renderOptBox(){
+    $('ssh_optbox').innerHTML=CHECKS.map(function(name,i){
+      var meta=P.OPTIONS[name]||{desc:''};
+      return '<div class="kv"><b><label for="ssh_o_'+i+'" style="display:inline;margin:0;color:var(--fg)">'+
+        '<input type="checkbox" id="ssh_o_'+i+'"'+(name==='restrict'?' checked':'')+'> '+esc(name)+'</label></b>'+
+        '<span style="max-width:66%;text-align:right;color:var(--muted)">'+esc(meta.desc)+'</span></div>';
+    }).join('');
+    for(var i=0;i<CHECKS.length;i++){
+      var el=$('ssh_o_'+i);
+      if(el) el.addEventListener('change', run);
+    }
+  }
+  function lookup(){
+    var host=$('ssh_host').value.trim();
+    var lines=$('ssh_in').value.split(/\n/);
+    if(!host){ $('ssh_hostout').innerHTML='<span style="color:var(--muted)">先填一个主机名。</span>'; return; }
+    var hits=[];
+    for(var i=0;i<lines.length;i++){
+      var e=P.parseKnownHostsLine(lines[i]);
+      if(e.kind!=='host') continue;
+      if(e.hashed){
+        if(P.matchHashedHost(e,host)) hits.push({line:i+1, how:'哈希主机名命中（HMAC-SHA1 比对）', type:e.type});
+      } else {
+        for(var j=0;j<e.patterns.length;j++){
+          var r=P.matchHostPattern(e.patterns[j],host);
+          if(r==='deny'){ hits.push({line:i+1, how:'被否定模式 '+e.patterns[j]+' 显式排除', type:e.type}); break; }
+          if(r){ hits.push({line:i+1, how:'明文模式 '+e.patterns[j]+' 命中', type:e.type}); break; }
+        }
+      }
+    }
+    $('ssh_hostout').innerHTML = hits.length
+      ? hits.map(function(h){ return '<div class="kv"><b>第 '+h.line+' 行</b><span>'+esc(h.type+' · '+h.how)+'</span></div>'; }).join('')
+      : '<span style="color:var(--muted)">上面的文本里没有匹配 '+esc(host)+' 的 known_hosts 行。也提示：哈希过的主机名只能这样逐条试，无法反解。</span>';
+  }
+  function run(){
+    var text=$('ssh_in').value;
+    var entries;
+    try { entries=P.parseFile(text); }
+    catch(err){ $('ssh_err').textContent='解析异常：'+err.message; return; }
+    $('ssh_err').textContent='';
+    renderStats(entries);
+    var keys=entries.filter(function(e){ return e.kind==='key'; });
+    $('ssh_keys').innerHTML = keys.length ? keys.map(renderKey).join('')
+      : '<span style="color:var(--muted)">没有识别出公钥行。</span>';
+    renderLint(entries);
+    renderGen(entries);
+  }
+
+  renderOptBox();
+  $('ssh_parse').addEventListener('click', run);
+  $('ssh_sample').addEventListener('click', function(){ $('ssh_in').value=SAMPLE; run(); });
+  $('ssh_clear').addEventListener('click', function(){ $('ssh_in').value=''; run(); });
+  $('ssh_in').addEventListener('input', run);
+  $('ssh_from').addEventListener('input', run);
+  $('ssh_cmd').addEventListener('input', run);
+  $('ssh_lookup').addEventListener('click', lookup);
+  $('ssh_copy').addEventListener('click', function(){
+    var t=$('ssh_gen'); t.select();
+    try { document.execCommand('copy'); } catch(e){}
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).catch(function(){});
+  });
+  run(); lookup();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

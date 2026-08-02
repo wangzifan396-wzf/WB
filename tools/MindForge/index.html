@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<!-- MindForge · nano-tools · https://wangzifan396-wzf.github.io/mindforge/ -->
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<title>MindForge · 本地优先思维导图</title>
+<meta name="description" content="MindForge — 本地优先的思维导图 / 节点图编辑器：结构化节点树、自动布局、离线可用。" />
+<meta name="theme-color" content="#5E6AD2" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="og.svg" type="image/svg+xml" />
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --card2:#1A1B1E;
+    --line:rgba(255,255,255,0.08); --line2:rgba(255,255,255,0.14);
+    --txt:#FFFFFF; --txt2:#A1A1AA; --txt3:#71717A;
+    --acc:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA;
+    --shadow:0 8px 24px rgba(0,0,0,0.45);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased; overflow:hidden;}
+  button{font-family:inherit;}
+  header{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line);}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.3px;}
+  .brand .mark{width:24px;height:24px;border-radius:7px;background:var(--acc);display:flex;align-items:center;justify-content:center;}
+  .brand small{color:var(--txt3);font-weight:500;}
+  .spacer{flex:1;}
+  .lang-btn{background:var(--card2);border:1px solid var(--line);color:var(--txt2);border-radius:8px;
+    padding:6px 12px;cursor:pointer;font-size:13px;transition:border-color .15s,color .15s;}
+  .lang-btn:hover{border-color:var(--line2);color:var(--txt);}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:7px;padding:10px 16px;border-bottom:1px solid var(--line);align-items:center;}
+  .btn{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:8px;
+    padding:7px 12px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;
+    transition:transform .12s,background .12s,border-color .12s,opacity .12s;}
+  .btn:hover{border-color:var(--line2);transform:translateY(-1px);}
+  .btn:active{transform:translateY(0);}
+  .btn:disabled{opacity:.4;cursor:default;transform:none;}
+  .btn.primary{background:var(--acc);border-color:var(--acc);}
+  .btn.primary:hover{background:#6b76e0;}
+  .btn .k{font-size:11px;color:var(--txt3);border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-left:2px;}
+  .btn.primary .k{color:rgba(255,255,255,.7);border-color:rgba(255,255,255,.25);}
+  .sep{width:1px;height:22px;background:var(--line);margin:0 3px;}
+  .search{display:flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--line);
+    border-radius:8px;padding:5px 10px;}
+  .search input{background:transparent;border:none;outline:none;color:var(--txt);font-size:13px;width:160px;}
+  .search input::placeholder{color:var(--txt3);}
+
+  .workspace{display:flex;height:calc(100% - 110px);min-height:0;}
+  .viewport{position:relative;flex:1;min-width:0;overflow:hidden;cursor:grab;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.045) 1px, transparent 0) 0 0 / 26px 26px,
+      var(--bg);}
+  .viewport.panning{cursor:grabbing;}
+  #world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform;}
+  #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px;pointer-events:none;}
+  .node{position:absolute;max-width:260px;user-select:none;cursor:grab;}
+  .node:active{cursor:grabbing;}
+  .node-body{background:var(--card);border:1px solid var(--line2);border-left:3px solid var(--c,var(--acc));
+    border-radius:10px;padding:9px 13px;box-shadow:var(--shadow);color:var(--txt);font-size:14px;line-height:1.4;
+    transition:border-color .12s, box-shadow .12s, transform .12s;}
+  .node:hover .node-body{border-color:rgba(255,255,255,0.26);}
+  .node.selected .node-body{border-color:var(--c,var(--acc));box-shadow:0 0 0 2px color-mix(in srgb,var(--c,var(--acc)) 45%,transparent),var(--shadow);}
+  .node.hit .node-body{border-color:var(--warn);box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 40%,transparent),var(--shadow);}
+  .node-text{display:block;white-space:pre-wrap;word-break:break-word;outline:none;}
+  .node-text[contenteditable="true"]{cursor:text;background:rgba(0,0,0,0.25);border-radius:4px;}
+  .collapse-dot{position:absolute;right:-11px;top:50%;transform:translateY(-50%);
+    width:22px;height:22px;border-radius:50%;background:var(--card2);border:1px solid var(--line2);
+    color:var(--txt2);font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+    z-index:2;transition:background .12s,color .12s,border-color .12s;}
+  .collapse-dot:hover{color:var(--txt);border-color:var(--acc);}
+  .collapse-dot.collapsed{background:var(--acc);color:#fff;border-color:var(--acc);}
+
+  .side{width:248px;border-left:1px solid var(--line);background:var(--card);display:flex;flex-direction:column;padding:14px;gap:16px;overflow:auto;}
+  .side h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--txt3);font-weight:600;}
+  .palette{display:flex;flex-wrap:wrap;gap:8px;}
+  .swatch{width:26px;height:26px;border-radius:7px;cursor:pointer;border:2px solid transparent;transition:transform .12s,border-color .12s;}
+  .swatch:hover{transform:scale(1.08);}
+  .swatch.active{border-color:#fff;}
+  .hint-list{font-size:12px;color:var(--txt2);line-height:1.9;}
+  .hint-list kbd{background:var(--card2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px;color:var(--txt);}
+  .meta{font-size:12px;color:var(--txt3);line-height:1.7;}
+  .meta b{color:var(--txt2);font-weight:600;}
+
+  .brand-strip{position:absolute;right:14px;bottom:12px;font-size:12px;color:var(--acc);font-weight:700;letter-spacing:.4px;
+    background:rgba(10,10,11,0.6);border:1px solid var(--line);border-radius:8px;padding:4px 10px;backdrop-filter:blur(4px);}
+  .brand-strip span{color:var(--txt3);font-weight:500;}
+  .hint-tip{position:absolute;left:14px;top:12px;font-size:12px;color:var(--txt3);background:rgba(10,10,11,0.55);
+    border:1px solid var(--line);border-radius:8px;padding:4px 10px;}
+
+  .minimap{position:absolute;left:14px;bottom:12px;width:190px;height:120px;background:rgba(20,20,23,0.82);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;backdrop-filter:blur(4px);}
+  .minimap svg{width:100%;height:100%;display:block;}
+  .mm-view{fill:rgba(94,106,210,0.18);stroke:var(--acc);stroke-width:1.5;}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--card2);
+    border:1px solid var(--line2);color:var(--txt);padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;
+    pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;box-shadow:var(--shadow);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .menu{position:relative;}
+  .menu-pop{position:absolute;top:calc(100% + 6px);left:0;background:var(--card2);border:1px solid var(--line2);
+    border-radius:10px;padding:6px;min-width:160px;box-shadow:var(--shadow);display:none;z-index:40;flex-direction:column;gap:2px;}
+  .menu-pop.open{display:flex;}
+  .menu-pop button{background:transparent;border:none;color:var(--txt);text-align:left;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;}
+  .menu-pop button:hover{background:var(--card);}
+  input[type=file]{display:none;}
+
+  @media (max-width:720px){ .side{display:none;} }
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;animation:none !important;}
+  }
+</style>
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">MindForge · 本地优先思维导图</h1>
+  <header>
+    <div class="brand">
+      <span class="mark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="5" cy="12" r="2.4"/><circle cx="18" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/>
+          <path d="M7.2 11 15.8 6.8M7.2 13 15.8 17.2"/>
+        </svg>
+      </span>
+      <span>MindForge</span>
+      <small id="subtitle">本地优先思维导图</small>
+    </div>
+    <div class="spacer"></div>
+    <button class="lang-btn" id="langBtn" title="切换语言">EN</button>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn primary" id="addChild" title="添加子节点 (Tab)"><span data-i18n="addChild">添加子节点</span><span class="k">Tab</span></button>
+    <button class="btn" id="addSibling" title="添加同级 (Enter)"><span data-i18n="addSibling">添加同级</span><span class="k">↵</span></button>
+    <button class="btn" id="delNode" title="删除 (Del)"><span data-i18n="del">删除</span><span class="k">Del</span></button>
+    <span class="sep"></span>
+    <button class="btn" id="collapseAll" data-i18n="collapseAll">折叠全部</button>
+    <button class="btn" id="expandAll" data-i18n="expandAll">展开全部</button>
+    <button class="btn" id="relayout" data-i18n="relayout">重新布局</button>
+    <span class="sep"></span>
+    <button class="btn" id="fit" title="适应屏幕 (F)"><span data-i18n="fit">适应屏幕</span><span class="k">F</span></button>
+    <button class="btn" id="zoomIn">+</button>
+    <button class="btn" id="zoomOut">−</button>
+    <div class="spacer"></div>
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--txt3)" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input id="searchInput" type="text" data-i18n-ph="searchPh" placeholder="搜索节点…" />
+    </div>
+    <button class="btn" id="newMap" data-i18n="newMap">新建</button>
+    <button class="btn" id="sample" data-i18n="sample">示例</button>
+    <button class="btn" id="importBtn" data-i18n="import">导入</button>
+    <div class="menu">
+      <button class="btn" id="exportBtn" data-i18n="export">导出 ▾</button>
+      <div class="menu-pop" id="exportPop">
+        <button data-export="json" data-i18n="expJson">导出 JSON</button>
+        <button data-export="png" data-i18n="expPng">导出 PNG</button>
+        <button data-export="svg" data-i18n="expSvg">导出 SVG</button>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept="application/json,.json" />
+  </div>
+
+  <div class="workspace">
+    <div class="viewport" id="viewport">
+      <div id="world">
+        <svg id="edges"></svg>
+      </div>
+      <div class="hint-tip" id="hintTip" data-i18n="hintTip">双击编辑 · 拖拽移动 · 滚轮缩放</div>
+      <div class="minimap" id="minimap"><svg id="mmSvg" viewBox="0 0 190 120" preserveAspectRatio="none"></svg></div>
+      <div class="brand-strip">nano·tools <span>· MindForge</span></div>
+    </div>
+    <aside class="side">
+      <div>
+        <h4 data-i18n="branchColor">分支颜色</h4>
+        <div class="palette" id="palette"></div>
+      </div>
+      <div>
+        <h4 data-i18n="selected">当前节点</h4>
+        <div class="meta" id="selMeta"><span data-i18n="none">未选择节点</span></div>
+      </div>
+      <div>
+        <h4 data-i18n="shortcuts">快捷键</h4>
+        <div class="hint-list" id="hintList"></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+ *  PURE FUNCTIONS (testable, no DOM references)
+ * ============================================================ */
+function uid(nodes){
+  let max = 0;
+  (nodes || []).forEach(function(n){
+    var m = /^n(\d+)$/.exec(String(n.id));
+    if (m) max = Math.max(max, +m[1]);
+  });
+  return 'n' + (max + 1);
+}
+function makeNode(nodes, opts){
+  opts = opts || {};
+  return {
+    id: opts.id != null ? String(opts.id) : uid(nodes),
+    parentId: opts.parentId != null ? String(opts.parentId) : null,
+    text: typeof opts.text === 'string' ? opts.text : '新节点',
+    color: typeof opts.color === 'string' ? opts.color : null,
+    collapsed: !!opts.collapsed,
+    x: Number(opts.x) || 0,
+    y: Number(opts.y) || 0,
+    manual: !!opts.manual
+  };
+}
+function addNode(nodes, opts){ return nodes.concat([makeNode(nodes, opts)]); }
+
+function removeNode(nodes, id){
+  var dead = {}, stack = [id], out = [];
+  dead[id] = true;
+  // mark all descendants
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.parentId != null && dead[n.parentId] && !dead[n.id]) { dead[n.id] = true; changed = true; }
+    }
+  }
+  for (var j = 0; j < nodes.length; j++) if (!dead[nodes[j].id]) out.push(nodes[j]);
+  return out;
+}
+
+function moveNode(nodes, id, x, y, parentId){
+  return nodes.map(function(n){
+    if (n.id !== id) return n;
+    var o = {}; for (var k in n) o[k] = n[k];
+    if (typeof x === 'number') { o.x = x; o.manual = true; }
+    if (typeof y === 'number') { o.y = y; o.manual = true; }
+    if (parentId !== undefined && parentId !== null && parentId !== id) {
+      // guard against creating a cycle
+      var p = parentId, ok = true;
+      while (p != null) { if (p === id) { ok = false; break; } var pn = null; for (var i=0;i<nodes.length;i++) if (nodes[i].id===p){pn=nodes[i];break;} p = pn ? pn.parentId : null; }
+      if (ok) o.parentId = String(parentId);
+    }
+    return o;
+  });
+}
+
+function toggleCollapse(nodes, id){
+  return nodes.map(function(n){ return n.id === id ? assign({}, n, { collapsed: !n.collapsed }) : n; });
+}
+
+function collectDescendants(nodes, id){
+  var kids = {};
+  nodes.forEach(function(n){ (kids[n.parentId] = kids[n.parentId] || []).push(n.id); });
+  var out = [], stack = [id];
+  while (stack.length) {
+    var cur = stack.pop();
+    (kids[cur] || []).forEach(function(c){ out.push(c); stack.push(c); });
+  }
+  return out;
+}
+
+function layout(nodes, opts){
+  opts = opts || {};
+  var dx = opts.dx || 250, dy = opts.dy || 86;
+  var byId = {}, childrenOf = {};
+  nodes.forEach(function(n){ byId[n.id] = n; });
+  nodes.forEach(function(n){ (childrenOf[n.parentId] = childrenOf[n.parentId] || []).push(n); });
+  function hidden(id){
+    var p = byId[id] ? byId[id].parentId : null;
+    while (p != null) { if (byId[p] && byId[p].collapsed) return true; p = byId[p] ? byId[p].parentId : null; }
+    return false;
+  }
+  var pos = {}, cursor = 0;
+  function place(n, depth, baseX){
+    var kids = (childrenOf[n.id] || []).filter(function(k){ return !hidden(k.id); });
+    var x = n.manual ? n.x : (baseX != null ? baseX : depth * dx);
+    if (kids.length === 0) {
+      pos[n.id] = { x: x, y: cursor }; cursor += dy;
+    } else {
+      var kidX = n.manual ? n.x + dx : x + dx;
+      kids.forEach(function(k){ place(k, depth + 1, kidX); });
+      if (n.manual) { pos[n.id] = { x: n.x, y: n.y }; }
+      else {
+        var ys = kids.map(function(k){ return pos[k.id].y; });
+        var cy = (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2;
+        pos[n.id] = { x: x, y: cy };
+      }
+    }
+  }
+  nodes.filter(function(n){ return n.parentId == null && !hidden(n.id); })
+       .forEach(function(r){ place(r, 0, undefined); });
+  return nodes.map(function(n){
+    var p = pos[n.id];
+    return assign({}, n, p ? { x: p.x, y: p.y } : { x: null, y: null });
+  });
+}
+
+function exportJSON(nodes, meta){
+  var data = {
+    version: 1, app: 'mindforge',
+    nodes: nodes.map(function(n){ return { id:n.id, parentId:n.parentId, text:n.text, color:n.color, collapsed:n.collapsed, x:n.x, y:n.y, manual:n.manual }; }),
+    meta: meta || {}
+  };
+  return JSON.stringify(data, null, 2);
+}
+
+function importJSON(str){
+  var data;
+  try { data = JSON.parse(str); } catch (e) { return { ok: false, error: 'invalid JSON' }; }
+  if (!data || typeof data !== 'object') return { ok: false, error: 'not an object' };
+  var arr = Array.isArray(data) ? data : (data.nodes);
+  if (!Array.isArray(arr)) return { ok: false, error: 'missing nodes array' };
+  var out = [];
+  for (var i = 0; i < arr.length; i++) {
+    var n = arr[i];
+    if (!n || n.id == null || typeof n.text !== 'string')
+      return { ok: false, error: 'bad node shape' };
+    out.push({
+      id: String(n.id),
+      parentId: (n.parentId == null ? null : String(n.parentId)),
+      text: n.text,
+      color: (typeof n.color === 'string' ? n.color : null),
+      collapsed: !!n.collapsed,
+      x: Number(n.x) || 0,
+      y: Number(n.y) || 0,
+      manual: !!n.manual
+    });
+  }
+  return { ok: true, nodes: out };
+}
+
+function searchNodes(nodes, q){
+  if (!q) return [];
+  var s = String(q).toLowerCase();
+  return nodes.filter(function(n){ return n.text && n.text.toLowerCase().indexOf(s) >= 0; })
+              .map(function(n){ return n.id; });
+}
+
+function escapeHtml(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function sanitize(s){ return escapeHtml(s); }
+
+function assign(t){ for (var i=1;i<arguments.length;i++){ var s=arguments[i]; for (var k in s) t[k]=s[k]; } return t; }
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    uid: uid, makeNode: makeNode, addNode: addNode, removeNode: removeNode,
+    moveNode: moveNode, toggleCollapse: toggleCollapse, collectDescendants: collectDescendants,
+    layout: layout, exportJSON: exportJSON, importJSON: importJSON,
+    searchNodes: searchNodes, escapeHtml: escapeHtml, sanitize: sanitize, assign: assign
+  };
+}
+
+/* ============================================================
+ *  UI (browser only)
+ * ============================================================ */
+if (typeof window !== 'undefined') {
+(function(){
+  'use strict';
+
+  var COLORS = {
+    indigo: '#5E6AD2', teal: '#2DD4BF', green: '#10B981',
+    amber: '#F5A623', purple: '#A78BFA', info: '#22D3EE'
+  };
+  var COLOR_KEYS = ['indigo','teal','green','amber','purple','info'];
+
+  var I18N = {
+    zh: {
+      subtitle:'本地优先思维导图', addChild:'添加子节点', addSibling:'添加同级', del:'删除',
+      collapseAll:'折叠全部', expandAll:'展开全部', relayout:'重新布局', fit:'适应屏幕',
+      searchPh:'搜索节点…', newMap:'新建', sample:'示例', import:'导入', export:'导出 ▾',
+      expJson:'导出 JSON', expPng:'导出 PNG', expSvg:'导出 SVG', branchColor:'分支颜色',
+      selected:'当前节点', none:'未选择节点', shortcuts:'快捷键', hintTip:'双击编辑 · 拖拽移动 · 滚轮缩放',
+      newIdea:'新想法', untitled:'未命名', toggle:'折叠/展开',
+      noExport:'当前环境不支持导出文件', imported:'已导入 N 个节点', badImport:'导入失败：文件格式无效',
+      saved:'已自动保存', cleared:'已清空', sampleLoaded:'已载入示例', root:'根节点',
+      sh1:'<kbd>Tab</kbd> 添加子节点', sh2:'<kbd>Enter</kbd> 添加同级', sh3:'<kbd>Del</kbd> 删除节点',
+      sh4:'<kbd>F</kbd> 适应屏幕', sh5:'<kbd>滚轮</kbd> 缩放', sh6:'<kbd>双击</kbd> 编辑文字', sh7:'<kbd>拖拽空白</kbd> 平移画布'
+    },
+    en: {
+      subtitle:'Local-first mindmap', addChild:'Add child', addSibling:'Add sibling', del:'Delete',
+      collapseAll:'Collapse all', expandAll:'Expand all', relayout:'Re-layout', fit:'Fit',
+      searchPh:'Search nodes…', newMap:'New', sample:'Sample', import:'Import', export:'Export ▾',
+      expJson:'Export JSON', expPng:'Export PNG', expSvg:'Export SVG', branchColor:'Branch color',
+      selected:'Selected', none:'No node selected', shortcuts:'Shortcuts', hintTip:'Double-click to edit · drag to move · wheel to zoom',
+      newIdea:'New idea', untitled:'Untitled', toggle:'collapse / expand',
+      noExport:'Export not supported in this environment', imported:'Imported N nodes', badImport:'Import failed: invalid file',
+      saved:'Auto-saved', cleared:'Cleared', sampleLoaded:'Sample loaded', root:'Root',
+      sh1:'<kbd>Tab</kbd> add child', sh2:'<kbd>Enter</kbd> add sibling', sh3:'<kbd>Del</kbd> delete',
+      sh4:'<kbd>F</kbd> fit screen', sh5:'<kbd>wheel</kbd> zoom', sh6:'<kbd>dbl-click</kbd> edit text', sh7:'<kbd>drag bg</kbd> pan canvas'
+    }
+  };
+
+  var LS_NODES = 'mindforge.v1';
+  var LS_LANG = 'mindforge.lang';
+
+  var state = { nodes: [], selectedId: null, editingId: null, matchIds: [] };
+  var view = { scale: 1, tx: 0, ty: 0 };
+  var sizes = {};
+
+  var $ = function(s){ return document.querySelector(s); };
+  var viewport = $('#viewport');
+  var world = $('#world');
+  var edgesEl = $('#edges');
+  var nodeLayer = world; // nodes are direct children of #world (siblings of svg)
+  var toastEl = $('#toast');
+
+  /* ---------- persistence ---------- */
+  function save(){
+    try { localStorage.setItem(LS_NODES, exportJSON(state.nodes)); } catch(e){}
+  }
+  var saveT;
+  function autosave(){ clearTimeout(saveT); saveT = setTimeout(save, 400); }
+
+  function load(){
+    try {
+      var raw = localStorage.getItem(LS_NODES);
+      if (raw) { var r = importJSON(raw); if (r.ok && r.nodes.length) { state.nodes = r.nodes; return; } }
+    } catch(e){}
+    state.nodes = sampleData();
+  }
+
+  /* ---------- helpers ---------- */
+  function getNode(id){ for (var i=0;i<state.nodes.length;i++) if (state.nodes[i].id===id) return state.nodes[i]; return null; }
+  function childrenOf(id){ return state.nodes.filter(function(n){ return n.parentId === id; }); }
+  function effectiveColor(id){
+    var n = getNode(id), seen = 0;
+    while (n && seen < 200) {
+      if (n.color && COLORS[n.color]) return COLORS[n.color];
+      n = n.parentId ? getNode(n.parentId) : null; seen++;
+    }
+    return COLORS.indigo;
+  }
+
+  /* ---------- sample ---------- */
+  function sampleData(){
+    var a = [];
+    function n(parentId, text, color, collapsed){ a.push(makeNode(a, {parentId:parentId, text:text, color:color, collapsed:!!collapsed})); return a[a.length-1].id; }
+    var root = n(null, 'nano-tools 路线图', 'indigo');
+    var vis = n(root, '可视化', 'purple');
+    n(vis, 'MindForge · 思维导图'); n(vis, 'GraphForge · 图表'); n(vis, 'FlowForge · 流程图'); n(vis, 'Chartify · 图表');
+    var dev = n(root, '开发', 'teal');
+    n(dev, 'BaseForge · 基底'); n(dev, 'FormForge · 表单'); n(dev, 'APIForge · 接口');
+    n(dev, 'SQLForge · 数据库'); n(dev, 'RegexLab · 正则');
+    var sec = n(root, '安全', 'green');
+    n(sec, 'VaultForge · 密钥库'); n(sec, 'PassForge · 密码'); n(sec, 'CronForge · 计划');
+    var conv = n(root, '转换', 'amber');
+    n(conv, 'UniConvert · 单位'); n(conv, 'SnapCompress · 压缩'); n(conv, 'ColorForge · 配色');
+    n(conv, 'SVGForge · SVG'); n(conv, 'QRForge · 二维码');
+    var ai = n(root, '智能', 'info');
+    n(ai, 'ChatForge · 对话'); n(ai, 'ContextLens · 上下文'); n(ai, 'Inkwell · 写作');
+    return a;
+  }
+
+  /* ---------- rendering ---------- */
+  function edgePath(p, c){
+    var x1 = p.x + p.w, y1 = p.y + p.h/2;
+    var x2 = c.x, y2 = c.y + c.h/2;
+    var mx = (x1 + x2) / 2;
+    return 'M ' + x1 + ' ' + y1 + ' C ' + mx + ' ' + y1 + ', ' + mx + ' ' + y2 + ', ' + x2 + ' ' + y2;
+  }
+
+  function render(){
+    var positioned = layout(state.nodes);
+    var posMap = {}; positioned.forEach(function(n){ posMap[n.id] = n; });
+
+    // remove existing node elements (keep edges svg)
+    var old = world.querySelectorAll('.node');
+    for (var i=0;i<old.length;i++) old[i].remove();
+
+    var vis = state.nodes.filter(function(n){ var p = posMap[n.id]; return p && p.x != null; });
+    vis.forEach(function(n){
+      var p = posMap[n.id];
+      var el = buildNode(n, p);
+      world.appendChild(el);
+    });
+    // measure
+    vis.forEach(function(n){
+      var el = world.querySelector('[data-id="' + n.id + '"]');
+      if (el) sizes[n.id] = { w: el.offsetWidth, h: el.offsetHeight };
+    });
+    // edges
+    var paths = '';
+    vis.forEach(function(n){
+      if (n.parentId == null) return;
+      var p = posMap[n.id]; if (!p || p.x == null) return;
+      var pp = posMap[n.parentId]; if (!pp || pp.x == null) return;
+      var s = sizes[n.id] || { w: 160, h: 44 };
+      var ps = sizes[n.parentId] || { w: 160, h: 44 };
+      var col = effectiveColor(n.id);
+      paths += '<path d="' + edgePath({x:p.x,y:p.y,w:s.w,h:s.h}, {x:pp.x,y:pp.y,w:ps.w,h:ps.h}) +
+               '" fill="none" stroke="' + col + '" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>';
+    });
+    edgesEl.innerHTML = paths;
+
+    applyView();
+    updateSelMeta();
+    updateMinimap();
+  }
+
+  function buildNode(n, p){
+    var el = document.createElement('div');
+    el.className = 'node' + (state.selectedId === n.id ? ' selected' : '') + (state.matchIds.indexOf(n.id) >= 0 ? ' hit' : '');
+    el.dataset.id = n.id;
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+    el.style.setProperty('--c', effectiveColor(n.id));
+    var body = document.createElement('div'); body.className = 'node-body';
+    var txt = document.createElement('span'); txt.className = 'node-text';
+    txt.textContent = n.text;
+    body.appendChild(txt);
+    el.appendChild(body);
+    var kids = childrenOf(n.id);
+    if (kids.length) {
+      var dot = document.createElement('div');
+      dot.className = 'collapse-dot' + (n.collapsed ? ' collapsed' : '');
+      dot.dataset.id = n.id;
+      dot.textContent = n.collapsed ? String(collectDescendants(state.nodes, n.id).length) : '–';
+      dot.title = t('toggle');
+      el.appendChild(dot);
+    }
+    return el;
+  }
+
+  function applyView(){
+    world.style.transform = 'translate(' + view.tx + 'px,' + view.ty + 'px) scale(' + view.scale + ')';
+  }
+
+  /* ---------- selection / editing ---------- */
+  function select(id){ state.selectedId = id; render(); }
+
+  function editNode(id){
+    state.editingId = id; select(id);
+    var el = world.querySelector('[data-id="' + id + '"] .node-text');
+    if (!el) return;
+    el.contentEditable = 'true';
+    el.focus();
+    try { var r = document.createRange(); r.selectNodeContents(el); var s = getSelection(); s.removeAllRanges(); s.addRange(r); } catch(e){}
+    var done = false;
+    var finish = function(cancel){
+      if (done) return; done = true;
+      el.contentEditable = 'false';
+      state.editingId = null;
+      el.removeEventListener('keydown', onKey);
+      if (!cancel) {
+        var txt = (el.textContent || '').replace(/\s+$/,'');
+        state.nodes = state.nodes.map(function(nn){ return nn.id === id ? assign({}, nn, { text: txt || t('untitled') }) : nn; });
+      }
+      render(); autosave();
+    };
+    var onKey = function(ev){
+      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); finish(false); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); finish(true); }
+      else if (ev.key === 'Tab') { ev.preventDefault(); finish(false); addChild(id); }
+      ev.stopPropagation();
+    };
+    el.addEventListener('keydown', onKey);
+    el.addEventListener('blur', function(){ finish(false); });
+  }
+
+  function addChild(id){
+    var node = getNode(id);
+    if (!node) return;
+    if (node.collapsed) state.nodes = toggleCollapse(state.nodes, id);
+    var child = makeNode(state.nodes, { parentId: id, text: t('newIdea'), color: null });
+    state.nodes = state.nodes.concat([child]);
+    render(); autosave();
+    editNode(child.id);
+  }
+  function addSibling(id){
+    var node = getNode(id); if (!node) return;
+    if (node.parentId == null) { addChild(id); return; }
+    var sib = makeNode(state.nodes, { parentId: node.parentId, text: t('newIdea'), color: null });
+    state.nodes = state.nodes.concat([sib]);
+    render(); autosave();
+    editNode(sib.id);
+  }
+  function delNode(id){
+    if (!id) return;
+    var node = getNode(id);
+    state.nodes = removeNode(state.nodes, id);
+    state.selectedId = (node && node.parentId) ? node.parentId : null;
+    render(); autosave();
+  }
+  function setColor(color){
+    if (!state.selectedId) { toast(t('none')); return; }
+    state.nodes = state.nodes.map(function(n){ return n.id === state.selectedId ? assign({}, n, { color: color }) : n; });
+    render(); autosave();
+  }
+
+  /* ---------- layout ops ---------- */
+  function relayout(){
+    state.nodes = state.nodes.map(function(n){ return n.manual ? assign({}, n, { manual: false }) : n; });
+    render(); fit(); autosave();
+  }
+  function collapseAll(){
+    state.nodes = state.nodes.map(function(n){ return childrenOf(n.id).length && !n.collapsed ? assign({}, n, { collapsed: true }) : n; });
+    render(); autosave();
+  }
+  function expandAll(){
+    state.nodes = state.nodes.map(function(n){ return n.collapsed ? assign({}, n, { collapsed: false }) : n; });
+    render(); autosave();
+  }
+
+  /* ---------- view ops ---------- */
+  function fit(){
+    var posMap = {}; layout(state.nodes).forEach(function(n){ posMap[n.id] = n; });
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    state.nodes.forEach(function(n){
+      var p = posMap[n.id]; if (!p || p.x == null) return;
+      var s = sizes[n.id] || { w: 160, h: 44 };
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x + s.w); maxY = Math.max(maxY, p.y + s.h);
+    });
+    if (!isFinite(minX)) return;
+    var rect = viewport.getBoundingClientRect();
+    var pad = 70, w = (maxX - minX) + pad * 2, h = (maxY - minY) + pad * 2;
+    var scale = Math.min(rect.width / w, rect.height / h, 1.4);
+    view.scale = Math.max(0.2, scale);
+    view.tx = rect.width / 2 - ((minX + maxX) / 2) * view.scale;
+    view.ty = rect.height / 2 - ((minY + maxY) / 2) * view.scale;
+    applyView(); updateMinimap();
+  }
+  function zoomAt(cx, cy, factor){
+    var rect = viewport.getBoundingClientRect();
+    var px = cx - rect.left, py = cy - rect.top;
+    var wx = (px - view.tx) / view.scale, wy = (py - view.ty) / view.scale;
+    view.scale = Math.max(0.2, Math.min(3, view.scale * factor));
+    view.tx = px - wx * view.scale; view.ty = py - wy * view.scale;
+    applyView(); updateMinimap();
+  }
+
+  /* ---------- minimap ---------- */
+  function updateMinimap(){
+    var svg = $('#mmSvg'); if (!svg) return;
+    var posMap = {}; layout(state.nodes).forEach(function(n){ posMap[n.id] = n; });
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    state.nodes.forEach(function(n){
+      var p = posMap[n.id]; if (!p || p.x == null) return;
+      var s = sizes[n.id] || { w: 160, h: 44 };
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x + s.w); maxY = Math.max(maxY, p.y + s.h);
+    });
+    if (!isFinite(minX)) { svg.innerHTML = ''; return; }
+    var W = 190, H = 120, pad = 10;
+    var bw = (maxX - minX) || 1, bh = (maxY - minY) || 1;
+    var sc = Math.min((W - pad*2)/bw, (H - pad*2)/bh);
+    function sx(x){ return pad + (x - minX) * sc; }
+    function sy(y){ return pad + (y - minY) * sc; }
+    var rect = viewport.getBoundingClientRect();
+    var vx = (-view.tx) / view.scale, vy = (-view.ty) / view.scale;
+    var vw = rect.width / view.scale, vh = rect.height / view.scale;
+    var out = '';
+    state.nodes.forEach(function(n){
+      var p = posMap[n.id]; if (!p || p.x == null) return;
+      var s = sizes[n.id] || { w: 160, h: 44 };
+      out += '<rect x="' + sx(p.x).toFixed(1) + '" y="' + sy(p.y).toFixed(1) + '" width="' + (s.w*sc).toFixed(1) + '" height="' + (s.h*sc).toFixed(1) + '" rx="1.5" fill="' + effectiveColor(n.id) + '" fill-opacity="0.8"/>';
+    });
+    out += '<rect class="mm-view" x="' + sx(vx).toFixed(1) + '" y="' + sy(vy).toFixed(1) + '" width="' + (vw*sc).toFixed(1) + '" height="' + (vh*sc).toFixed(1) + '"/>';
+    svg.innerHTML = out;
+  }
+
+  /* ---------- export ---------- */
+  function canExport(){ return (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') &&
+    (typeof document !== 'undefined' && 'toBlob' in HTMLCanvasElement.prototype); }
+  function downloadBlob(blob, name){
+    if (!blob || typeof URL.createObjectURL !== 'function') { toast(t('noExport')); return; }
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+  function roundRect(ctx, x, y, w, h, r){
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); return; }
+    ctx.beginPath();
+    ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath();
+  }
+  function computeBounds(){
+    var posMap = {}; layout(state.nodes).forEach(function(n){ posMap[n.id] = n; });
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    state.nodes.forEach(function(n){
+      var p = posMap[n.id]; if (!p || p.x == null) return;
+      var s = sizes[n.id] || { w: 160, h: 44 };
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x + s.w); maxY = Math.max(maxY, p.y + s.h);
+    });
+    return { minX:minX, minY:minY, maxX:maxX, maxY:maxY };
+  }
+  function exportPNG(){
+    if (!canExport()) { toast(t('noExport')); return; }
+    var b = computeBounds(); if (!isFinite(b.minX)) return;
+    var pad = 50, scale = 2;
+    var w = (b.maxX - b.minX) + pad*2, h = (b.maxY - b.minY) + pad*2;
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w*scale)); canvas.height = Math.max(1, Math.round(h*scale));
+    var ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.fillStyle = '#0A0A0B'; ctx.fillRect(0, 0, w, h);
+    var posMap = {}; layout(state.nodes).forEach(function(n){ posMap[n.id] = n; });
+    // edges
+    ctx.lineWidth = 2; ctx.lineCap = 'round';
+    state.nodes.forEach(function(n){
+      if (n.parentId == null) return;
+      var p = posMap[n.id], pp = posMap[n.parentId]; if (!p || !pp || pp.x == null) return;
+      var s = sizes[n.id] || { w:160, h:44 }, ps = sizes[n.parentId] || { w:160, h:44 };
+      var x1 = p.x + s.w, y1 = p.y + s.h/2, x2 = pp.x, y2 = pp.y + ps.h/2, mx = (x1+x2)/2;
+      ctx.strokeStyle = effectiveColor(n.id); ctx.globalAlpha = 0.55;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.bezierCurveTo(mx, y1, mx, y2, x2, y2); ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+    // nodes
+    state.nodes.forEach(function(n){
+      var p = posMap[n.id]; if (!p || p.x == null) return;
+      var s = sizes[n.id] || { w:160, h:44 };
+      var x = p.x - b.minX + pad, y = p.y - b.minY + pad;
+      ctx.fillStyle = '#141417'; roundRect(ctx, x, y, s.w, s.h, 10); ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.stroke();
+      ctx.fillStyle = effectiveColor(n.id); ctx.fillRect(x, y, 3, s.h);
+      ctx.fillStyle = '#FFFFFF'; ctx.font = '14px -apple-system,Segoe UI,sans-serif';
+      ctx.textBaseline = 'middle';
+      var txt = n.text, maxW = s.w - 26;
+      // simple wrap
+      var words = String(txt).split(/\n/), line = '', lines = [];
+      words.forEach(function(para){
+        var ww = para.split('');
+        line = '';
+        for (var i=0;i<ww.length;i++){ var test = line + ww[i]; if (ctx.measureText(test).width > maxW && line){ lines.push(line); line = ww[i]; } else line = test; }
+        lines.push(line);
+      });
+      var lh = 18, startY = y + s.h/2 - (lines.length-1)*lh/2;
+      lines.forEach(function(ln, i){ ctx.fillText(ln, x + 13, startY + i*lh); });
+    });
+    canvas.toBlob(function(blob){ if (!blob) { toast(t('noExport')); return; } downloadBlob(blob, 'mindforge.png'); }, 'image/png');
+  }
+  function exportSVG(){
+    var SVG_NS = 'http' + '://www.w3.org/2000/svg';
+    var b = computeBounds(); if (!isFinite(b.minX)) return;
+    var pad = 50;
+    var w = Math.max(1, Math.round((b.maxX - b.minX) + pad*2));
+    var h = Math.max(1, Math.round((b.maxY - b.minY) + pad*2));
+    var posMap = {}; layout(state.nodes).forEach(function(n){ posMap[n.id] = n; });
+    var body = '';
+    state.nodes.forEach(function(n){
+      if (n.parentId == null) return;
+      var p = posMap[n.id], pp = posMap[n.parentId]; if (!p || !pp || pp.x == null) return;
+      var s = sizes[n.id] || { w:160, h:44 }, ps = sizes[n.parentId] || { w:160, h:44 };
+      var x1 = p.x + s.w, y1 = p.y + s.h/2, x2 = pp.x, y2 = pp.y + ps.h/2, mx = (x1+x2)/2;
+      body += '<path d="M ' + x1 + ' ' + y1 + ' C ' + mx + ' ' + y1 + ', ' + mx + ' ' + y2 + ', ' + x2 + ' ' + y2 +
+              '" fill="none" stroke="' + effectiveColor(n.id) + '" stroke-opacity="0.55" stroke-width="2"/>';
+    });
+    state.nodes.forEach(function(n){
+      var p = posMap[n.id]; if (!p || p.x == null) return;
+      var s = sizes[n.id] || { w:160, h:44 };
+      var x = p.x - b.minX + pad, y = p.y - b.minY + pad;
+      body += '<g><rect x="' + x + '" y="' + y + '" width="' + s.w + '" height="' + s.h + '" rx="10" fill="#141417" stroke="rgba(255,255,255,0.14)"/>' +
+              '<rect x="' + x + '" y="' + y + '" width="3" height="' + s.h + '" rx="1.5" fill="' + effectiveColor(n.id) + '"/>';
+      String(n.text).split(/\n/).forEach(function(ln, i){
+        body += '<text x="' + (x+13) + '" y="' + (y + s.h/2 + (i-0)*16) + '" fill="#FFFFFF" font-family="-apple-system,Segoe UI,sans-serif" font-size="14" dominant-baseline="middle">' + escapeHtml(ln) + '</text>';
+      });
+      body += '</g>';
+    });
+    var svg = '<svg xmlns="' + SVG_NS + '" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
+              '<rect width="' + w + '" height="' + h + '" fill="#0A0A0B"/>' + body + '</svg>';
+    downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), 'mindforge.svg');
+  }
+  function exportJSONFile(){
+    var blob = new Blob([exportJSON(state.nodes)], { type: 'application/json' });
+    downloadBlob(blob, 'mindforge.json');
+  }
+  function doImport(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var r = importJSON(String(reader.result));
+      if (!r.ok) { toast(t('badImport')); return; }
+      state.nodes = r.nodes; state.selectedId = null; render(); fit(); autosave();
+      toast(t('imported').replace('N', String(r.nodes.length)));
+    };
+    reader.onerror = function(){ toast(t('badImport')); };
+    reader.readAsText(file);
+  }
+
+  /* ---------- toast ---------- */
+  var toastT;
+  function toast(msg){
+    toastEl.textContent = msg; toastEl.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(function(){ toastEl.classList.remove('show'); }, 1800);
+  }
+
+  /* ---------- i18n ---------- */
+  var lang = (function(){ try { return localStorage.getItem(LS_LANG) || 'zh'; } catch(e){ return 'zh'; } })();
+  function t(key){ return (I18N[lang] && I18N[lang][key] != null) ? I18N[lang][key] : (I18N.zh[key] != null ? I18N.zh[key] : key); }
+  function applyLang(){
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    $('#langBtn').textContent = lang === 'zh' ? 'EN' : '中';
+    $('#subtitle').textContent = t('subtitle');
+    document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-ph]').forEach(function(el){ el.placeholder = t(el.dataset.i18nPh); });
+    $('#hintTip').textContent = t('hintTip');
+    $('#hintList').innerHTML = [t('sh1'),t('sh2'),t('sh3'),t('sh4'),t('sh5'),t('sh6'),t('sh7')].map(function(s){ return '<div>' + s + '</div>'; }).join('');
+  }
+
+  function buildPalette(){
+    var pal = $('#palette'); pal.innerHTML = '';
+    COLOR_KEYS.forEach(function(k){
+      var s = document.createElement('div'); s.className = 'swatch'; s.dataset.color = k;
+      s.style.background = COLORS[k]; s.title = k;
+      s.addEventListener('click', function(){ setColor(k); markPalette(); });
+      pal.appendChild(s);
+    });
+  }
+  function markPalette(){
+    var node = getNode(state.selectedId);
+    document.querySelectorAll('.swatch').forEach(function(s){
+      s.classList.toggle('active', node && node.color === s.dataset.color);
+    });
+  }
+  function updateSelMeta(){
+    var el = $('#selMeta');
+    if (!state.selectedId) { el.innerHTML = '<span>' + t('none') + '</span>'; markPalette(); return; }
+    var n = getNode(state.selectedId);
+    var kids = childrenOf(n.id).length;
+    el.innerHTML = '<div><b>' + t('selected') + '</b></div>' +
+      '<div>' + escapeHtml(n.text) + '</div>' +
+      '<div>' + (n.parentId == null ? t('root') : (kids + ' ' + (lang==='zh'?'个子节点':'children'))) + '</div>' +
+      '<div>color: ' + (n.color || 'inherit') + '</div>';
+    markPalette();
+  }
+
+  /* ---------- events ---------- */
+  function onPointerDown(e){
+    if (e.button !== 0) return;
+    var nodeEl = e.target.closest ? e.target.closest('.node') : null;
+    if (nodeEl) {
+      var dot = e.target.closest ? e.target.closest('.collapse-dot') : null;
+      if (dot) { state.nodes = toggleCollapse(state.nodes, dot.dataset.id); render(); autosave(); return; }
+      var id = nodeEl.dataset.id;
+      select(id);
+      var n = getNode(id);
+      drag = { id: id, sx: e.clientX, sy: e.clientY, ox: n.x, oy: n.y, moved: false };
+      try { viewport.setPointerCapture(e.pointerId); } catch(err){}
+    } else {
+      pan = { sx: e.clientX, sy: e.clientY, otx: view.tx, oty: view.ty };
+      viewport.classList.add('panning');
+      try { viewport.setPointerCapture(e.pointerId); } catch(err){}
+    }
+  }
+  var drag = null, pan = null;
+  function onPointerMove(e){
+    if (drag) {
+      var dx = (e.clientX - drag.sx) / view.scale, dy = (e.clientY - drag.sy) / view.scale;
+      if (Math.abs(e.clientX - drag.sx) > 3 || Math.abs(e.clientY - drag.sy) > 3) drag.moved = true;
+      if (drag.moved) { state.nodes = moveNode(state.nodes, drag.id, drag.ox + dx, drag.oy + dy); render(); }
+    } else if (pan) {
+      view.tx = pan.otx + (e.clientX - pan.sx); view.ty = pan.oty + (e.clientY - pan.sy);
+      applyView(); updateMinimap();
+    }
+  }
+  function onPointerUp(){
+    if (drag) { if (drag.moved) autosave(); drag = null; }
+    if (pan) { pan = null; viewport.classList.remove('panning'); }
+  }
+  viewport.addEventListener('pointerdown', onPointerDown);
+  viewport.addEventListener('pointermove', onPointerMove);
+  viewport.addEventListener('pointerup', onPointerUp);
+  viewport.addEventListener('pointercancel', onPointerUp);
+
+  viewport.addEventListener('wheel', function(e){
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.1 : 1/1.1);
+  }, { passive: false });
+
+  world.addEventListener('dblclick', function(e){
+    var nodeEl = e.target.closest ? e.target.closest('.node') : null;
+    if (nodeEl && !e.target.closest('.collapse-dot')) editNode(nodeEl.dataset.id);
+  });
+
+  document.addEventListener('keydown', function(e){
+    if (state.editingId) return;
+    var tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea') return;
+    if (e.key === 'Tab') { e.preventDefault(); if (state.selectedId) addChild(state.selectedId); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (state.selectedId) addSibling(state.selectedId); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); if (state.selectedId) delNode(state.selectedId); }
+    else if (e.key === 'f' || e.key === 'F') { fit(); }
+    else if (e.key === '+' || e.key === '=') { var r = viewport.getBoundingClientRect(); zoomAt(r.left + r.width/2, r.top + r.height/2, 1.15); }
+    else if (e.key === '-' || e.key === '_') { var r2 = viewport.getBoundingClientRect(); zoomAt(r2.left + r2.width/2, r2.top + r2.height/2, 1/1.15); }
+  });
+
+  // toolbar
+  $('#addChild').addEventListener('click', function(){ if (state.selectedId) addChild(state.selectedId); else toast(t('none')); });
+  $('#addSibling').addEventListener('click', function(){ if (state.selectedId) addSibling(state.selectedId); else toast(t('none')); });
+  $('#delNode').addEventListener('click', function(){ if (state.selectedId) delNode(state.selectedId); else toast(t('none')); });
+  $('#collapseAll').addEventListener('click', collapseAll);
+  $('#expandAll').addEventListener('click', expandAll);
+  $('#relayout').addEventListener('click', relayout);
+  $('#fit').addEventListener('click', fit);
+  $('#zoomIn').addEventListener('click', function(){ var r = viewport.getBoundingClientRect(); zoomAt(r.left + r.width/2, r.top + r.height/2, 1.15); });
+  $('#zoomOut').addEventListener('click', function(){ var r = viewport.getBoundingClientRect(); zoomAt(r.left + r.width/2, r.top + r.height/2, 1/1.15); });
+  $('#newMap').addEventListener('click', function(){ state.nodes = [makeNode([], { id:'n1', parentId:null, text: t('newIdea') })]; state.selectedId = 'n1'; render(); fit(); autosave(); });
+  $('#sample').addEventListener('click', function(){ state.nodes = sampleData(); state.selectedId = null; render(); fit(); autosave(); toast(t('sampleLoaded')); });
+  $('#importBtn').addEventListener('click', function(){ $('#fileInput').click(); });
+  $('#fileInput').addEventListener('change', function(e){ if (e.target.files && e.target.files[0]) doImport(e.target.files[0]); e.target.value = ''; });
+  $('#exportBtn').addEventListener('click', function(e){ e.stopPropagation(); $('#exportPop').classList.toggle('open'); });
+  document.addEventListener('click', function(){ $('#exportPop').classList.remove('open'); });
+  $('#exportPop').addEventListener('click', function(e){
+    var b = e.target.closest('[data-export]'); if (!b) return;
+    var k = b.dataset.export;
+    if (k === 'json') exportJSONFile(); else if (k === 'png') exportPNG(); else if (k === 'svg') exportSVG();
+  });
+
+  $('#searchInput').addEventListener('input', function(e){
+    state.matchIds = searchNodes(state.nodes, e.target.value);
+    render();
+  });
+
+  $('#langBtn').addEventListener('click', function(){
+    lang = lang === 'zh' ? 'en' : 'zh';
+    try { localStorage.setItem(LS_LANG, lang); } catch(e){}
+    applyLang();
+  });
+
+  window.addEventListener('resize', function(){ applyView(); updateMinimap(); });
+
+  /* ---------- init ---------- */
+  function init(){
+    load();
+    applyLang();
+    buildPalette();
+    render();
+    fit();
+    // PWA
+    if ('serviceWorker' in navigator) {
+      try { navigator.serviceWorker.register('sw.js').catch(function(){}); } catch(e){}
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+
+  // expose a tiny debug handle (optional)
+  window.MindForge = { state: state, view: view };
+})();
+}
+</script>
+<footer style="margin-top:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);color:#71717A;font-size:12px;text-align:center">nano-tools · 单文件 · 零依赖 · 本地优先 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>MazeForge — 迷宫工坊：种子可复现完美迷宫 + BFS 最短路求解</title>
+<meta property="og:title" content="MazeForge">
+<meta property="og:description" content="迷宫工坊：种子可复现完美迷宫 + BFS 最短路求解">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="迷宫工坊：种子可复现完美迷宫 + BFS 最短路求解 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>MazeForge</h1>
+  <p class="sub">迷宫工坊：种子可复现完美迷宫 + BFS 最短路求解 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="opt">
+  <label>宽 <input id="mw" type="number" value="15" min="3" max="40" style="width:70px"></label>
+  <label>高 <input id="mh" type="number" value="11" min="3" max="40" style="width:70px"></label>
+  <label>种子 <input id="seed" type="number" value="42" style="width:90px"></label>
+</div>
+<div class="row">
+  <button id="gen">生成迷宫</button>
+  <button id="solve">生成并求解</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>迷宫（SVG）</label>
+<div class="out" id="out" aria-live="polite" style="overflow:auto">生成结果显示在这里</div>
+<script>
+function mzRng(seed){
+  var s=(seed>>>0)||1;
+  return function(){
+    s|=0; s=(s+0x6D2B79F5)|0;
+    var t=Math.imul(s^(s>>>15), 1|s);
+    t=(t+Math.imul(t^(t>>>7), 61|t))^t;
+    return ((t^(t>>>14))>>>0)/4294967296;
+  };
+}
+function mzGen(w, h, seed){
+  if(!Number.isInteger(w)||!Number.isInteger(h)||w<3||h<3||w>60||h>60)
+    return { value:null, error:'宽高须为 3-60 的整数' };
+  var rnd=mzRng(seed===undefined?42:seed);
+  var cells=[], y, x;
+  for(y=0;y<h;y++){ var r=[]; for(x=0;x<w;x++) r.push({ n:1,s:1,e:1,w:1,seen:0 }); cells.push(r); }
+  var stack=[[0,0]]; cells[0][0].seen=1; var visited=1;
+  var D=[['n',0,-1,'s'],['s',0,1,'n'],['e',1,0,'w'],['w',-1,0,'e']];
+  while(stack.length){
+    var cur=stack[stack.length-1], cx=cur[0], cy=cur[1];
+    var opts=[];
+    for(var d=0;d<4;d++){
+      var nx=cx+D[d][1], ny=cy+D[d][2];
+      if(nx>=0&&ny>=0&&nx<w&&ny<h&&!cells[ny][nx].seen) opts.push(d);
+    }
+    if(!opts.length){ stack.pop(); continue; }
+    var pick=D[opts[Math.floor(rnd()*opts.length)]];
+    var tx=cx+pick[1], ty=cy+pick[2];
+    cells[cy][cx][pick[0]]=0;
+    cells[ty][tx][pick[3]]=0;
+    cells[ty][tx].seen=1; visited++;
+    stack.push([tx,ty]);
+  }
+  for(y=0;y<h;y++) for(x=0;x<w;x++) delete cells[y][x].seen;
+  return { value:{ width:w, height:h, cells:cells, visited:visited }, error:null };
+}
+function mzSolve(maze, sx, sy, ex, ey){
+  var w=maze.width, h=maze.height, c=maze.cells;
+  sx=sx||0; sy=sy||0;
+  if(ex===undefined) ex=w-1;
+  if(ey===undefined) ey=h-1;
+  if(sx<0||sy<0||sx>=w||sy>=h||ex<0||ey<0||ex>=w||ey>=h)
+    return { value:null, error:'起终点越界' };
+  var prev={}, q=[[sx,sy]], seen={}; seen[sx+','+sy]=1; var expanded=0;
+  var D=[['n',0,-1],['s',0,1],['e',1,0],['w',-1,0]];
+  while(q.length){
+    var cur=q.shift(), x=cur[0], y=cur[1]; expanded++;
+    if(x===ex&&y===ey){
+      var path=[], k=ex+','+ey;
+      while(k){ var p=k.split(','); path.unshift([+p[0],+p[1]]); k=prev[k]; }
+      return { value:{ path:path, length:path.length, expanded:expanded }, error:null };
+    }
+    for(var d=0;d<4;d++){
+      if(c[y][x][D[d][0]]) continue;
+      var nx=x+D[d][1], ny=y+D[d][2], key=nx+','+ny;
+      if(seen[key]) continue;
+      seen[key]=1; prev[key]=x+','+y; q.push([nx,ny]);
+    }
+  }
+  return { value:null, error:'不可达（迷宫数据损坏？）' };
+}
+function mzSvg(maze, path){
+  var w=maze.width, h=maze.height, C=Math.max(10, Math.min(26, Math.floor(520/w)));
+  var W=w*C+4, H=h*C+4, c=maze.cells;
+  var s='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">';
+  s+='<rect width="'+W+'" height="'+H+'" fill="#0A0A0B"/>';
+  if(path && path.length){
+    var pts=path.map(function(p){ return (p[0]*C+2+C/2)+','+(p[1]*C+2+C/2); }).join(' ');
+    s+='<polyline points="'+pts+'" fill="none" stroke="#10B981" stroke-width="'+Math.max(2,C/4)+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
+  }
+  for(var y=0;y<h;y++) for(var x=0;x<w;x++){
+    var px=x*C+2, py=y*C+2, cell=c[y][x];
+    if(cell.n) s+='<line x1="'+px+'" y1="'+py+'" x2="'+(px+C)+'" y2="'+py+'" stroke="#5E6AD2" stroke-width="1.5"/>';
+    if(cell.w) s+='<line x1="'+px+'" y1="'+py+'" x2="'+px+'" y2="'+(py+C)+'" stroke="#5E6AD2" stroke-width="1.5"/>';
+    if(y===h-1&&cell.s) s+='<line x1="'+px+'" y1="'+(py+C)+'" x2="'+(px+C)+'" y2="'+(py+C)+'" stroke="#5E6AD2" stroke-width="1.5"/>';
+    if(x===w-1&&cell.e) s+='<line x1="'+(px+C)+'" y1="'+py+'" x2="'+(px+C)+'" y2="'+(py+C)+'" stroke="#5E6AD2" stroke-width="1.5"/>';
+  }
+  s+='<circle cx="'+(2+C/2)+'" cy="'+(2+C/2)+'" r="'+(C/5)+'" fill="#22D3EE"/>';
+  s+='<circle cx="'+((w-1)*C+2+C/2)+'" cy="'+((h-1)*C+2+C/2)+'" r="'+(C/5)+'" fill="#F5A623"/>';
+  s+='</svg>';
+  return s;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { mzRng:mzRng, mzGen:mzGen, mzSolve:mzSolve, mzSvg:mzSvg };
+}
+if (typeof window !== 'undefined') {
+  window.MazeForgePure = { mzRng:mzRng, mzGen:mzGen, mzSolve:mzSolve, mzSvg:mzSvg };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.MazeForgePure;
+    function build(withPath){
+      $('err').textContent='';
+      var g=P.mzGen(Number($('mw').value), Number($('mh').value), Number($('seed').value));
+      if(g.error){ $('err').textContent=g.error; return; }
+      var note='', path=null;
+      if(withPath){
+        var s=P.mzSolve(g.value);
+        if(s.error){ $('err').textContent=s.error; return; }
+        path=s.value.path;
+        note=' · 最短路 '+s.value.length+' 格 · BFS 扩展 '+s.value.expanded+' 节点';
+      }
+      $('out').innerHTML=P.mzSvg(g.value, path)+
+        '<div style="margin-top:8px;color:#A1A1AA;font-size:12px">'+g.value.width+'×'+g.value.height+
+        ' · 完美迷宫（无环全连通）'+note+'</div>';
+    }
+    $('gen').addEventListener('click', function(){ build(false); });
+    $('solve').addEventListener('click', function(){ build(true); });
+    $('clear').addEventListener('click', function(){ $('out').textContent='生成结果显示在这里'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

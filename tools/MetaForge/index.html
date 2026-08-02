@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaForge — 离线 Meta 标签生成器：OG / Twitter Card / SEO</title>
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.preview{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;justify-content:center;align-items:center;min-height:90px}
+.preview svg{max-width:100%}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.big{font:40px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
+.kv{color:var(--muted);font-size:13px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线 Meta 标签生成器：基础 + Open Graph + Twitter Card 全套，SEO 长度检查。">
+</head>
+<body>
+<div class="app">
+  <h1>MetaForge</h1>
+  <p class="sub">离线 Meta 标签生成器：OG / Twitter Card / SEO · 单文件 · 零依赖 · 本地优先</p>
+
+<label for="title">页面标题 (title)</label>
+<input id="title" type="text" value="nano-tools - 单文件离线工具箱" placeholder="站点标题">
+<label for="desc">描述 (description)</label>
+<textarea id="desc" rows="2" placeholder="150 字以内的页面描述">78 款单文件离线网页工具，零依赖，本地优先。</textarea>
+<div class="row">
+  <input id="url" type="text" placeholder="页面 URL（og:url）" style="flex:1" value="https://example.com/">
+  <input id="image" type="text" placeholder="分享图 URL（og:image）" style="flex:1">
+</div>
+<div class="row">
+  <input id="siteName" type="text" placeholder="站点名（og:site_name）" style="flex:1">
+  <input id="twitterHandle" type="text" placeholder="Twitter @账号（可选）" style="flex:1">
+</div>
+<div class="row">
+  <select id="ogType">
+    <option value="website">website</option>
+    <option value="article">article</option>
+    <option value="profile">profile</option>
+  </select>
+  <select id="twitterCard">
+    <option value="summary_large_image">summary_large_image</option>
+    <option value="summary">summary</option>
+  </select>
+  <select id="lang">
+    <option value="zh-CN">zh-CN</option>
+    <option value="en">en</option>
+  </select>
+</div>
+<div class="row">
+  <button id="run">生成 Meta 标签</button>
+  <button id="copy" class="ghost">复制结果</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>HTML Meta 标签</label>
+<div class="out" id="out" aria-live="polite">结果会显示在这里</div>
+<script>
+function esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function metaTag(name,content){ return '<meta name="'+esc(name)+'" content="'+esc(content)+'">'; }
+function ogTag(prop,content){ return '<meta property="'+esc(prop)+'" content="'+esc(content)+'">'; }
+function buildMeta(opt){
+  opt=opt||{};
+  var title=String(opt.title||'').trim();
+  if(!title) throw new Error('标题不能为空');
+  var desc=String(opt.desc||'').trim();
+  var L=[];
+  L.push('<!-- 基础 -->');
+  L.push('<meta charset="UTF-8">');
+  L.push('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
+  L.push('<title>'+esc(title)+'</title>');
+  if(desc) L.push(metaTag('description',desc));
+  L.push('');
+  L.push('<!-- Open Graph -->');
+  L.push(ogTag('og:type',opt.ogType||'website'));
+  L.push(ogTag('og:title',title));
+  if(desc) L.push(ogTag('og:description',desc));
+  if(opt.url) L.push(ogTag('og:url',opt.url));
+  if(opt.image) L.push(ogTag('og:image',opt.image));
+  if(opt.siteName) L.push(ogTag('og:site_name',opt.siteName));
+  if(opt.lang) L.push(ogTag('og:locale',String(opt.lang).replace('-','_')));
+  L.push('');
+  L.push('<!-- Twitter Card -->');
+  L.push(metaTag('twitter:card',opt.twitterCard||'summary_large_image'));
+  L.push(metaTag('twitter:title',title));
+  if(desc) L.push(metaTag('twitter:description',desc));
+  if(opt.image) L.push(metaTag('twitter:image',opt.image));
+  if(opt.twitterHandle){
+    var h=String(opt.twitterHandle).trim(); if(h && h[0]!=='@') h='@'+h;
+    L.push(metaTag('twitter:site',h));
+  }
+  return L.join('\n');
+}
+function checkLengths(opt){
+  var warns=[];
+  var t=String((opt&&opt.title)||''), d=String((opt&&opt.desc)||'');
+  if(t.length>60) warns.push('标题超过 60 字符（'+t.length+'），搜索结果可能被截断');
+  if(d.length>160) warns.push('描述超过 160 字符（'+d.length+'），搜索结果可能被截断');
+  if(d && d.length<50) warns.push('描述少于 50 字符，建议补充');
+  return warns;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { esc:esc, metaTag:metaTag, ogTag:ogTag, buildMeta:buildMeta, checkLengths:checkLengths };
+}
+if (typeof window !== 'undefined') {
+  window.MetaForgePure = { esc:esc, metaTag:metaTag, ogTag:ogTag, buildMeta:buildMeta, checkLengths:checkLengths };
+}
+</script>
+<script>
+if (typeof window !== 'undefined' && window.document) {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.MetaForgePure;
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function run(){
+      $('err').textContent='';
+      try {
+        var opt={ title:$('title').value, desc:$('desc').value, url:$('url').value.trim(),
+                  image:$('image').value.trim(), siteName:$('siteName').value.trim(),
+                  twitterHandle:$('twitterHandle').value.trim(), ogType:$('ogType').value,
+                  twitterCard:$('twitterCard').value, lang:$('lang').value };
+        var warns=P.checkLengths(opt);
+        $('out').textContent=P.buildMeta(opt);
+        $('err').textContent=warns.join('；');
+      } catch(e){ $('err').textContent=e.message; $('out').textContent='结果会显示在这里'; }
+    }
+    ['title','desc','url','image','siteName','twitterHandle'].forEach(function(id){ $(id).addEventListener('input', run); });
+    ['ogType','twitterCard','lang'].forEach(function(id){ $(id).addEventListener('change', run); });
+    $('run').addEventListener('click', run);
+    $('copy').addEventListener('click', function(){ copyText($('out').textContent); });
+    $('clear').addEventListener('click', function(){ ['title','desc','url','image','siteName','twitterHandle'].forEach(function(id){ $(id).value=''; }); $('out').textContent='结果会显示在这里'; $('err').textContent=''; });
+    run();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

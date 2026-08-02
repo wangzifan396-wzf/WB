@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShotForge — 离线代码截图生成器：语法高亮 + 窗口外观 + SVG/PNG 导出</title>
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.preview{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;justify-content:center;align-items:center;min-height:90px}
+.preview svg{max-width:100%}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.big{font:40px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
+.kv{color:var(--muted);font-size:13px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线代码截图生成器：轻量语法高亮 + 仿 macOS 窗口外观，一键复制 SVG / 导出 2x PNG。">
+</head>
+<body>
+<div class="app">
+  <h1>ShotForge</h1>
+  <p class="sub">离线代码截图生成器：语法高亮 + 窗口外观 + SVG/PNG 导出 · 单文件 · 零依赖 · 本地优先</p>
+
+<style>
+.cf-win{border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.08);max-width:100%}
+.cf-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.04)}
+.cf-dot{width:12px;height:12px;border-radius:50%}
+.cf-dot.r{background:#ff5f56}.cf-dot.y{background:#ffbd2e}.cf-dot.g{background:#27c93f}
+.cf-title{margin-left:8px;color:#8b949e;font:12px/1 ui-monospace,Menlo,Consolas,monospace}
+.cf-code{margin:0;padding:18px 20px 22px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;overflow-x:auto;color:#e6edf3}
+.tok-kw{color:#ff7b72}.tok-str{color:#a5d6ff}.tok-com{color:#8b949e;font-style:italic}
+.tok-num{color:#79c0ff}.tok-fn{color:#d2a8ff}.tok-id{color:#e6edf3}.tok-punc{color:#c9d1d9}
+</style>
+<label for="code">代码</label>
+<textarea id="code" rows="10" placeholder="// 粘贴代码，实时生成截图预览&#10;function hello(name) {&#10;  return `Hi, ${name}!`;&#10;}">function hello(name) {
+  // 问候语
+  const msg = `Hi, ${name}!`;
+  return msg;
+}</textarea>
+<div class="row">
+  <select id="lang">
+    <option value="js">JavaScript</option>
+    <option value="ts">TypeScript</option>
+    <option value="py">Python</option>
+    <option value="sh">Shell</option>
+    <option value="css">CSS</option>
+    <option value="json">JSON</option>
+    <option value="html">HTML</option>
+    <option value="sql">SQL</option>
+    <option value="go">Go</option>
+    <option value="rust">Rust</option>
+    <option value="java">Java</option>
+    <option value="yaml">YAML</option>
+    <option value="c">C/C++</option>
+  </select>
+  <input id="title" type="text" value="hello.js" style="flex:1" placeholder="窗口标题">
+  <select id="bg">
+    <option value="#0d1117">GitHub Dark</option>
+    <option value="#1e1e1e">VS Dark</option>
+    <option value="#282c34">One Dark</option>
+    <option value="#1A1B1E">Linear</option>
+  </select>
+</div>
+<div class="row">
+  <button id="copy">复制 SVG</button>
+  <button id="png" class="ghost">下载 PNG</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<label>预览（可截图 / 复制 SVG / 导出 PNG）</label>
+<div id="preview"></div>
+<script>
+var KW={var:1,let:1,const:1,function:1,return:1,if:1,else:1,for:1,while:1,do:1,switch:1,case:1,break:1,continue:1,new:1,class:1,extends:1,super:1,this:1,typeof:1,instanceof:1,in:1,of:1,void:1,delete:1,throw:1,try:1,catch:1,finally:1,async:1,await:1,yield:1,def:1,import:1,from:1,export:1,default:1,as:1,public:1,private:1,protected:1,static:1,interface:1,type:1,enum:1,namespace:1,func:1,package:1,go:1,chan:1,map:1,struct:1,impl:1,pub:1,fn:1,mut:1,use:1,module:1,and:1,or:1,not:1,end:1,then:1,elseif:1,elif:1,fi:1,esac:1,select:1,where:1,group:1,by:1,order:1,limit:1,SELECT:1,FROM:1,WHERE:1,AND:1,OR:1,INSERT:1,UPDATE:1,DELETE:1,CREATE:1,TABLE:1,NULL:1,echo:1,print:1,require:1,include:1,true:1,false:1,null:1,None:1,True:1,False:1,undefined:1};
+var HASH_LANGS={python:1,py:1,sh:1,bash:1,shell:1,yaml:1,yml:1,ruby:1,rb:1,toml:1,ini:1,cfg:1,nginx:1};
+function isKw(w){ return Object.prototype.hasOwnProperty.call(KW,w); }
+function tokenizeToTokens(code, lang){
+  code=String(code); lang=lang||'';
+  var hashLang = HASH_LANGS[lang]===1;
+  var tokens=[]; var i=0, n=code.length;
+  function push(t,c){ tokens.push({t:t,c:c}); }
+  while(i<n){
+    var c=code[i];
+    if(c==='/'&&code[i+1]==='/'){ var j=code.indexOf('\n',i); if(j<0)j=n; push(code.slice(i,j),'com'); i=j; continue; }
+    if(c==='/'&&code[i+1]==='*'){ var j=code.indexOf('*/',i+2); if(j<0)j=n-2; push(code.slice(i,j+2),'com'); i=(j<0?n:j+2); continue; }
+    if(hashLang&&c==='#'){ var j=code.indexOf('\n',i); if(j<0)j=n; push(code.slice(i,j),'com'); i=j; continue; }
+    if(c==='"'||c==="'"||c==='`'){
+      var q=c,j=i+1,buf=c,esc=false;
+      while(j<n){ var d=code[j]; buf+=d; if(esc){esc=false;j++;continue;} if(d==='\\'){esc=true;j++;continue;} if(d===q){j++;break;} if(q!=='`'&&d==='\n'){break;} j++; }
+      push(buf,'str'); i=j; continue;
+    }
+    if(/[0-9]/.test(c)||(c==='.'&&/[0-9]/.test(code[i+1]||''))){ var j=i; while(j<n&&/[0-9a-fA-FxX._]/.test(code[j]))j++; push(code.slice(i,j),'num'); i=j; continue; }
+    if(/[A-Za-z_$]/.test(c)){ var j=i; while(j<n&&/[A-Za-z0-9_$]/.test(code[j]))j++; var w=code.slice(i,j); var nc=code[j]; while(nc===' '||nc==='\t'||nc==='\n'||nc==='\r'){nc=code[++j];} var c2=isKw(w)?'kw':(nc==='('?'fn':'id'); push(w,c2); i=j; continue; }
+    if(/\s/.test(c)){ var j=i; while(j<n&&/\s/.test(code[j]))j++; push(code.slice(i,j),null); i=j; continue; }
+    push(c,'punc'); i++; continue;
+  }
+  return tokens;
+}
+function escapeXml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function htmlFromTokens(tokens){ return tokens.map(function(t){ if(t.c) return '<span class="tok-'+t.c+'">'+escHtml(t.t)+'</span>'; return escHtml(t.t); }).join(''); }
+function svgFromTokens(tokens, opts){
+  opts=opts||{};
+  var fontSize=opts.fontSize||14;
+  var lineH=Math.round(fontSize*1.5);
+  var padX=opts.padX||24, padTop=opts.padTop||44, padBottom=opts.padBottom||22;
+  var charW=fontSize*0.6;
+  var lines=[]; var cur=[]; var curLen=0; var maxLen=0;
+  tokens.forEach(function(t){
+    var parts=String(t.t).split('\n');
+    for(var k=0;k<parts.length;k++){
+      if(k>0){ lines.push({toks:cur,len:curLen}); cur=[]; curLen=0; }
+      if(parts[k].length){ cur.push({text:parts[k], c:t.c}); curLen+=parts[k].length; }
+    }
+  });
+  lines.push({toks:cur,len:curLen});
+  lines.forEach(function(l){ if(l.len>maxLen) maxLen=l.len; });
+  var innerW=Math.ceil(maxLen*charW)+padX*2;
+  var innerH=lines.length*lineH+padTop+padBottom;
+  var bg=opts.bg||'#0d1117';
+  var title=opts.title||'code';
+  var s='<svg xmlns="http://www.w3.org/2000/svg" width="'+innerW+'" height="'+innerH+'" viewBox="0 0 '+innerW+' '+innerH+'" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">';
+  s+='<rect x="0" y="0" width="'+innerW+'" height="'+innerH+'" rx="12" fill="'+bg+'"/>';
+  s+='<circle cx="22" cy="22" r="6" fill="#ff5f56"/>';
+  s+='<circle cx="42" cy="22" r="6" fill="#ffbd2e"/>';
+  s+='<circle cx="62" cy="22" r="6" fill="#27c93f"/>';
+  s+='<text x="'+(innerW/2)+'" y="27" text-anchor="middle" font-size="12" fill="#8b949e">'+escapeXml(title)+'</text>';
+  var colors={kw:'#ff7b72',str:'#a5d6ff',com:'#8b949e',num:'#79c0ff',fn:'#d2a8ff',id:'#e6edf3',punc:'#c9d1d9',null:'#e6edf3'};
+  for(var i=0;i<lines.length;i++){
+    var row=lines[i]; if(!row.toks.length) continue;
+    var y=padTop+i*lineH+fontSize;
+    s+='<text x="'+padX+'" y="'+y+'" font-size="'+fontSize+'" xml:space="preserve">';
+    row.toks.forEach(function(tok){
+      var col=colors[tok.c!=null?tok.c:'null'];
+      s+='<tspan fill="'+col+'">'+escapeXml(tok.text)+'</tspan>';
+    });
+    s+='</text>';
+  }
+  s+='</svg>';
+  return s;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { tokenizeToTokens:tokenizeToTokens, htmlFromTokens:htmlFromTokens, svgFromTokens:svgFromTokens, escapeXml:escapeXml };
+}
+if (typeof window !== 'undefined') {
+  window.ShotForgePure = { tokenizeToTokens:tokenizeToTokens, htmlFromTokens:htmlFromTokens, svgFromTokens:svgFromTokens, escapeXml:escapeXml };
+}
+</script>
+<script>
+if (typeof window !== 'undefined' && window.document) {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.ShotForgePure;
+    var lastSvg='';
+    function build(){
+      var code=$('code').value, lang=$('lang').value, title=$('title').value, bg=$('bg').value;
+      var tokens=P.tokenizeToTokens(code, lang);
+      var html='<div class="cf-win" style="background:'+bg+'"><div class="cf-bar"><span class="cf-dot r"></span><span class="cf-dot y"></span><span class="cf-dot g"></span><span class="cf-title">'+P.escapeXml(title||'code')+'</span></div><pre class="cf-code">'+P.htmlFromTokens(tokens)+'</pre></div>';
+      $('preview').innerHTML=html;
+      lastSvg=P.svgFromTokens(tokens, {bg:bg, title:title||'code'});
+    }
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function downloadPng(){
+      if(!lastSvg) return;
+      var blob=new Blob([lastSvg],{type:'image/svg+xml'});
+      var url=URL.createObjectURL(blob);
+      var img=new Image();
+      img.onload=function(){
+        var scale=2, canvas=document.createElement('canvas');
+        canvas.width=img.width*scale; canvas.height=img.height*scale;
+        var ctx=canvas.getContext('2d'); ctx.scale(scale,scale); ctx.drawImage(img,0,0);
+        canvas.toBlob(function(b){ if(!b) return; var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='shotforge.png'; a.click(); });
+      };
+      img.onerror=function(){ alert('当前浏览器无法导出 PNG，请改用「复制 SVG」'); };
+      img.src=url;
+    }
+    ['code','lang','title','bg'].forEach(function(id){ $(id).addEventListener('input', build); $(id).addEventListener('change', build); });
+    $('copy').addEventListener('click', function(){ copyText(lastSvg); });
+    $('png').addEventListener('click', downloadPng);
+    $('clear').addEventListener('click', function(){ $('code').value=''; build(); });
+    build();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

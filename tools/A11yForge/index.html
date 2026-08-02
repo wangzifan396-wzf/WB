@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A11yForge · 离线无障碍工具箱</title>
+<meta name="description" content="本地优先的无障碍工具箱：WCAG 对比度检查、合规取色、色觉障碍模拟、HTML/ARIA 审计，零上传离线可用。">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0A0A0B">
+<style>
+:root{
+  --bg:#0A0A0B; --surface:#141417; --surface2:#1A1B1E;
+  --t1:#FFFFFF; --t2:#A1A1AA; --t3:#71717A;
+  --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+  --radius:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--t1);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;line-height:1.5}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1040px;margin:0 auto;padding:28px 20px 64px}
+.topbar{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+.logo{width:42px;height:42px;border-radius:10px;background:var(--surface2);
+  border:1px solid var(--border);display:grid;place-items:center;color:var(--accent)}
+.logo svg{width:24px;height:24px}
+h1{font-size:22px;margin:0;font-weight:700;letter-spacing:.2px}
+.sub{color:var(--t3);font-size:13px;margin:2px 0 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px}
+.card.full{grid-column:1 / -1}
+.card h2{font-size:15px;margin:0 0 14px;font-weight:650;display:flex;align-items:center;gap:8px}
+.card h2 .n{color:var(--accent);font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center;gap:10px;margin:10px 0}
+.row label{width:54px;color:var(--t2);font-size:13px}
+.hex{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--t1);
+  padding:8px 10px;font:600 13px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;width:110px;text-transform:uppercase}
+.hex:focus{outline:none;border-color:var(--accent)}
+.pick{width:38px;height:38px;padding:0;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer}
+.swprev{flex:1;height:38px;border-radius:8px;border:1px solid var(--border);display:grid;place-items:center;
+  font-size:14px;font-weight:600;overflow:hidden;padding:0 12px;text-align:center}
+.preview{margin-top:14px;border-radius:12px;border:1px solid var(--border);padding:26px;min-height:120px;
+  display:flex;flex-direction:column;gap:10px;justify-content:center}
+.preview .big{font-size:30px;font-weight:800}
+.preview .small{font-size:15px}
+.ratio{display:flex;align-items:baseline;gap:12px;margin-top:16px;flex-wrap:wrap}
+.ratio .num{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums}
+.ratio .lab{color:var(--t3);font-size:13px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.badge{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--border);color:var(--t2);
+  display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.badge .dot{width:8px;height:8px;border-radius:50%;background:var(--t3)}
+.badge.pass{color:var(--ok);border-color:rgba(16,185,129,.35)}
+.badge.pass .dot{background:var(--ok)}
+.badge.fail{color:var(--warn);border-color:rgba(245,166,35,.35)}
+.badge.fail .dot{background:var(--warn)}
+button.btn{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:9px 14px;font-size:13px;
+  font-weight:600;cursor:pointer;transition:filter .15s}
+button.btn:hover{filter:brightness(1.1)}
+button.ghost{background:var(--surface2);color:var(--t1);border:1px solid var(--border)}
+select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--t1);
+  padding:8px 10px;font-size:13px;font-family:inherit}
+textarea{width:100%;min-height:150px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.cvd-row{display:flex;align-items:center;gap:10px;margin:8px 0}
+.cvd-name{width:110px;font-size:13px;color:var(--t2)}
+.swatch{width:34px;height:34px;border-radius:7px;border:1px solid var(--border)}
+.summary{display:flex;gap:10px;margin:12px 0;flex-wrap:wrap}
+.pill{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--border);font-weight:600}
+.pill.err{color:#F87171;border-color:rgba(248,113,113,.35)}
+.pill.warn{color:var(--warn);border-color:rgba(245,166,35,.35)}
+.pill.ok{color:var(--ok);border-color:rgba(16,185,129,.35)}
+.issues{list-style:none;padding:0;margin:8px 0 0;display:flex;flex-direction:column;gap:8px;max-height:340px;overflow:auto}
+.issue{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface2)}
+.issue .top{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700}
+.issue .sev{font-size:11px;padding:2px 8px;border-radius:999px}
+.issue .sev.error{color:#F87171;background:rgba(248,113,113,.12)}
+.issue .sev.warning{color:var(--warn);background:rgba(245,166,35,.12)}
+.issue .sev.info{color:var(--info);background:rgba(34,211,238,.12)}
+.issue .msg{font-size:13px;color:var(--t1);margin-top:4px}
+.issue .sel{font-size:11px;color:var(--t3);margin-top:3px;font-family:ui-monospace,monospace}
+.empty{color:var(--t3);font-size:13px;padding:18px;text-align:center}
+.foot{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--surface2);
+  border:1px solid var(--border2);color:var(--t1);padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;
+  transition:all .25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M8 21h8"/><path d="M12 7v6"/><path d="M9 17a3 3 0 0 0 6 0"/></svg></div>
+    <div>
+      <h1>A11yForge</h1>
+      <div class="sub">离线无障碍工具箱 · 对比度 / 合规取色 / 色盲模拟 / HTML 审计 · 零上传</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2><span class="n">01</span> 对比度检查</h2>
+      <div class="row"><label>前景</label>
+        <input class="hex" id="fgHex" value="#FFFFFF" maxlength="7">
+        <input class="pick" id="fgPick" type="color" value="#FFFFFF">
+        <div class="swprev" id="fgSw">Aa</div>
+      </div>
+      <div class="row"><label>背景</label>
+        <input class="hex" id="bgHex" value="#141417" maxlength="7">
+        <input class="pick" id="bgPick" type="color" value="#141417">
+        <div class="swprev" id="bgSw">Aa</div>
+      </div>
+      <div class="preview" id="preview">
+        <div class="big" id="pvBig">对比度预览 The quick brown fox</div>
+        <div class="small" id="pvSmall">无障碍设计让所有人都能使用产品 · 1234567890</div>
+      </div>
+      <div class="ratio">
+        <div class="num" id="ratioNum">—</div>
+        <div class="lab">WCAG 2.1 对比度比值</div>
+      </div>
+      <div class="badges" id="badges"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn" id="fixBtn">自动调到合规 (AA 普通文本)</button>
+        <button class="ghost btn" id="swapBtn">互换</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="n">02</span> 色觉障碍模拟</h2>
+      <div class="row"><label>类型</label>
+        <select id="cvdType">
+          <option value="normal">正常视觉</option>
+          <option value="protanopia">红色盲 (Protanopia)</option>
+          <option value="deuteranopia">绿色盲 (Deuteranopia)</option>
+          <option value="tritanopia">蓝色盲 (Tritanopia)</option>
+        </select>
+      </div>
+      <div id="cvdSwatches"></div>
+      <div class="empty" style="padding-top:14px">模拟当前前景/背景在各类色觉缺陷下的呈现。</div>
+    </div>
+
+    <div class="card full">
+      <h2><span class="n">03</span> HTML / ARIA 审计</h2>
+      <textarea id="htmlIn" placeholder="在此粘贴 HTML 片段，例如：&lt;img src='x.png'&gt;&lt;button&gt;&lt;/button&gt;&lt;input&gt;"></textarea>
+      <div class="foot">
+        <button class="btn" id="auditBtn">运行审计</button>
+        <button class="ghost btn" id="sampleBtn">载入示例</button>
+      </div>
+      <div class="summary" id="summary"></div>
+      <ul class="issues" id="issues"><li class="empty">尚未运行审计。</li></ul>
+    </div>
+
+    <div class="card full">
+      <h2><span class="n">04</span> 报告导出</h2>
+      <div class="foot">
+        <button class="btn" id="exportBtn">下载审计报告 (.txt)</button>
+        <button class="ghost btn" id="copyBtn">复制报告</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+/* ===== pure functions (also exported for Node tests) ===== */
+function parseColor(str){
+  if(!str) return null;
+  str = String(str).trim();
+  if(str[0]==='#'){
+    var h = str.slice(1);
+    if(h.length===3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    if(h.length!==6) return null;
+    if(/[^0-9a-fA-F]/.test(h)) return null;
+    return {r:parseInt(h.slice(0,2),16), g:parseInt(h.slice(2,4),16), b:parseInt(h.slice(4,6),16)};
+  }
+  var m = str.match(/rgba?\(([^)]+)\)/i);
+  if(m){
+    var p = m[1].split(',').map(function(x){return parseFloat(x);});
+    if(p.length>=3) return {r:p[0], g:p[1], b:p[2]};
+  }
+  return null;
+}
+function hexToRgb(hex){ return parseColor(hex); }
+function rgbToHex(c){
+  function h(n){ var s=Math.max(0,Math.min(255,Math.round(n))).toString(16); return s.length<2?'0'+s:s; }
+  return '#'+h(c.r)+h(c.g)+h(c.b);
+}
+function _lin(ch){
+  ch = ch/255;
+  return ch<=0.03928 ? ch/12.92 : Math.pow((ch+0.055)/1.055, 2.4);
+}
+function relativeLuminance(c){
+  return 0.2126*_lin(c.r) + 0.7152*_lin(c.g) + 0.0722*_lin(c.b);
+}
+function contrastRatio(c1, c2){
+  var l1 = relativeLuminance(c1), l2 = relativeLuminance(c2);
+  var hi = Math.max(l1,l2), lo = Math.min(l1,l2);
+  return (hi+0.05)/(lo+0.05);
+}
+function wcagLevels(ratio){
+  return {
+    normalAA: ratio>=4.5, normalAAA: ratio>=7,
+    largeAA: ratio>=3, largeAAA: ratio>=4.5,
+    uiAA: ratio>=3, uiAAA: ratio>=4.5
+  };
+}
+function rgbToHsl(c){
+  var r=c.r/255, g=c.g/255, b=c.b/255;
+  var max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min, h=0,s=0,l=(max+min)/2;
+  if(d!==0){
+    s = l>0.5 ? d/(2-max-min) : d/(max+min);
+    if(max===r) h=(g-b)/d+(g<b?6:0);
+    else if(max===g) h=(b-r)/d+2;
+    else h=(r-g)/d+4;
+    h/=6;
+  }
+  return {h:h*360, s:s*100, l:l*100};
+}
+function hslToRgb(hsl){
+  var h=hsl.h/360, s=hsl.s/100, l=hsl.l/100, r,g,b;
+  if(s===0){ r=g=b=l; }
+  else{
+    var q = l<0.5 ? l*(1+s) : l+s-l*s;
+    var p = 2*l-q;
+    function hue(p,q,t){
+      if(t<0)t+=1; if(t>1)t-=1;
+      if(t<1/6) return p+(q-p)*6*t;
+      if(t<1/2) return q;
+      if(t<2/3) return p+(q-p)*(2/3-t)*6;
+      return p;
+    }
+    r=hue(p,q,h+1/3); g=hue(p,q,h); b=hue(p,q,h-1/3);
+  }
+  return {r:Math.round(r*255), g:Math.round(g*255), b:Math.round(b*255)};
+}
+function nearestPassingColor(fg, bg, threshold){
+  threshold = threshold||4.5;
+  var bgL = rgbToHsl(bg).l;
+  var fgHsl = rgbToHsl(fg);
+  var dir = bgL<50 ? 1 : -1; // if bg dark, push fg lighter
+  for(var step=0; step<=100; step+=0.5){
+    var cand = hslToRgb({h:fgHsl.h, s:fgHsl.s, l:fgHsl.l + dir*step});
+    if(contrastRatio(cand, bg) >= threshold){
+      return rgbToHex(cand);
+    }
+  }
+  // extreme
+  var ext = dir>0 ? {r:255,g:255,b:255} : {r:0,g:0,b:0};
+  return rgbToHex(ext);
+}
+function simulateCVD(c, type){
+  var M = {
+    normal:[[1,0,0],[0,1,0],[0,0,1]],
+    protanopia:[[0.567,0.433,0],[0.558,0.442,0],[0,0.242,0.758]],
+    deuteranopia:[[0.625,0.375,0],[0.7,0.3,0],[0,0.3,0.7]],
+    tritanopia:[[0.95,0.05,0],[0,0.433,0.567],[0,0.475,0.525]]
+  }[type||'normal'] || [[1,0,0],[0,1,0],[0,0,1]];
+  function cl(x){ return Math.max(0, Math.min(255, Math.round(x))); }
+  return {r:cl(M[0][0]*c.r+M[0][1]*c.g+M[0][2]*c.b),
+          g:cl(M[1][0]*c.r+M[1][1]*c.g+M[1][2]*c.b),
+          b:cl(M[2][0]*c.r+M[2][1]*c.g+M[2][2]*c.b)};
+}
+function extractElements(html){
+  var out=[], re=/<([a-zA-Z][a-zA-Z0-9]*)([^>]*?)(\/?)>/g, m;
+  var idx=0;
+  while((m=re.exec(html))){
+    var tag=m[1].toLowerCase();
+    var attrStr=m[2];
+    var attrs={};
+    var ar=/([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:=("([^"]*)"|'([^']*)'|([^\s>"']+)))?/g, am;
+    while((am=ar.exec(attrStr))){
+      var k=am[1].toLowerCase();
+      var v = am[3]!==undefined?am[3] : am[4]!==undefined?am[4] : am[5]!==undefined?am[5] : '';
+      attrs[k]=v;
+    }
+    out.push({tag:tag, attrs:attrs, index:idx++});
+  }
+  return out;
+}
+function auditHtml(html){
+  var els = extractElements(html);
+  var issues=[];
+  function sel(e){ return e.tag + (e.attrs.id?'#'+e.attrs.id:'') + (e.attrs.class?'.'+String(e.attrs.class).split(/\s+/)[0]:''); }
+  // doc lang
+  var htmlEl = els.filter(function(e){return e.tag==='html';})[0];
+  if(!htmlEl || !htmlEl.attrs.lang){
+    issues.push({severity:'error', rule:'doc-lang', message: htmlEl ? '<html> 缺少 lang 属性' : '片段缺少 <html lang> 根上下文', selector:'html'});
+  }
+  // duplicate ids
+  var seen={}, dup={};
+  els.forEach(function(e){
+    var id=e.attrs.id;
+    if(!id) return;
+    if(seen[id]){ if(!dup[id]){ dup[id]=true; } }
+    seen[id]=true;
+  });
+  Object.keys(dup).forEach(function(id){
+    issues.push({severity:'error', rule:'dup-id', message:'id 重复: "'+id+'"', selector:'#'+id});
+  });
+  // img alt
+  els.filter(function(e){return e.tag==='img';}).forEach(function(e){
+    if(!('alt' in e.attrs)) issues.push({severity:'warning', rule:'img-alt', message:'<img> 缺少 alt 属性', selector:sel(e)});
+  });
+  // input label association
+  var labelFor = {};
+  els.filter(function(e){return e.tag==='label' && e.attrs.for;}).forEach(function(e){ labelFor[e.attrs.for]=true; });
+  ['input','select','textarea'].forEach(function(t){
+    els.filter(function(e){return e.tag===t;}).forEach(function(e){
+      if(t==='input' && (e.attrs.type==='hidden'||e.attrs.type==='submit'||e.attrs.type==='button'||e.attrs.type==='reset')) return;
+      var ok = e.attrs['aria-label'] || e.attrs['aria-labelledby'] || (e.attrs.id && labelFor[e.attrs.id]);
+      if(!ok) issues.push({severity:'warning', rule:'input-label', message:'<'+t+'> 缺少可访问名称（aria-label / label[for]）', selector:sel(e)});
+    });
+  });
+  // button name
+  els.filter(function(e){return e.tag==='button';}).forEach(function(e){
+    if(!e.attrs['aria-label'] && !e.attrs['aria-labelledby'] && !e.attrs.title)
+      issues.push({severity:'info', rule:'button-name', message:'<button> 可能缺少可访问名称', selector:sel(e)});
+  });
+  // heading order
+  var hs = els.filter(function(e){return /^h[1-6]$/.test(e.tag);}).map(function(e){return parseInt(e.tag[1],10);});
+  if(hs.length){
+    if(hs[0]!==1) issues.push({severity:'info', rule:'heading-start', message:'首个标题不是 h1（当前 h'+hs[0]+'）', selector:'h'+hs[0]});
+    for(var i=1;i<hs.length;i++){
+      if(hs[i]-hs[i-1]>1) issues.push({severity:'warning', rule:'heading-order', message:'标题层级跳跃: h'+hs[i-1]+' → h'+hs[i], selector:'h'+hs[i]});
+    }
+  }
+  // tabindex>0
+  els.forEach(function(e){
+    if(e.attrs.tabindex && parseInt(e.attrs.tabindex,10)>0)
+      issues.push({severity:'warning', rule:'tabindex-pos', message:'tabindex='+e.attrs.tabindex+' 为正值（反模式）', selector:sel(e)});
+  });
+  // aria-hidden on focusable
+  var interactive=/^(a|button|input|select|textarea)$/;
+  els.forEach(function(e){
+    if(e.attrs['aria-hidden']==='true' && (interactive.test(e.tag) || (e.attrs.tabindex && parseInt(e.attrs.tabindex,10)>=0)))
+      issues.push({severity:'warning', rule:'aria-hidden-focus', message:'aria-hidden="true" 用在可聚焦元素上', selector:sel(e)});
+  });
+  return issues;
+}
+
+var A11yForgePure = {
+  parseColor:parseColor, hexToRgb:hexToRgb, rgbToHex:rgbToHex,
+  relativeLuminance:relativeLuminance, contrastRatio:contrastRatio, wcagLevels:wcagLevels,
+  rgbToHsl:rgbToHsl, hslToRgb:hslToRgb, nearestPassingColor:nearestPassingColor,
+  simulateCVD:simulateCVD, extractElements:extractElements, auditHtml:auditHtml
+};
+if(typeof module!=='undefined' && module.exports){ module.exports = A11yForgePure; }
+
+/* ===== UI layer (browser only) ===== */
+if(typeof window!=='undefined'){
+  var $ = function(id){ return document.getElementById(id); };
+  var SAMPLE_COLORS = ['#5E6AD2','#10B981','#F5A623','#22D3EE','#EF4444','#A855F7','#EC4899','#84CC16','#F97316','#14B8A6','#6366F1','#EAB308'];
+  function toast(msg){
+    var t=$('toast'); t.textContent=msg; t.classList.add('show');
+    clearTimeout(t._h); t._h=setTimeout(function(){t.classList.remove('show');},1800);
+  }
+  function readColors(){
+    var fg=parseColor($('fgHex').value), bg=parseColor($('bgHex').value);
+    if(!fg){ fg=parseColor($('fgPick').value); }
+    if(!bg){ bg=parseColor($('bgPick').value); }
+    return {fg:fg, bg:bg};
+  }
+  function render(){
+    var c=readColors(), fg=c.fg, bg=c.bg;
+    if(!fg||!bg) return;
+    $('fgPick').value=rgbToHex(fg); $('bgPick').value=rgbToHex(bg);
+    $('fgHex').value=rgbToHex(fg); $('bgHex').value=rgbToHex(bg);
+    $('fgHex').style.color=rgbToHex(fg); $('bgHex').style.color=rgbToHex(bg);
+    $('fgSw').style.background=rgbToHex(fg); $('fgSw').style.color=rgbToHex(bg);
+    $('bgSw').style.background=rgbToHex(bg); $('bgSw').style.color=rgbToHex(fg);
+    var prev=$('preview'); prev.style.background=rgbToHex(bg); prev.style.color=rgbToHex(fg);
+    var ratio=contrastRatio(fg,bg);
+    $('ratioNum').textContent=ratio.toFixed(2);
+    var L=wcagLevels(ratio);
+    function badge(name, pass){ return '<span class="badge '+(pass?'pass':'fail')+'"><span class="dot"></span>'+name+'</span>'; }
+    $('badges').innerHTML =
+      badge('AA 普通文本 4.5', L.normalAA) +
+      badge('AAA 普通文本 7', L.normalAAA) +
+      badge('AA 大字/UI 3', L.largeAA) +
+      badge('AAA 大字/UI 4.5', L.largeAAA);
+    // CVD swatches
+    var sw=$('cvdSwatches'); sw.innerHTML='';
+    SAMPLE_COLORS.concat([rgbToHex(fg), rgbToHex(bg)]).forEach(function(hex){
+      var base=parseColor(hex);
+      var type=$('cvdType').value;
+      var sim=simulateCVD(base, type);
+      var row=document.createElement('div'); row.className='cvd-row';
+      row.innerHTML='<span class="cvd-name">'+hex+'</span>'+
+        '<span class="swatch" style="background:'+rgbToHex(base)+'"></span>'+
+        '<span class="swatch" style="background:'+rgbToHex(sim)+'"></span>';
+      sw.appendChild(row);
+    });
+  }
+  ['fgHex','bgHex','fgPick','bgPick','cvdType'].forEach(function(id){
+    $(id).addEventListener('input', render);
+    $(id).addEventListener('change', render);
+  });
+  $('swapBtn').addEventListener('click', function(){
+    var f=$('fgHex').value, b=$('bgHex').value;
+    $('fgHex').value=b; $('bgHex').value=f; render();
+  });
+  $('fixBtn').addEventListener('click', function(){
+    var c=readColors();
+    var fixed=nearestPassingColor(c.fg, c.bg, 4.5);
+    $('fgHex').value=fixed; render();
+    toast('已调整到合规前景色 '+fixed);
+  });
+  var SAMPLE_HTML = '<img src="logo.png">\n<form>\n  <input type="text" id="name">\n  <label for="email">邮箱</label>\n  <input type="email" id="email">\n  <button>提交</button>\n</form>\n<h1>标题</h1>\n<h3>跳级标题</h3>\n<div tabindex="1">可聚焦</div>\n<a href="/x">链接</a>';
+  $('sampleBtn').addEventListener('click', function(){ $('htmlIn').value=SAMPLE_HTML; runAudit(); });
+  $('auditBtn').addEventListener('click', runAudit);
+  function runAudit(){
+    var html=$('htmlIn').value;
+    var issues=auditHtml(html);
+    var err=issues.filter(function(i){return i.severity==='error';}).length;
+    var warn=issues.filter(function(i){return i.severity==='warning';}).length;
+    var info=issues.filter(function(i){return i.severity==='info';}).length;
+    $('summary').innerHTML =
+      '<span class="pill ok">共 '+issues.length+' 项</span>'+
+      '<span class="pill err">错误 '+err+'</span>'+
+      '<span class="pill warn">警告 '+warn+'</span>'+
+      '<span class="pill">提示 '+info+'</span>';
+    var ul=$('issues');
+    if(!issues.length){ ul.innerHTML='<li class="empty">未发现无障碍问题 🎉</li>'; return; }
+    ul.innerHTML='';
+    issues.forEach(function(it){
+      var li=document.createElement('li'); li.className='issue';
+      li.innerHTML='<div class="top"><span class="sev '+it.severity+'">'+
+        (it.severity==='error'?'错误':it.severity==='warning'?'警告':'提示')+'</span>'+
+        '<span>'+it.rule+'</span></div>'+
+        '<div class="msg">'+it.message+'</div>'+
+        (it.selector?'<div class="sel">'+it.selector+'</div>':'');
+      ul.appendChild(li);
+    });
+  }
+  window._lastIssues=[];
+  function buildReport(){
+    var c=readColors();
+    var ratio=contrastRatio(c.fg,c.bg);
+    var L=wcagLevels(ratio);
+    var lines=[];
+    lines.push('A11yForge 无障碍审计报告');
+    lines.push('生成时间: '+new Date().toLocaleString());
+    lines.push('');
+    lines.push('【对比度】');
+    lines.push('前景 '+rgbToHex(c.fg)+' / 背景 '+rgbToHex(c.bg)+' → 比值 '+ratio.toFixed(2));
+    lines.push('AA 普通文本: '+(L.normalAA?'通过':'未通过')+' | AAA 普通文本: '+(L.normalAAA?'通过':'未通过'));
+    lines.push('AA 大字/UI: '+(L.largeAA?'通过':'未通过')+' | AAA 大字/UI: '+(L.largeAAA?'通过':'未通过'));
+    lines.push('');
+    lines.push('【HTML 审计】');
+    var issues=auditHtml($('htmlIn').value);
+    if(!issues.length) lines.push('未发现无障碍问题。');
+    issues.forEach(function(it){
+      lines.push('['+(it.severity==='error'?'错误':it.severity==='warning'?'警告':'提示')+'] '+it.rule+' — '+it.message+(it.selector?' ('+it.selector+')':''));
+    });
+    return lines.join('\n');
+  }
+  $('exportBtn').addEventListener('click', function(){
+    var blob=new Blob([buildReport()], {type:'text/plain'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='a11y-report.txt'; a.click(); URL.revokeObjectURL(a.href);
+    toast('已导出 a11y-report.txt');
+  });
+  $('copyBtn').addEventListener('click', function(){
+    var txt=buildReport();
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){toast('报告已复制');}); }
+    else toast('当前环境不支持复制');
+  });
+  render();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<footer style="margin-top:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);color:#71717A;font-size:12px;text-align:center">nano-tools · 单文件 · 零依赖 · 本地优先 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</body>
+</html>

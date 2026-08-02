@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>LzStringForge — LZW 字符串压缩：纯 JS 实现，文本→Base64 压缩并可无损还原。</title>
+<meta property="og:title" content="LzStringForge">
+<meta property="og:description" content="LZW 字符串压缩：文本转 Base64 并可无损还原，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="LZW 字符串压缩：文本转 Base64 并可无损还原，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>LzStringForge</h1>
+  <p class="sub">LZW 字符串压缩：纯 JS 实现文本压缩为 Base64、压缩率统计与无损还原，适合前端缓存/传输 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>输入文本（压缩）</label>
+<textarea id="src" rows="5" spellcheck="false">nano-tools 单文件工具集：零依赖、本地优先、数据不出本机。nano-tools 单文件工具集：零依赖、本地优先。</textarea>
+<label>压缩结果（Base64）</label>
+<textarea id="cmp" rows="3" spellcheck="false" readonly></textarea>
+<label>解压回显</label>
+<div class="out" id="out">解压结果将显示在这里</div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var B64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function utf8Encode(str){
+  var out='';
+  for(var i=0;i<str.length;i++){
+    var c=str.charCodeAt(i);
+    if(c<128){ out+=String.fromCharCode(c); }
+    else if(c<2048){ out+=String.fromCharCode(192|(c>>6), 128|(c&63)); }
+    else { out+=String.fromCharCode(224|(c>>12), 128|((c>>6)&63), 128|(c&63)); }
+  }
+  return out;
+}
+function utf8Decode(bin){
+  var out='', i=0;
+  while(i<bin.length){
+    var c=bin.charCodeAt(i);
+    if(c<128){ out+=String.fromCharCode(c); i+=1; }
+    else if(c>191 && c<224){ out+=String.fromCharCode(((c&31)<<6)|(bin.charCodeAt(i+1)&63)); i+=2; }
+    else { out+=String.fromCharCode(((c&15)<<12)|((bin.charCodeAt(i+1)&63)<<6)|(bin.charCodeAt(i+2)&63)); i+=3; }
+  }
+  return out;
+}
+function b64FromBytes(bytes){
+  var out='';
+  for(var i=0;i<bytes.length;i+=3){
+    var b0=bytes[i]&255;
+    var has1=(i+1)<bytes.length, has2=(i+2)<bytes.length;
+    var b1=has1?(bytes[i+1]&255):0;
+    var b2=has2?(bytes[i+2]&255):0;
+    var c0=(b0>>2)&63;
+    var c1=((b0&3)<<4)|((b1>>4)&15);
+    var c2=has1?((((b1&15)<<2)|((b2>>6)&3))&63):64;
+    var c3=has2?(b2&63):64;
+    out+=B64.charAt(c0)+B64.charAt(c1)+(c2===64?'=':B64.charAt(c2))+(c3===64?'=':B64.charAt(c3));
+  }
+  return out;
+}
+function b64ToBytes(s){
+  var bytes=[];
+  s=String(s).replace(/[^A-Za-z0-9+\/]/g,'');
+  for(var i=0;i<s.length;i+=4){
+    var n=s.length-i;
+    var e0=B64.indexOf(s.charAt(i));
+    var e1=(n>1)?B64.indexOf(s.charAt(i+1)):-1;
+    var e2=(n>2)?B64.indexOf(s.charAt(i+2)):-1;
+    var e3=(n>3)?B64.indexOf(s.charAt(i+3)):-1;
+    if(e0<0 || e1<0) break;
+    bytes.push(((e0<<2)|(e1>>4))&255);
+    if(e2<0) break;
+    bytes.push((((e1&15)<<4)|(e2>>2))&255);
+    if(e3<0) break;
+    bytes.push((((e2&3)<<6)|e3)&255);
+  }
+  return bytes;
+}
+var LZ_MAX=65536;
+function lzwCompress(str){
+  if(str==='' || str===null || str===undefined) return '';
+  var s=utf8Encode(String(str));
+  var dict={}, dictSize=256, i, c;
+  for(i=0;i<256;i++) dict[String.fromCharCode(i)]=i;
+  var w='', result=[];
+  for(i=0;i<s.length;i++){
+    c=s.charAt(i);
+    var wc=w+c;
+    if(dict[wc]!==undefined){ w=wc; }
+    else { result.push(dict[w]); if(dictSize<LZ_MAX) dict[wc]=dictSize++; w=c; }
+  }
+  if(w!=='') result.push(dict[w]);
+  var bytes=[];
+  for(i=0;i<result.length;i++){ var v=result[i]|0; bytes.push((v>>8)&255); bytes.push(v&255); }
+  return b64FromBytes(bytes);
+}
+function lzwDecompress(b64){
+  if(b64==='' || b64===null || b64===undefined) return '';
+  var bytes=b64ToBytes(b64), codes=[], i;
+  for(i=0;i+1<bytes.length;i+=2) codes.push((bytes[i]<<8)|bytes[i+1]);
+  if(codes.length===0) return '';
+  var dict={}, dictSize=256;
+  for(i=0;i<256;i++) dict[i]=String.fromCharCode(i);
+  if(dict[codes[0]]===undefined) return null;
+  var w=dict[codes[0]], out=w, entry='';
+  for(i=1;i<codes.length;i++){
+    var k=codes[i];
+    if(dict[k]!==undefined) entry=dict[k];
+    else if(k===dictSize) entry=w+w.charAt(0);
+    else return null;
+    out+=entry;
+    if(dictSize<LZ_MAX) dict[dictSize++]=w+entry.charAt(0);
+    w=entry;
+  }
+  return utf8Decode(out);
+}
+function lzRatio(src, packed){
+  var a=utf8Encode(String(src)).length, b=String(packed).length;
+  if(a===0) return 0;
+  return Math.round((1-(b/a))*1000)/10;
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { lzwCompress:lzwCompress, lzwDecompress:lzwDecompress, lzRatio:lzRatio, utf8Encode:utf8Encode }; }
+if (typeof window !== 'undefined') { window.LzStringForgePure = { lzwCompress:lzwCompress, lzwDecompress:lzwDecompress, lzRatio:lzRatio, utf8Encode:utf8Encode }; }
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.LzStringForgePure;
+  function run(){
+    var s=$('src').value;
+    var c=P.lzwCompress(s);
+    $('cmp').value=c;
+    var d=P.lzwDecompress(c);
+    var ratio = s.length? Math.round(c.length/s.length*100):0;
+    $('out').innerHTML='<div class="grid"><div class="kv"><b>原文长度</b><span>'+s.length+'</span></div><div class="kv"><b>压缩后</b><span>'+c.length+'</span></div><div class="kv"><b>压缩率</b><span>'+ratio+'%</span></div><div class="kv"><b>还原一致</b><span>'+(d===s?'是':'否')+'</span></div></div>';
+  }
+  $('src').addEventListener('input', run);
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

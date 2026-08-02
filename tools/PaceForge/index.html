@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PaceForge — 跑步配速计算：配速/用时/速度互算、分段表、Riegel 赛事成绩预测，离线可用。</title>
+<meta property="og:title" content="PaceForge">
+<meta property="og:description" content="跑步配速计算：配速用时速度互算、分段表、Riegel 赛事预测，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="跑步配速计算：配速用时速度互算、分段表、Riegel 赛事预测，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>PaceForge</h1>
+  <p class="sub">跑步配速：配速 / 用时 / 速度三向互算、公里分段表、Riegel 公式预测 5K 到全马 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="row">
+  <label style="margin:0">距离（公里）</label>
+  <input type="text" id="km" value="10" style="max-width:100px">
+  <label style="margin:0">用时 h:mm:ss</label>
+  <input type="text" id="time" value="52:30" style="max-width:120px">
+</div>
+<div class="row">
+  <button id="run">按用时算配速</button>
+  <button id="bypace" class="ghost">按配速算用时</button>
+  <label style="margin:0">配速 m:ss/km</label>
+  <input type="text" id="pace" value="5:15" style="max-width:110px">
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="out"></div>
+<label>分段与赛事预测</label>
+<div class="out" id="splits"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function pcParsePace(s){
+  var t=String(s==null?'':s).trim();
+  var m=t.match(/^(\d{1,3}):([0-5]?\d)$/);
+  if(m) return (+m[1])*60 + (+m[2]);
+  if(/^\d+(\.\d+)?$/.test(t)) return Math.round(parseFloat(t)*60);
+  return null;
+}
+function pcParseTime(s){
+  var t=String(s==null?'':s).trim();
+  var m=t.match(/^(?:(\d{1,3}):)?(\d{1,3}):([0-5]?\d)$/);
+  if(!m) return null;
+  return (m[1]?(+m[1])*3600:0) + (+m[2])*60 + (+m[3]);
+}
+function pcFmt(sec){
+  if(!isFinite(sec) || sec<0) return '--';
+  sec=Math.round(sec);
+  var h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+  function p(n){ return (n<10?'0':'')+n; }
+  return h ? h+':'+p(m)+':'+p(s) : m+':'+p(s);
+}
+function pcFromTime(totalSec, km){
+  if(!(km>0)) return { error:'\u8ddd\u79bb\u5e94\u5927\u4e8e 0' };
+  if(!(totalSec>0)) return { error:'\u65f6\u95f4\u5e94\u5927\u4e8e 0' };
+  var pace=totalSec/km;
+  return { error:null, pace:pace, speed: km/(totalSec/3600), paceMile: pace*1.609344 };
+}
+function pcFromPace(paceSec, km){
+  if(!(km>0)) return { error:'\u8ddd\u79bb\u5e94\u5927\u4e8e 0' };
+  if(!(paceSec>0)) return { error:'\u914d\u901f\u5e94\u5927\u4e8e 0' };
+  return { error:null, total: paceSec*km, speed: 3600/paceSec };
+}
+function pcSplits(paceSec, km, step){
+  step = step || 1;
+  var out=[];
+  for(var d=step; d<=km+1e-9; d+=step) out.push({ km:Math.round(d*100)/100, cum:paceSec*d });
+  var last=out.length? out[out.length-1].km : 0;
+  if(km-last > 1e-9) out.push({ km:Math.round(km*100)/100, cum:paceSec*km });
+  return out;
+}
+var PC_RACES = [['5K',5],['10K',10],['\u534a\u7a0b',21.0975],['\u5168\u7a0b',42.195]];
+function pcRiegel(knownSec, knownKm, targetKm){
+  if(!(knownSec>0 && knownKm>0 && targetKm>0)) return null;
+  return knownSec * Math.pow(targetKm/knownKm, 1.06);
+}
+function pcPredict(knownSec, knownKm){
+  return PC_RACES.map(function(r){
+    var t=pcRiegel(knownSec, knownKm, r[1]);
+    return { name:r[0], km:r[1], total:t, pace:t/r[1] };
+  });
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { pcParsePace:pcParsePace, pcParseTime:pcParseTime, pcFmt:pcFmt, pcFromTime:pcFromTime,
+                     pcFromPace:pcFromPace, pcSplits:pcSplits, pcRiegel:pcRiegel, pcPredict:pcPredict, PC_RACES:PC_RACES };
+}
+if (typeof window !== 'undefined') {
+  window.PaceForgePure = { pcParsePace:pcParsePace, pcParseTime:pcParseTime, pcFmt:pcFmt, pcFromTime:pcFromTime,
+                     pcFromPace:pcFromPace, pcSplits:pcSplits, pcRiegel:pcRiegel, pcPredict:pcPredict, PC_RACES:PC_RACES };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.PaceForgePure;
+  function render(km, total, pace){
+    var sp=P.pcFromTime(total, km);
+    $('out').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>配速</b><span>'+P.pcFmt(pace)+' /km</span></div>'+
+      '<div class="kv"><b>英里配速</b><span>'+P.pcFmt(pace*1.609344)+' /mi</span></div>'+
+      '<div class="kv"><b>速度</b><span>'+(sp.error?'-':sp.speed.toFixed(2))+' km/h</span></div>'+
+      '<div class="kv"><b>总用时</b><span>'+P.pcFmt(total)+'</span></div></div>';
+    var rows=P.pcSplits(pace, km, km>15?5:1).map(function(s){
+      return '<div class="kv"><b>'+s.km+' km</b><span>'+P.pcFmt(s.cum)+'</span></div>';
+    }).join('');
+    var pred=P.pcPredict(total, km).map(function(r){
+      return '<div class="kv"><b>'+r.name+' 预测</b><span>'+P.pcFmt(r.total)+'（'+P.pcFmt(r.pace)+' /km）</span></div>';
+    }).join('');
+    $('splits').innerHTML=rows+pred;
+  }
+  function byTime(){
+    var km=parseFloat($('km').value), total=P.pcParseTime($('time').value);
+    if(total===null){ $('err').textContent='用时格式应为 mm:ss 或 h:mm:ss'; return; }
+    var r=P.pcFromTime(total, km);
+    if(r.error){ $('err').textContent=r.error; return; }
+    $('err').textContent=''; $('pace').value=P.pcFmt(r.pace);
+    render(km, total, r.pace);
+  }
+  function byPace(){
+    var km=parseFloat($('km').value), pace=P.pcParsePace($('pace').value);
+    if(pace===null){ $('err').textContent='配速格式应为 m:ss'; return; }
+    var r=P.pcFromPace(pace, km);
+    if(r.error){ $('err').textContent=r.error; return; }
+    $('err').textContent=''; $('time').value=P.pcFmt(r.total);
+    render(km, r.total, pace);
+  }
+  $('run').addEventListener('click', byTime);
+  $('bypace').addEventListener('click', byPace);
+  byTime();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

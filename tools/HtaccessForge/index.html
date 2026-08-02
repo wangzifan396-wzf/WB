@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>HtaccessForge — Apache .htaccess 生成器：HTTPS/www/重定向/SPA/缓存/Gzip/安全头/CORS/防盗链/认证/IP 封禁/错误页一键产出，逐行解释、配置体检与统计，与 NginxForge 对位。</title>
+<meta property="og:title" content="HtaccessForge">
+<meta property="og:description" content="Apache .htaccess 生成器：HTTPS/www 跳转、自定义重定向、SPA 重写、缓存与 Gzip、安全响应头、CORS、防盗链、Basic 认证、IP/UA 封禁、错误页一键产出，附逐行解释、配置体检与统计，与 NginxForge 对位，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Apache .htaccess 生成器：HTTPS/www 跳转、自定义重定向、SPA 重写、缓存与 Gzip、安全响应头、CORS、防盗链、Basic 认证、IP/UA 封禁、错误页一键产出，附逐行解释、配置体检与统计，与 NginxForge 对位，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>HtaccessForge</h1>
+  <p class="sub">Apache .htaccess 生成器与体检</p>
+  <div class="grid">
+    <div><label for="ht_https">强制 HTTPS</label><input type="checkbox" id="ht_https"></div>
+    <div><label for="ht_www">www 处理</label><select id="ht_www"><option value="none">不处理</option><option value="add">强制加 www</option><option value="remove">强制去 www</option></select></div>
+    <div><label for="ht_spa">SPA 重写</label><input type="checkbox" id="ht_spa"></div>
+    <div><label for="ht_gzip">Gzip/Brotli 压缩</label><input type="checkbox" id="ht_gzip"></div>
+    <div><label for="ht_cache">浏览器缓存</label><input type="checkbox" id="ht_cache"></div>
+    <div><label for="ht_indexes">关闭目录列表</label><input type="checkbox" id="ht_indexes" checked></div>
+  </div>
+
+  <details open>
+    <summary>自定义重定向（每行：类型 | 源路径 | 目标，类型 exact / prefix / regex）</summary>
+    <textarea id="ht_redirects" rows="3" placeholder="exact | /old.html | /new.html
+prefix | /blog | /articles
+regex | ^product/([0-9]+)$ | /p/$1"></textarea>
+  </details>
+
+  <details>
+    <summary>安全响应头</summary>
+    <div class="grid">
+      <div><label for="ht_hsts">HSTS</label><input type="checkbox" id="ht_hsts" checked></div>
+      <div><label for="ht_hsts_sub">includeSubDomains</label><input type="checkbox" id="ht_hsts_sub" checked></div>
+      <div><label for="ht_hsts_preload">preload</label><input type="checkbox" id="ht_hsts_preload"></div>
+      <div><label for="ht_frame">X-Frame-Options</label><input type="checkbox" id="ht_frame" checked></div>
+      <div><label for="ht_sniff">X-Content-Type-Options</label><input type="checkbox" id="ht_sniff" checked></div>
+      <div><label for="ht_referrer">Referrer-Policy</label><input type="checkbox" id="ht_referrer" checked></div>
+      <div><label for="ht_permissions">Permissions-Policy</label><input type="checkbox" id="ht_permissions" checked></div>
+      <div><label for="ht_coop">COOP</label><input type="checkbox" id="ht_coop"></div>
+    </div>
+    <label for="ht_csp">Content-Security-Policy（留空不输出）</label>
+    <input type="text" id="ht_csp" placeholder="default-src 'self'; img-src 'self' data:;">
+  </details>
+
+  <details>
+    <summary>CORS</summary>
+    <label for="ht_cors_origin">允许的源（留空关闭，* 表示任意）</label>
+    <input type="text" id="ht_cors_origin" placeholder="https://example.com">
+  </details>
+
+  <details>
+    <summary>防盗链</summary>
+    <label for="ht_hot_domains">允许的域名（每行一个，留空不启用）</label>
+    <textarea id="ht_hot_domains" rows="2" placeholder="example.com
+cdn.example.com"></textarea>
+    <label for="ht_hot_ext">受保护扩展（逗号分隔）</label>
+    <input type="text" id="ht_hot_ext" value="jpg,jpeg,png,gif,svg,webp,avif,mp4">
+  </details>
+
+  <details>
+    <summary>Basic 认证</summary>
+    <label for="ht_auth_file">密码文件绝对路径（建议放在 webroot 之外）</label>
+    <input type="text" id="ht_auth_file" placeholder="/etc/apache2/.htpasswd">
+    <label for="ht_auth_realm">认证域</label>
+    <input type="text" id="ht_auth_realm" placeholder="Restricted Area">
+  </details>
+
+  <details>
+    <summary>封禁 IP / User-Agent</summary>
+    <label for="ht_block_ips">封禁的 IP（每行一个，留空不启用）</label>
+    <textarea id="ht_block_ips" rows="2" placeholder="203.0.113.5
+192.0.2.0/24"></textarea>
+    <label for="ht_block_agents">封禁的 UA 关键词（每行一个）</label>
+    <textarea id="ht_block_agents" rows="2" placeholder="BadBot
+Scrapy"></textarea>
+  </details>
+
+  <details>
+    <summary>自定义错误页</summary>
+    <label for="ht_errors">HTTP 码 | 路径（每行一个）</label>
+    <textarea id="ht_errors" rows="3" placeholder="404 | /404.html
+500 | /500.html"></textarea>
+  </details>
+
+  <div class="row">
+    <button id="ht_build">生成配置</button>
+    <button class="ghost" id="ht_copy">复制</button>
+    <button class="ghost" id="ht_clear">清空</button>
+  </div>
+  <div class="err" id="ht_err"></div>
+
+  <label>生成的 .htaccess</label>
+  <div class="out"><pre id="ht_txt" style="margin:0;font-size:12px;white-space:pre-wrap"></pre></div>
+
+  <details open>
+    <summary>逐行解释</summary>
+    <div class="out" id="ht_explain"></div>
+  </details>
+  <details open>
+    <summary>配置体检</summary>
+    <div class="out" id="ht_lint"></div>
+  </details>
+  <details>
+    <summary>统计</summary>
+    <div class="out" id="ht_stats"></div>
+  </details>
+
+  <details>
+    <summary>粘贴已有配置做反解 / 体检</summary>
+    <textarea id="ht_paste" rows="4" placeholder="粘贴一段 .htaccess 文本…"></textarea>
+    <div class="row"><button class="ghost" id="ht_explain_paste">解释粘贴内容</button></div>
+    <div class="out" id="ht_paste_explain"></div>
+  </details>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 349 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function escapeRegex(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function normPath(p){
+  var s=String(p==null?'':p).trim();
+  if(!s) return '/';
+  if(/^https?:\/\//i.test(s)) return s;
+  if(s[0]!=='/') s='/'+s;
+  if(s.length>1) s=s.replace(/\/+$/,'');
+  return s||'/';
+}
+function stripLead(p){ return String(p||'').replace(/^\/+/,''); }
+
+function section(title, lines){
+  if(!lines || !lines.length) return [];
+  return ['# ---- '+title+' ----'].concat(lines, ['']);
+}
+function ifModule(mod, lines, indent){
+  if(!lines || !lines.length) return [];
+  var pad=indent===false?'':'  ';
+  return ['<IfModule '+mod+'>'].concat(lines.map(function(l){ return pad+l; }), ['</IfModule>']);
+}
+
+function genHttps(){
+  return ['RewriteCond %{HTTPS} !=on',
+          'RewriteCond %{HTTP:X-Forwarded-Proto} !https',
+          'RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]'];
+}
+
+function genWww(mode){
+  if(mode==='add')
+    return ['RewriteCond %{HTTP_HOST} !^www\\. [NC]',
+            'RewriteCond %{HTTP_HOST} !^localhost [NC]',
+            'RewriteRule ^(.*)$ https://www.%{HTTP_HOST}%{REQUEST_URI} [R=301,L]'];
+  if(mode==='remove')
+    return ['RewriteCond %{HTTP_HOST} ^www\\.(.+)$ [NC]',
+            'RewriteRule ^(.*)$ https://%1%{REQUEST_URI} [R=301,L]'];
+  return [];
+}
+
+function genRedirect(r){
+  var code=r.code||301, from=String(r.from||'').trim(), to=normPath(r.to||'/');
+  if(!from) return [];
+  var type=r.type||'exact';
+  if(type==='regex') return ['RewriteRule '+from+' '+to+' [R='+code+',L]'];
+  var pat=escapeRegex(stripLead(from));
+  if(type==='prefix') return ['RewriteRule ^'+pat+'/?(.*)$ '+to+'/$1 [R='+code+',L,QSA]'];
+  return ['RewriteRule ^'+pat+'/?$ '+to+' [R='+code+',L]'];
+}
+
+function genSpa(entry){
+  var e=normPath(entry||'/index.html');
+  return ['RewriteCond %{REQUEST_FILENAME} !-f',
+          'RewriteCond %{REQUEST_FILENAME} !-d',
+          'RewriteCond %{REQUEST_URI} !^/api/',
+          'RewriteRule ^ '+e+' [L]'];
+}
+
+var CACHE_PRESETS = {
+  'image/jpeg':'1 year','image/png':'1 year','image/gif':'1 year','image/webp':'1 year',
+  'image/avif':'1 year','image/svg+xml':'1 year','image/x-icon':'1 year',
+  'font/woff2':'1 year','font/woff':'1 year',
+  'text/css':'1 month','application/javascript':'1 month','text/javascript':'1 month',
+  'application/json':'0 seconds','text/html':'0 seconds'
+};
+
+function genCache(map){
+  var m = map || CACHE_PRESETS;
+  var keys=Object.keys(m);
+  if(!keys.length) return [];
+  var body=['ExpiresActive On','ExpiresDefault "access plus 1 week"'];
+  keys.forEach(function(k){ body.push('ExpiresByType '+k+' "access plus '+m[k]+'"'); });
+  var immutable=['<FilesMatch "\\.(css|js|woff2|png|jpg|jpeg|gif|webp|avif|svg)$">',
+                 '  Header append Cache-Control "public, immutable"','</FilesMatch>'];
+  return ifModule('mod_expires.c', body).concat(ifModule('mod_headers.c', immutable));
+}
+
+var GZIP_TYPES=['text/html','text/plain','text/css','text/xml','text/javascript',
+  'application/javascript','application/json','application/xml','application/rss+xml',
+  'image/svg+xml','application/x-font-ttf','font/woff2'];
+
+function genGzip(types){
+  var t=types&&types.length?types:GZIP_TYPES;
+  var body=['AddOutputFilterByType DEFLATE '+t.join(' '),
+            'BrowserMatch ^Mozilla/4 gzip-only-text/html',
+            'Header append Vary Accept-Encoding'];
+  var br=['AddOutputFilterByType BROTLI_COMPRESS '+t.join(' ')];
+  return ifModule('mod_deflate.c', body).concat(ifModule('mod_brotli.c', br));
+}
+
+function genSecurity(o){
+  o=o||{};
+  var h=[];
+  if(o.nosniff!==false) h.push('Header always set X-Content-Type-Options "nosniff"');
+  if(o.frame!==false) h.push('Header always set X-Frame-Options "'+(o.frame||'SAMEORIGIN')+'"');
+  if(o.referrer!==false) h.push('Header always set Referrer-Policy "'+(o.referrer||'strict-origin-when-cross-origin')+'"');
+  if(o.permissions!==false) h.push('Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"');
+  if(o.hsts){
+    var v='max-age='+(o.hstsMaxAge||31536000);
+    if(o.hstsSub!==false) v+='; includeSubDomains';
+    if(o.hstsPreload) v+='; preload';
+    h.push('Header always set Strict-Transport-Security "'+v+'"');
+  }
+  if(o.csp) h.push('Header always set Content-Security-Policy "'+o.csp+'"');
+  if(o.coop) h.push('Header always set Cross-Origin-Opener-Policy "same-origin"');
+  if(o.removeServer!==false){
+    h.push('Header unset X-Powered-By');
+    h.push('ServerSignature Off');
+  }
+  var srv=[];
+  h=h.filter(function(l){ if(l.indexOf('ServerSignature')===0){ srv.push(l); return false; } return true; });
+  return ifModule('mod_headers.c', h).concat(srv);
+}
+
+function genCors(o){
+  o=o||{};
+  if(!o.origin) return [];
+  var h=['Header set Access-Control-Allow-Origin "'+o.origin+'"',
+         'Header set Access-Control-Allow-Methods "'+(o.methods||'GET, POST, OPTIONS')+'"',
+         'Header set Access-Control-Allow-Headers "'+(o.headers||'Content-Type, Authorization')+'"'];
+  if(o.credentials) h.push('Header set Access-Control-Allow-Credentials "true"');
+  if(o.maxAge) h.push('Header set Access-Control-Max-Age "'+o.maxAge+'"');
+  return ifModule('mod_headers.c', h);
+}
+
+function genHotlink(o){
+  o=o||{};
+  var domains=(o.domains||[]).filter(function(d){ return d; });
+  if(!domains.length) return [];
+  var out=[];
+  if(o.allowEmpty!==false) out.push('RewriteCond %{HTTP_REFERER} !^$');
+  domains.forEach(function(d){
+    out.push('RewriteCond %{HTTP_REFERER} !^https?://(www\\.)?'+escapeRegex(d)+' [NC]');
+  });
+  var ext=(o.extensions||['jpg','jpeg','png','gif','svg','webp','avif','mp4']).join('|');
+  out.push('RewriteRule \\.('+ext+')$ '+(o.replacement?o.replacement+' [R,NC,L]':'- [F,NC,L]'));
+  return out;
+}
+
+function genAuth(o){
+  o=o||{};
+  if(!o.file) return [];
+  return ['AuthType Basic',
+          'AuthName "'+(o.realm||'Restricted Area')+'"',
+          'AuthUserFile '+o.file,
+          'Require valid-user'];
+}
+
+function genBlockIps(ips){
+  var list=(ips||[]).filter(function(x){ return x; });
+  if(!list.length) return [];
+  return ['<RequireAll>','  Require all granted']
+    .concat(list.map(function(ip){ return '  Require not ip '+ip; }))
+    .concat(['</RequireAll>']);
+}
+
+function genBlockAgents(agents){
+  var list=(agents||[]).filter(function(x){ return x; });
+  if(!list.length) return [];
+  var out=[];
+  list.forEach(function(a,i){
+    out.push('RewriteCond %{HTTP_USER_AGENT} '+escapeRegex(a)+' [NC'+(i<list.length-1?',OR':'')+']');
+  });
+  out.push('RewriteRule ^ - [F,L]');
+  return out;
+}
+
+function genErrorPages(map){
+  var keys=Object.keys(map||{});
+  if(!keys.length) return [];
+  return keys.map(function(code){ return 'ErrorDocument '+code+' '+normPath(map[code]); });
+}
+
+function genOptions(o){
+  o=o||{};
+  var out=[];
+  if(o.indexes===false || o.indexes==null) out.push('Options -Indexes');
+  else out.push('Options +Indexes');
+  if(o.followSymlinks!==false) out.push('Options +FollowSymLinks');
+  if(o.dirIndex) out.push('DirectoryIndex '+o.dirIndex);
+  if(o.charset) out.push('AddDefaultCharset '+o.charset);
+  if(o.protectDotfiles!==false){
+    out.push('<FilesMatch "^\\.(env|git|htaccess|htpasswd|DS_Store)">');
+    out.push('  Require all denied');
+    out.push('</FilesMatch>');
+  }
+  return out;
+}
+
+function build(cfg){
+  cfg=cfg||{};
+  var out=['# Generated by HtaccessForge - nano-tools',
+           '# 单文件 · 零依赖 · 本地生成，未上传任何服务器',''];
+  out=out.concat(section('目录与文件保护', genOptions(cfg.options)));
+  var rw=[];
+  if(cfg.https) rw=rw.concat(genHttps());
+  if(cfg.www && cfg.www!=='none') rw=rw.concat(genWww(cfg.www));
+  (cfg.redirects||[]).forEach(function(r){ rw=rw.concat(genRedirect(r)); });
+  if(cfg.blockAgents && cfg.blockAgents.length) rw=rw.concat(genBlockAgents(cfg.blockAgents));
+  if(cfg.hotlink && cfg.hotlink.domains && cfg.hotlink.domains.length) rw=rw.concat(genHotlink(cfg.hotlink));
+  if(cfg.spa) rw=rw.concat(genSpa(cfg.spa===true?'/index.html':cfg.spa));
+  if(rw.length){
+    var body=['RewriteEngine On'];
+    if(cfg.rewriteBase) body.push('RewriteBase '+normPath(cfg.rewriteBase));
+    body=body.concat(rw);
+    out=out.concat(section('重写规则', ifModule('mod_rewrite.c', body)));
+  }
+  if(cfg.security) out=out.concat(section('安全响应头', genSecurity(cfg.security)));
+  if(cfg.cors && cfg.cors.origin) out=out.concat(section('CORS', genCors(cfg.cors)));
+  if(cfg.gzip) out=out.concat(section('压缩', genGzip(cfg.gzipTypes)));
+  if(cfg.cache) out=out.concat(section('缓存策略', genCache(cfg.cache===true?null:cfg.cache)));
+  if(cfg.blockIps && cfg.blockIps.length) out=out.concat(section('IP 封禁', genBlockIps(cfg.blockIps)));
+  if(cfg.auth && cfg.auth.file) out=out.concat(section('Basic 认证', genAuth(cfg.auth)));
+  if(cfg.errorPages) out=out.concat(section('错误页', genErrorPages(cfg.errorPages)));
+  while(out.length && out[out.length-1]==='') out.pop();
+  return out.join('\n')+'\n';
+}
+
+var EXPLAIN=[
+  [/^RewriteEngine\s+On/i, '开启 mod_rewrite 重写引擎，后续 RewriteRule 才会生效'],
+  [/^RewriteBase\s+(.+)/i, '设置重写基准路径为 $1，影响相对替换目标的解析'],
+  [/^RewriteCond\s+%\{HTTPS\}/i, '判断当前请求是否走 HTTPS，常用于强制跳转'],
+  [/^RewriteCond\s+%\{REQUEST_FILENAME\}\s+!-f/i, '当请求的物理文件不存在时才继续（SPA 前端路由的关键条件）'],
+  [/^RewriteCond\s+%\{REQUEST_FILENAME\}\s+!-d/i, '当请求的目录不存在时才继续'],
+  [/^RewriteCond\s+%\{HTTP_REFERER\}/i, '基于来源页判断，典型用于防盗链'],
+  [/^RewriteCond\s+%\{HTTP_USER_AGENT\}/i, '基于 User-Agent 判断，典型用于拦截爬虫'],
+  [/^RewriteCond\s+%\{HTTP:X-Forwarded-Proto\}/i, '在 CDN 或反向代理之后，%{HTTPS} 会失真，改用上游透传的 X-Forwarded-Proto 判断原始协议'],
+  [/^RewriteCond\s+%\{HTTP:(\S+)\}/i, '基于请求头 $1 的值进行判断'],
+  [/^RewriteCond\s+%\{HTTP_HOST\}/i, '基于请求域名判断，典型用于 www 与裸域之间的统一跳转'],
+  [/^RewriteCond\s+%\{REQUEST_URI\}/i, '基于请求路径判断，常用于把某些前缀排除在重写之外'],
+  [/^RewriteCond\s+%\{QUERY_STRING\}/i, '基于查询串判断，常用于拦截注入特征或清理参数'],
+  [/^RewriteCond\s+%\{REQUEST_METHOD\}/i, '基于 HTTP 请求方法判断'],
+  [/^RewriteCond\s+%\{SERVER_PORT\}/i, '基于服务端口判断，常见于 80/443 区分'],
+  [/^RewriteCond\s+%\{THE_REQUEST\}/i, '基于原始请求行判断，可识别客户端真实请求的 URL 形态'],
+  [/^RewriteCond/i, '为下一条 RewriteRule 附加一个前置条件，条件不满足则规则不执行'],
+  [/^RewriteRule\s+.*\[.*R=301.*\]/i, '发起 301 永久重定向，浏览器与搜索引擎会长期缓存该跳转'],
+  [/^RewriteRule\s+.*\[.*R=302.*\]/i, '发起 302 临时重定向，不会被长期缓存'],
+  [/^RewriteRule\s+.*\[.*F.*\]/i, '直接返回 403 Forbidden 拒绝请求'],
+  [/^RewriteRule/i, '定义一条 URL 重写规则'],
+  [/^ExpiresActive\s+On/i, '开启 mod_expires 过期时间控制'],
+  [/^ExpiresByType\s+(\S+)\s+"(.+)"/i, '为 MIME 类型 $1 设置缓存有效期：$2'],
+  [/^ExpiresDefault\s+"(.+)"/i, '为未单独指定类型的资源设置默认缓存有效期：$1'],
+  [/^AddOutputFilterByType\s+DEFLATE/i, '对指定 MIME 类型启用 gzip 压缩'],
+  [/^AddOutputFilterByType\s+BROTLI_COMPRESS/i, '对指定 MIME 类型启用 Brotli 压缩，压缩率优于 gzip'],
+  [/^Header\s+always\s+set\s+Strict-Transport-Security/i, '下发 HSTS，强制浏览器在有效期内只用 HTTPS 访问'],
+  [/^Header\s+always\s+set\s+X-Frame-Options/i, '限制页面被 iframe 嵌套，缓解点击劫持'],
+  [/^Header\s+always\s+set\s+X-Content-Type-Options/i, '禁止浏览器对响应做 MIME 嗅探'],
+  [/^Header\s+always\s+set\s+Content-Security-Policy/i, '下发 CSP 内容安全策略，限制脚本与资源来源'],
+  [/^Header\s+set\s+Access-Control-Allow-Origin/i, '设置 CORS 允许的跨域来源'],
+  [/^Header/i, '设置或移除一个 HTTP 响应头'],
+  [/^Options\s+-Indexes/i, '关闭目录列表，避免没有索引页的目录被直接列出文件'],
+  [/^Options\s+\+Indexes/i, '开启目录列表，访问者可以看到目录下所有文件（有信息泄露风险）'],
+  [/^Options\s+\+FollowSymLinks/i, '允许跟随符号链接，mod_rewrite 的重写规则依赖该选项才能正常工作'],
+  [/^Options\s+\+SymLinksIfOwnerMatch/i, '仅当符号链接与目标属主相同时才跟随，比 FollowSymLinks 更安全但有性能开销'],
+  [/^Options\s+-ExecCGI/i, '禁止在该目录执行 CGI 脚本'],
+  [/^Options\s+-MultiViews/i, '关闭内容协商，避免 /page 被自动匹配到 /page.php 干扰重写规则'],
+  [/^Options\s+(.+)/i, '调整该目录的 Apache 选项：$1'],
+  [/^DirectoryIndex\s+(.+)/i, '设置默认索引文件顺序：$1'],
+  [/^ErrorDocument\s+(\d+)\s+(.+)/i, '为 HTTP $1 指定自定义错误页 $2'],
+  [/^AuthType\s+Basic/i, '启用 HTTP Basic 认证'],
+  [/^AuthUserFile\s+(.+)/i, '指定密码文件路径 $1，该文件必须放在站点根目录之外'],
+  [/^Require\s+valid-user/i, '要求通过认证的任意用户才能访问'],
+  [/^Require\s+not\s+ip\s+(.+)/i, '拒绝来自 IP $1 的请求'],
+  [/^Require\s+all\s+denied/i, '拒绝所有访问（Apache 2.4 语法）'],
+  [/^Require\s+all\s+granted/i, '允许所有访问（Apache 2.4 语法）'],
+  [/^Order\s+/i, 'Apache 2.2 的旧访问控制语法，2.4 起已废弃，应改用 Require'],
+  [/^Deny\s+from/i, 'Apache 2.2 的旧拒绝语法，2.4 起已废弃'],
+  [/^Allow\s+from/i, 'Apache 2.2 的旧允许语法，2.4 起已废弃'],
+  [/^AddDefaultCharset/i, '为没有声明字符集的响应设置默认字符集'],
+  [/^<IfModule\s+(.+)>/i, '仅当模块 $1 已加载时才应用其中的指令，避免模块缺失导致 500'],
+  [/^<FilesMatch\s+(.+)>/i, '对匹配正则 $1 的文件应用后续指令'],
+  [/^<RequireAll>/i, '要求内部所有 Require 条件同时满足'],
+  [/^<Files\s+(.+)>/i, '对文件名匹配 $1 的请求应用后续指令'],
+  [/^<Directory\s+(.+)>/i, '对目录 $1 应用后续指令（注意：.htaccess 中不允许使用该容器）'],
+  [/^<Limit\s+(.+)>/i, '仅对 $1 这些 HTTP 方法应用后续指令'],
+  [/^<LimitExcept\s+(.+)>/i, '对除 $1 之外的 HTTP 方法应用后续指令'],
+  [/^<\/(\w+)>/i, '结束上面的 $1 配置块'],
+  [/^ServerSignature\s+Off/i, '关闭 Apache 在错误页底部输出的版本签名，减少信息暴露'],
+  [/^ServerSignature\s+On/i, '在错误页底部输出 Apache 版本签名（不建议在生产开启）'],
+  [/^ServerTokens/i, '控制 Server 响应头暴露的版本信息粒度'],
+  [/^Redirect\s+(\d+)\s+(\S+)\s+(\S+)/i, '由 mod_alias 直接把 $2 以 $1 状态码跳转到 $3，先于 mod_rewrite 之外的匹配生效'],
+  [/^RedirectMatch\s+/i, '按正则匹配路径并跳转，由 mod_alias 处理'],
+  [/^SetEnvIf\s+(\S+)/i, '根据请求特征 $1 设置环境变量，常配合访问控制或日志使用'],
+  [/^SetEnvIfNoCase\s+(\S+)/i, '同 SetEnvIf 但忽略大小写，按 $1 设置环境变量'],
+  [/^FileETag/i, '控制 ETag 的生成方式，多机部署时常设为 None 以避免缓存失效'],
+  [/^AddType\s+(\S+)\s+(.+)/i, '把扩展名 $2 映射为 MIME 类型 $1'],
+  [/^AddEncoding/i, '为指定扩展名声明内容编码，常用于预压缩文件'],
+  [/^IndexIgnore/i, '在目录列表中隐藏匹配的文件'],
+  [/^Satisfy\s+any/i, '认证与 IP 限制满足其一即可通过（Apache 2.2 语法）'],
+  [/^AuthName\s+(.+)/i, '设置认证提示框显示的域名称 $1'],
+  [/^php_flag\s+(\S+)\s+(\S+)/i, '设置 PHP 布尔配置 $1 为 $2（仅 mod_php 环境有效）'],
+  [/^php_value\s+(\S+)\s+(\S+)/i, '设置 PHP 配置项 $1 为 $2（仅 mod_php 环境有效）'],
+  [/^BrowserMatch/i, '按 User-Agent 匹配设置环境变量，常用于兼容性处理'],
+  [/^Deflate|^BrotliCompressionQuality/i, '调整压缩相关参数']
+];
+
+function explain(line){
+  var s=String(line||'').trim();
+  if(!s) return null;
+  if(s[0]==='#') return '注释行';
+  for(var i=0;i<EXPLAIN.length;i++){
+    var m=EXPLAIN[i][0].exec(s);
+    if(m){
+      var t=EXPLAIN[i][1];
+      for(var g=1;g<m.length;g++) t=t.replace('$'+g, m[g]);
+      return t;
+    }
+  }
+  return null;
+}
+
+function lint(text){
+  var lines=String(text||'').split(/\r?\n/);
+  var w=[], hasEngine=false, engineCount=0, sawRule=false, openTags=[];
+  lines.forEach(function(raw, i){
+    var n=i+1, s=raw.trim();
+    if(!s || s[0]==='#') return;
+    if(/^RewriteEngine\s+On/i.test(s)){ hasEngine=true; engineCount++; }
+    if(/^RewriteRule/i.test(s)){
+      sawRule=true;
+      if(!hasEngine) w.push({line:n, level:'error', msg:'RewriteRule 出现在 RewriteEngine On 之前，规则不会生效'});
+      var fl=/\[([^\]]*)\]\s*$/.exec(s);
+      var flags=fl?fl[1]:'';
+      if(/R=\d+/.test(flags) && !/\bL\b/.test(flags))
+        w.push({line:n, level:'warn', msg:'重定向规则缺少 L 标志，后续规则会继续匹配，容易产生重定向链'});
+      if(!fl) w.push({line:n, level:'info', msg:'RewriteRule 没有任何标志位，确认是否需要 [L] 终止匹配'});
+      if(/R=301/.test(flags) && /\$\{/.test(s))
+        w.push({line:n, level:'info', msg:'301 会被浏览器长期缓存，调试期间建议先用 R=302'});
+    }
+    if(/^Order\s+/i.test(s) || /^(Allow|Deny)\s+from/i.test(s))
+      w.push({line:n, level:'error', msg:'Order/Allow/Deny 是 Apache 2.2 语法，2.4 起已移除，请改用 Require'});
+    if(/^Options\s+.*\+Indexes/i.test(s))
+      w.push({line:n, level:'warn', msg:'开启了目录列表 (+Indexes)，会暴露目录下全部文件名'});
+    if(/^ErrorDocument\s+\d+\s+(?!["/]|https?:)/i.test(s))
+      w.push({line:n, level:'warn', msg:'ErrorDocument 路径没有以 / 开头，Apache 会把它当作纯文本消息返回'});
+    if(/^AuthUserFile\s+/i.test(s)){
+      var p=s.replace(/^AuthUserFile\s+/i,'').trim();
+      if(!/^\//.test(p)) w.push({line:n, level:'warn', msg:'AuthUserFile 建议使用绝对路径'});
+      if(/(^|\/)(public|www|htdocs|public_html)\//i.test(p))
+        w.push({line:n, level:'error', msg:'.htpasswd 位于站点可访问目录内，密码文件会被直接下载'});
+    }
+    if(/^(Header|RequestHeader)\b/i.test(s) && !openTags.some(function(t){ return /mod_headers/.test(t); }))
+      w.push({line:n, level:'info', msg:'Header 指令未包在 <IfModule mod_headers.c> 中，模块缺失时会导致 500'});
+    if(/^Expires(Active|ByType|Default)/i.test(s) && !openTags.some(function(t){ return /mod_expires/.test(t); }))
+      w.push({line:n, level:'info', msg:'Expires 指令未包在 <IfModule mod_expires.c> 中，模块缺失时会导致 500'});
+    if(/^php_(value|flag)\s/i.test(s))
+      w.push({line:n, level:'warn', msg:'php_value/php_flag 在 PHP-FPM 下无效，请改用 .user.ini 或 php.ini'});
+    if(/\s+$/.test(raw))
+      w.push({line:n, level:'info', msg:'行尾存在多余空白'});
+    var open=/^<([A-Za-z]+)[^>]*>$/.exec(s);
+    var close=/^<\/([A-Za-z]+)>$/.exec(s);
+    if(open && !/\/>$/.test(s)) openTags.push(open[1]==='IfModule' ? 'IfModule:'+s : open[1]);
+    if(close){
+      var last=openTags.pop();
+      if(!last) w.push({line:n, level:'error', msg:'出现未配对的结束标签 '+close[0]});
+      else if(String(last).split(':')[0]!==close[1])
+        w.push({line:n, level:'error', msg:'标签嵌套不匹配：期望关闭 '+String(last).split(':')[0]+'，实际是 '+close[1]});
+    }
+  });
+  if(openTags.length) w.push({line:lines.length, level:'error', msg:'有 '+openTags.length+' 个容器标签没有闭合：'+openTags.map(function(t){return String(t).split(':')[0];}).join(', ')});
+  if(engineCount>1) w.push({line:0, level:'info', msg:'RewriteEngine On 出现了 '+engineCount+' 次，保留一次即可'});
+  if(hasEngine && !sawRule) w.push({line:0, level:'info', msg:'开启了 RewriteEngine 但没有任何 RewriteRule'});
+  return w;
+}
+
+function stats(text){
+  var lines=String(text||'').split(/\r?\n/);
+  var s={total:lines.length, directives:0, comments:0, blank:0, rules:0, conds:0, headers:0, modules:{}};
+  lines.forEach(function(raw){
+    var t=raw.trim();
+    if(!t){ s.blank++; return; }
+    if(t[0]==='#'){ s.comments++; return; }
+    s.directives++;
+    if(/^RewriteRule/i.test(t)) s.rules++;
+    if(/^RewriteCond/i.test(t)) s.conds++;
+    if(/^Header/i.test(t)) s.headers++;
+    var m=/^<IfModule\s+([^>\s]+)/i.exec(t);
+    if(m) s.modules[m[1]]=(s.modules[m[1]]||0)+1;
+  });
+  return s;
+}
+
+var HtaccessForgePure = {
+  escapeRegex:escapeRegex, normPath:normPath, stripLead:stripLead, section:section, ifModule:ifModule,
+  genHttps:genHttps, genWww:genWww, genRedirect:genRedirect, genSpa:genSpa, genCache:genCache,
+  genGzip:genGzip, genSecurity:genSecurity, genCors:genCors, genHotlink:genHotlink, genAuth:genAuth,
+  genBlockIps:genBlockIps, genBlockAgents:genBlockAgents, genErrorPages:genErrorPages, genOptions:genOptions,
+  build:build, explain:explain, lint:lint, stats:stats,
+  CACHE_PRESETS:CACHE_PRESETS, GZIP_TYPES:GZIP_TYPES
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = HtaccessForgePure;
+if (typeof window !== 'undefined') window.HtaccessForgePure = HtaccessForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.HtaccessForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function lines(t){ return String(t||'').split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean); }
+
+  function readCfg(){
+    var cfg={};
+    cfg.options = { indexes: $('ht_indexes').checked ? false : true };
+    cfg.https = $('ht_https').checked;
+    cfg.www = $('ht_www').value;
+    if(cfg.www==='none') cfg.www=null;
+    cfg.spa = $('ht_spa').checked ? '/index.html' : false;
+    cfg.gzip = $('ht_gzip').checked;
+    cfg.cache = $('ht_cache').checked ? true : false;
+
+    var reds = lines($('ht_redirects').value).map(function(l){
+      var p=l.split('|').map(function(x){return x.trim();});
+      return {type:p[0]||'exact', from:p[1]||'', to:p[2]||'/'};
+    }).filter(function(r){ return r.from; });
+    if(reds.length) cfg.redirects=reds;
+
+    var sec={};
+    if($('ht_hsts').checked) sec.hsts=true;
+    if($('ht_hsts_sub').checked) sec.hstsSub=true;
+    if($('ht_hsts_preload').checked) sec.hstsPreload=true;
+    if(!$('ht_frame').checked) sec.frame=false;
+    if(!$('ht_sniff').checked) sec.nosniff=false;
+    if(!$('ht_referrer').checked) sec.referrer=false;
+    if(!$('ht_permissions').checked) sec.permissions=false;
+    if($('ht_coop').checked) sec.coop=true;
+    var csp=$('ht_csp').value.trim();
+    if(csp) sec.csp=csp;
+    cfg.security=sec;
+
+    var origin=$('ht_cors_origin').value.trim();
+    if(origin) cfg.cors={origin:origin};
+
+    var hd=lines($('ht_hot_domains').value);
+    if(hd.length){
+      var ext=$('ht_hot_ext').value.split(',').map(function(x){return x.trim();}).filter(Boolean);
+      cfg.hotlink={domains:hd, extensions:ext};
+    }
+
+    var file=$('ht_auth_file').value.trim();
+    if(file) cfg.auth={file:file, realm:$('ht_auth_realm').value.trim()||'Restricted Area'};
+
+    var ips=lines($('ht_block_ips').value);
+    if(ips.length) cfg.blockIps=ips;
+    var agents=lines($('ht_block_agents').value);
+    if(agents.length) cfg.blockAgents=agents;
+
+    var errs={};
+    lines($('ht_errors').value).forEach(function(l){
+      var p=l.split('|').map(function(x){return x.trim();});
+      if(p[0]&&p[1]) errs[p[0]]=p[1];
+    });
+    if(Object.keys(errs).length) cfg.errorPages=errs;
+    return cfg;
+  }
+
+  function renderExplain(text){
+    var out=lines(text).map(function(l){
+      var e=P.explain(l);
+      return '<div style="padding:2px 0"><span style="color:var(--info);font-family:ui-monospace,monospace">'+esc(l)+'</span> '
+           + (e?'<span style="color:var(--muted)">— '+esc(e)+'</span>':'<span style="color:var(--muted)">（无匹配解释）</span>')
+           + '</div>';
+    }).join('');
+    return out || '<span style="color:var(--muted)">空</span>';
+  }
+
+  function renderLint(w){
+    if(!w.length) return '<span style="color:var(--ok)">未发现明显问题。</span>';
+    var colors={error:'var(--warn)', warn:'var(--warn)', info:'var(--muted)'};
+    return w.map(function(x){
+      var where = x.line? ('第 '+x.line+' 行 · ') : '';
+      return '<div style="padding:2px 0;color:'+(colors[x.level]||'var(--muted)')+'">'
+           + where + esc(x.msg) + '</div>';
+    }).join('');
+  }
+
+  function renderStats(st){
+    var mods=Object.keys(st.modules).map(function(k){return k+': '+st.modules[k];}).join('，')||'—';
+    return '总行数 '+st.total+' · 指令 '+st.directives+' · 注释 '+st.comments+' · 空行 '+st.blank
+         + '<br>RewriteRule '+st.rules+' · RewriteCond '+st.conds+' · Header '+st.headers
+         + '<br>涉及模块：'+mods;
+  }
+
+  function run(){
+    $('ht_err').textContent='';
+    try{
+      var cfg=readCfg();
+      var txt=P.build(cfg);
+      $('ht_txt').textContent=txt;
+      $('ht_explain').innerHTML=renderExplain(txt);
+      $('ht_lint').innerHTML=renderLint(P.lint(txt));
+      $('ht_stats').innerHTML=renderStats(P.stats(txt));
+    }catch(e){ $('ht_err').textContent='生成失败：'+e.message; }
+  }
+
+  $('ht_build').addEventListener('click', run);
+  $('ht_clear').addEventListener('click', function(){
+    ['ht_redirects','ht_cors_origin','ht_hot_domains','ht_auth_file','ht_auth_realm','ht_block_ips','ht_block_agents','ht_errors','ht_csp','ht_paste'].forEach(function(id){ $(id).value=''; });
+    ['ht_https','ht_spa','ht_gzip','ht_cache','ht_hsts','ht_hsts_sub','ht_hsts_preload','ht_frame','ht_sniff','ht_referrer','ht_permissions','ht_coop','ht_indexes'].forEach(function(id){ $(id).checked=false; });
+    $('ht_www').value='none';
+    run();
+  });
+  $('ht_copy').addEventListener('click', function(){
+    var t=$('ht_txt').textContent||'';
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){},function(){});
+    else { var ta=D.createElement('textarea'); ta.value=t; D.body.appendChild(ta); ta.select(); try{D.execCommand('copy');}catch(e){} D.body.removeChild(ta); }
+  });
+  $('ht_explain_paste').addEventListener('click', function(){
+    $('ht_paste_explain').innerHTML=renderExplain($('ht_paste').value);
+  });
+
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

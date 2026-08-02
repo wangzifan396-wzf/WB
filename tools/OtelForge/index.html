@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>OtelForge — OpenTelemetry 工具：解析 OTLP/JSON resourceSpans，构建调用链父子树、定位关键路径与慢调用、计算错误率与 P50/P95/P99，离线可用。</title>
+<meta property="og:title" content="OtelForge">
+<meta property="og:description" content="OpenTelemetry 工具：粘贴 OTLP/JSON 的 resourceSpans，解析资源/作用域/span 结构，构建调用链父子树、定位关键路径与慢调用、计算错误率与 P50/P95/P99 延迟，并按最新语义约定（如 http.request.method、url.full）校验埋点质量与凭据泄露风险。排查分布式链路、做 SLO 评审，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="OpenTelemetry 工具：粘贴 OTLP/JSON 的 resourceSpans，解析资源/作用域/span 结构，构建调用链父子树、定位关键路径与慢调用、计算错误率与 P50/P95/P99 延迟，并按最新语义约定（如 http.request.method、url.full）校验埋点质量与凭据泄露风险。排查分布式链路、做 SLO 评审，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+pre.pcf{white-space:pre-wrap;word-break:break-all;background:var(--surface);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin:6px 0 0}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+.pbar{display:inline-block;width:70px;height:6px;background:rgba(255,255,255,.08);
+      border-radius:3px;vertical-align:middle;overflow:hidden;margin-left:6px}
+.pbar>span{display:block;height:100%;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>OtelForge</h1>
+  <p class="sub">OpenTelemetry · OTLP · 可观测性</p>
+
+<label for="ot-src">OTLP/JSON trace 数据（OTLP HTTP exporter 的请求体，或 collector 的 file exporter 输出）</label>
+<textarea id="ot-src" rows="12" placeholder='{"resourceSpans":[{"resource":{"attributes":[]},"scopeSpans":[]}]}'></textarea>
+<div class="row">
+  <button id="ot-go">分析链路</button>
+  <button class="ghost" id="ot-demo">示例：健康的三服务调用</button>
+  <button class="ghost" id="ot-demo2">示例：埋点有问题的链路</button>
+  <button class="ghost" id="ot-clr">清空</button>
+</div>
+<div class="err" id="ot-err"></div>
+<div class="out" id="ot-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 373 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function OtelForgePure(){
+  var KIND = {
+    0:'UNSPECIFIED', 1:'INTERNAL', 2:'SERVER', 3:'CLIENT', 4:'PRODUCER', 5:'CONSUMER',
+    'SPAN_KIND_UNSPECIFIED':'UNSPECIFIED', 'SPAN_KIND_INTERNAL':'INTERNAL',
+    'SPAN_KIND_SERVER':'SERVER', 'SPAN_KIND_CLIENT':'CLIENT',
+    'SPAN_KIND_PRODUCER':'PRODUCER', 'SPAN_KIND_CONSUMER':'CONSUMER'
+  };
+  var STATUS = {
+    0:'UNSET', 1:'OK', 2:'ERROR',
+    'STATUS_CODE_UNSET':'UNSET', 'STATUS_CODE_OK':'OK', 'STATUS_CODE_ERROR':'ERROR'
+  };
+  // 已被 stable 语义约定取代的旧键
+  var RENAMED = {
+    'http.method':'http.request.method',
+    'http.status_code':'http.response.status_code',
+    'http.url':'url.full',
+    'http.target':'url.path',
+    'http.scheme':'url.scheme',
+    'http.host':'server.address',
+    'http.user_agent':'user_agent.original',
+    'http.request_content_length':'http.request.body.size',
+    'http.response_content_length':'http.response.body.size',
+    'net.peer.name':'server.address',
+    'net.peer.ip':'network.peer.address',
+    'net.peer.port':'server.port',
+    'net.host.name':'server.address',
+    'net.host.port':'server.port',
+    'net.transport':'network.transport',
+    'net.sock.peer.addr':'network.peer.address',
+    'db.connection_string':'server.address',
+    'db.user':'db.user (已移除，别再上报凭据类信息)',
+    'db.statement':'db.query.text',
+    'db.operation':'db.operation.name',
+    'db.sql.table':'db.collection.name',
+    'messaging.destination':'messaging.destination.name',
+    'messaging.protocol':'network.protocol.name',
+    'messaging.url':'server.address',
+    'faas.execution':'faas.invocation_id',
+    'rpc.grpc.status_code':'rpc.grpc.status_code'
+  };
+  // 疑似把机密写进属性
+  var SECRET_RE = /(authorization|password|passwd|secret|token|api[-_.]?key|credential|cookie|session[-_.]?id|private[-_.]?key)/i;
+  var SECRET_VAL = /(^bearer\s|^basic\s|ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{10,}\.)/i;
+  // 每个 span kind 建议具备的必填资源 / 属性
+  var REQUIRED_RESOURCE = ['service.name'];
+  var RECOMMENDED_RESOURCE = ['service.version', 'deployment.environment.name', 'service.namespace',
+                              'telemetry.sdk.name', 'telemetry.sdk.language'];
+  var HEX16 = /^[0-9a-f]{16}$/;
+  var HEX32 = /^[0-9a-f]{32}$/;
+  var ZERO32 = '00000000000000000000000000000000';
+  var ZERO16 = '0000000000000000';
+
+  function isObj(x){ return x && typeof x === 'object' && !(x instanceof Array); }
+  function num(x){
+    if (x == null) return null;
+    if (typeof x === 'number') return x;
+    var s = String(x).trim();
+    if (!/^-?[0-9]+$/.test(s)) return null;
+    return Number(s);
+  }
+  function anyValue(v){
+    // OTLP/JSON 的 AnyValue：{stringValue|intValue|boolValue|doubleValue|arrayValue|kvlistValue|bytesValue}
+    if (!isObj(v)) return v;
+    if ('stringValue' in v) return v.stringValue;
+    if ('intValue' in v) return num(v.intValue);
+    if ('boolValue' in v) return !!v.boolValue;
+    if ('doubleValue' in v) return Number(v.doubleValue);
+    if ('bytesValue' in v) return '<bytes>';
+    if ('arrayValue' in v){
+      var arr = (v.arrayValue && v.arrayValue.values) || [];
+      return arr.map(anyValue);
+    }
+    if ('kvlistValue' in v){
+      var o = {}, kvs = (v.kvlistValue && v.kvlistValue.values) || [];
+      for (var i = 0; i < kvs.length; i++) o[kvs[i].key] = anyValue(kvs[i].value);
+      return o;
+    }
+    return null;
+  }
+  function attrMap(list){
+    var out = {};
+    if (!(list instanceof Array)) return out;
+    for (var i = 0; i < list.length; i++){
+      var kv = list[i];
+      if (!isObj(kv) || kv.key == null) continue;
+      out[String(kv.key)] = anyValue(kv.value);
+    }
+    return out;
+  }
+  function nano(x){
+    var n = num(x);
+    return n == null ? null : n;
+  }
+  function fmtDur(ns){
+    if (ns == null) return '—';
+    if (ns < 1000) return ns + ' ns';
+    if (ns < 1e6) return (ns / 1000).toFixed(2) + ' µs';
+    if (ns < 1e9) return (ns / 1e6).toFixed(2) + ' ms';
+    return (ns / 1e9).toFixed(3) + ' s';
+  }
+
+  // ==================== 解析 ====================
+  function parse(text){
+    var raw = String(text == null ? '' : text).trim();
+    if (!raw) return {error:'请粘贴 OTLP/JSON 格式的 trace 数据（ExportTraceServiceRequest 或 resourceSpans 数组）'};
+    var doc;
+    try { doc = JSON.parse(raw); }
+    catch (e){ return {error:'JSON 解析失败：' + e.message}; }
+
+    var rs = null;
+    if (doc instanceof Array) rs = doc;
+    else if (isObj(doc)){
+      rs = doc.resourceSpans || doc.resource_spans || null;
+      if (!rs && (doc.spans || doc.scopeSpans || doc.scope_spans)){
+        // 允许直接丢一段 resourceSpans 条目进来
+        rs = [doc];
+      }
+    }
+    if (!(rs instanceof Array)) return {error:'没有找到 resourceSpans：OTLP/JSON 顶层应当是 {"resourceSpans":[...]} 或 resourceSpans 数组本身'};
+    if (!rs.length) return {error:'resourceSpans 是空数组，没有可分析的 span'};
+
+    var spans = [], resources = [], scopes = {};
+    for (var i = 0; i < rs.length; i++){
+      var r = rs[i] || {};
+      var res = attrMap((r.resource && (r.resource.attributes)) || []);
+      var resIdx = resources.length;
+      resources.push({attrs:res, dropped:num((r.resource && r.resource.droppedAttributesCount) || 0) || 0, spanCount:0});
+      var ss = r.scopeSpans || r.scope_spans || r.instrumentationLibrarySpans || [];
+      if (!(ss instanceof Array)) continue;
+      for (var j = 0; j < ss.length; j++){
+        var sc = ss[j] || {};
+        var scope = sc.scope || sc.instrumentationLibrary || {};
+        var scopeName = scope.name || '(匿名 scope)';
+        var scopeVer = scope.version || '';
+        scopes[scopeName] = scopes[scopeName] || {name:scopeName, version:scopeVer, count:0};
+        var list = sc.spans || [];
+        if (!(list instanceof Array)) continue;
+        for (var k = 0; k < list.length; k++){
+          var s = list[k] || {};
+          var start = nano(s.startTimeUnixNano != null ? s.startTimeUnixNano : s.start_time_unix_nano);
+          var end = nano(s.endTimeUnixNano != null ? s.endTimeUnixNano : s.end_time_unix_nano);
+          var st = s.status || {};
+          var kindRaw = s.kind != null ? s.kind : 0;
+          var evs = (s.events || []).map(function(e){
+            return {name:e.name || '', time:nano(e.timeUnixNano != null ? e.timeUnixNano : e.time_unix_nano),
+                    attrs:attrMap(e.attributes || [])};
+          });
+          var lks = (s.links || []).map(function(l){
+            return {traceId:String(l.traceId || l.trace_id || ''), spanId:String(l.spanId || l.span_id || ''),
+                    attrs:attrMap(l.attributes || [])};
+          });
+          spans.push({
+            traceId: String(s.traceId != null ? s.traceId : (s.trace_id || '')).toLowerCase(),
+            spanId: String(s.spanId != null ? s.spanId : (s.span_id || '')).toLowerCase(),
+            parentSpanId: String(s.parentSpanId != null ? s.parentSpanId : (s.parent_span_id || '')).toLowerCase(),
+            name: s.name == null ? '' : String(s.name),
+            kind: KIND[kindRaw] || String(kindRaw),
+            start: start, end: end,
+            dur: (start != null && end != null) ? end - start : null,
+            status: STATUS[st.code != null ? st.code : 0] || 'UNSET',
+            statusMsg: st.message || '',
+            attrs: attrMap(s.attributes || []),
+            events: evs, links: lks,
+            droppedAttrs: num(s.droppedAttributesCount || s.dropped_attributes_count || 0) || 0,
+            droppedEvents: num(s.droppedEventsCount || s.dropped_events_count || 0) || 0,
+            droppedLinks: num(s.droppedLinksCount || s.dropped_links_count || 0) || 0,
+            resIdx: resIdx, scope: scopeName,
+            service: res['service.name'] == null ? '' : String(res['service.name'])
+          });
+          resources[resIdx].spanCount++;
+          scopes[scopeName].count++;
+        }
+      }
+    }
+    if (!spans.length) return {error:'解析成功但一个 span 都没有：检查 scopeSpans[].spans 是否为空'};
+    return {spans:spans, resources:resources, scopes:scopes};
+  }
+
+  // ==================== 链路重建 ====================
+  function buildTrees(spans){
+    var byId = {}, i;
+    for (i = 0; i < spans.length; i++) if (spans[i].spanId) byId[spans[i].spanId] = spans[i];
+    var traces = {};
+    for (i = 0; i < spans.length; i++){
+      var t = spans[i].traceId || '(缺 traceId)';
+      traces[t] = traces[t] || {traceId:t, spans:[], roots:[], orphans:[]};
+      traces[t].spans.push(spans[i]);
+    }
+    var out = [];
+    Object.keys(traces).forEach(function(tid){
+      var tr = traces[tid];
+      var local = {};
+      tr.spans.forEach(function(s){ if (s.spanId) local[s.spanId] = s; s.children = []; });
+      tr.spans.forEach(function(s){
+        if (!s.parentSpanId || s.parentSpanId === ZERO16){ tr.roots.push(s); return; }
+        var p = local[s.parentSpanId];
+        if (p) p.children.push(s);
+        else { tr.orphans.push(s); }
+      });
+      // 时间与深度
+      var mn = null, mx = null;
+      tr.spans.forEach(function(s){
+        if (s.start != null && (mn == null || s.start < mn)) mn = s.start;
+        if (s.end != null && (mx == null || s.end > mx)) mx = s.end;
+      });
+      tr.start = mn; tr.end = mx;
+      tr.duration = (mn != null && mx != null) ? mx - mn : null;
+      var depth = 0, cyc = false, guard = 0;
+      function walk(s, d, seen){
+        guard++;
+        if (guard > 20000) return;
+        if (seen[s.spanId]){ cyc = true; return; }
+        seen[s.spanId] = 1;
+        s.depth = d;
+        if (d > depth) depth = d;
+        for (var c = 0; c < s.children.length; c++) walk(s.children[c], d + 1, seen);
+        delete seen[s.spanId];
+      }
+      tr.roots.concat(tr.orphans).forEach(function(s){ walk(s, 1, {}); });
+      tr.depth = depth;
+      tr.cyclic = cyc;
+      tr.errorCount = tr.spans.filter(function(s){ return s.status === 'ERROR'; }).length;
+      tr.services = {};
+      tr.spans.forEach(function(s){ if (s.service) tr.services[s.service] = (tr.services[s.service] || 0) + 1; });
+      out.push(tr);
+    });
+    out.sort(function(a, b){ return (b.spans.length - a.spans.length) || (a.traceId < b.traceId ? -1 : 1); });
+    return out;
+  }
+
+  // ==================== 关键路径 ====================
+  function criticalPath(trace){
+    // 从耗时最长的根 span 出发，每层挑耗时最长的子 span
+    var best = null;
+    trace.roots.concat(trace.orphans).forEach(function(r){
+      if (!best || (r.dur || 0) > (best.dur || 0)) best = r;
+    });
+    var path = [], guard = 0;
+    var cur = best;
+    while (cur && guard++ < 500){
+      path.push(cur);
+      var next = null;
+      for (var i = 0; i < cur.children.length; i++)
+        if (!next || (cur.children[i].dur || 0) > (next.dur || 0)) next = cur.children[i];
+      cur = next;
+    }
+    var total = best && best.dur != null ? best.dur : null;
+    return {total:total, steps:path.map(function(s){
+      return {name:s.name, kind:s.kind, service:s.service, dur:s.dur,
+              pct: (total && s.dur != null) ? (s.dur / total * 100) : null,
+              status:s.status, depth:s.depth || 1};
+    })};
+  }
+
+  // ==================== 体检 ====================
+  function lint(parsed, traces){
+    var out = [], spans = parsed.spans;
+    function add(level, text){ out.push({level:level, text:text}); }
+    var seenIds = {}, dupIds = {}, i, s;
+
+    // 资源级
+    for (i = 0; i < parsed.resources.length; i++){
+      var res = parsed.resources[i];
+      for (var q = 0; q < REQUIRED_RESOURCE.length; q++){
+        if (res.attrs[REQUIRED_RESOURCE[q]] == null)
+          add('err', '第 ' + (i + 1) + ' 组 resource 缺少必填属性 ' + REQUIRED_RESOURCE[q] +
+                     '：后端会把这批 span 归到 unknown_service，服务拓扑直接崩掉');
+      }
+      var missRec = RECOMMENDED_RESOURCE.filter(function(k){ return res.attrs[k] == null; });
+      if (missRec.length >= 3)
+        add('info', '第 ' + (i + 1) + ' 组 resource 建议补上 ' + missRec.slice(0, 4).join('、') +
+                    '：没有版本和环境标签，灰度对比与回归定位会很难做');
+      if (res.attrs['deployment.environment'] != null && res.attrs['deployment.environment.name'] == null)
+        add('warn', 'resource 用的是旧键 deployment.environment，稳定版语义约定已改名为 deployment.environment.name');
+      if (res.dropped > 0)
+        add('warn', '第 ' + (i + 1) + ' 组 resource 有 ' + res.dropped + ' 条属性被 SDK 丢弃：属性数量超限了');
+    }
+
+    // span 级
+    for (i = 0; i < spans.length; i++){
+      s = spans[i];
+      var tag = '「' + (s.name || '(空名字)') + '」';
+
+      if (!HEX32.test(s.traceId)) add('err', tag + ' 的 traceId 不是 32 位小写十六进制：' + (s.traceId || '(空)'));
+      else if (s.traceId === ZERO32) add('err', tag + ' 的 traceId 全为 0，属于无效 ID，采集端会整条丢弃');
+      if (!HEX16.test(s.spanId)) add('err', tag + ' 的 spanId 不是 16 位小写十六进制：' + (s.spanId || '(空)'));
+      else if (s.spanId === ZERO16) add('err', tag + ' 的 spanId 全为 0，属于无效 ID');
+      if (s.parentSpanId && s.parentSpanId !== ZERO16 && !HEX16.test(s.parentSpanId))
+        add('err', tag + ' 的 parentSpanId 格式非法：' + s.parentSpanId);
+      if (s.spanId && s.spanId === s.parentSpanId)
+        add('err', tag + ' 的 parentSpanId 指向自己，会在后端形成自环');
+
+      if (s.spanId){
+        if (seenIds[s.spanId]) dupIds[s.spanId] = 1;
+        seenIds[s.spanId] = 1;
+      }
+      if (!s.name) add('err', '存在没有 name 的 span：UI 上会显示成空白条');
+
+      if (s.start == null || s.end == null) add('err', tag + ' 缺少 startTimeUnixNano 或 endTimeUnixNano');
+      else {
+        if (s.end < s.start) add('err', tag + ' 的结束时间早于开始时间，时长为负数');
+        else if (s.dur === 0) add('info', tag + ' 时长为 0 纳秒：多半是计时用了毫秒精度的时钟');
+        if (s.dur != null && s.dur > 3600 * 1e9)
+          add('warn', tag + ' 时长超过 1 小时（' + fmtDur(s.dur) + '）：检查是不是漏调了 end()，泄漏的 span 会一直占内存');
+        // 纳秒量级校验：2001-09-09 之后、2100 年之前
+        if (s.start > 0 && s.start < 1e18)
+          add('warn', tag + ' 的 startTimeUnixNano 看起来不是纳秒（值偏小），OTLP 要求 Unix 纳秒时间戳');
+      }
+
+      if (s.status === 'ERROR' && !s.statusMsg)
+        add('info', tag + ' 状态是 ERROR 但没有 status.message：排障时看不到失败原因');
+      if (s.status === 'OK' && s.kind === 'SERVER')
+        add('info', tag + ' 显式设置了 status OK：语义约定建议只有 SERVER 端明确判定成功才这么写，通常留 UNSET 即可');
+
+      // 属性体检
+      var keys = Object.keys(s.attrs);
+      if (keys.length > 64)
+        add('warn', tag + ' 带了 ' + keys.length + ' 个属性：多数后端对单 span 属性数有上限，超出会被截断');
+      for (var a = 0; a < keys.length; a++){
+        var k = keys[a], v = s.attrs[k];
+        if (RENAMED[k])
+          add('warn', tag + ' 使用了旧属性名 ' + k + '，稳定版语义约定已改为 ' + RENAMED[k]);
+        if (SECRET_RE.test(k))
+          add('err', tag + ' 的属性 ' + k + ' 疑似携带凭据：trace 会长期留存并被广泛检索，绝不能放密钥');
+        if (typeof v === 'string'){
+          if (SECRET_VAL.test(v))
+            add('err', tag + ' 的属性 ' + k + ' 的值看起来是令牌或密钥，请在导出前脱敏');
+          if (v.length > 1024)
+            add('warn', tag + ' 的属性 ' + k + ' 值长达 ' + v.length + ' 字符：会显著抬高存储与传输成本，建议截断');
+        }
+        if (/^[A-Z0-9_]+$/.test(k) && k.length > 2)
+          add('info', tag + ' 的属性名 ' + k + ' 用了大写下划线风格：语义约定要求小写点分命名，例如 http.request.method');
+      }
+
+      // 按 kind 检查语义约定
+      var isHttp = keys.some(function(x){ return x.indexOf('http.') === 0 || x === 'url.full' || x === 'url.path'; });
+      if (isHttp){
+        var method = s.attrs['http.request.method'] != null ? s.attrs['http.request.method'] : s.attrs['http.method'];
+        if (method == null)
+          add('warn', tag + ' 是 HTTP span 但没有 http.request.method：这是稳定版语义约定里的必填项');
+        if (s.kind === 'SERVER' && s.attrs['http.route'] == null && s.attrs['url.path'] == null && s.attrs['http.target'] == null)
+          add('info', tag + ' 是 HTTP 服务端 span 但没有 http.route：没有路由模板就没法按接口聚合');
+        var code = num(s.attrs['http.response.status_code'] != null ? s.attrs['http.response.status_code'] : s.attrs['http.status_code']);
+        if (code != null && code >= 500 && s.status !== 'ERROR')
+          add('warn', tag + ' 返回了 ' + code + ' 却没有把 span 状态置为 ERROR：错误率统计会漏报');
+        if (code != null && code >= 400 && code < 500 && s.status === 'ERROR' && s.kind === 'SERVER')
+          add('info', tag + ' 把 4xx 记成了 ERROR：语义约定规定服务端的 4xx 不算服务端错误，只有客户端 span 才应标 ERROR');
+        // 高基数 URL 直接进 span 名
+        if (s.kind === 'SERVER' && /\/\d{3,}|[0-9a-f]{8}-[0-9a-f]{4}/.test(s.name))
+          add('warn', tag + ' 的 span 名里嵌了 ID 或 UUID：这会造成高基数，应改用 http.route 模板作为名字');
+      }
+      var isDb = keys.some(function(x){ return x.indexOf('db.') === 0; });
+      if (isDb){
+        if (s.attrs['db.system'] == null && s.attrs['db.system.name'] == null)
+          add('warn', tag + ' 是数据库 span 但缺 db.system.name：后端无法判断这是 MySQL 还是 Redis');
+        var q = s.attrs['db.query.text'] != null ? s.attrs['db.query.text'] : s.attrs['db.statement'];
+        if (typeof q === 'string' && /'[^']{0,64}'|=\s*\d{3,}/.test(q))
+          add('warn', tag + ' 的 SQL 里带了字面量参数：语义约定要求把值替换成占位符，否则既泄漏数据又打爆基数');
+        if (s.kind !== 'CLIENT')
+          add('info', tag + ' 是数据库调用却不是 CLIENT kind：调用方视角的 span 应该是 CLIENT');
+      }
+      var isRpc = keys.some(function(x){ return x.indexOf('rpc.') === 0; });
+      if (isRpc && s.attrs['rpc.system'] == null)
+        add('warn', tag + ' 是 RPC span 但缺 rpc.system');
+      var isMsg = keys.some(function(x){ return x.indexOf('messaging.') === 0; });
+      if (isMsg && s.attrs['messaging.system'] == null)
+        add('warn', tag + ' 是消息 span 但缺 messaging.system');
+
+      // 异常事件
+      for (var e = 0; e < s.events.length; e++){
+        var ev = s.events[e];
+        if (ev.name === 'exception'){
+          if (ev.attrs['exception.type'] == null)
+            add('warn', tag + ' 的 exception 事件缺 exception.type');
+          if (s.status !== 'ERROR')
+            add('warn', tag + ' 记录了 exception 事件却没有把状态置为 ERROR');
+          var stk = ev.attrs['exception.stacktrace'];
+          if (typeof stk === 'string' && stk.length > 4096)
+            add('info', tag + ' 的堆栈长达 ' + stk.length + ' 字符：建议截断，堆栈往往是 trace 体积的大头');
+        }
+        if (ev.time != null && s.start != null && s.end != null && (ev.time < s.start || ev.time > s.end))
+          add('warn', tag + ' 的事件「' + ev.name + '」时间落在 span 区间之外');
+      }
+      if (s.events.length > 128)
+        add('warn', tag + ' 挂了 ' + s.events.length + ' 个事件：多数 SDK 默认上限是 128，超出会被丢弃');
+      if (s.droppedAttrs || s.droppedEvents || s.droppedLinks)
+        add('warn', tag + ' 有被 SDK 丢弃的数据：属性 ' + s.droppedAttrs + ' / 事件 ' + s.droppedEvents + ' / 链接 ' + s.droppedLinks);
+      for (var l = 0; l < s.links.length; l++){
+        if (!HEX32.test(s.links[l].traceId) || !HEX16.test(s.links[l].spanId))
+          add('warn', tag + ' 的第 ' + (l + 1) + ' 条 link 指向了非法 ID');
+      }
+    }
+
+    Object.keys(dupIds).forEach(function(id){
+      add('err', 'spanId ' + id + ' 出现了多次：span ID 必须在 trace 内唯一，重复会让链路树错乱');
+    });
+
+    // trace 级
+    for (i = 0; i < traces.length; i++){
+      var tr = traces[i];
+      var short = tr.traceId.slice(0, 8);
+      if (!tr.roots.length)
+        add('warn', 'trace ' + short + '… 没有根 span：要么采集不完整，要么上游把 parentSpanId 传错了');
+      if (tr.roots.length > 1)
+        add('info', 'trace ' + short + '… 有 ' + tr.roots.length + ' 个根 span：通常意味着上下文在某处断开后各自新建了链路');
+      if (tr.orphans.length)
+        add('warn', 'trace ' + short + '… 有 ' + tr.orphans.length + ' 个孤儿 span，它们的父 span 不在这批数据里');
+      if (tr.cyclic)
+        add('err', 'trace ' + short + '… 的父子关系里存在环');
+      // 子 span 超出父 span 时间区间
+      tr.spans.forEach(function(p){
+        for (var c = 0; c < p.children.length; c++){
+          var ch = p.children[c];
+          if (p.start != null && ch.start != null && ch.start < p.start - 1e6)
+            add('warn', '「' + ch.name + '」比父 span「' + p.name + '」还早开始，多半是多机时钟不同步');
+          if (p.end != null && ch.end != null && ch.end > p.end + 1e6)
+            add('warn', '「' + ch.name + '」比父 span「' + p.name + '」还晚结束，检查是否漏了 end() 或异步 span 没接好上下文');
+        }
+      });
+      if (tr.spans.length > 2000)
+        add('warn', 'trace ' + short + '… 有 ' + tr.spans.length + ' 个 span：超大 trace 会拖垮后端 UI，考虑抽样或收敛循环内埋点');
+      if (tr.depth > 40)
+        add('info', 'trace ' + short + '… 深度达到 ' + tr.depth + ' 层：过深的链路往往是递归或框架层层包裹产生的噪声');
+    }
+    return out;
+  }
+
+  // ==================== 体积估算 ====================
+  function payload(parsed){
+    var attrBytes = 0, evBytes = 0, nameBytes = 0, n = 0, attrCount = 0, evCount = 0;
+    parsed.spans.forEach(function(s){
+      n++;
+      nameBytes += (s.name || '').length;
+      Object.keys(s.attrs).forEach(function(k){
+        attrCount++;
+        attrBytes += k.length + String(s.attrs[k] == null ? '' : s.attrs[k]).length + 8;
+      });
+      s.events.forEach(function(e){
+        evCount++;
+        evBytes += (e.name || '').length + 16;
+        Object.keys(e.attrs).forEach(function(k){ evBytes += k.length + String(e.attrs[k] == null ? '' : e.attrs[k]).length + 8; });
+      });
+    });
+    var fixed = n * 60; // ID、时间戳、kind、status 的粗略固定开销
+    var total = fixed + nameBytes + attrBytes + evBytes;
+    return {
+      spans: n, attrCount: attrCount, eventCount: evCount,
+      bytes: total, perSpan: n ? Math.round(total / n) : 0,
+      attrBytes: attrBytes, eventBytes: evBytes, fixedBytes: fixed,
+      dailyGB1k: +(total / Math.max(1, n) * 1000 * 86400 / 1e9).toFixed(2) // 1000 span/s 时每天的 GB 数
+    };
+  }
+
+  function summary(parsed, traces){
+    var svc = {}, kinds = {}, errs = 0, durs = [];
+    parsed.spans.forEach(function(s){
+      var k = s.service || '(未命名服务)';
+      svc[k] = (svc[k] || 0) + 1;
+      kinds[s.kind] = (kinds[s.kind] || 0) + 1;
+      if (s.status === 'ERROR') errs++;
+      if (s.dur != null && s.dur >= 0) durs.push(s.dur);
+    });
+    durs.sort(function(a, b){ return a - b; });
+    function pct(p){
+      if (!durs.length) return null;
+      var idx = Math.min(durs.length - 1, Math.max(0, Math.ceil(p / 100 * durs.length) - 1));
+      return durs[idx];
+    }
+    return {
+      spanCount: parsed.spans.length,
+      traceCount: traces.length,
+      serviceCount: Object.keys(svc).length,
+      services: Object.keys(svc).sort(function(a, b){ return svc[b] - svc[a]; }).map(function(k){ return {name:k, count:svc[k]}; }),
+      kinds: kinds,
+      errorCount: errs,
+      errorRate: parsed.spans.length ? +(errs / parsed.spans.length * 100).toFixed(2) : 0,
+      p50: pct(50), p95: pct(95), p99: pct(99), max: durs.length ? durs[durs.length - 1] : null,
+      scopes: Object.keys(parsed.scopes).map(function(k){ return parsed.scopes[k]; })
+    };
+  }
+
+  function analyze(text){
+    var p = parse(text);
+    if (p.error) return {error:p.error};
+    var traces = buildTrees(p.spans);
+    var issues = lint(p, traces);
+    return {
+      summary: summary(p, traces),
+      traces: traces.map(function(t){
+        return {
+          traceId: t.traceId, spans: t.spans.length, roots: t.roots.length,
+          orphans: t.orphans.length, depth: t.depth, cyclic: t.cyclic,
+          duration: t.duration, durationText: fmtDur(t.duration),
+          errorCount: t.errorCount,
+          services: Object.keys(t.services).map(function(k){ return {name:k, count:t.services[k]}; }),
+          critical: criticalPath(t)
+        };
+      }),
+      payload: payload(p),
+      issues: issues,
+      errCount: issues.filter(function(x){ return x.level === 'err'; }).length,
+      warnCount: issues.filter(function(x){ return x.level === 'warn'; }).length
+    };
+  }
+
+  var api = {parse:parse, buildTrees:buildTrees, criticalPath:criticalPath, lint:lint,
+             payload:payload, summary:summary, analyze:analyze,
+             anyValue:anyValue, attrMap:attrMap, fmtDur:fmtDur, RENAMED:RENAMED};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {OtelForgePure:OtelForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = OtelForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function $(id){ return document.getElementById(id); }
+  function kv(v, t){ return {key:v, value:t}; }
+  function sv(k, v){ return {key:k, value:{stringValue:v}}; }
+  function iv(k, v){ return {key:k, value:{intValue:String(v)}}; }
+
+  var T0 = 1735689600000000000; // 2025-01-01T00:00:00Z 的纳秒
+  function span(o){
+    return {
+      traceId:o.t, spanId:o.s, parentSpanId:o.p || '',
+      name:o.n, kind:o.k, startTimeUnixNano:String(T0 + o.a), endTimeUnixNano:String(T0 + o.b),
+      status:o.st || {}, attributes:o.attrs || [], events:o.ev || []
+    };
+  }
+  function res(name, extra){
+    var a = [sv('service.name', name), sv('service.version', '1.4.2'),
+             sv('deployment.environment.name', 'production'), sv('telemetry.sdk.name', 'opentelemetry'),
+             sv('telemetry.sdk.language', 'go')];
+    return {attributes: a.concat(extra || [])};
+  }
+
+  var TID = '4bf92f3577b34da6a3ce929d0e0e4736';
+  var GOOD = JSON.stringify({resourceSpans:[
+    {resource:res('checkout-api'), scopeSpans:[{scope:{name:'go.opentelemetry.io/otel/http', version:'1.28.0'}, spans:[
+      span({t:TID, s:'00f067aa0ba902b7', n:'GET /orders/:id', k:2, a:0, b:142000000,
+            attrs:[sv('http.request.method','GET'), sv('http.route','/orders/:id'), sv('url.path','/orders/1042'),
+                   iv('http.response.status_code',200), sv('server.address','checkout.internal'), sv('network.protocol.version','1.1')]}),
+      span({t:TID, s:'11f067aa0ba902b8', p:'00f067aa0ba902b7', n:'GET inventory', k:3, a:6000000, b:58000000,
+            attrs:[sv('http.request.method','GET'), sv('url.full','http://inventory/stock'), iv('http.response.status_code',200)]})
+    ]}]},
+    {resource:res('inventory-svc'), scopeSpans:[{scope:{name:'go.opentelemetry.io/otel/http', version:'1.28.0'}, spans:[
+      span({t:TID, s:'22f067aa0ba902b9', p:'11f067aa0ba902b8', n:'GET /stock', k:2, a:9000000, b:55000000,
+            attrs:[sv('http.request.method','GET'), sv('http.route','/stock'), iv('http.response.status_code',200)]}),
+      span({t:TID, s:'33f067aa0ba902c0', p:'22f067aa0ba902b9', n:'SELECT stock', k:3, a:12000000, b:49000000,
+            attrs:[sv('db.system.name','postgresql'), sv('db.query.text','SELECT qty FROM stock WHERE sku = $1'),
+                   sv('db.collection.name','stock'), sv('server.address','pg-primary')]})
+    ]}]},
+    {resource:res('pricing-svc'), scopeSpans:[{scope:{name:'manual', version:''}, spans:[
+      span({t:TID, s:'44f067aa0ba902c1', p:'00f067aa0ba902b7', n:'quote', k:1, a:60000000, b:138000000})
+    ]}]}
+  ]}, null, 2);
+
+  var BAD = JSON.stringify({resourceSpans:[
+    {resource:{attributes:[sv('deployment.environment','prod')]}, scopeSpans:[{scope:{name:'custom'}, spans:[
+      span({t:TID, s:'aa00000000000001', n:'GET /users/98213/profile', k:2, a:0, b:5200000000,
+            st:{code:1},
+            attrs:[sv('http.method','GET'), sv('http.url','https://api/users/98213/profile'),
+                   iv('http.status_code',503), sv('Authorization','Bearer eyJhbGciOiJIUzI1NiJ9.abc'),
+                   sv('USER_ID','98213')]}),
+      span({t:TID, s:'aa00000000000002', p:'aa00000000000001', n:'query', k:1, a:100000000, b:90000000,
+            attrs:[sv('db.statement',"SELECT * FROM users WHERE id = 98213 AND name = 'bob'")],
+            ev:[{name:'exception', timeUnixNano:String(T0 + 120000000), attributes:[sv('exception.message','boom')]}]}),
+      span({t:'zz', s:'aa00000000000002', p:'ffffffffffffffff', n:'', k:0, a:10, b:20})
+    ]}]}
+  ]}, null, 2);
+
+  function bar(pct, color){
+    var w = Math.max(0.6, Math.min(100, pct || 0));
+    return '<span class="pbar"><span style="width:' + w.toFixed(1) + '%;background:' + (color || 'var(--accent)') + '"></span></span>';
+  }
+
+  function run(){
+    var r = P.analyze($('ot-src').value);
+    var $e = $('ot-err'), $o = $('ot-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var s = r.summary, h = '';
+
+    h += '<div class="kv"><b>规模</b><span>' + s.spanCount + ' 个 span · ' + s.traceCount + ' 条 trace · ' + s.serviceCount + ' 个服务</span></div>';
+    h += '<div class="kv"><b>错误率</b><span><span style="color:' + (s.errorCount ? '#EF4444' : 'var(--ok)') + ';font-weight:700">' +
+         s.errorCount + '</span> 个 ERROR span · ' + s.errorRate + '%</span></div>';
+    h += '<div class="kv"><b>span 时长分位</b><span>P50 ' + P.fmtDur(s.p50) + ' · P95 ' + P.fmtDur(s.p95) +
+         ' · P99 ' + P.fmtDur(s.p99) + ' · 最长 ' + P.fmtDur(s.max) + '</span></div>';
+    var kindTxt = Object.keys(s.kinds).map(function(k){ return k + ' ' + s.kinds[k]; }).join(' · ');
+    h += '<div class="kv"><b>span kind 分布</b><span>' + esc(kindTxt) + '</span></div>';
+    h += '<div class="kv"><b>问题</b><span><span style="color:' + (r.errCount ? '#EF4444' : 'var(--ok)') + ';font-weight:700">' +
+         r.errCount + '</span> 严重 / <span style="color:var(--warn)">' + r.warnCount + '</span> 警告</span></div>';
+
+    h += '<div class="sec-h">服务参与度</div>';
+    for (var i = 0; i < s.services.length; i++){
+      var sv2 = s.services[i], pc = sv2.count / s.spanCount * 100;
+      h += '<div class="kv"><b>' + esc(sv2.name) + '</b><span>' + sv2.count + ' 个 span · ' + pc.toFixed(1) + '% ' + bar(pc) + '</span></div>';
+    }
+
+    h += '<div class="sec-h">导出体积估算（按 OTLP 字段粗算，未计 protobuf 压缩）</div>';
+    var pl = r.payload;
+    h += '<div class="kv"><b>本批数据</b><span>约 ' + (pl.bytes / 1024).toFixed(1) + ' KB · 平均每 span ' + pl.perSpan + ' 字节</span></div>';
+    h += '<div class="kv"><b>构成</b><span>属性 ' + (pl.attrBytes / 1024).toFixed(1) + ' KB（' + pl.attrCount + ' 条） · 事件 ' +
+         (pl.eventBytes / 1024).toFixed(1) + ' KB（' + pl.eventCount + ' 条） · 固定开销 ' + (pl.fixedBytes / 1024).toFixed(1) + ' KB</span></div>';
+    h += '<div class="kv"><b>按 1000 span/s 推算</b><span>每天约 ' + pl.dailyGB1k + ' GB 原始 trace 数据</span></div>';
+
+    for (var t = 0; t < r.traces.length && t < 5; t++){
+      var tr = r.traces[t];
+      h += '<div class="sec-h">trace ' + esc(tr.traceId.slice(0, 16)) + '… · ' + tr.spans + ' 个 span · 全链路 ' + tr.durationText +
+           ' · 深度 ' + tr.depth + (tr.orphans ? ' · 孤儿 ' + tr.orphans : '') + '</div>';
+      var cp = tr.critical;
+      for (var c = 0; c < cp.steps.length; c++){
+        var st = cp.steps[c];
+        var col = st.status === 'ERROR' ? '#EF4444' : 'var(--accent)';
+        h += '<div class="kv"><b>' + new Array(st.depth).join('　') + esc(st.name || '(空名字)') + '</b><span>' +
+             esc(st.service || '?') + ' · ' + esc(st.kind) + ' · ' + P.fmtDur(st.dur) +
+             (st.pct != null ? ' · 占根 span ' + st.pct.toFixed(1) + '% ' + bar(st.pct, col) : '') + '</span></div>';
+      }
+    }
+
+    h += '<div class="sec-h">埋点体检</div>';
+    if (!r.issues.length) h += '<div class="kv"><b>结论</b><span style="color:var(--ok)">未发现问题</span></div>';
+    for (var j = 0; j < r.issues.length; j++){
+      var it = r.issues[j];
+      var c2 = it.level === 'err' ? '#EF4444' : (it.level === 'warn' ? 'var(--warn)' : 'var(--muted)');
+      var tg = it.level === 'err' ? '严重' : (it.level === 'warn' ? '警告' : '建议');
+      h += '<div class="kv"><b style="color:' + c2 + '">' + tg + '</b><span>' + esc(it.text) + '</span></div>';
+    }
+    $o.innerHTML = h;
+  }
+
+  $('ot-go').addEventListener('click', run);
+  $('ot-demo').addEventListener('click', function(){ $('ot-src').value = GOOD; run(); });
+  $('ot-demo2').addEventListener('click', function(){ $('ot-src').value = BAD; run(); });
+  $('ot-clr').addEventListener('click', function(){
+    $('ot-src').value = ''; $('ot-err').textContent = ''; $('ot-out').innerHTML = '';
+  });
+  $('ot-src').value = GOOD;
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

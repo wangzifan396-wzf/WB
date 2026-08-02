@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>TarjanForge — Tarjan 强连通分量：一次 DFS 求 SCC 并缩点，依赖环检测</title>
+<meta property="og:title" content="TarjanForge">
+<meta property="og:description" content="Tarjan 强连通分量：一次 DFS 求 SCC 并缩点，依赖环检测">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Tarjan 强连通分量：一次 DFS 求 SCC 并缩点，依赖环检测 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>TarjanForge</h1>
+  <p class="sub">Tarjan 强连通分量：一次 DFS 求 SCC 并缩点，依赖环检测 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>有向边（每行 a->b）</label>
+<textarea id="edges" rows="6">a->b
+b->c
+c->a
+b->d
+d->e
+e->d</textarea>
+<div class="row">
+  <button id="run">求强连通分量</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">输入有向边后运行</div>
+<script>
+function tarjanScc(edges){
+  var adj={}, nodes=[], seen={};
+  function addNode(v){ if(!seen[v]){ seen[v]=1; nodes.push(v); adj[v]=adj[v]||[]; } }
+  for(var i=0;i<edges.length;i++){
+    var e=edges[i];
+    addNode(e[0]); addNode(e[1]);
+    adj[e[0]].push(e[1]);
+  }
+  var index={}, low={}, onStack={}, stack=[], counter={n:0}, sccs=[];
+  function strongconnect(v){
+    index[v]=counter.n; low[v]=counter.n; counter.n++;
+    stack.push(v); onStack[v]=true;
+    var nbrs=adj[v]||[];
+    for(var j=0;j<nbrs.length;j++){
+      var w=nbrs[j];
+      if(index[w]===undefined){
+        strongconnect(w);
+        if(low[w]<low[v]) low[v]=low[w];
+      } else if(onStack[w]){
+        if(index[w]<low[v]) low[v]=index[w];
+      }
+    }
+    if(low[v]===index[v]){
+      var comp=[], u;
+      do { u=stack.pop(); onStack[u]=false; comp.push(u); } while(u!==v);
+      comp.sort();
+      sccs.push(comp);
+    }
+  }
+  for(var k=0;k<nodes.length;k++){
+    if(index[nodes[k]]===undefined) strongconnect(nodes[k]);
+  }
+  return sccs;
+}
+function sccCondense(edges){
+  var sccs=tarjanScc(edges);
+  var compOf={};
+  for(var i=0;i<sccs.length;i++){
+    for(var j=0;j<sccs[i].length;j++) compOf[sccs[i][j]]=i;
+  }
+  var dedup={}, dagEdges=[];
+  for(var k=0;k<edges.length;k++){
+    var a=compOf[edges[k][0]], b=compOf[edges[k][1]];
+    if(a!==b){
+      var key=a+'->'+b;
+      if(!dedup[key]){ dedup[key]=1; dagEdges.push([a,b]); }
+    }
+  }
+  return { sccs:sccs, compOf:compOf, dagEdges:dagEdges };
+}
+function sccHasCycle(edges){
+  var sccs=tarjanScc(edges);
+  for(var i=0;i<sccs.length;i++) if(sccs[i].length>1) return true;
+  var self={};
+  for(var k=0;k<edges.length;k++) if(edges[k][0]===edges[k][1]) return true;
+  return false;
+}
+function parseEdges(text){
+  var out=[];
+  var lines=String(text).split('\n');
+  for(var i=0;i<lines.length;i++){
+    var ln=lines[i].trim();
+    if(!ln) continue;
+    var mm=ln.split('->');
+    if(mm.length!==2) return {value:null, error:'第 '+(i+1)+' 行格式错误（需 a->b）'};
+    var a=mm[0].trim(), b=mm[1].trim();
+    if(!a||!b) return {value:null, error:'第 '+(i+1)+' 行节点为空'};
+    out.push([a,b]);
+  }
+  return {value:out, error:null};
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { tarjanScc:tarjanScc, sccCondense:sccCondense, sccHasCycle:sccHasCycle, parseEdges:parseEdges };
+}
+if (typeof window !== 'undefined') {
+  window.TarjanForgePure = { tarjanScc:tarjanScc, sccCondense:sccCondense, sccHasCycle:sccHasCycle, parseEdges:parseEdges };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.TarjanForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      var r=P.parseEdges($('edges').value);
+      if(r.error){ $('err').textContent=r.error; return; }
+      var c=P.sccCondense(r.value);
+      var lines=['强连通分量 '+c.sccs.length+' 个：'];
+      c.sccs.forEach(function(s,i){ lines.push('  C'+i+' = {'+s.join(', ')+'}'+(s.length>1?' ← 环':'')); });
+      lines.push('缩点 DAG 边: '+(c.dagEdges.length? c.dagEdges.map(function(e){return 'C'+e[0]+'→C'+e[1];}).join(', ') : '(无)'));
+      lines.push('含环: '+(P.sccHasCycle(r.value)?'是':'否'));
+      $('out').textContent=lines.join('\n');
+    });
+    $('clear').addEventListener('click', function(){ $('edges').value=''; $('out').textContent='输入有向边后运行'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

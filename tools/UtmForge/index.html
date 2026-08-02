@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>UtmForge — UTM 参数构建、解析与校验，增长营销溯源</title>
+<meta property="og:title" content="UtmForge">
+<meta property="og:description" content="UTM 参数构建、解析与校验，增长营销溯源">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="UTM 参数构建、解析与校验，增长营销溯源 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label,.lbl{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:140px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>UtmForge</h1>
+  <p class="sub">UTM 参数构建、解析与校验，增长营销溯源 · 单文件 · 零依赖 · 本地优先</p>
+
+<label for="ubase">基础 URL</label>
+<input id="ubase" type="text" value="https://example.com/landing">
+<div class="lbl" id="ugrid-label">UTM 参数</div>
+<div class="grid2" role="group" aria-labelledby="ugrid-label">
+  <input id="u_source" type="text" placeholder="utm_source（必填）" value="newsletter">
+  <input id="u_medium" type="text" placeholder="utm_medium" value="email">
+  <input id="u_campaign" type="text" placeholder="utm_campaign" value="spring_sale">
+  <input id="u_term" type="text" placeholder="utm_term">
+  <input id="u_content" type="text" placeholder="utm_content">
+</div>
+<div class="row">
+  <button id="build">构建链接</button>
+  <button id="parse">解析链接</button>
+  <button id="copy" class="ghost">复制</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">构建或粘贴带 UTM 的链接进行解析</div>
+<script>
+var UTM_KEYS=['utm_source','utm_medium','utm_campaign','utm_term','utm_content'];
+function utmBuild(base, params){
+  if(typeof base!=='string') return {error:'base must be string'};
+  params=params||{};
+  var qIndex=base.indexOf('?');
+  var path=base, existing='';
+  if(qIndex>=0){ path=base.slice(0,qIndex); existing=base.slice(qIndex+1); }
+  var pairs=[];
+  if(existing) existing.split('&').forEach(function(p){ if(p) pairs.push(p); });
+  UTM_KEYS.forEach(function(k){
+    var v=params[k];
+    if(v!==undefined && v!==null && String(v).length>0){
+      pairs.push(k+'='+encodeURIComponent(String(v)));
+    }
+  });
+  return {value: path + (pairs.length?('?'+pairs.join('&')):''), error:null};
+}
+function utmParse(url){
+  if(typeof url!=='string') return {error:'url must be string'};
+  var qIndex=url.indexOf('?');
+  var base=url, query='';
+  if(qIndex>=0){ base=url.slice(0,qIndex); query=url.slice(qIndex+1); }
+  var all={}, utm={};
+  query.split('&').forEach(function(p){
+    if(!p) return;
+    var eq=p.indexOf('=');
+    var k=eq>=0?p.slice(0,eq):p;
+    var v=eq>=0?p.slice(eq+1):'';
+    k=decodeURIComponent(k); v=decodeURIComponent(v);
+    all[k]=v;
+    if(k.indexOf('utm_')===0) utm[k]=v;
+  });
+  return {base:base, utm:utm, all:all, error:null};
+}
+function utmValidate(params){
+  params=params||{};
+  var issues=[];
+  if(!params.utm_source || !String(params.utm_source).trim()) issues.push('utm_source 缺失或为空');
+  ['utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k){
+    if(params[k]!==undefined && params[k]!==null && String(params[k]).length===0) issues.push(k+' 为空');
+  });
+  return {valid: issues.length===0, issues:issues, normalized:params};
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { build:utmBuild, parse:utmParse, validate:utmValidate };
+}
+if (typeof window !== 'undefined') {
+  window.UtmForgePure = { build:utmBuild, parse:utmParse, validate:utmValidate };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.UtmForgePure;
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function params(){
+      return {
+        utm_source:$('u_source').value, utm_medium:$('u_medium').value,
+        utm_campaign:$('u_campaign').value, utm_term:$('u_term').value, utm_content:$('u_content').value
+      };
+    }
+    $('build').addEventListener('click', function(){
+      var r=P.build($('ubase').value, params());
+      if(r.error){ $('out').textContent='错误：'+r.error; return; }
+      $('out').textContent=r.value;
+    });
+    $('parse').addEventListener('click', function(){
+      var r=P.parse($('out').textContent || $('ubase').value);
+      if(r.error){ $('out').textContent='错误：'+r.error; return; }
+      var lines=['base: '+r.base,''];
+      Object.keys(r.utm).forEach(function(k){ lines.push(k+' = '+r.utm[k]); });
+      if(Object.keys(r.utm).length===0) lines.push('（未检测到 utm_ 参数）');
+      $('out').textContent=lines.join('\n');
+    });
+    $('copy').addEventListener('click', function(){ copyText($('out').textContent); });
+    $('clear').addEventListener('click', function(){ $('ubase').value=''; $('out').textContent='\u6784\u5efa\u6216\u7c98\u8d34\u5e26 UTM \u7684\u94fe\u63a5\u8fdb\u884c\u89e3\u6790'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

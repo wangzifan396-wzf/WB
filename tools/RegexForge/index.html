@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="RegexForge: offline regex tester and visualizer. Live match highlighting, capture groups, named groups, railroad diagram and cheat sheet. Single file, zero dependency, local first.">
+<meta property="og:title" content="RegexForge">
+<meta property="og:description" content="Offline regex tester and visualizer with railroad diagram.">
+<meta property="og:image" content="og.png">
+<meta name="theme-color" content="#0A0A0B">
+<title>RegexForge</title>
+<link rel="icon" href="favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E;
+  --t1:#FFFFFF; --t2:#A1A1AA; --t3:#71717A;
+  --bd:rgba(255,255,255,.08); --bd2:rgba(255,255,255,.14);
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA;
+  --r:10px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:14px;line-height:1.5}
+a{color:var(--accent);text-decoration:none}
+header.top{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:rgba(10,10,11,.86);backdrop-filter:blur(8px);z-index:20}
+.logo{width:30px;height:30px;flex:0 0 auto}
+header.top h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.2px}
+header.top .sub{color:var(--t3);font-size:12px;font-weight:400}
+header.top .spacer{flex:1}
+.langbtn{background:var(--surface);border:1px solid var(--bd);color:var(--t2);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px}
+.langbtn:hover{border-color:var(--bd2);color:var(--t1)}
+.wrap{max-width:1280px;margin:0 auto;padding:18px 20px 60px}
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.col{gap:16px;display:flex;flex-direction:column}
+label.lbl{display:block;font-size:12px;color:var(--t2);margin:0 0 6px;font-weight:600;letter-spacing:.3px}
+.patrow{display:flex;gap:10px;align-items:stretch}
+.patbox{flex:1;display:flex;align-items:center;background:var(--surface);border:1px solid var(--bd);border-radius:8px;padding:0 12px;font-family:var(--mono)}
+.patbox .slash{color:var(--t3);padding:0 4px;user-select:none}
+.patbox input{flex:1;background:transparent;border:0;outline:0;color:var(--t1);font-family:var(--mono);font-size:14px;padding:11px 0}
+.flags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.flag{display:inline-flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--bd);border-radius:7px;padding:5px 9px;cursor:pointer;font-size:12px;color:var(--t2);user-select:none}
+.flag input{display:none}
+.flag.on{color:var(--t1);border-color:var(--accent);background:rgba(94,106,210,.14)}
+textarea,input[type=text]{width:100%;background:var(--surface);border:1px solid var(--bd);border-radius:8px;color:var(--t1);font-family:var(--mono);font-size:13px;padding:11px;outline:0;resize:vertical}
+textarea:focus,input:focus,input[type=text]:focus{border-color:var(--accent)}
+.sample{margin-top:10px}
+select{width:100%;background:var(--surface);border:1px solid var(--bd);color:var(--t2);border-radius:8px;padding:9px 10px;font-size:13px;outline:0}
+.hl{margin-top:14px;background:var(--surface);border:1px solid var(--bd);border-radius:8px;padding:12px;font-family:var(--mono);font-size:13px;white-space:pre-wrap;word-break:break-word;min-height:80px;line-height:1.7}
+.hl mark{background:rgba(94,106,210,.32);color:#fff;border-radius:3px;padding:1px 0}
+.hl .g0{background:rgba(94,106,210,.34)}
+.hl .g1{background:rgba(16,185,129,.30)}
+.hl .g2{background:rgba(245,166,35,.30)}
+.hl .g3{background:rgba(34,211,238,.28)}
+.hl .g4{background:rgba(167,139,250,.30)}
+.hl .g5{background:rgba(236,72,153,.28)}
+.hl .g6{background:rgba(96,165,250,.28)}
+.hl .g7{background:rgba(251,191,36,.26)}
+.hl .g8{background:rgba(52,211,153,.26)}
+.hl .g9{background:rgba(244,114,182,.26)}
+.err{color:#ff6b6b;font-family:var(--mono);font-size:13px;margin-top:8px}
+.matches{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.mcard{background:var(--surface);border:1px solid var(--bd);border-radius:8px;padding:10px 12px}
+.mcard .mi{font-size:11px;color:var(--t3);font-family:var(--mono)}
+.mcard .mv{font-family:var(--mono);font-size:13px;color:var(--t1);word-break:break-all;margin:3px 0}
+.grp{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{font-family:var(--mono);font-size:11px;background:rgba(255,255,255,.05);border:1px solid var(--bd);border-radius:6px;padding:3px 7px;color:var(--t2)}
+.chip b{color:var(--t1);font-weight:600}
+.mcount{font-size:12px;color:var(--t2);margin:10px 0 2px}
+.rr{margin-top:14px;overflow-x:auto;background:var(--surface);border:1px solid var(--bd);border-radius:8px;padding:14px}
+.rr svg{display:block}
+.cheat{margin-top:0}
+.cheat h3{font-size:13px;margin:0 0 10px;color:var(--t1)}
+.citem{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--bd);cursor:pointer}
+.citem:last-child{border-bottom:0}
+.citem .tok{font-family:var(--mono);font-size:13px;color:var(--accent);flex:0 0 96px;user-select:all}
+.citem .desc{font-size:12px;color:var(--t2)}
+.citem:hover{background:rgba(255,255,255,.03)}
+.hint{font-size:12px;color:var(--t3);margin-top:8px}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{background:var(--surface);border:1px solid var(--bd);color:var(--t1);padding:8px 13px;border-radius:8px;cursor:pointer;font-size:12px}
+.btn:hover{border-color:var(--bd2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.foot{margin-top:26px;color:var(--t3);font-size:12px;text-align:center;border-top:1px solid var(--bd);padding-top:18px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.wrap{padding:14px}}
+</style>
+</head>
+<body>
+<header class="top">
+  <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="#5E6AD2" stroke-width="1.6"><path d="M4 7c2-3 4-3 6 0s4 3 6 0"/><path d="M4 12c2-3 4-3 6 0s4 3 6 0"/><path d="M4 17c2-3 4-3 6 0s4 3 6 0"/><circle cx="10" cy="7" r="1.1" fill="#5E6AD2" stroke="none"/></svg>
+  <div><h1>RegexForge</h1><div class="sub" data-i18n="subtitle">离线正则测试与可视化</div></div>
+  <div class="spacer"></div>
+  <button class="langbtn" id="langBtn">EN</button>
+</header>
+<div class="wrap">
+  <div class="grid">
+    <div class="col">
+      <div class="panel">
+        <label class="lbl" data-i18n="pattern">正则表达式</label>
+        <div class="patrow">
+          <div class="patbox"><span class="slash">/</span><input id="pat" spellcheck="false" value="([\w.+-]+)@([\w-]+)\.(\w{2,})"></div>
+          <div class="patbox" style="flex:0 0 64px"><input id="flagsIn" spellcheck="false" value="g" style="text-align:center"></div><span class="slash" style="align-self:center">/</span>
+        </div>
+        <div class="flags" id="flags">
+          <label class="flag" data-f="g"><input type="checkbox" checked>g</label>
+          <label class="flag" data-f="i"><input type="checkbox">i</label>
+          <label class="flag" data-f="m"><input type="checkbox">m</label>
+          <label class="flag" data-f="s"><input type="checkbox">s</label>
+          <label class="flag" data-f="u"><input type="checkbox">u</label>
+          <label class="flag" data-f="y"><input type="checkbox">y</label>
+        </div>
+        <div class="sample">
+          <select id="samples"></select>
+        </div>
+      </div>
+      <div class="panel">
+        <label class="lbl" data-i18n="testText">测试文本</label>
+        <textarea id="text" rows="9" spellcheck="false">Contact: ada@lovelace.dev, linus@kernel.org and 测试@例子.中国
+Invalid: not-an-email, @nodomain.com</textarea>
+        <div class="btnrow">
+          <button class="btn" id="copyJson" data-i18n="copyJson">复制匹配 JSON</button>
+          <button class="btn" id="clearBtn" data-i18n="clear">清空</button>
+        </div>
+      </div>
+      <div class="panel cheat">
+        <h3 data-i18n="cheat">速查表（点击插入）</h3>
+        <div id="cheatList"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <label class="lbl" data-i18n="highlight">实时高亮</label>
+        <div class="hl" id="hl"></div>
+        <div class="err" id="err"></div>
+        <div class="mcount" id="mcount"></div>
+        <div class="matches" id="matches"></div>
+      </div>
+      <div class="panel">
+        <label class="lbl" data-i18n="railroad">结构图（铁路图）</label>
+        <div class="rr" id="rr"></div>
+        <div class="hint" data-i18n="rrHint">从解析后的抽象语法树生成，帮助直观理解分组与量词。</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">RegexForge · 单文件 · 零依赖 · 数据永不离机 · <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/RegexForge" target="_blank" rel="noopener">GitHub</a></div>
+</div>
+<script>
+var RF = (function(){
+  'use strict';
+  function mkError(msg){ return {error:String(msg)}; }
+  function parse(pattern){
+    var i=0, n=pattern.length, depth=0;
+    function peek(){return pattern[i];}
+    function next(){return pattern[i++];}
+    function parseAlt(){
+      var opts=[parseSeq()];
+      while(peek()==='|'){ next(); opts.push(parseSeq()); }
+      if(opts.length===1) return opts[0];
+      return {type:'alt',options:opts};
+    }
+    function parseSeq(){
+      var items=[];
+      while(i<n && peek()!=='|' && peek()!==')'){ items.push(parseAtom()); }
+      return {type:'seq',items:items};
+    }
+    function parseAtom(){
+      var c=peek();
+      if(c==='('){ return parseGroup(); }
+      if(c==='['){ return parseClass(); }
+      if(c==='^'||c==='$'){ next(); return wrapQuant({type:'anchor',value:c}); }
+      if(c==='.'){ next(); return wrapQuant({type:'dot'}); }
+      if(c==='\\'){ return parseEscape(); }
+      if(c==='*'||c==='+'||c==='?'){ next(); return {type:'quant',min:c==='*'?0:(c==='+'?1:0),max:c==='?'?1:Infinity,greedy:true,token:{type:'empty'}}; }
+      if(c==='{'){ return tryBrace({type:'lit',value:c}); }
+      next();
+      return wrapQuant({type:'lit',value:c});
+    }
+    function tryBrace(node){
+      var save=i; var c=pattern[save-1];
+      next();
+      var num=''; while(/[0-9]/.test(peek())) num+=next();
+      var min=parseInt(num,10), max=min;
+      if(peek()===','){ next(); var n2=''; while(/[0-9]/.test(peek())) n2+=next(); max= n2===''?Infinity:parseInt(n2,10); }
+      if(peek()==='}'){ next(); var g=true; if(peek()==='?'){next();g=false;} return {type:'quant',min:min,max:max,greedy:g,token:{type:'lit',value:c}}; }
+      i=save; return wrapQuant({type:'lit',value:c});
+    }
+    function wrapQuant(node){
+      var c=peek();
+      if(c==='*'||c==='+'||c==='?'){
+        next();
+        var greedy=true;
+        if(peek()==='?'){ next(); greedy=false; }
+        var min=c==='*'?0:(c==='+'?1:0), max=c==='?'?1:Infinity;
+        return {type:'quant',min:min,max:max,greedy:greedy,token:node};
+      }
+      if(c==='{'){ return tryBrace(node); }
+      return node;
+    }
+    function parseGroup(){
+      next(); depth++;
+      var kind='capture', name=null;
+      if(peek()==='?'){
+        next(); var k=next();
+        if(k===':') kind='noncapture';
+        else if(k==='=') kind='lookahead';
+        else if(k==='!') kind='neglookahead';
+        else if(k==='<'){
+          var k2=next();
+          if(k2==='=') kind='lookbehind';
+          else if(k2==='!') kind='neglookbehind';
+          else { kind='named'; name=k2; while(peek()!=='>'&&i<n) name+=next(); if(peek()==='>') next(); }
+        }
+      }
+      var body=parseAlt();
+      if(peek()===')'){ next(); depth--; }
+      var g={type:'group',kind:kind,name:name,body:body};
+      return wrapQuant(g);
+    }
+    function parseClass(){
+      next();
+      var neg=false;
+      if(peek()==='^'){ neg=true; next(); }
+      var buf='';
+      while(i<n && peek()!==']'){
+        var c=next();
+        if(c==='\\'){ var e=next(); buf+='\\'+e; } else buf+=c;
+      }
+      if(peek()===']') next();
+      return wrapQuant({type:'charclass',neg:neg,raw:buf});
+    }
+    function parseEscape(){
+      next();
+      if(i>=n) return {type:'lit',value:'\\'};
+      var c=next();
+      if(/[1-9]/.test(c)){ var num=c; while(/[0-9]/.test(peek())) num+=next(); return wrapQuant({type:'backref',n:parseInt(num,10)}); }
+      return wrapQuant({type:'escape',value:c});
+    }
+    try {
+      var ast=parseAlt();
+      if(i<n) return mkError('unexpected character at '+i);
+      if(depth!==0) return mkError('unbalanced parentheses');
+      return {ast:ast};
+    }
+    catch(e){ return mkError(e.message); }
+  }
+  function capture(m){
+    var groups=[];
+    for(var i=1;i<m.length;i++) groups.push(m[i]===undefined?null:m[i]);
+    var named={};
+    if(m.groups) for(var k in m.groups) named[k]=m.groups[k];
+    return {index:m.index, end:m.index+m[0].length, value:m[0], groups:groups, named:named};
+  }
+  function run(pattern, flags, text){
+    flags = flags||'';
+    var re;
+    try { re = new RegExp(pattern, flags); }
+    catch(e){ return {error:e.message, matches:[]}; }
+    var matches=[];
+    if(flags.indexOf('g')>=0 || flags.indexOf('y')>=0){
+      var m, guard=0;
+      while((m=re.exec(text))!==null){
+        matches.push(capture(m));
+        if(m.index===re.lastIndex) re.lastIndex++;
+        if(++guard>200000) break;
+      }
+    } else {
+      var mm=re.exec(text);
+      if(mm) matches.push(capture(mm));
+    }
+    return {matches:matches};
+  }
+  function highlight(text, matches){
+    var segs=[]; var i=0;
+    var sorted=(matches||[]).slice().sort(function(a,b){return a.index-b.index;});
+    for(var k=0;k<sorted.length;k++){
+      var mt=sorted[k];
+      if(mt.index>i) segs.push({text:text.slice(i,mt.index),match:false});
+      segs.push({text:text.slice(mt.index,mt.end),match:true});
+      i=mt.end;
+    }
+    if(i<text.length) segs.push({text:text.slice(i),match:false});
+    return segs;
+  }
+  function renderHL(text, matches){
+    var segs=highlight(text, matches);
+    var html='';
+    for(var k=0;k<segs.length;k++){
+      var s=segs[k];
+      var esc=s.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      if(s.match) html+='<mark>'+esc+'</mark>'; else html+=esc;
+    }
+    return html;
+  }
+  var SAMPLES=[
+    {name:'Email', pat:'[\\w.+-]+@[\\w-]+\\.\\w{2,}', flags:'g'},
+    {name:'URL', pat:'https?://[\\w.-]+(?:/[\\w./?%&=#-]*)?', flags:'g'},
+    {name:'IPv4', pat:'\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b', flags:'g'},
+    {name:'Hex color', pat:'#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\\b', flags:'g'},
+    {name:'ISO date', pat:'(\\d{4})-(\\d{2})-(\\d{2})', flags:'g'},
+    {name:'Named: user', pat:'(?<user>\\w+)@(?<domain>\\w+\\.\\w+)', flags:'g'},
+    {name:'Phone (CN)', pat:'1[3-9]\\d{9}', flags:'g'},
+    {name:'Slug', pat:'[a-z0-9]+(?:-[a-z0-9]+)*', flags:'g'}
+  ];
+  var CHEAT=[
+    {tok:'.', zh:'任意字符（除换行）', en:'any char (except newline)'},
+    {tok:'\\d \\w \\s', zh:'数字 / 词字符 / 空白', en:'digit / word / space'},
+    {tok:'\\D \\W \\S', zh:'非数字 / 非词 / 非空白', en:'negated classes'},
+    {tok:'^ $', zh:'行首 / 行尾', en:'start / end anchor'},
+    {tok:'* + ?', zh:'0+ / 1+ / 0或1', en:'0+ / 1+ / 0 or 1'},
+    {tok:'{n,m}', zh:'n 到 m 次', en:'n to m times'},
+    {tok:'[abc]', zh:'字符集合', en:'character set'},
+    {tok:'[^x]', zh:'排除集合', en:'negated set'},
+    {tok:'( )', zh:'捕获组', en:'capture group'},
+    {tok:'(?: )', zh:'非捕获组', en:'non-capturing group'},
+    {tok:'(?<n> )', zh:'命名组', en:'named group'},
+    {tok:'(?= )', zh:'正向先行', en:'positive lookahead'},
+    {tok:'(?! )', zh:'负向先行', en:'negative lookahead'},
+    {tok:'a|b', zh:'选择（或）', en:'alternation'},
+    {tok:'\\b', zh:'单词边界', en:'word boundary'},
+    {tok:'\\1', zh:'反向引用', en:'backreference'}
+  ];
+  function version(){ return '1.0.0'; }
+  var API={
+    parse:parse, run:run, highlight:highlight, renderHL:renderHL,
+    samples:SAMPLES, cheat:CHEAT, version:version
+  };
+  if(typeof module!=='undefined' && module.exports){ module.exports=API; }
+  return API;
+})();
+
+if(typeof window!=='undefined' && window.document){
+  (function(){
+    var I18N={
+      zh:{subtitle:'离线正则测试与可视化', pattern:'正则表达式', testText:'测试文本', highlight:'实时高亮',
+          railroad:'结构图（铁路图）', rrHint:'从解析后的抽象语法树生成，帮助直观理解分组与量词。',
+          cheat:'速查表（点击插入）', copyJson:'复制匹配 JSON', clear:'清空', matchesOf:'个匹配', noMatch:'无匹配',
+          grp:'组', named:'命名', errInvalid:'正则无效：'},
+      en:{subtitle:'Offline regex tester and visualizer', pattern:'Regular expression', testText:'Test text', highlight:'Live highlight',
+          railroad:'Structure (railroad diagram)', rrHint:'Generated from the parsed AST to show groups and quantifiers.',
+          cheat:'Cheat sheet (click to insert)', copyJson:'Copy matches JSON', clear:'Clear', matchesOf:'matches', noMatch:'No match',
+          grp:'grp', named:'named', errInvalid:'Invalid regex:'}
+    };
+    var lang='zh';
+    function t(k){ return (I18N[lang]&&I18N[lang][k])||(I18N.zh[k])||k; }
+    function $(id){ return document.getElementById(id); }
+    var state={ pattern:'', flags:'', text:'' };
+    var GAP=14;
+
+    function currentFlags(){
+      var f='';
+      document.querySelectorAll('#flags .flag').forEach(function(l){
+        var cb=l.querySelector('input'); if(cb.checked) f+=l.getAttribute('data-f');
+      });
+      return f;
+    }
+    function update(){
+      state.pattern=$('pat').value;
+      state.flags=currentFlags();
+      state.text=$('text').value;
+      $('flagsIn').value=state.flags;
+      var parsed=RF.parse(state.pattern);
+      var res;
+      if(parsed.error){ res={error:parsed.error, matches:[]}; }
+      else { res=RF.run(state.pattern, state.flags, state.text); }
+      if(res.error){
+        $('err').textContent=t('errInvalid')+' '+res.error;
+        $('hl').innerHTML=RF.renderHL(state.text, []);
+        $('matches').innerHTML=''; $('mcount').textContent='';
+        renderRR(null);
+        return;
+      }
+      $('err').textContent='';
+      $('hl').innerHTML=RF.renderHL(state.text, res.matches);
+      var mc=res.matches.length;
+      $('mcount').textContent=mc+' '+t('matchesOf');
+      var html='';
+      res.matches.slice(0,200).forEach(function(m,idx){
+        html+='<div class="mcard"><div class="mi">#'+(idx+1)+' · '+m.index+'–'+m.end+'</div>';
+        html+='<div class="mv">'+escapeHtml(m.value)+'</div>';
+        if(m.groups.length){
+          html+='<div class="grp">';
+          m.groups.forEach(function(g,gi){ if(g!==null) html+='<span class="chip"><b>'+gi+'</b> '+escapeHtml(g)+'</span>'; });
+          html+='</div>';
+        }
+        var nk=Object.keys(m.named);
+        if(nk.length){
+          html+='<div class="grp">';
+          nk.forEach(function(k){ html+='<span class="chip"><b>'+escapeHtml(k)+'</b> '+escapeHtml(m.named[k]===null?'':m.named[k])+'</span>'; });
+          html+='</div>';
+        }
+        html+='</div>';
+      });
+      if(mc===0) html='<div class="hint">'+t('noMatch')+'</div>';
+      $('matches').innerHTML=html;
+      renderRR(parsed.ast||null);
+    }
+    function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function renderRR(ast){
+      var box=$('rr');
+      if(!ast){ box.innerHTML='<span class="hint">—</span>'; return; }
+      var W=24, H=46;
+      var built=buildNode(ast, 0);
+      var totalW=built.w+20, totalH=built.h+20;
+      var svg='<svg width="'+totalW+'" height="'+totalH+'" viewBox="0 0 '+totalW+' '+totalH+'">';
+      svg+='<line x1="8" y1="'+(built.h/2+10)+'" x2="14" y2="'+(built.h/2+10)+'" stroke="#71717A"/>';
+      svg+=built.svg(14, 10);
+      svg+='<line x1="'+(built.w+14)+'" y1="'+(built.h/2+10)+'" x2="'+(built.w+18)+'" y2="'+(built.h/2+10)+'" stroke="#71717A"/>';
+      svg+='</svg>';
+      box.innerHTML=svg;
+    }
+    function buildNode(node, depth){
+      if(!node) return leaf('∅');
+      switch(node.type){
+        case 'seq': {
+          var xs=node.items.map(function(c){return buildNode(c, depth+1);});
+          var w=xs.reduce(function(a,b){return a+b.w+GAP;},0)- (xs.length?GAP:0);
+          var h=Math.max.apply(null, xs.map(function(x){return x.h;}));
+          return {w:Math.max(w,40), h:h, svg:function(ox,oy){
+            var s=''; var cx=ox;
+            s+='<line x1="'+cx+'" y1="'+(oy+h/2)+'" x2="'+(cx+8)+'" y2="'+(oy+h/2)+'" stroke="#3f3f46"/>';
+            cx+=8;
+            xs.forEach(function(x,idx){
+              s+=x.svg(cx, oy+(h-x.h)/2);
+              if(idx<xs.length-1){
+                var yy=oy+h/2;
+                s+='<line x1="'+(cx)+'" y1="'+yy+'" x2="'+(cx+GAP)+'" y2="'+yy+'" stroke="#3f3f46"/>';
+                cx+=GAP;
+              }
+            });
+            return s;
+          }};
+        }
+        case 'alt': {
+          var ys=node.options.map(function(c){return buildNode(c, depth+1);});
+          var ow=Math.max.apply(null, ys.map(function(y){return y.w;}));
+          var oh=ys.reduce(function(a,b){return a+b.h+GAP;},0)-(ys.length?GAP:0);
+          return {w:ow+24, h:oh, svg:function(ox,oy){
+            var s=''; var cy=oy;
+            s+='<line x1="'+ox+'" y1="'+(oy+oh/2)+'" x2="'+(ox+10)+'" y2="'+(oy+oh/2)+'" stroke="#3f3f46"/>';
+            ys.forEach(function(y){
+              s+=y.svg(ox+12+(ow-y.w)/2, cy+(y.h)/2 - y.h/2 + (oh/2 - oh/2)); // align center
+              s+=y.svg(ox+12+(ow-y.w)/2, cy);
+              s+='<line x1="'+(ox+10)+'" y1="'+(cy+y.h/2)+'" x2="'+(ox+12)+'" y2="'+(cy+y.h/2)+'" stroke="#3f3f46"/>';
+              s+='<line x1="'+(ox+12+ow)+'" y1="'+(cy+y.h/2)+'" x2="'+(ox+12+ow+10)+'" y2="'+(cy+y.h/2)+'" stroke="#3f3f46"/>';
+              cy+=y.h+GAP;
+            });
+            s+='<line x1="'+(ox+12+ow+10)+'" y1="'+(oy+oh/2)+'" x2="'+(ox+12+ow+14)+'" y2="'+(oy+oh/2)+'" stroke="#3f3f46"/>';
+            return s;
+          }};
+        }
+        case 'group': {
+          var inner=buildNode(node.body, depth+1);
+          var label={capture:'', noncapture:'?:', lookahead:'(?=', neglookahead:'(?!', lookbehind:'(?<=', neglookbehind:'(?<!', named:'?<'+ (node.name||'') + '>'}[node.kind]||'';
+          var pad=label?'22':'14';
+          return {w:inner.w+pad+8, h:inner.h+18, svg:function(ox,oy){
+            var s='<rect x="'+ox+'" y="'+oy+'" width="'+(inner.w+pad+8)+'" height="'+(inner.h+18)+'" rx="8" fill="none" stroke="#5E6AD2"/>';
+            if(label) s+='<text x="'+(ox+6)+'" y="'+(oy+13)+'" fill="#A78BFA" font-size="11" font-family="monospace">'+escapeHtml(label)+'</text>';
+            s+=inner.svg(ox+pad/2+4, oy+9);
+            return s;
+          }};
+        }
+        case 'quant': {
+          var tk=buildNode(node.token, depth+1);
+          var ql = node.min+'–'+(node.max===Infinity?'∞':node.max)+(node.greedy?'':'?');
+          var bw=Math.max(tk.w, 30);
+          return {w:bw, h:tk.h+16, svg:function(ox,oy){
+            var s=tk.svg(ox+(bw-tk.w)/2, oy);
+            s+='<text x="'+(ox+bw/2)+'" y="'+(oy+tk.h+13)+'" fill="#22D3EE" font-size="11" text-anchor="middle" font-family="monospace">'+escapeHtml(ql)+'</text>';
+            return s;
+          }};
+        }
+        case 'charclass': return leaf('['+(node.neg?'^':'')+node.raw+']', '#F5A623');
+        case 'escape': return leaf('\\'+node.value, '#10B981');
+        case 'anchor': return leaf(node.value, '#A78BFA');
+        case 'dot': return leaf('.', '#22D3EE');
+        case 'backref': return leaf('\\'+node.n, '#EC4899');
+        case 'lit': return leaf(node.value===' '?'␣':node.value, '#FFFFFF');
+        case 'empty': return leaf('ε', '#71717A');
+        default: return leaf('?', '#71717A');
+      }
+    }
+    function leaf(label, color){
+      color=color||'#FFFFFF';
+      var w=Math.max(28, label.length*9+16);
+      return {w:w, h:30, svg:function(ox,oy){
+        return '<rect x="'+ox+'" y="'+oy+'" width="'+w+'" height="30" rx="6" fill="#1A1B1E" stroke="#2a2b30"/>'+
+               '<text x="'+(ox+w/2)+'" y="'+(oy+20)+'" fill="'+color+'" font-size="13" text-anchor="middle" font-family="monospace">'+escapeHtml(label)+'</text>';
+      }};
+    }
+
+    function buildSamples(){
+      var sel=$('samples');
+      sel.innerHTML='';
+      RF.samples.forEach(function(s,idx){
+        var o=document.createElement('option'); o.value=idx; o.textContent=s.name+'  /'+s.pat+'/'+(s.flags?('/'+s.flags):'');
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', function(){
+        var s=RF.samples[parseInt(sel.value,10)];
+        if(s){ $('pat').value=s.pat; setFlags(s.flags); update(); }
+      });
+    }
+    function setFlags(fstr){
+      document.querySelectorAll('#flags .flag').forEach(function(l){
+        l.querySelector('input').checked = fstr.indexOf(l.getAttribute('data-f'))>=0;
+        l.classList.toggle('on', l.querySelector('input').checked);
+      });
+    }
+    function buildCheat(){
+      var box=$('cheatList'); box.innerHTML='';
+      RF.cheat.forEach(function(c){
+        var d=document.createElement('div'); d.className='citem';
+        d.innerHTML='<span class="tok">'+escapeHtml(c.tok)+'</span><span class="desc" data-zh="'+escapeHtml(c.zh)+'" data-en="'+escapeHtml(c.en)+'">'+escapeHtml(c.zh)+'</span>';
+        d.addEventListener('click', function(){
+          var inp=$('pat'); inp.value+=c.tok; inp.focus(); update();
+        });
+        box.appendChild(d);
+      });
+    }
+    function applyLang(){
+      document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent=t(el.getAttribute('data-i18n')); });
+      document.documentElement.lang = lang==='zh'?'zh':'en';
+      $('langBtn').textContent = lang==='zh'?'EN':'中';
+      document.querySelectorAll('#cheatList .citem .desc').forEach(function(el){ el.textContent = lang==='zh'?el.getAttribute('data-zh'):el.getAttribute('data-en'); });
+    }
+    function copyJSON(){
+      var res=RF.run(state.pattern, state.flags, state.text);
+      var data=res.matches?res.matches.map(function(m){return {index:m.index,value:m.value,groups:m.groups,named:m.named};}):[];
+      try{ navigator.clipboard.writeText(JSON.stringify(data,null,2)); }catch(e){}
+    }
+    function bind(){
+      $('pat').addEventListener('input', update);
+      $('text').addEventListener('input', update);
+      $('flagsIn').addEventListener('input', function(){ setFlags(this.value); update(); });
+      $('flags').addEventListener('change', function(e){
+        var l=e.target.closest('.flag'); if(l){ l.classList.toggle('on', l.querySelector('input').checked); update(); }
+      });
+      $('langBtn').addEventListener('click', function(){ lang=lang==='zh'?'en':'zh'; applyLang(); });
+      $('copyJson').addEventListener('click', copyJSON);
+      $('clearBtn').addEventListener('click', function(){ $('text').value=''; update(); });
+      if('serviceWorker' in navigator){ window.addEventListener('load', function(){ try{ navigator.serviceWorker.register('sw.js'); }catch(e){} }); }
+    }
+    function init(){
+      buildSamples(); buildCheat(); bind(); applyLang(); update();
+    }
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+    window.__REGEXFORGE__={ version:RF.version(), kernel:RF, state:state, update:update, setLang:function(l){lang=l;applyLang();update();}, t:t, renderRR:renderRR };
+  })();
+}
+</script>
+<footer style="margin-top:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);color:#71717A;font-size:12px;text-align:center">nano-tools · 单文件 · 零依赖 · 本地优先 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitignoreForge — .gitignore 生成器</title>
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+    --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+  .app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  h1{font-size:19px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;
+        padding:6px 12px;cursor:pointer;user-select:none}
+  .chip.on{color:#fff;background:var(--accent);border-color:transparent}
+  textarea{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+       color:var(--fg);padding:10px;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical}
+  .row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+       font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;min-height:160px;max-height:360px;overflow:auto}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+  footer{margin-top:20px;color:var(--dim);font-size:12px}
+  a{color:var(--info);text-decoration:none}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线 .gitignore 模板组合器：21 种语言/框架/编辑器模板多选合并，带注释头，一键下载。">
+</head>
+<body>
+<div class="app">
+  <h1>GitignoreForge</h1>
+  <p class="sub">.gitignore 模板生成器 · 单文件 · 零依赖 · 本地优先</p>
+
+  <label>选择需要的模板（可多选）</label>
+  <div class="chips" id="chips"></div>
+
+  <div class="row">
+    <button id="gen">生成</button>
+    <button id="copy" class="ghost">复制</button>
+    <button id="download" class="ghost">下载 .gitignore</button>
+  </div>
+
+  <label>结果</label>
+  <div class="out" id="out" aria-live="polite"></div>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+  </div>
+
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+
+<script>
+/* ===== 纯函数区（第一个无属性 script）：可被 Node _test.js 提取并断言 ===== */
+var TEMPLATES = {
+'Node': 'node_modules/\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*\n.pnpm-store/\n.npm\n.env.local',
+'Python': '__pycache__/\n*.py[cod]\n*.egg-info/\n.venv/\nvenv/\nenv/\n.pytest_cache/\n.mypy_cache/\n.tox/\n.coverage',
+'Go': '*.exe\n*.test\n*.out\n/bin/\nvendor/',
+'Rust': 'target/\n**/*.rs.bk\nCargo.lock.bak',
+'Java': '*.class\n*.jar\n*.war\n*.ear\ntarget/\n.gradle/\nbuild/',
+'C++': '*.o\n*.obj\n*.exe\n*.dll\n*.so\n*.dylib\nbuild/\ncmake-build-*/',
+'Ruby': '.bundle/\n*.gem\n*.rbc\ncoverage/\n.tmp/',
+'PHP': 'vendor/\ncomposer.phar\n.phpunit.cache/',
+'Swift': '.build/\n.swiftpm/\n*.xcodeproj/xcuserdata/\nDerivedData/',
+'Docker': '.dockerignore.bak\ndocker-compose.override.yml',
+'macOS': '.DS_Store\n.AppleDouble\n.AppleUpstreamCleartext\n.LSOverride\n._*\n.Spotlight-V100\n.Trashes\n.fseventsd',
+'Windows': 'Thumbs.db\nThumbs.db:encryptable\nehthumbs.db\nDesktop.ini\n$RECYCLE.BIN/',
+'Linux': '*~\n.fuse_hidden*\n.directory\n.Trash-*\n.nfs*',
+'VisualStudio': '.vs/\n*.user\n*.usr\n*.suo\n*.userosscache\n*.sln.docstates',
+'JetBrains': '.idea/\n*.iml\n*.iws\nout/',
+'Vim': '*.swp\n*.swo\n*~',
+'SublimeText': '*.sublime-workspace\n*.sublime-project',
+'VSCode': '.vscode/*\n!.vscode/settings.json\n*.code-workspace',
+'Hugo': '/public/\n/resources/\nhugo_stats.json\n.hugo_build.lock',
+'Jekyll': '/_site/\n/.jekyll-cache/\n/.sass-cache/\n.jekyll-metadata',
+'Eclipse': '.metadata/\nbin/\n.tmp/\n*.tmp'
+};
+function available(){ return Object.keys(TEMPLATES); }
+function combine(keys){
+  keys = (keys || []).filter(function(k){ return TEMPLATES[k]; });
+  if(keys.length === 0) return '# 选择上方模板以生成 .gitignore';
+  var out = '# Generated by GitignoreForge — ' + keys.join(', ');
+  for(var i=0;i<keys.length;i++){
+    out += '\n\n# ---- ' + keys[i] + ' ----\n' + TEMPLATES[keys[i]];
+  }
+  return out + '\n';
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { TEMPLATES:TEMPLATES, available:available, combine:combine };
+}
+if (typeof window !== 'undefined') {
+  window.GitignoreForgePure = { TEMPLATES:TEMPLATES, available:available, combine:combine };
+}
+</script>
+
+<script>
+/* ===== UI 区（第二个 script）：仅在浏览器中运行 ===== */
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.GitignoreForgePure;
+    var sel = {};
+    function renderChips(){
+      var box=$('chips'); box.innerHTML='';
+      P.available().forEach(function(k){
+        var el=document.createElement('span');
+        el.className='chip'+(sel[k]?' on':'');
+        el.textContent=k;
+        el.addEventListener('click', function(){ sel[k]=!sel[k]; renderChips(); gen(); });
+        box.appendChild(el);
+      });
+    }
+    function selected(){ return P.available().filter(function(k){ return sel[k]; }); }
+    function gen(){ $('out').textContent = P.combine(selected()); }
+    function copy(){
+      var t=$('out').textContent;
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function download(){
+      var blob=new Blob([$('out').textContent], {type:'text/plain'});
+      var a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download='.gitignore'; a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    }
+    $('gen').addEventListener('click', gen);
+    $('copy').addEventListener('click', copy);
+    $('download').addEventListener('click', download);
+    // 默认选中常用
+    sel['Node']=true; sel['macOS']=true; sel['VSCode']=true;
+    renderChips(); gen();
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

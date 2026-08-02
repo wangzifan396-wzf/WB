@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoremForge — Lorem ipsum 占位文本生成器</title>
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+    --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+  .app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  h1{font-size:19px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+  textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+       color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .check{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+  .out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+       font:14px/1.7 Georgia,'Times New Roman',serif;white-space:pre-wrap;min-height:160px}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+  footer{margin-top:20px;color:var(--dim);font-size:12px}
+  a{color:var(--info);text-decoration:none}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线 Lorem ipsum 占位文本生成器：可复现种子、段落/句数可调、可选 Lorem 开头与纯词数模式。">
+</head>
+<body>
+<div class="app">
+  <h1>LoremForge</h1>
+  <p class="sub">Lorem ipsum 占位文本生成器 · 单文件 · 零依赖 · 本地优先</p>
+
+  <div class="grid">
+    <div><label for="paras">段落数</label><input id="paras" type="text" value="3"></div>
+    <div><label for="sents">每段句数</label><input id="sents" type="text" value="4"></div>
+    <div><label for="seed">随机种子</label><input id="seed" type="text" value="1"></div>
+  </div>
+  <label class="check"><input id="lorem" type="checkbox" checked> 以 «Lorem ipsum…» 开头</label>
+
+  <div class="row">
+    <button id="gen">生成</button>
+    <button id="copy" class="ghost">复制</button>
+    <button id="reseed" class="ghost">换一个种子</button>
+  </div>
+
+  <label>结果</label>
+  <div class="out" id="out" aria-live="polite"></div>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+  </div>
+
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+
+<script>
+/* ===== 纯函数区（第一个无属性 script）：可被 Node _test.js 提取并断言 ===== */
+var WORDS = ('lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure in reprehenderit voluptate velit esse cillum eu fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt culpa qui officia deserunt mollit anim id est laborum').split(' ');
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    var t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function genWord(rng){ return WORDS[Math.floor(rng() * WORDS.length)]; }
+function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+function makeSentence(rng, nWords){
+  var w=[]; for(var i=0;i<nWords;i++) w.push(genWord(rng));
+  return cap(w.join(' ')) + '.';
+}
+function generate(opts){
+  opts = opts || {};
+  var seed = (opts.seed == null) ? 1 : opts.seed;
+  var rng = mulberry32(seed);
+  if(opts.words){
+    var arr = opts.startWithLorem ? ['Lorem','ipsum','dolor','sit','amet'] : [];
+    while(arr.length < opts.words) arr.push(genWord(rng));
+    if(opts.startWithLorem){ arr[0]='Lorem'; arr[1]='ipsum'; arr[2]='dolor'; arr[3]='sit'; arr[4]='amet'; }
+    return arr.slice(0, opts.words).join(' ');
+  }
+  var paras = opts.paragraphs || 1;
+  var sps = opts.sentencesPerParagraph || 4;
+  var wps = opts.wordsPerSentence || 8;
+  var out = [];
+  for(var p=0; p<paras; p++){
+    var sents = [];
+    for(var s=0; s<sps; s++){
+      if(p===0 && s===0 && opts.startWithLorem){
+        sents.push('Lorem ipsum dolor sit amet, consectetur adipiscing elit.');
+        continue;
+      }
+      sents.push(makeSentence(rng, wps));
+    }
+    out.push(sents.join(' '));
+  }
+  return out.join('\n\n');
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { WORDS:WORDS, mulberry32:mulberry32, generate:generate };
+}
+if (typeof window !== 'undefined') {
+  window.LoremForgePure = { WORDS:WORDS, mulberry32:mulberry32, generate:generate };
+}
+</script>
+
+<script>
+/* ===== UI 区（第二个 script）：仅在浏览器中运行 ===== */
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.LoremForgePure;
+    function num(id){ var v=parseInt($(id).value,10); return isNaN(v)||v<1 ? 1 : v; }
+    function gen(){
+      var txt = P.generate({
+        paragraphs: num('paras'),
+        sentencesPerParagraph: num('sents'),
+        seed: parseInt($('seed').value,10) || 1,
+        startWithLorem: $('lorem').checked
+      });
+      $('out').textContent = txt;
+    }
+    function copy(){
+      var t=$('out').textContent;
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    $('gen').addEventListener('click', gen);
+    $('copy').addEventListener('click', copy);
+    $('reseed').addEventListener('click', function(){
+      $('seed').value = Math.floor(Math.random()*100000);
+      gen();
+    });
+    gen();
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

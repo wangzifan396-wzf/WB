@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>RssForge — 一份条目同时产出 RSS 2.0 / Atom 1.0 / JSON Feed，并做订阅源体检。</title>
+<meta property="og:title" content="RssForge">
+<meta property="og:description" content="RSS/Atom/JSON Feed 生成与订阅源体检，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="RSS/Atom/JSON Feed 生成与订阅源体检，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>RssForge</h1>
+  <p class="sub">订阅源工具：纯文本写条目（# 标题 + url/date/author/tags/摘要），一次导出三种主流格式，XML 转义与 RFC822/RFC3339 时间格式化，guid 重复、时间倒序、未来日期与摘要长度体检 · 单文件 · 零依赖 · 本地优先</p>
+  <div class="grid">
+    <div><label for="rsftitle">订阅源标题</label><input type="text" id="rsftitle" value="nano-tools 工具日志"></div>
+    <div><label for="rsflink">站点主页 link</label><input type="text" id="rsflink" value="https://wangzifan396-wzf.github.io/WB/"></div>
+  </div>
+  <div class="grid">
+    <div><label for="rsfself">订阅源自身地址 self</label><input type="text" id="rsfself" value="https://wangzifan396-wzf.github.io/WB/feed.xml"></div>
+    <div><label for="rsflang">语言</label><input type="text" id="rsflang" value="zh-CN"></div>
+  </div>
+  <label for="rsfdesc">订阅源简介</label>
+  <input type="text" id="rsfdesc" value="单文件、零依赖、本地优先的工具更新记录">
+  <label for="rsitems">条目（<code>#</code> 起一条，随后可写 url / date / author / tags，其余行是摘要）</label>
+  <textarea id="rsitems" rows="12"># IcsForge：把纯文本排期变成可导入的 .ics 日历
+url: https://wangzifan396-wzf.github.io/WB/tools/IcsForge/
+date: 2026-07-31
+author: wangzifan396-wzf
+tags: 效率工具, 日历
+一行一个事件，自动折叠 75 字节、生成 UID 与 RRULE，并在导出前检测时间冲突。
+
+# PkceForge：OAuth 2.0 PKCE 全流程本地推演
+url: https://wangzifan396-wzf.github.io/WB/tools/PkceForge/
+date: 2026-07-30
+author: wangzifan396-wzf
+tags: 安全工具, OAuth
+内置 RFC 7636 测试向量，verifier 与 challenge 全在浏览器里算，附带授权流程安全体检。
+
+# RssForge：三种订阅源格式一次产出
+url: https://wangzifan396-wzf.github.io/WB/tools/RssForge/
+date: 2026-07-29
+tags: 数据工具, RSS
+同一份条目同时导出 RSS 2.0、Atom 1.0 与 JSON Feed，并检查 guid 重复与时间倒序。</textarea>
+  <div class="row">
+    <button id="rsbuild">生成订阅源</button>
+    <select id="rsfmt">
+      <option value="rss">RSS 2.0</option>
+      <option value="atom">Atom 1.0</option>
+      <option value="json">JSON Feed 1.1</option>
+    </select>
+    <button id="rsdl" class="ghost">下载</button>
+  </div>
+  <div class="err" id="rserr"></div>
+  <div class="out" id="rsstat"></div>
+  <div class="out" id="rsout"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var RS_DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var RS_MONS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function p2(n){ return (n < 10 ? '0' : '') + n; }
+
+function escapeXml(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+function parseDate(s){
+  var t = String(s == null ? '' : s).trim();
+  if (!t) return null;
+  var m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?\s*(Z|[+-]\d{2}:?\d{2})?$/.exec(t);
+  if (m){
+    var ms = Date.UTC(+m[1], (+m[2]) - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+    var tz = m[7];
+    if (tz && tz !== 'Z'){
+      var sign = tz.charAt(0) === '-' ? -1 : 1;
+      var digits = tz.slice(1).replace(':', '');
+      ms -= sign * (parseInt(digits.slice(0, 2), 10) * 60 + parseInt(digits.slice(2, 4), 10)) * 60000;
+    }
+    return new Date(ms);
+  }
+  var d = new Date(t);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function rfc822(d){
+  if (!d) return '';
+  return RS_DAYS[d.getUTCDay()] + ', ' + p2(d.getUTCDate()) + ' ' + RS_MONS[d.getUTCMonth()] + ' ' +
+         d.getUTCFullYear() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' +
+         p2(d.getUTCSeconds()) + ' GMT';
+}
+
+function rfc3339(d){
+  if (!d) return '';
+  return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' +
+         p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + 'Z';
+}
+
+function finishItem(c){
+  return {
+    title: c.title, url: c.url || '', date: c.date || '', author: c.author || '',
+    tags: c.tags || [], guid: c.guid || c.url || c.title,
+    image: c.image || '', description: c.body.join('\n').replace(/^\s+|\s+$/g, '')
+  };
+}
+
+function parseItems(text){
+  var lines = String(text == null ? '' : text).split(/\r?\n/);
+  var items = [], cur = null;
+  for (var i = 0; i < lines.length; i++){
+    var ln = lines[i];
+    var h = /^#\s+(.*)$/.exec(ln);
+    if (h){
+      if (cur) items.push(finishItem(cur));
+      cur = { title: h[1].replace(/^\s+|\s+$/g, ''), body: [], tags: [] };
+      continue;
+    }
+    if (!cur) continue;
+    var kv = /^\s*(url|link|date|author|tags|guid|image)\s*:\s*(.*)$/i.exec(ln);
+    if (kv){
+      var k = kv[1].toLowerCase(), v = kv[2].replace(/^\s+|\s+$/g, '');
+      if (k === 'link') k = 'url';
+      if (k === 'tags'){
+        cur.tags = v ? v.split(/[,\uFF0C]/).map(function(x){ return x.replace(/^\s+|\s+$/g, ''); })
+                        .filter(function(x){ return !!x; }) : [];
+      } else cur[k] = v;
+      continue;
+    }
+    cur.body.push(ln);
+  }
+  if (cur) items.push(finishItem(cur));
+  return items;
+}
+
+function latestDate(items, fallback){
+  var best = null;
+  for (var i = 0; i < items.length; i++){
+    var d = parseDate(items[i].date);
+    if (d && (!best || d.getTime() > best.getTime())) best = d;
+  }
+  return best || (fallback ? parseDate(fallback) : null);
+}
+
+function buildRss(feed, items){
+  feed = feed || {}; items = items || [];
+  var L = [];
+  L.push('<?xml version="1.0" encoding="UTF-8"?>');
+  L.push('<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/">');
+  L.push('  <channel>');
+  L.push('    <title>' + escapeXml(feed.title || '未命名订阅源') + '</title>');
+  L.push('    <link>' + escapeXml(feed.link || '') + '</link>');
+  L.push('    <description>' + escapeXml(feed.description || '') + '</description>');
+  L.push('    <language>' + escapeXml(feed.language || 'zh-CN') + '</language>');
+  if (feed.self) L.push('    <atom:link href="' + escapeXml(feed.self) + '" rel="self" type="application/rss+xml"/>');
+  var last = latestDate(items, feed.now);
+  if (last) L.push('    <lastBuildDate>' + rfc822(last) + '</lastBuildDate>');
+  L.push('    <generator>RssForge (nano-tools)</generator>');
+  for (var i = 0; i < items.length; i++){
+    var it = items[i], d = parseDate(it.date);
+    L.push('    <item>');
+    L.push('      <title>' + escapeXml(it.title || '') + '</title>');
+    if (it.url) L.push('      <link>' + escapeXml(it.url) + '</link>');
+    var permalink = (!!it.url && it.guid === it.url) ? 'true' : 'false';
+    L.push('      <guid isPermaLink="' + permalink + '">' + escapeXml(it.guid || '') + '</guid>');
+    if (d) L.push('      <pubDate>' + rfc822(d) + '</pubDate>');
+    if (it.author) L.push('      <dc:creator>' + escapeXml(it.author) + '</dc:creator>');
+    for (var t = 0; t < (it.tags || []).length; t++) L.push('      <category>' + escapeXml(it.tags[t]) + '</category>');
+    if (it.description) L.push('      <description>' + escapeXml(it.description) + '</description>');
+    L.push('    </item>');
+  }
+  L.push('  </channel>');
+  L.push('</rss>');
+  return L.join('\n');
+}
+
+function buildAtom(feed, items){
+  feed = feed || {}; items = items || [];
+  var last = latestDate(items, feed.now);
+  var L = [];
+  L.push('<?xml version="1.0" encoding="UTF-8"?>');
+  L.push('<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="' + escapeXml(feed.language || 'zh-CN') + '">');
+  L.push('  <title>' + escapeXml(feed.title || '未命名订阅源') + '</title>');
+  L.push('  <subtitle>' + escapeXml(feed.description || '') + '</subtitle>');
+  L.push('  <id>' + escapeXml(feed.self || feed.link || 'urn:rssforge:feed') + '</id>');
+  if (feed.link) L.push('  <link rel="alternate" href="' + escapeXml(feed.link) + '"/>');
+  if (feed.self) L.push('  <link rel="self" href="' + escapeXml(feed.self) + '"/>');
+  if (last) L.push('  <updated>' + rfc3339(last) + '</updated>');
+  L.push('  <generator uri="https://wangzifan396-wzf.github.io/WB/tools/RssForge/">RssForge</generator>');
+  for (var i = 0; i < items.length; i++){
+    var it = items[i], d = parseDate(it.date);
+    L.push('  <entry>');
+    L.push('    <title>' + escapeXml(it.title || '') + '</title>');
+    L.push('    <id>' + escapeXml(it.guid || it.url || it.title || '') + '</id>');
+    if (it.url) L.push('    <link rel="alternate" href="' + escapeXml(it.url) + '"/>');
+    if (d) L.push('    <updated>' + rfc3339(d) + '</updated>');
+    if (it.author) L.push('    <author><name>' + escapeXml(it.author) + '</name></author>');
+    for (var t = 0; t < (it.tags || []).length; t++) L.push('    <category term="' + escapeXml(it.tags[t]) + '"/>');
+    if (it.description) L.push('    <summary type="text">' + escapeXml(it.description) + '</summary>');
+    L.push('  </entry>');
+  }
+  L.push('</feed>');
+  return L.join('\n');
+}
+
+function buildJsonFeed(feed, items){
+  feed = feed || {}; items = items || [];
+  var out = {
+    version: 'https://jsonfeed.org/version/1.1',
+    title: feed.title || '未命名订阅源',
+    home_page_url: feed.link || undefined,
+    feed_url: feed.self || undefined,
+    description: feed.description || undefined,
+    language: feed.language || 'zh-CN',
+    items: []
+  };
+  for (var i = 0; i < items.length; i++){
+    var it = items[i], d = parseDate(it.date), row = {};
+    row.id = it.guid || it.url || it.title || String(i + 1);
+    if (it.url) row.url = it.url;
+    row.title = it.title || '';
+    if (it.description) row.content_text = it.description;
+    if (d) row.date_published = rfc3339(d);
+    if (it.author) row.authors = [{ name: it.author }];
+    if (it.tags && it.tags.length) row.tags = it.tags;
+    if (it.image) row.image = it.image;
+    out.items.push(row);
+  }
+  return JSON.stringify(out, null, 2);
+}
+
+function lintFeed(feed, items){
+  feed = feed || {}; items = items || [];
+  var issues = [];
+  if (!feed.title) issues.push({ level:'bad', msg:'订阅源缺少标题，阅读器会显示为空白源' });
+  if (!feed.link) issues.push({ level:'bad', msg:'缺少 channel/link，阅读器无法回跳站点主页' });
+  if (!feed.description) issues.push({ level:'warn', msg:'缺少订阅源简介，目录站抓取时没有摘要可展示' });
+  if (!feed.self) issues.push({ level:'warn', msg:'缺少 atom:link rel="self"，部分阅读器无法自动发现真实地址' });
+  if (!items.length) issues.push({ level:'bad', msg:'没有任何条目，订阅源为空' });
+  if (items.length > 50) issues.push({ level:'warn', msg:'共 ' + items.length + ' 条，建议只保留最近 20–50 条以控制体积' });
+
+  var seen = {}, dupes = 0, noLink = 0, noDate = 0, shortDesc = 0, future = 0, unsorted = false;
+  var now = feed.now ? parseDate(feed.now) : null;
+  var prev = null;
+  for (var i = 0; i < items.length; i++){
+    var it = items[i];
+    var g = it.guid || '';
+    if (!g) dupes++;
+    else if (seen[g]) dupes++;
+    else seen[g] = 1;
+    if (!it.url) noLink++;
+    var d = parseDate(it.date);
+    if (!d) noDate++;
+    else {
+      if (now && d.getTime() > now.getTime() + 86400000) future++;
+      if (prev && d.getTime() > prev.getTime()) unsorted = true;
+      prev = d;
+    }
+    if (it.description && it.description.length < 20) shortDesc++;
+    if (!it.title) issues.push({ level:'bad', msg:'第 ' + (i + 1) + ' 条缺少标题' });
+  }
+  if (dupes) issues.push({ level:'bad', msg:dupes + ' 条 guid 缺失或重复，阅读器会反复推送或直接吞掉' });
+  if (noLink) issues.push({ level:'warn', msg:noLink + ' 条没有 link，点击标题无处可去' });
+  if (noDate) issues.push({ level:'warn', msg:noDate + ' 条没有日期，阅读器只能按抓取顺序排列' });
+  if (future) issues.push({ level:'warn', msg:future + ' 条日期在未来，部分阅读器会直接隐藏' });
+  if (unsorted) issues.push({ level:'warn', msg:'条目未按时间倒序排列，建议最新的放最前面' });
+  if (shortDesc) issues.push({ level:'warn', msg:shortDesc + ' 条摘要短于 20 字，信息量偏低' });
+
+  var score = 100;
+  for (var j = 0; j < issues.length; j++) score -= (issues[j].level === 'bad' ? 20 : 8);
+  score = Math.max(0, score);
+  return { issues: issues, score: score, grade: gradeOf(score) };
+}
+
+function gradeOf(score){
+  if (score >= 90) return 'A';
+  if (score >= 75) return 'B';
+  if (score >= 60) return 'C';
+  if (score >= 40) return 'D';
+  return 'F';
+}
+
+function feedStats(items){
+  items = items || [];
+  var dates = [], chars = 0, tagCount = {}, withLink = 0;
+  for (var i = 0; i < items.length; i++){
+    var d = parseDate(items[i].date);
+    if (d) dates.push(d.getTime());
+    chars += (items[i].description || '').length;
+    if (items[i].url) withLink++;
+    var tg = items[i].tags || [];
+    for (var t = 0; t < tg.length; t++) tagCount[tg[t]] = (tagCount[tg[t]] || 0) + 1;
+  }
+  dates.sort(function(a, b){ return a - b; });
+  var span = dates.length > 1 ? Math.round((dates[dates.length - 1] - dates[0]) / 86400000) : 0;
+  var topTags = Object.keys(tagCount).sort(function(a, b){
+    return tagCount[b] - tagCount[a] || (a < b ? -1 : 1);
+  }).slice(0, 8).map(function(k){ return { tag: k, n: tagCount[k] }; });
+  return {
+    count: items.length,
+    withLink: withLink,
+    avgChars: items.length ? Math.round(chars / items.length) : 0,
+    spanDays: span,
+    perWeek: span > 0 ? Math.round(items.length / (span / 7) * 10) / 10 : 0,
+    first: dates.length ? rfc3339(new Date(dates[0])) : '',
+    last: dates.length ? rfc3339(new Date(dates[dates.length - 1])) : '',
+    topTags: topTags
+  };
+}
+
+var RssForgePure = {
+  escapeXml: escapeXml, parseDate: parseDate, rfc822: rfc822, rfc3339: rfc3339,
+  parseItems: parseItems, buildRss: buildRss, buildAtom: buildAtom, buildJsonFeed: buildJsonFeed,
+  lintFeed: lintFeed, feedStats: feedStats, latestDate: latestDate, gradeOf: gradeOf
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = RssForgePure;
+if (typeof window !== 'undefined') window.RssForgePure = RssForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.RssForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function col(l){ return l === 'bad' ? 'var(--warn)' : l === 'warn' ? 'var(--info)' : 'var(--ok)'; }
+
+  function feedMeta(){
+    return {
+      title: $('rsftitle').value.trim(), link: $('rsflink').value.trim(),
+      self: $('rsfself').value.trim(), language: $('rsflang').value.trim(),
+      description: $('rsfdesc').value.trim()
+    };
+  }
+
+  function currentText(){
+    var f = feedMeta(), items = P.parseItems($('rsitems').value);
+    var fmt = $('rsfmt').value;
+    if (fmt === 'atom') return { text: P.buildAtom(f, items), name: 'atom.xml' };
+    if (fmt === 'json') return { text: P.buildJsonFeed(f, items), name: 'feed.json' };
+    return { text: P.buildRss(f, items), name: 'feed.xml' };
+  }
+
+  function render(){
+    var f = feedMeta(), items = P.parseItems($('rsitems').value);
+    var st = P.feedStats(items), lint = P.lintFeed(f, items);
+    var html = '<div class="kv"><b>条目数</b><span>' + st.count + ' 条 · ' + st.withLink + ' 条带链接</span></div>';
+    html += '<div class="kv"><b>时间跨度</b><span>' + (st.spanDays ? st.spanDays + ' 天 · 约 ' + st.perWeek + ' 条/周' : '不足两条带日期的条目') + '</span></div>';
+    html += '<div class="kv"><b>平均摘要长度</b><span>' + st.avgChars + ' 字</span></div>';
+    if (st.topTags.length){
+      var tg = st.topTags.map(function(t){ return esc(t.tag) + ' ×' + t.n; }).join('、');
+      html += '<div class="kv"><b>高频标签</b><span>' + tg + '</span></div>';
+    }
+    html += '<div class="kv"><b>订阅源体检</b><span>评分 ' + lint.score + ' · 等级 ' + lint.grade + '</span></div>';
+    if (!lint.issues.length) html += '<div style="color:var(--ok);font-size:13px;margin-top:6px">• 未发现问题，可以直接发布</div>';
+    for (var i = 0; i < lint.issues.length; i++){
+      html += '<div style="color:' + col(lint.issues[i].level) + ';font-size:13px;margin-top:6px">• ' + esc(lint.issues[i].msg) + '</div>';
+    }
+    $('rsstat').innerHTML = html;
+    var cur = currentText();
+    $('rsout').innerHTML = '<pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px;max-height:360px;overflow:auto">' + esc(cur.text) + '</pre>';
+    $('rserr').textContent = items.length ? '' : '还没有条目：用 # 开头写一行标题即可';
+  }
+
+  function download(){
+    var cur = currentText();
+    try {
+      var type = cur.name.indexOf('.json') > 0 ? 'application/json' : 'application/xml';
+      var blob = new Blob([cur.text], { type: type + ';charset=utf-8' });
+      var a = D.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = cur.name;
+      D.body.appendChild(a); a.click(); D.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    } catch (e){ $('rserr').textContent = '当前环境不支持下载，请手动复制上方内容'; }
+  }
+
+  $('rsbuild').addEventListener('click', render);
+  $('rsdl').addEventListener('click', download);
+  $('rsfmt').addEventListener('change', render);
+  $('rsitems').addEventListener('input', render);
+  render();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

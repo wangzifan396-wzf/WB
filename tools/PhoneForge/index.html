@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PhoneForge — 国际电话号码解析：国家码识别、E.164 规范化、位数校验与脱敏，离线可用。</title>
+<meta property="og:title" content="PhoneForge">
+<meta property="og:description" content="国际电话号码解析：国家码识别、E.164 规范化、校验与脱敏，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="国际电话号码解析：国家码识别、E.164 规范化、校验与脱敏，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>PhoneForge</h1>
+  <p class="sub">国际电话号码：20 国国家码识别、E.164 规范化、位数与号段校验、脱敏展示 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>电话号码（支持 +86 / 00852 / 本地号码）</label>
+<input type="text" id="src" value="+86 138 0013 8000">
+<div class="row">
+  <label style="margin:0">默认国家码</label>
+  <select id="cc" style="max-width:220px"></select>
+  <button id="run">解析</button>
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var PH_CC = [
+  ['86','\u4e2d\u56fd\u5927\u9646',[11]], ['852','\u4e2d\u56fd\u9999\u6e2f',[8]], ['853','\u4e2d\u56fd\u6fb3\u95e8',[8]],
+  ['886','\u4e2d\u56fd\u53f0\u6e7e',[9]], ['1','\u7f8e\u56fd/\u52a0\u62ff\u5927',[10]], ['44','\u82f1\u56fd',[10]],
+  ['81','\u65e5\u672c',[10]], ['82','\u97e9\u56fd',[9,10]], ['65','\u65b0\u52a0\u5761',[8]],
+  ['60','\u9a6c\u6765\u897f\u4e9a',[9,10]], ['66','\u6cf0\u56fd',[9]], ['84','\u8d8a\u5357',[9]],
+  ['91','\u5370\u5ea6',[10]], ['49','\u5fb7\u56fd',[10,11]], ['33','\u6cd5\u56fd',[9]],
+  ['39','\u610f\u5927\u5229',[9,10]], ['34','\u897f\u73ed\u7259',[9]], ['7','\u4fc4\u7f57\u65af',[10]],
+  ['61','\u6fb3\u5927\u5229\u4e9a',[9]], ['55','\u5df4\u897f',[10,11]]
+];
+function phDigits(s){ return String(s==null?'':s).replace(/[^\d]/g,''); }
+function phSplit(input){
+  var raw=String(input==null?'':input).trim();
+  var d=phDigits(raw);
+  if(!d) return { error:'\u8bf7\u8f93\u5165\u53f7\u7801' };
+  var hasPlus = raw.indexOf('+')===0 || raw.indexOf('00')===0;
+  if(raw.indexOf('00')===0) d=d.slice(2);
+  var best=null;
+  if(hasPlus){
+    for(var i=0;i<PH_CC.length;i++){
+      var cc=PH_CC[i][0];
+      if(d.indexOf(cc)===0 && (!best || cc.length>best[0].length)) best=PH_CC[i];
+    }
+  }
+  if(!best) return { error:null, cc:null, country:null, national:d, lens:null };
+  return { error:null, cc:best[0], country:best[1], national:d.slice(best[0].length), lens:best[2] };
+}
+function phValidate(input, defaultCc){
+  var p=phSplit(input);
+  if(p.error) return p;
+  var cc=p.cc, country=p.country, lens=p.lens, nat=p.national;
+  if(!cc && defaultCc){
+    for(var i=0;i<PH_CC.length;i++) if(PH_CC[i][0]===String(defaultCc)){ cc=PH_CC[i][0]; country=PH_CC[i][1]; lens=PH_CC[i][2]; }
+    if(cc==='86' && nat.length===12 && nat.indexOf('86')===0) nat=nat.slice(2);
+    if(nat.length>1 && nat[0]==='0') nat=nat.replace(/^0+/,'');
+  }
+  if(!cc) return { error:null, valid:false, reason:'\u65e0\u6cd5\u8bc6\u522b\u56fd\u5bb6\u7801\uff0c\u8bf7\u52a0 + \u524d\u7f00\u6216\u9009\u62e9\u9ed8\u8ba4\u56fd\u5bb6', cc:null, national:nat };
+  var okLen = lens.indexOf(nat.length)>=0;
+  var valid = okLen && (cc!=='86' || /^1[3-9]\d{9}$/.test(nat));
+  return { error:null, valid:valid, cc:cc, country:country, national:nat,
+           e164:'+'+cc+nat, expected:lens.join(' / '),
+           reason: valid? '' : (okLen? '\u53f7\u6bb5\u4e0d\u7b26\u5408\u8be5\u56fd\u5bb6\u79fb\u52a8\u53f7\u89c4\u5219' : '\u4f4d\u6570\u5e94\u4e3a '+lens.join(' / ')+'\uff0c\u5b9e\u9645 '+nat.length) };
+}
+function phFormat(input, defaultCc){
+  var v=phValidate(input, defaultCc);
+  if(v.error || !v.cc) return v.error? v : { error:null, pretty:v.national||'' , e164:'' };
+  var nat=v.national, pretty;
+  if(v.cc==='86' && nat.length===11) pretty=nat.slice(0,3)+' '+nat.slice(3,7)+' '+nat.slice(7);
+  else if(v.cc==='1' && nat.length===10) pretty='('+nat.slice(0,3)+') '+nat.slice(3,6)+'-'+nat.slice(6);
+  else pretty=nat.replace(/(\d{3,4})(?=\d)/g,'$1 ').trim();
+  return { error:null, pretty:'+'+v.cc+' '+pretty, e164:v.e164, valid:v.valid, country:v.country };
+}
+function phMask(input){
+  var d=phDigits(input);
+  if(d.length<7) return d;
+  return d.slice(0,3)+'*'.repeat(d.length-7)+d.slice(-4);
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { phDigits:phDigits, phSplit:phSplit, phValidate:phValidate, phFormat:phFormat, phMask:phMask, PH_CC:PH_CC };
+}
+if (typeof window !== 'undefined') {
+  window.PhoneForgePure = { phDigits:phDigits, phSplit:phSplit, phValidate:phValidate, phFormat:phFormat, phMask:phMask, PH_CC:PH_CC };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.PhoneForgePure;
+  var sel=$('cc');
+  for(var i=0;i<P.PH_CC.length;i++){
+    var o=document.createElement('option');
+    o.value=P.PH_CC[i][0]; o.textContent='+'+P.PH_CC[i][0]+' '+P.PH_CC[i][1];
+    sel.appendChild(o);
+  }
+  sel.value='86';
+  function run(){
+    var v=P.phValidate($('src').value, sel.value);
+    if(v.error){ $('err').textContent=v.error; $('out').innerHTML=''; return; }
+    var f=P.phFormat($('src').value, sel.value);
+    $('err').textContent = v.valid ? '' : (v.reason||'');
+    $('out').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>校验</b><span style="color:'+(v.valid?'#10B981':'#F5A623')+'">'+(v.valid?'合法':'不合法')+'</span></div>'+
+      '<div class="kv"><b>国家/地区</b><span>'+(v.country||'未知')+'</span></div>'+
+      '<div class="kv"><b>E.164</b><span>'+(v.e164||'-')+'</span></div>'+
+      '<div class="kv"><b>本国格式</b><span>'+(f.pretty||'-')+'</span></div>'+
+      '<div class="kv"><b>国内号码</b><span>'+(v.national||'-')+'</span></div>'+
+      '<div class="kv"><b>脱敏</b><span>'+P.phMask($('src').value)+'</span></div></div>';
+  }
+  $('run').addEventListener('click', run);
+  $('src').addEventListener('keydown', function(e){ if(e.key==='Enter') run(); });
+  sel.addEventListener('change', run);
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

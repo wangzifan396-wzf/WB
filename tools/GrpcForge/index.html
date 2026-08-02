@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>GrpcForge — gRPC 工具箱：查询 17 个状态码与 HTTP 映射、解析 grpc-timeout 与截止时间传播、拆解长度前缀帧与 protobuf 线格式，离线可用。</title>
+<meta property="og:title" content="GrpcForge">
+<meta property="og:description" content="gRPC 工具箱：查询全部 17 个状态码及其 HTTP 映射与可重试性，双向解析 grpc-timeout 头并推演多跳截止时间传播预算，把十六进制载荷拆成长度前缀帧并按 protobuf 线格式列出字段编号与类型，还能体检 retryPolicy 的退避配置与重试放大倍数。调试 gRPC 调用链、设计重试策略，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="gRPC 工具箱：查询全部 17 个状态码及其 HTTP 映射与可重试性，双向解析 grpc-timeout 头并推演多跳截止时间传播预算，把十六进制载荷拆成长度前缀帧并按 protobuf 线格式列出字段编号与类型，还能体检 retryPolicy 的退避配置与重试放大倍数。调试 gRPC 调用链、设计重试策略，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>GrpcForge</h1>
+  <p class="sub">gRPC · 状态码 · 截止时间</p>
+
+<div class="grid">
+  <div><label for="g-q">状态码或名称</label><input type="text" id="g-q" value="14"></div>
+  <div><label for="g-http">HTTP 状态码（反查）</label><input type="text" id="g-http" value="429"></div>
+  <div><label for="g-to">grpc-timeout 头</label><input type="text" id="g-to" value="1500m"></div>
+  <div><label for="g-hop">调用链跳数</label><input type="text" id="g-hop" value="4"></div>
+</div>
+<div><label for="g-hex">长度前缀帧（十六进制，5 字节头 + 载荷）</label><input type="text" id="g-hex" value="00 00 00 00 07 08 96 01 12 02 68 69"></div>
+<div class="row">
+  <button id="g-go">解析</button>
+  <button class="ghost" id="g-a">超时示例</button>
+  <button class="ghost" id="g-b">未认证示例</button>
+  <button class="ghost" id="g-c">重试风暴示例</button>
+</div>
+<div class="err" id="g-err"></div>
+<div class="out" id="g-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 381 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function GrpcForgePure(){
+  var STATUS = [
+    {code:0,  name:'OK',                  http:200, retryable:false, cn:'成功',        note:'调用正常结束'},
+    {code:1,  name:'CANCELLED',           http:499, retryable:false, cn:'调用被取消',  note:'通常是客户端主动取消或上游 context 结束'},
+    {code:2,  name:'UNKNOWN',             http:500, retryable:false, cn:'未知错误',    note:'服务端抛了未映射的异常，属于兜底码，应尽量消灭'},
+    {code:3,  name:'INVALID_ARGUMENT',    http:400, retryable:false, cn:'参数非法',    note:'与系统状态无关的参数问题，重试无意义'},
+    {code:4,  name:'DEADLINE_EXCEEDED',   http:504, retryable:true,  cn:'超过截止时间', note:'可重试但要小心：服务端可能已执行成功'},
+    {code:5,  name:'NOT_FOUND',           http:404, retryable:false, cn:'资源不存在',  note:'注意与 UNIMPLEMENTED 区分：方法不存在用 12'},
+    {code:6,  name:'ALREADY_EXISTS',      http:409, retryable:false, cn:'资源已存在',  note:'幂等创建场景常被误当失败'},
+    {code:7,  name:'PERMISSION_DENIED',   http:403, retryable:false, cn:'无权限',      note:'已认证但无授权；未认证要用 16'},
+    {code:8,  name:'RESOURCE_EXHAUSTED',  http:429, retryable:true,  cn:'资源耗尽',    note:'配额/限流；重试必须退避，否则雪上加霜'},
+    {code:9,  name:'FAILED_PRECONDITION', http:400, retryable:false, cn:'前置条件不满足', note:'系统状态不对，客户端不应盲目重试'},
+    {code:10, name:'ABORTED',             http:409, retryable:true,  cn:'并发冲突中止', note:'事务/序列冲突，配合读-改-写重试'},
+    {code:11, name:'OUT_OF_RANGE',        http:400, retryable:false, cn:'超出有效范围', note:'可在状态改变后重试，例如文件被追加'},
+    {code:12, name:'UNIMPLEMENTED',       http:501, retryable:false, cn:'方法未实现',  note:'常见于版本不匹配或代理吞掉了路由'},
+    {code:13, name:'INTERNAL',            http:500, retryable:false, cn:'内部错误',    note:'不变量被打破，是严重 bug 信号'},
+    {code:14, name:'UNAVAILABLE',         http:503, retryable:true,  cn:'服务不可用',  note:'最典型的可重试码，退避后重试是安全的'},
+    {code:15, name:'DATA_LOSS',           http:500, retryable:false, cn:'数据丢失',    note:'不可恢复的数据损坏'},
+    {code:16, name:'UNAUTHENTICATED',     http:401, retryable:false, cn:'未认证',      note:'凭证缺失或失效，刷新令牌后可重发'}
+  ];
+
+  var BY_CODE = {}, BY_NAME = {};
+  for (var i = 0; i < STATUS.length; i++){
+    BY_CODE[STATUS[i].code] = STATUS[i];
+    BY_NAME[STATUS[i].name] = STATUS[i];
+  }
+
+  // HTTP -> gRPC，出自 grpc/doc/http-grpc-status-mapping.md
+  var HTTP_TO_GRPC = {400:13, 401:16, 403:7, 404:12, 429:14, 502:14, 503:14, 504:4};
+
+  function statusOf(q){
+    var s = String(q == null ? '' : q).trim();
+    if (s === '') return {error:'请输入 gRPC 状态码或名称'};
+    if (/^[0-9]+$/.test(s)){
+      var c = parseInt(s, 10);
+      if (!BY_CODE[c] && c !== 0) return {error:'gRPC 状态码只有 0..16，不存在 ' + c};
+      return {value:BY_CODE[c]};
+    }
+    var up = s.toUpperCase().replace(/[\s-]+/g, '_');
+    if (BY_NAME[up]) return {value:BY_NAME[up]};
+    return {error:'未知状态名：' + s};
+  }
+
+  function fromHttp(h){
+    var n = Number(h);
+    if (!isFinite(n) || n < 100 || n > 599) return {error:'不是合法 HTTP 状态码：' + h};
+    var code = HTTP_TO_GRPC[n];
+    if (code === undefined) code = (n >= 200 && n < 300) ? 0 : 2;
+    return {value:BY_CODE[code], exact:HTTP_TO_GRPC[n] !== undefined};
+  }
+
+  function retryableList(){
+    var out = [];
+    for (var i = 0; i < STATUS.length; i++) if (STATUS[i].retryable) out.push(STATUS[i].name);
+    return out;
+  }
+
+  // ---------- grpc-timeout 头 ----------
+  var UNIT_NS = {n:1, u:1000, m:1000000, S:1000000000, M:60000000000, H:3600000000000};
+  var UNIT_ORDER = ['H', 'M', 'S', 'm', 'u', 'n'];
+
+  function parseTimeout(v){
+    var s = String(v == null ? '' : v).trim();
+    var m = /^([0-9]{1,8})([numSMH])$/.exec(s);
+    if (!m) return {error:'grpc-timeout 必须是「最多 8 位数字 + 单位 n/u/m/S/M/H」，收到：' + s};
+    var ns = parseInt(m[1], 10) * UNIT_NS[m[2]];
+    return {value:{ns:ns, ms:ns / 1e6, unit:m[2], amount:parseInt(m[1], 10), header:s}};
+  }
+
+  function formatTimeout(ms){
+    var n = Number(ms);
+    if (!isFinite(n) || n <= 0) return {error:'超时必须是正数毫秒'};
+    var ns = Math.round(n * 1e6);
+    for (var i = 0; i < UNIT_ORDER.length; i++){
+      var u = UNIT_ORDER[i], per = UNIT_NS[u];
+      if (ns % per === 0){
+        var amt = ns / per;
+        if (amt >= 1 && String(amt).length <= 8) return {value:amt + u, amount:amt, unit:u, ns:ns};
+      }
+    }
+    return {error:'无法用 8 位以内数字表达该超时，请改用更粗的单位'};
+  }
+
+  // 截止时间在调用链上的传播：每一跳都要扣掉已耗时和预留
+  function propagate(totalMs, hops){
+    var t = Number(totalMs), h = Number(hops);
+    if (!isFinite(t) || t <= 0) return {error:'总预算必须为正'};
+    if (!isFinite(h) || h < 1 || h % 1 !== 0) return {error:'跳数必须是正整数'};
+    var rows = [], remain = t;
+    for (var i = 0; i < h; i++){
+      var reserve = remain * 0.1;              // 每跳给自己留 10% 处理与网络抖动
+      var give = remain - reserve;
+      rows.push({
+        hop:i + 1,
+        inbound:remain,
+        reserve:reserve,
+        outbound:give,
+        header:(formatTimeout(Math.max(1, Math.floor(give))).value || '1n')
+      });
+      remain = give;
+    }
+    return {value:rows, tail:remain, shrink:1 - remain / t};
+  }
+
+  // ---------- 长度前缀分帧 ----------
+  function hexBytes(s){
+    var clean = String(s == null ? '' : s).replace(/0x/gi, '').replace(/[\s,]+/g, '');
+    if (clean === '') return {error:'请输入十六进制字节'};
+    if (!/^[0-9a-fA-F]+$/.test(clean)) return {error:'包含非十六进制字符'};
+    if (clean.length % 2 !== 0) return {error:'十六进制长度必须为偶数，收到 ' + clean.length + ' 个字符'};
+    var out = [];
+    for (var i = 0; i < clean.length; i += 2) out.push(parseInt(clean.substr(i, 2), 16));
+    return {value:out};
+  }
+
+  function parseFrames(hex){
+    var b = hexBytes(hex);
+    if (b.error) return b;
+    var by = b.value, off = 0, frames = [];
+    while (off < by.length){
+      if (by.length - off < 5){
+        return {value:frames, truncated:true, error:'第 ' + (frames.length + 1) + ' 帧头不足 5 字节，只剩 ' + (by.length - off)};
+      }
+      var flag = by[off];
+      var len = (by[off + 1] * 16777216) + (by[off + 2] * 65536) + (by[off + 3] * 256) + by[off + 4];
+      var start = off + 5, end = start + len;
+      if (flag !== 0 && flag !== 1) return {value:frames, error:'压缩标志位只能是 0 或 1，收到 ' + flag};
+      if (end > by.length) return {value:frames, truncated:true, error:'第 ' + (frames.length + 1) + ' 帧声明 ' + len + ' 字节，实际只有 ' + (by.length - start)};
+      frames.push({index:frames.length, compressed:flag === 1, length:len, payload:by.slice(start, end), offset:off});
+      off = end;
+    }
+    return {value:frames, truncated:false};
+  }
+
+  // ---------- protobuf 线格式浅扫描 ----------
+  var WIRE = {0:'varint', 1:'64-bit', 2:'length-delimited', 3:'start-group', 4:'end-group', 5:'32-bit'};
+
+  function readVarint(by, off){
+    var shift = 0, result = 0, n = 0;
+    while (off + n < by.length){
+      var b = by[off + n];
+      result += (b & 0x7f) * Math.pow(2, shift);
+      n++;
+      if ((b & 0x80) === 0) return {value:result, size:n};
+      shift += 7;
+      if (shift > 63) return {error:'varint 超过 10 字节'};
+    }
+    return {error:'varint 被截断'};
+  }
+
+  function scanProto(bytes){
+    var by = bytes, off = 0, fields = [];
+    while (off < by.length){
+      var key = readVarint(by, off);
+      if (key.error) return {value:fields, error:key.error};
+      var field = Math.floor(key.value / 8), wt = key.value % 8;
+      if (field === 0) return {value:fields, error:'字段号 0 非法，可能不是 protobuf'};
+      off += key.size;
+      var rec = {field:field, wire:wt, wireName:WIRE[wt] || ('保留类型 ' + wt)};
+      if (wt === 0){
+        var v = readVarint(by, off);
+        if (v.error) return {value:fields, error:v.error};
+        rec.value = v.value; off += v.size;
+      } else if (wt === 1){
+        if (off + 8 > by.length) return {value:fields, error:'64 位字段被截断'};
+        rec.value = by.slice(off, off + 8); off += 8;
+      } else if (wt === 2){
+        var L = readVarint(by, off);
+        if (L.error) return {value:fields, error:L.error};
+        off += L.size;
+        if (off + L.value > by.length) return {value:fields, error:'长度分隔字段声明 ' + L.value + ' 字节但数据不足'};
+        rec.length = L.value; rec.value = by.slice(off, off + L.value);
+        rec.asText = rec.value.map(function(c){ return (c >= 32 && c < 127) ? String.fromCharCode(c) : '.'; }).join('');
+        off += L.value;
+      } else if (wt === 5){
+        if (off + 4 > by.length) return {value:fields, error:'32 位字段被截断'};
+        rec.value = by.slice(off, off + 4); off += 4;
+      } else {
+        return {value:fields, error:'不支持的线类型 ' + wt + '（group 已废弃）'};
+      }
+      fields.push(rec);
+    }
+    return {value:fields};
+  }
+
+  // ---------- 服务配置里的 retryPolicy ----------
+  function checkRetryPolicy(p){
+    var o = p || {}, errors = [], warnings = [];
+    var max = Number(o.maxAttempts);
+    if (!isFinite(max) || max % 1 !== 0 || max < 2) errors.push('maxAttempts 必须是 >= 2 的整数');
+    else if (max > 5) warnings.push('maxAttempts=' + max + ' 会被 gRPC 默认上限截断到 5');
+    var ini = Number(o.initialBackoffMs);
+    if (!isFinite(ini) || ini <= 0) errors.push('initialBackoff 必须为正');
+    var mx = Number(o.maxBackoffMs);
+    if (!isFinite(mx) || mx <= 0) errors.push('maxBackoff 必须为正');
+    else if (isFinite(ini) && mx < ini) errors.push('maxBackoff 不能小于 initialBackoff');
+    var mul = Number(o.backoffMultiplier);
+    if (!isFinite(mul) || mul <= 1) errors.push('backoffMultiplier 必须大于 1，否则退避退了个寂寞');
+    var codes = o.retryableStatusCodes || [];
+    if (!codes.length) errors.push('retryableStatusCodes 不能为空');
+    for (var i = 0; i < codes.length; i++){
+      var st = statusOf(codes[i]);
+      if (st.error){ errors.push('retryableStatusCodes 含非法项：' + codes[i]); continue; }
+      if (!st.value.retryable) warnings.push(st.value.name + ' 通常不可安全重试（' + st.value.note + '）');
+    }
+    return {errors:errors, warnings:warnings, ok:errors.length === 0};
+  }
+
+  function retrySchedule(p){
+    var chk = checkRetryPolicy(p);
+    if (!chk.ok) return {error:chk.errors[0], errors:chk.errors};
+    var max = Math.min(5, Number(p.maxAttempts));
+    var d = Number(p.initialBackoffMs), rows = [], total = 0;
+    for (var a = 1; a < max; a++){
+      var wait = Math.min(d, Number(p.maxBackoffMs));
+      total += wait;
+      rows.push({afterAttempt:a, backoffMs:wait, cumulativeMs:total, jitterRange:[0, wait]});
+      d = d * Number(p.backoffMultiplier);
+    }
+    return {value:rows, attempts:max, worstCaseMs:total, warnings:chk.warnings,
+            note:'gRPC 的退避带 0..backoff 的均匀抖动，最坏耗时按上界估算'};
+  }
+
+  // 重试放大：客户端每层都重试时的请求膨胀
+  function amplification(perLayerAttempts){
+    var arr = perLayerAttempts || [];
+    if (!arr.length) return {error:'请给出每层的最大尝试次数'};
+    var prod = 1, rows = [];
+    for (var i = 0; i < arr.length; i++){
+      var n = Number(arr[i]);
+      if (!isFinite(n) || n < 1 || n % 1 !== 0) return {error:'第 ' + (i + 1) + ' 层的尝试次数必须是正整数'};
+      prod *= n;
+      rows.push({layer:i + 1, attempts:n, cumulative:prod});
+    }
+    return {value:rows, amplification:prod,
+            verdict:prod >= 8 ? '危险：一次用户请求最多打出 ' + prod + ' 次后端调用，重试风暴的经典配方'
+                              : '可接受：放大系数 ' + prod};
+  }
+
+  function analyze(q){
+    var st = statusOf(q);
+    if (st.error) return st;
+    var s = st.value;
+    return {value:{
+      status:s,
+      httpEquivalent:s.http,
+      retryable:s.retryable,
+      siblings:retryableList(),
+      timeoutSample:formatTimeout(1500).value
+    }};
+  }
+
+  var api = {STATUS:STATUS, WIRE:WIRE, statusOf:statusOf, fromHttp:fromHttp, retryableList:retryableList,
+             parseTimeout:parseTimeout, formatTimeout:formatTimeout, propagate:propagate,
+             hexBytes:hexBytes, parseFrames:parseFrames, readVarint:readVarint, scanProto:scanProto,
+             checkRetryPolicy:checkRetryPolicy, retrySchedule:retrySchedule, amplification:amplification,
+             analyze:analyze};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {GrpcForgePure:GrpcForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = GrpcForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function hx(arr){ return arr.map(function(b){ return ('0'+b.toString(16)).slice(-2); }).join(' '); }
+  function run(){
+    var q = document.getElementById('g-q').value,
+        hp = document.getElementById('g-http').value,
+        to = document.getElementById('g-to').value,
+        hop = document.getElementById('g-hop').value,
+        hex = document.getElementById('g-hex').value;
+    var $e = document.getElementById('g-err'), $o = document.getElementById('g-out'), h = '';
+    var st = P.statusOf(q);
+    $e.textContent = st.error ? st.error : '';
+    if (st.value){
+      var s = st.value;
+      h += '<div class="kv"><b>状态码</b><span style="font-weight:700;color:' + (s.code === 0 ? 'var(--ok)' : s.retryable ? 'var(--warn)' : '#EF4444') +
+           '">' + s.code + ' ' + s.name + ' · ' + esc(s.cn) + '</span></div>';
+      h += '<div class="kv"><b>等价 HTTP</b><span>' + s.http + '</span></div>';
+      h += '<div class="kv"><b>是否适合重试</b><span style="color:' + (s.retryable ? 'var(--ok)' : '#EF4444') + '">' +
+           (s.retryable ? '是，但必须退避' : '否，重试只会放大故障') + '</span></div>';
+      h += '<div class="kv"><b>要点</b><span>' + esc(s.note) + '</span></div>';
+    }
+    var fh = P.fromHttp(hp);
+    if (fh.value){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">HTTP 反查 gRPC</div>';
+      h += '<div class="kv"><b>HTTP ' + esc(hp) + '</b><span>' + fh.value.code + ' ' + fh.value.name +
+           (fh.exact ? '（官方映射表）' : '（无官方映射，落到兜底）') + '</span></div>';
+    }
+    var pt = P.parseTimeout(to);
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">截止时间与传播</div>';
+    if (pt.error) h += '<div class="kv"><b>grpc-timeout</b><span style="color:#EF4444">' + esc(pt.error) + '</span></div>';
+    else {
+      h += '<div class="kv"><b>grpc-timeout</b><span>' + esc(pt.value.header) + ' = ' + pt.value.ms + ' ms</span></div>';
+      var pr = P.propagate(pt.value.ms, hop);
+      if (pr.value){
+        for (var i = 0; i < pr.value.length; i++){
+          var r = pr.value[i];
+          h += '<div class="kv"><b>第 ' + r.hop + ' 跳</b><span>收到 ' + r.inbound.toFixed(0) + ' ms，自留 ' +
+               r.reserve.toFixed(0) + ' ms，下传 <code>' + esc(r.header) + '</code></span></div>';
+        }
+        h += '<div class="kv"><b>末端可用预算</b><span style="color:' + (pr.shrink > 0.5 ? '#EF4444' : 'var(--ok)') + '">' +
+             pr.tail.toFixed(0) + ' ms，沿途缩水 ' + (pr.shrink * 100).toFixed(0) + '%</span></div>';
+      }
+    }
+    var fr = P.parseFrames(hex);
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">长度前缀分帧</div>';
+    if (fr.error) h += '<div class="kv"><b>分帧异常</b><span style="color:#EF4444">' + esc(fr.error) + '</span></div>';
+    if (fr.value){
+      for (var j = 0; j < fr.value.length; j++){
+        var f = fr.value[j];
+        h += '<div class="kv"><b>帧 ' + (f.index + 1) + '</b><span>偏移 ' + f.offset + ' · ' +
+             (f.compressed ? '已压缩' : '未压缩') + ' · 载荷 ' + f.length + ' 字节 · <code>' + esc(hx(f.payload)) + '</code></span></div>';
+        var sc = P.scanProto(f.payload);
+        if (sc.value) for (var k = 0; k < sc.value.length; k++){
+          var fd = sc.value[k];
+          var shown = (fd.wire === 2) ? ('"' + esc(fd.asText) + '"') : (typeof fd.value === 'number' ? fd.value : hx(fd.value));
+          h += '<div class="kv"><b style="padding-left:16px">字段 ' + fd.field + '</b><span>' + fd.wireName + ' 到 ' + shown + '</span></div>';
+        }
+        if (sc.error) h += '<div class="kv"><b style="padding-left:16px">扫描中止</b><span style="color:var(--warn)">' + esc(sc.error) + '</span></div>';
+      }
+    }
+    var sch = P.retrySchedule({maxAttempts:4, initialBackoffMs:100, maxBackoffMs:1000, backoffMultiplier:2, retryableStatusCodes:['UNAVAILABLE']});
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">参考重试策略：4 次尝试 / 100ms 起 / 2 倍</div>';
+    if (sch.value){
+      for (var n = 0; n < sch.value.length; n++)
+        h += '<div class="kv"><b>第 ' + sch.value[n].afterAttempt + ' 次失败后</b><span>退避 0 到 ' + sch.value[n].backoffMs +
+             ' ms，累计上界 ' + sch.value[n].cumulativeMs + ' ms</span></div>';
+      var am = P.amplification([3, 3, 3]);
+      h += '<div class="kv"><b>三层各重试 3 次</b><span style="color:#EF4444">' + esc(am.verdict) + '</span></div>';
+    }
+    $o.innerHTML = h;
+  }
+  function set(q, hp, to, hop){
+    document.getElementById('g-q').value = q; document.getElementById('g-http').value = hp;
+    document.getElementById('g-to').value = to; document.getElementById('g-hop').value = hop;
+    run();
+  }
+  document.getElementById('g-go').addEventListener('click', run);
+  document.getElementById('g-a').addEventListener('click', function(){ set('DEADLINE_EXCEEDED','504','800m','5'); });
+  document.getElementById('g-b').addEventListener('click', function(){ set('16','401','30S','2'); });
+  document.getElementById('g-c').addEventListener('click', function(){ set('UNAVAILABLE','503','2S','6'); });
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

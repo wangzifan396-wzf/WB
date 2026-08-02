@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<link rel="icon" href="favicon.svg">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>ContextLens · 本地优先的 LLM 上下文与成本可视化器</title>
+  <meta property="og:image" content="og.svg">
+
+<meta name="description" content="单文件、零依赖、本地优先的 LLM 上下文与成本可视化器：拖入代码库即可看 token 占比、上下文窗口占用与多模型成本对比，并一键导出 Agent 就绪上下文包。" />
+<style>
+  :root{
+    --bg:#08090A; --surface:#101113; --surface-2:#16181b; --border:#1C1D1F;
+    --text:#E6E7E9; --text-dim:#9aa0a6; --text-faint:#6b7177;
+    --accent:#5e6ad2; --accent-2:#8b94f0; --cyan:#56D4DD; --green:#3FB950;
+    --amber:#E3B341; --pink:#FF7AB6; --red:#FF6B6B;
+    --radius:10px; --radius-sm:7px; --maxw:1180px;
+    --mono:ui-monospace,"Cascadia Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  [data-theme="light"]{
+    --bg:#F7F8FA; --surface:#FFFFFF; --surface-2:#F0F2F5; --border:#E3E6EA;
+    --text:#1A1C1F; --text-dim:#5b626b; --text-faint:#8a9099;
+    --accent:#5e6ad2; --accent-2:#6b74e6; --cyan:#0E9BA6; --green:#1A7F2E;
+    --amber:#B5810B; --pink:#D6327F; --red:#D63A3A;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    line-height:1.55; -webkit-font-smoothing:antialiased; overflow-x:hidden;
+    min-height:100vh;
+  }
+  /* decorative layers */
+  .aurora{position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.55;
+    background:
+      radial-gradient(60% 50% at 18% 8%, rgba(94,106,210,.22), transparent 60%),
+      radial-gradient(50% 45% at 88% 12%, rgba(86,212,221,.14), transparent 60%),
+      radial-gradient(45% 40% at 60% 92%, rgba(255,122,182,.10), transparent 60%);
+    filter:saturate(115%);
+  }
+  .dotgrid{position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.35;
+    background-image:radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+    background-size:26px 26px; mask-image:linear-gradient(180deg, rgba(0,0,0,.6), transparent 70%);}
+  [data-theme="light"] .dotgrid{background-image:radial-gradient(rgba(0,0,0,.08) 1px, transparent 1px);}
+  .wrap{position:relative; z-index:1; max-width:var(--maxw); margin:0 auto; padding:0 20px 80px;}
+
+  /* nav */
+  .nav{position:sticky; top:0; z-index:20; backdrop-filter:blur(12px);
+    background:color-mix(in srgb, var(--bg) 72%, transparent);
+    border-bottom:1px solid var(--border); }
+  .nav-in{max-width:var(--maxw); margin:0 auto; padding:13px 20px; display:flex; align-items:center; gap:14px;}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:650; letter-spacing:.2px;}
+  .logo{width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,var(--accent),var(--cyan));
+    display:grid; place-items:center; color:#fff; font-family:var(--mono); font-weight:700; font-size:14px;
+    box-shadow:0 2px 10px rgba(94,106,210,.4);}
+  .brand small{color:var(--text-faint); font-weight:500; font-size:12px; font-family:var(--mono);}
+  .nav-spacer{flex:1}
+  .pill{font-size:12px; color:var(--text-dim); border:1px solid var(--border); padding:4px 10px; border-radius:999px; background:var(--surface);}
+  .iconbtn{background:var(--surface); border:1px solid var(--border); color:var(--text); width:34px; height:34px;
+    border-radius:8px; cursor:pointer; font-size:15px; display:grid; place-items:center; transition:transform .15s ease, border-color .15s ease;}
+  .iconbtn:hover{transform:translateY(-1px); border-color:var(--accent);}
+
+  /* hero */
+  .hero{padding:46px 0 26px; text-align:center;}
+  .eyebrow{font-family:var(--mono); font-size:12px; color:var(--accent-2); letter-spacing:1.5px; text-transform:uppercase;}
+  h1{font-size:clamp(30px,5vw,46px); margin:10px 0 8px; line-height:1.1; letter-spacing:-.5px;
+    background:linear-gradient(180deg,#fff, #b9bdc6); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  [data-theme="light"] h1{background:linear-gradient(180deg,#16181b,#4a505a); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .sub{color:var(--text-dim); max-width:620px; margin:0 auto; font-size:15.5px;}
+  .badges{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:16px;}
+  .badge{font-size:12px; color:var(--text-dim); border:1px solid var(--border); padding:5px 11px; border-radius:999px; background:var(--surface);}
+  .badge b{color:var(--text)}
+
+  /* dropzone / input */
+  .input-card{margin-top:26px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;}
+  .tabs{display:flex; gap:4px; padding:10px 10px 0; border-bottom:1px solid var(--border);}
+  .tab{padding:9px 14px; font-size:13.5px; color:var(--text-dim); cursor:pointer; border-radius:8px 8px 0 0; border:1px solid transparent; border-bottom:none; user-select:none;}
+  .tab.active{color:var(--text); background:var(--surface-2); border-color:var(--border);}
+  .tabpane{padding:18px; display:none;}
+  .tabpane.active{display:block;}
+  .drop{border:1.5px dashed var(--border); border-radius:var(--radius-sm); padding:34px 20px; text-align:center; transition:border-color .15s, background .15s; cursor:pointer;}
+  .drop:hover,.drop.drag{border-color:var(--accent); background:color-mix(in srgb,var(--accent) 8%, transparent);}
+  .drop .big{font-size:15px; font-weight:600; margin-bottom:4px;}
+  .drop .small{font-size:12.5px; color:var(--text-faint);}
+  .drop .ico{font-size:26px; margin-bottom:6px;}
+  .hint{font-size:12px; color:var(--text-faint); margin-top:10px; font-family:var(--mono);}
+  textarea{width:100%; min-height:150px; resize:vertical; background:var(--surface-2); color:var(--text);
+    border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; font-family:var(--mono); font-size:13px; line-height:1.5;}
+  textarea:focus{outline:none; border-color:var(--accent);}
+  .btn{appearance:none; border:1px solid var(--border); background:var(--surface-2); color:var(--text);
+    padding:9px 16px; border-radius:8px; font-size:13.5px; font-weight:550; cursor:pointer; transition:transform .12s, border-color .12s, background .12s;}
+  .btn:hover{transform:translateY(-1px); border-color:var(--accent);}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2)); border-color:transparent; color:#fff;}
+  .btn.primary:hover{filter:brightness(1.06);}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px;}
+
+  /* progress */
+  .progress{height:5px; background:var(--surface-2); border-radius:999px; overflow:hidden; margin-top:14px; display:none;}
+  .progress > i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--cyan)); transition:width .15s ease;}
+
+  /* dashboard */
+  #dash{display:none; margin-top:30px;}
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:12px;}
+  .stat{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px;}
+  .stat .k{font-size:12px; color:var(--text-dim); font-family:var(--mono);}
+  .stat .v{font-size:24px; font-weight:680; margin-top:3px; font-family:var(--mono); letter-spacing:-.5px;}
+  .stat .v small{font-size:13px; color:var(--text-faint); font-weight:500;}
+
+  .grid2{display:grid; grid-template-columns:1.15fr .85fr; gap:16px; margin-top:16px;}
+  .panel{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px;}
+  .panel h3{margin:0 0 12px; font-size:14px; display:flex; align-items:center; gap:8px;}
+  .panel h3 .dot{width:7px; height:7px; border-radius:50%; background:var(--accent);}
+
+  /* gauge */
+  .gauge{display:flex; align-items:center; gap:18px;}
+  .ring{--p:0; width:128px; height:128px; border-radius:50%; flex:none; position:relative;
+    background:conic-gradient(var(--accent) calc(var(--p)*1%), var(--surface-2) 0);
+    transition:background .4s ease;}
+  .ring.over{background:conic-gradient(var(--red) 100%, var(--red) 0);}
+  .ring::after{content:""; position:absolute; inset:13px; border-radius:50%; background:var(--surface);}
+  .ring .mid{position:absolute; inset:0; display:grid; place-items:center; z-index:1; text-align:center;}
+  .ring .mid b{font-family:var(--mono); font-size:22px;}
+  .ring .mid span{font-size:11px; color:var(--text-faint); display:block;}
+  .gauge .meta{font-size:13px; color:var(--text-dim);}
+  .gauge .meta b{color:var(--text); font-family:var(--mono);}
+  select{background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:7px; padding:7px 10px; font-size:13px; font-family:var(--mono);}
+  select:focus{outline:none; border-color:var(--accent);}
+
+  /* file list */
+  .filelist{max-height:330px; overflow:auto; margin-top:4px; padding-right:4px;}
+  .fileitem{display:flex; align-items:center; gap:9px; padding:6px 4px; border-bottom:1px solid color-mix(in srgb,var(--border) 60%, transparent);}
+  .fileitem input{accent-color:var(--accent); flex:none;}
+  .fname{font-family:var(--mono); font-size:12.5px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text);}
+  .fname .x{color:var(--text-faint);}
+  .fbar{flex:none; width:120px; height:6px; background:var(--surface-2); border-radius:999px; overflow:hidden;}
+  .fbar > i{display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--cyan));}
+  .ftok{font-family:var(--mono); font-size:11.5px; color:var(--text-dim); width:74px; text-align:right; flex:none;}
+  .more{font-size:12px; color:var(--text-faint); padding:8px 4px; font-family:var(--mono);}
+
+  /* model table */
+  .mctl{display:flex; gap:10px; margin:10px 0 12px; flex-wrap:wrap;}
+  .mctl input{flex:1; min-width:180px; padding:8px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px;}
+  .mctl input:focus{outline:none; border-color:var(--accent);}
+  .mctl select{background:var(--surface-2); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:8px 10px; font-size:13px;}
+  .mctl select:focus{outline:none; border-color:var(--accent);}
+  .mlist{display:grid; gap:6px; max-height:330px; overflow:auto; padding-right:4px;}
+  .mrow{display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:8px; align-items:center;
+    padding:9px 11px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); cursor:pointer; font-size:12.5px; transition:border-color .12s, transform .12s;}
+  .mrow:hover{transform:translateY(-1px); border-color:var(--accent);}
+  .mrow.sel{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset;}
+  .mrow .mn{font-weight:600;}
+  .mrow .mc{font-family:var(--mono); text-align:right; color:var(--text-dim);}
+  .mrow .mc.best{color:var(--green); font-weight:650;}
+  .mrow .mctx{font-family:var(--mono); text-align:right; color:var(--text-faint);}
+  .mrow .mprice{font-family:var(--mono); text-align:right; color:var(--text-faint);}
+
+  .export-row{display:flex; gap:9px; flex-wrap:wrap; margin-top:16px;}
+  .toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:var(--surface); border:1px solid var(--accent); color:var(--text); padding:11px 18px; border-radius:10px;
+    font-size:13.5px; z-index:50; transition:opacity .2s, transform .2s; box-shadow:0 8px 30px rgba(0,0,0,.4);}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  footer{border-top:1px solid var(--border); margin-top:46px; padding-top:20px; color:var(--text-faint); font-size:12.5px; text-align:center; line-height:1.8;}
+  footer a{color:var(--text-dim); text-decoration:none; border-bottom:1px dotted var(--text-faint);}
+  .src{font-family:var(--mono); font-size:11.5px; color:var(--text-faint); margin-top:6px;}
+
+  @media (max-width:880px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .grid2{grid-template-columns:1fr}
+    .mrow{grid-template-columns:1.4fr 1fr 1fr;}
+    .mrow .mprice{display:none;}
+  }
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+
+  <meta name="theme-color" content="#0A0A0B">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:title" content="ContextLens · 本地优先的 LLM 上下文与成本可视化器">
+  <meta property="og:type" content="website">
+<meta property="og:description" content="单文件、零依赖、本地优先的 LLM 上下文与成本可视化器：拖入代码库即可看 token 占比、上下文窗口占用与多模型成本对比，并一键导出 Agent 就绪上下文包。">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ContextLens · 本地优先的 LLM 上下文与成本可视化器">
+<meta name="twitter:description" content="单文件、零依赖、本地优先的 LLM 上下文与成本可视化器：拖入代码库即可看 token 占比、上下文窗口占用与多模型成本对比，并一键导出 Agent 就绪上下文包。">
+<meta name="twitter:image" content="og.svg">
+<style id="nano-a11y">
+:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+  <div class="aurora"></div>
+  <div class="dotgrid"></div>
+
+  <nav class="nav">
+    <div class="nav-in">
+      <div class="brand"><span class="logo">C</span> ContextLens <small>v0.1</small></div>
+      <div class="nav-spacer"></div>
+      <span class="pill">🔒 本地优先 · 零上传</span>
+      <button class="iconbtn" id="themeBtn" title="切换主题">🌙</button>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">Single-file · Zero-dependency · Local-first</div>
+      <h1 data-i18n-html="See Your Context &amp;amp; Cost Clearly">看清你的上下文与成本</h1>
+      <p class="sub" data-i18n-html="Drop in your codebase or text to instantly see token proportion, context-window usage, and cost across models. All computation runs in your browser — files are never uploaded.">把代码库或文本拖进来，瞬间看清 token 占比、上下文窗口占用，以及在不同模型上的花费。所有计算都在你的浏览器里完成，文件不上传。</p>
+      <div class="badges">
+        <span class="badge">拖文件夹即解析</span>
+        <span class="badge">多模型 <b>成本对比</b></span>
+        <span class="badge">一键导出 <b>上下文包</b></span>
+        <span class="badge">明暗主题</span>
+      </div>
+    </section>
+
+    <section class="input-card">
+      <div class="tabs">
+        <div class="tab active" data-tab="folder">📁 拖入文件夹</div>
+        <div class="tab" data-tab="paste">✎ 粘贴文本 / 代码</div>
+      </div>
+
+      <div class="tabpane active" data-pane="folder">
+        <div class="drop" id="drop">
+          <div class="ico">📂</div>
+          <div class="big">把项目文件夹拖到这里</div>
+          <div class="small">或点击选择文件夹（支持 <code>webkitdirectory</code>）</div>
+          <div class="hint">建议选你的项目根目录；node_modules / .git / 二进制会自动跳过</div>
+        </div>
+        <input type="file" id="folderInput" multiple webkitdirectory directory style="display:none" />
+        <div class="progress" id="prog"><i></i></div>
+      </div>
+
+      <div class="tabpane" data-pane="paste">
+        <textarea id="pasteArea" placeholder="把任意文本或代码粘贴到这里，例如一段 prompt、一篇文档、或几个函数…"></textarea>
+        <div class="row">
+          <button class="btn primary" id="analyzeBtn">分析文本</button>
+          <span class="hint">单段文本会按语言自动估算 token</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="dash">
+      <div class="stats" id="stats"></div>
+
+      <div class="grid2">
+        <div class="panel">
+          <h3><span class="dot"></span> 上下文窗口占用</h3>
+          <div class="gauge">
+            <div class="ring" id="ring"><div class="mid"><b id="ringPct">0%</b><span id="ringTok">0 tok</span></div></div>
+            <div class="meta">
+              当前模型：<select id="modelSel"></select><br/>
+              窗口上限：<b id="ctxMax">—</b><br/>
+              已用 token：<b id="ctxUsed">0</b><br/>
+              <span id="ctxWarn" style="color:var(--red)"></span>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3><span class="dot" style="background:var(--cyan)"></span> 逐文件 token 占比（Top 贡献者）</h3>
+          <div class="filelist" id="fileList"></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <h3><span class="dot" style="background:var(--green)"></span> 多模型成本对比（按当前 token 量估算输入成本）</h3>
+        <div class="mctl">
+          <input id="modelSearch" type="text" placeholder="🔎 搜索模型 / 厂商…" />
+          <select id="modelSort">
+            <option value="cost">按成本（低→高）</option>
+            <option value="ctx">按上下文窗口（大→小）</option>
+            <option value="name">按名称</option>
+          </select>
+        </div>
+        <div class="mlist" id="mlist"></div>
+      </div>
+
+      <div class="export-row">
+        <button class="btn" data-fmt="md">⬇ 导出 Markdown</button>
+        <button class="btn" data-fmt="xml">⬇ 导出 XML</button>
+        <button class="btn" data-fmt="json">⬇ 导出 JSON</button>
+        <button class="btn primary" id="copyMd">📋 复制为 Markdown</button>
+        <button class="btn" id="resetBtn">↺ 重新选择</button>
+      </div>
+    </section>
+
+    <footer>
+      ContextLens · 单文件开源工具 · 借鉴 <a href="https://github.com/yamadashy/repomix">Repomix</a> 的"代码库→LLM 上下文"思路，重做为免安装的可视化版本<br/>
+      <span class="src">token 为启发式估算（中文/英文/代码分别加权），价格为 2026 年近似值，仅供参考，请以各家官方为准。</span>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   ContextLens — 纯逻辑（无 DOM 依赖，可在 node 下测试）
+   ============================================================ */
+
+var CJK_RE = /[㐀-䶿一-鿿豈-﫿＀-￯]/;
+var PROFILES = {
+  code:   {cjk:0.60, latin:0.28, other:0.32},
+  prose:  {cjk:0.60, latin:0.24, other:0.30},
+  cjk:    {cjk:0.62, latin:0.25, other:0.30},
+  default:{cjk:0.60, latin:0.25, other:0.30}
+};
+
+function charWeight(ch, p){
+  if (/\s/.test(ch)) return 0;
+  if (CJK_RE.test(ch)) return p.cjk;
+  if (/[A-Za-z0-9]/.test(ch)) return p.latin;
+  return p.other;
+}
+function estimateTokens(text, profileName){
+  var p = PROFILES[profileName] || PROFILES.default;
+  var t = 0;
+  for (var i=0;i<text.length;i++) t += charWeight(text[i], p);
+  return Math.max(1, Math.round(t));
+}
+
+/* 扩展名 -> 语言画像 */
+var CODE_EXT = {js:1,jsx:1,ts:1,tsx:1,py:1,java:1,go:1,rs:1,c:1,cpp:1,cc:1,h:1,hpp:1,cs:1,rb:1,php:1,swift:1,kt:1,scala:1,sh:1,bash:1,sql:1,html:1,htm:1,css:1,scss:1,less:1,vue:1,svelte:1,r:1,lua:1,pl:1,ex:1,exs:1,dart:1,zig:1,groovy:1};
+var PROSE_EXT = {md:1,mdx:1,txt:1,rst:1,tex:1,adoc:1,doc:1,docx:1,pdf:1};
+var CJK_EXT = {zh:1,cn:1};
+function profileForExt(ext){
+  if (CODE_EXT[ext]) return 'code';
+  if (PROSE_EXT[ext]) return 'prose';
+  return 'default';
+}
+function getExt(path){
+  var m = /(?:\.([a-z0-9]+))$/i.exec(path);
+  return m ? m[1].toLowerCase() : '';
+}
+/* 自动画像：根据中文字符比例在 prose/code 间微调 */
+function profileAuto(text, ext){
+  var base = profileForExt(ext);
+  if (base === 'default') base = 'prose';
+  var cjk = 0, total = Math.min(text.length, 4000);
+  for (var i=0;i<total;i++) if (CJK_RE.test(text[i])) cjk++;
+  var ratio = total ? cjk/total : 0;
+  if (ratio > 0.25) return ratio > 0.5 ? 'cjk' : 'prose';
+  return base;
+}
+
+/* 模型价格表（$ / 1M tokens，输入/输出；ctx = 上下文窗口上限，近似值 2026） */
+var MODELS = [
+  {id:'gpt-4o',          name:'GPT-4o',            in:2.5,  out:10,   ctx:128000},
+  {id:'gpt-4o-mini',     name:'GPT-4o mini',       in:0.15, out:0.6,  ctx:128000},
+  {id:'gpt-4-turbo',     name:'GPT-4 Turbo',       in:10,   out:30,   ctx:128000},
+  {id:'o1',              name:'OpenAI o1',         in:15,   out:60,   ctx:200000},
+  {id:'o3-mini',         name:'OpenAI o3-mini',    in:1.1,  out:4.4,  ctx:200000},
+  {id:'claude-3.5-sonnet',name:'Claude 3.5 Sonnet',in:3,    out:15,   ctx:200000},
+  {id:'claude-3.5-haiku', name:'Claude 3.5 Haiku', in:0.8,  out:4,    ctx:200000},
+  {id:'claude-3-opus',   name:'Claude 3 Opus',     in:15,   out:75,   ctx:200000},
+  {id:'gemini-1.5-pro',  name:'Gemini 1.5 Pro',    in:1.25, out:5,    ctx:1000000},
+  {id:'gemini-1.5-flash',name:'Gemini 1.5 Flash',  in:0.075,out:0.3,  ctx:1000000},
+  {id:'gemini-2.0-pro',  name:'Gemini 2.0 Pro',    in:1.5,  out:6,    ctx:2000000},
+  {id:'deepseek-v3',     name:'DeepSeek V3',       in:0.27, out:1.1,  ctx:128000},
+  {id:'deepseek-r1',     name:'DeepSeek R1',       in:0.55, out:2.19, ctx:128000},
+  {id:'qwen2.5-72b',     name:'Qwen2.5-72B',       in:0.35, out:0.4,  ctx:128000},
+  {id:'llama-3.1-405b',  name:'Llama 3.1 405B',    in:2.7,  out:2.7,  ctx:128000},
+  {id:'mistral-large',   name:'Mistral Large',     in:2,    out:6,    ctx:128000},
+  {id:'grok-2',          name:'Grok-2',            in:2,    out:10,   ctx:128000},
+  {id:'yi-large',        name:'Yi-Large',          in:0.68, out:0.68, ctx:200000}
+];
+function costFor(model, tokens){ return (tokens/1e6) * model.in; }
+function vendorOf(m){
+  var id=m.id||'';
+  if(/^gpt|^o1|^o3|^o4|^chatgpt/.test(id)) return 'OpenAI';
+  if(/^claude/.test(id)) return 'Anthropic';
+  if(/^gemini/.test(id)) return 'Google';
+  if(/^deepseek/.test(id)) return 'DeepSeek';
+  if(/^qwen/.test(id)) return 'Alibaba';
+  if(/^llama|^mixtral|^codellama/.test(id)) return 'Meta';
+  if(/^mistral/.test(id)) return 'Mistral';
+  if(/^grok/.test(id)) return 'xAI';
+  if(/^yi/.test(id)) return '01.AI';
+  if(/^command/.test(id)) return 'Cohere';
+  return m.vendor || 'Other';
+}
+function modelHay(m){ return (m.name + ' ' + vendorOf(m)).toLowerCase(); }
+
+/* .gitignore 极简解析与匹配 */
+function parseGitignore(text){
+  return (text||'').split(/\r?\n/).map(function(l){return l.trim();})
+    .filter(function(l){return l && l[0] !== '#';});
+}
+function gitignoreToRegex(pat){
+  var p = pat.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  return new RegExp('^(?:.*/)?' + p + (pat.slice(-1)==='/' ? '(?=/|$)' : '(?=$|/)') + '$');
+}
+function isIgnored(rel, patterns){
+  var segs = rel.split('/');
+  for (var i=0;i<patterns.length;i++){
+    var p = patterns[i];
+    if (p.slice(-1) === '/'){ var dir = p.slice(0,-1); if (segs.indexOf(dir) !== -1) return true; }
+    else {
+      var rx = gitignoreToRegex(p);
+      if (rx.test(rel)) return true;
+      if (segs.indexOf(p) !== -1) return true;
+    }
+  }
+  return false;
+}
+var DEFAULT_IGNORE = ['node_modules','.git','.svn','dist','build','.next','out','vendor','__pycache__','.idea','.vscode','coverage','.cache','.turbo','target'];
+function isDefaultIgnored(rel){
+  var segs = rel.split('/');
+  for (var i=0;i<segs.length;i++) if (DEFAULT_IGNORE.indexOf(segs[i]) !== -1) return true;
+  return false;
+}
+var BINARY_EXT = {png:1,jpg:1,jpeg:1,gif:1,bmp:1,ico:1,webp:1,svg:1,mp3:1,wav:1,mp4:1,mov:1,avi:1,mkv:1,zip:1,gz:1,tar:1,rar:1,'7z':1,pdf:1,ttf:1,otf:1,woff:1,woff2:1,eot:1,exe:1,dll:1,so:1,dylib:1,bin:1,db:1,sqlite:1,pyc:1,class:1,lock:1};
+function isBinaryExt(ext){ return !!BINARY_EXT[ext]; }
+
+/* 上下文包生成 */
+function buildTree(files){
+  var root = {};
+  files.forEach(function(f){
+    if (!f.included) return;
+    var parts = f.path.split('/'); var cur = root;
+    for (var i=0;i<parts.length-1;i++){ cur[parts[i]] = cur[parts[i]] || {}; cur = cur[parts[i]]; }
+    cur[parts[parts.length-1]] = f.content;
+  });
+  return root;
+}
+function renderTree(obj, prefix){
+  prefix = prefix || '';
+  var lines = [];
+  Object.keys(obj).sort().forEach(function(k){
+    if (typeof obj[k] === 'string') lines.push(prefix + k);
+    else { lines.push(prefix + k + '/'); lines = lines.concat(renderTree(obj[k], prefix + '  ')); }
+  });
+  return lines.join('\n');
+}
+function buildPackMarkdown(files){
+  var inc = files.filter(function(f){return f.included;});
+  var tree = renderTree(buildTree(inc));
+  var total = inc.reduce(function(s,f){return s+f.tokens;},0);
+  var out = '# ContextLens Export\n\n## Directory Structure\n```\n' + tree + '\n```\n\n';
+  inc.forEach(function(f){
+    var ext = getExt(f.path);
+    out += '\n## File: ' + f.path + '  (' + f.tokens + ' tokens)\n\n```' + (ext||'text') + '\n' + f.content + '\n```\n';
+  });
+  out += '\n<!-- Total estimated tokens: ' + total + ' -->\n';
+  return out;
+}
+function escapeXml(s){ return s.replace(/[<>&]/g, function(c){return c==='<'?'&lt;':c==='>'?'&gt;':'&amp;';}); }
+function buildPackXml(files){
+  var inc = files.filter(function(f){return f.included;});
+  var out = '<?xml version="1.0" encoding="UTF-8"?>\n<context>\n';
+  inc.forEach(function(f){
+    out += '  <file path="' + escapeXml(f.path) + '" tokens="' + f.tokens + '">\n<![CDATA[\n' + f.content + '\n]]>\n  </file>\n';
+  });
+  out += '</context>';
+  return out;
+}
+function buildPackJson(files){
+  var inc = files.filter(function(f){return f.included;});
+  return JSON.stringify({totalTokens: inc.reduce(function(s,f){return s+f.tokens;},0), files: inc.map(function(f){
+    return {path:f.path, tokens:f.tokens, content:f.content};
+  })}, null, 2);
+}
+
+/* 导出给 node 测试 */
+if (typeof module !== 'undefined' && module.exports){
+  module.exports = {
+    estimateTokens:estimateTokens, charWeight:charWeight, PROFILES:PROFILES,
+    profileForExt:profileForExt, profileAuto:profileAuto, getExt:getExt,
+    MODELS:MODELS, costFor:costFor,
+    parseGitignore:parseGitignore, isIgnored:isIgnored, isDefaultIgnored:isDefaultIgnored, isBinaryExt:isBinaryExt,
+    buildTree:buildTree, renderTree:renderTree,
+    buildPackMarkdown:buildPackMarkdown, buildPackXml:buildPackXml, buildPackJson:buildPackJson
+  };
+}
+
+/* ============================================================
+   以下为浏览器 UI 逻辑（仅浏览器执行）
+   ============================================================ */
+function initApp(){
+  var $ = function(s){ return document.querySelector(s); };
+  var state = { files:[], model: MODELS[0], theme: 'dark', modelQuery:'', modelSort:'cost' };
+
+  /* 主题 */
+  var saved = null;
+  try { saved = localStorage.getItem('cl_theme'); } catch(e){}
+  if (saved) { state.theme = saved; document.documentElement.setAttribute('data-theme', saved); }
+  function syncThemeIcon(){ $('#themeBtn').textContent = state.theme === 'dark' ? '🌙' : '☀️'; }
+  syncThemeIcon();
+  $('#themeBtn').addEventListener('click', function(){
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', state.theme);
+    try { localStorage.setItem('cl_theme', state.theme); } catch(e){}
+    syncThemeIcon();
+  });
+
+  /* toast */
+  var toastT;
+  function toast(msg){
+    var t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+
+  /* tabs */
+  document.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+      document.querySelectorAll('.tabpane').forEach(function(p){p.classList.remove('active');});
+      tab.classList.add('active');
+      document.querySelector('.tabpane[data-pane="'+tab.dataset.tab+'"]').classList.add('active');
+    });
+  });
+
+  /* 拖拽 */
+  var drop = $('#drop'), input = $('#folderInput');
+  drop.addEventListener('click', function(){ input.click(); });
+  ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('drag'); }); });
+  ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('drag'); }); });
+  drop.addEventListener('drop', function(e){ if (e.dataTransfer && e.dataTransfer.files) handleFileList(e.dataTransfer.files); });
+  input.addEventListener('change', function(){ if (input.files) handleFileList(input.files); });
+  /* 全局阻止拖拽时浏览器直接打开文件（落在 drop 区外也只是忽略，不会打开） */
+  ['dragover','drop'].forEach(function(ev){ window.addEventListener(ev, function(e){ e.preventDefault(); }); });
+
+  $('#analyzeBtn').addEventListener('click', function(){
+    var txt = $('#pasteArea').value || '';
+    if (!txt.trim()) { toast('请先粘贴文本'); return; }
+    var prof = profileAuto(txt, '');
+    var f = { path:'pasted.txt', name:'pasted.txt', ext:'txt', size:txt.length, content:txt, tokens:estimateTokens(txt, prof), included:true, profile:prof };
+    state.files = [f];
+    render();
+  });
+
+  $('#resetBtn').addEventListener('click', function(){ state.files = []; $('#dash').style.display='none'; $('#pasteArea').value=''; input.value=''; });
+
+  /* 导出按钮 */
+  document.querySelectorAll('[data-fmt]').forEach(function(b){
+    b.addEventListener('click', function(){ download(b.dataset.fmt); });
+  });
+  $('#copyMd').addEventListener('click', function(){
+    if (!state.files.some(function(f){return f.included;})) { toast('没有可复制的有效文件'); return; }
+    var md = buildPackMarkdown(state.files);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(md).then(function(){ toast('已复制 Markdown 到剪贴板'); }, function(){ toast('复制失败，请手动导出'); });
+    else toast('当前环境不支持剪贴板');
+  });
+
+  /* 解析文件夹 */
+  var MAX_FILE = 600 * 1024;
+  function shouldSkip(rel, ext){
+    if (isDefaultIgnored(rel)) return true;
+    return false;
+  }
+  function handleFileList(list){
+    var all = Array.from(list).map(function(f){
+      return { rel: (f.webkitRelativePath || f.name), file: f, size: f.size };
+    });
+    var gi = all.find(function(a){ return a.rel.replace(/^.*\//,'') === '.gitignore'; });
+    var prog = $('#prog'); prog.style.display='block'; var bar = prog.querySelector('i');
+    var files = []; var done = 0;
+    var start = function(patterns){
+      var kept = all.filter(function(a){
+        if (isDefaultIgnored(a.rel)) return false;
+        if (patterns.length && isIgnored(a.rel, patterns)) return false;
+        return true;
+      });
+      var step = function(){
+        if (done >= kept.length){
+          state.files = files;
+          prog.style.display='none'; bar.style.width='0%';
+          if (!files.length) { toast('没有可分析的文本文件（可能全是忽略项/二进制）'); }
+          render();
+          return;
+        }
+        var a = kept[done];
+        var ext = getExt(a.rel);
+        if (isBinaryExt(ext) || a.size > MAX_FILE){
+          files.push({ path:a.rel, name:a.rel.split('/').pop(), ext:ext, size:a.size, content:'', tokens:0, included:false, skipped:true });
+          done++; bar.style.width = Math.round(done/kept.length*100)+'%'; setTimeout(step, 0); return;
+        }
+        a.file.text().then(function(text){
+          var prof = profileForExt(ext);
+          files.push({ path:a.rel, name:a.rel.split('/').pop(), ext:ext, size:a.size, content:text, tokens:estimateTokens(text, prof), included:true, profile:prof });
+          done++; bar.style.width = Math.round(done/kept.length*100)+'%'; setTimeout(step, 0);
+        }).catch(function(){
+          files.push({ path:a.rel, name:a.rel.split('/').pop(), ext:ext, size:a.size, content:'', tokens:0, included:false, skipped:true });
+          done++; bar.style.width = Math.round(done/kept.length*100)+'%'; setTimeout(step, 0);
+        });
+      };
+      if (!kept.length){ state.files=[]; prog.style.display='none'; toast('没有任何可分析的文本文件'); return; }
+      step();
+    };
+    if (gi) gi.file.text().then(function(t){ start(parseGitignore(t)); }).catch(function(){ start([]); });
+    else start([]);
+  }
+
+  /* 渲染 */
+  function includedTokens(){ return state.files.filter(function(f){return f.included;}).reduce(function(s,f){return s+f.tokens;},0); }
+  function render(){
+    if (!state.files.length) return;
+    $('#dash').style.display='block';
+    var inc = state.files.filter(function(f){return f.included;});
+    var total = inc.reduce(function(s,f){return s+f.tokens;},0);
+    var skipped = state.files.filter(function(f){return f.skipped;}).length;
+
+    /* stats */
+    $('#stats').innerHTML =
+      stat('文件数', state.files.length + (skipped? ' <small>('+skipped+' 跳过)</small>':'')) +
+      stat('有效 token', fmt(total)) +
+      stat('估算输入成本', '$' + costFor(state.model, total).toFixed(4) + ' <small>'+state.model.name+'</small>') +
+      stat('平均/文件', fmt(Math.round(total/Math.max(1,inc.length))) );
+
+    /* gauge */
+    renderGauge(total);
+    /* model select */
+    var sel = $('#modelSel');
+    if (!sel.options.length){
+      MODELS.forEach(function(m, i){ var o=document.createElement('option'); o.value=i; o.textContent=m.name; sel.appendChild(o); });
+      sel.addEventListener('change', function(){ state.model = MODELS[+sel.value]; render(); });
+    }
+    sel.value = MODELS.indexOf(state.model);
+    /* model search / sort (bind once) */
+    var ms = $('#modelSearch');
+    if (ms && !ms.dataset.bound){
+      ms.dataset.bound = '1';
+      ms.addEventListener('input', function(){ state.modelQuery = ms.value; renderCompare(includedTokens()); });
+      $('#modelSort').addEventListener('change', function(){ state.modelSort = $('#modelSort').value; renderCompare(includedTokens()); });
+    }
+    /* file list */
+    renderFiles(inc);
+    /* model compare */
+    renderCompare(total);
+  }
+  function stat(k,v){ return '<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>'; }
+  function fmt(n){ return n>=1e6 ? (n/1e6).toFixed(2)+'M' : n>=1e3 ? (n/1e3).toFixed(1)+'k' : ''+n; }
+
+  function renderGauge(total){
+    var m = state.model, pct = Math.min(100, Math.round(total/m.ctx*100));
+    var ring = $('#ring');
+    ring.style.setProperty('--p', String(pct));
+    ring.classList.toggle('over', total > m.ctx);
+    $('#ringPct').textContent = pct + '%';
+    $('#ringTok').textContent = fmt(total) + ' tok';
+    $('#ctxMax').textContent = fmt(m.ctx);
+    $('#ctxUsed').textContent = fmt(total);
+    $('#ctxWarn').textContent = total > m.ctx ? '⚠ 超出上下文窗口，建议精简或换更大窗口模型' : '';
+  }
+
+  function renderFiles(inc){
+    var sorted = inc.slice().sort(function(a,b){return b.tokens-a.tokens;});
+    var max = sorted.length ? sorted[0].tokens : 1;
+    var html = '';
+    var LIMIT = 250;
+    sorted.slice(0, LIMIT).forEach(function(f){
+      var pct = Math.max(2, Math.round(f.tokens/max*100));
+      html += '<div class="fileitem"><input type="checkbox" '+(f.included?'checked':'')+' data-idx="'+state.files.indexOf(f)+'">'+
+        '<div class="fname" title="'+esc(f.path)+'">'+esc(f.path)+'</div>'+
+        '<div class="fbar"><i style="width:'+pct+'%"></i></div>'+
+        '<div class="ftok">'+fmt(f.tokens)+'</div></div>';
+    });
+    if (sorted.length > LIMIT) html += '<div class="more">… 还有 '+(sorted.length-LIMIT)+' 个文件（按 token 较小的未展示）</div>';
+    if (!sorted.length) html = '<div class="more">没有可统计的文本文件</div>';
+    var box = $('#fileList'); box.innerHTML = html;
+    box.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        var f = state.files[+cb.dataset.idx];
+        if (f){ f.included = cb.checked; render(); }
+      });
+    });
+  }
+  function esc(s){ return (s||'').replace(/[<>&"]/g, function(c){return c==='<'?'&lt;':c==='>'?'&gt;':c==='&'?'&amp;':'&quot;';}); }
+
+  function renderCompare(total){
+    var q = (state.modelQuery||'').toLowerCase();
+    var rows = MODELS
+      .filter(function(m){ return !q || modelHay(m).indexOf(q) >= 0; })
+      .map(function(m){ return {m:m, cost:costFor(m, total)}; });
+    if (state.modelSort === 'ctx') rows.sort(function(a,b){ return b.m.ctx - a.m.ctx; });
+    else if (state.modelSort === 'name') rows.sort(function(a,b){ return a.m.name.localeCompare(b.m.name); });
+    else rows.sort(function(a,b){ return a.cost - b.cost; });
+    if (!rows.length){ $('#mlist').innerHTML = '<div class="more">没有匹配的模型</div>'; return; }
+    var best = rows[0];
+    var html = '';
+    rows.forEach(function(r){
+      var sel = r.m.id === state.model.id ? ' sel' : '';
+      var bcost = r.cost === best.cost ? ' best' : '';
+      html += '<div class="mrow'+sel+'" data-id="'+r.m.id+'">'+
+        '<div class="mn">'+esc(r.m.name)+(r.m.id===state.model.id?' ✓':'')+'</div>'+
+        '<div class="mc'+bcost+'">$'+r.cost.toFixed(4)+'</div>'+
+        '<div class="mctx">'+fmt(r.m.ctx)+'</div>'+
+        '<div class="mprice">$'+r.m.in+'/M</div>'+
+        '</div>';
+    });
+    var box = $('#mlist'); box.innerHTML = html;
+    box.querySelectorAll('.mrow').forEach(function(row){
+      row.addEventListener('click', function(){
+        var m = MODELS.find(function(x){return x.id===row.dataset.id;});
+        if (m){ state.model = m; render(); }
+      });
+    });
+  }
+
+  function download(fmtType){
+    var content, name;
+    if (fmtType==='md'){ content = buildPackMarkdown(state.files); name='context-pack.md'; }
+    else if (fmtType==='xml'){ content = buildPackXml(state.files); name='context-pack.xml'; }
+    else { content = buildPackJson(state.files); name='context-pack.json'; }
+    if (!state.files.some(function(f){return f.included;})) { toast('没有可导出的有效文件'); return; }
+    var blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 100);
+    toast('已导出 '+name);
+  }
+}
+
+if (typeof document !== 'undefined'){
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp);
+  else initApp();
+}
+</script>
+
+<footer id="nt-foot">
+<style>
+  .nt-foot{position:relative;z-index:2;margin-top:56px;border-top:1px solid rgba(255,255,255,.08);background:#0A0A0B;color:#71717A;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6}
+  .nt-foot *{box-sizing:border-box}
+  .nt-foot a{text-decoration:none}
+  .nt-in{max-width:1080px;margin:0 auto;padding:34px 24px 30px}
+  .nt-row{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .nt-id{min-width:0}
+  .nt-brand{display:flex;align-items:center;gap:10px;font-weight:700;color:#fff;font-size:15px;letter-spacing:-.02em}
+  .nt-brand .mk{width:26px;height:26px;border-radius:7px;background:#5E6AD2;display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px}
+  .nt-tag{margin-top:4px;color:#71717A;font-size:12.5px}
+  .nt-cta{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:9px;background:#5E6AD2;color:#fff;font-weight:600;font-size:13.5px;border:1px solid #5E6AD2;transition:transform .18s ease,background .2s ease,box-shadow .2s ease}
+  .nt-cta:hover{transform:translateY(-1px);background:#7C84E8;box-shadow:0 6px 20px rgba(94,106,210,.3)}
+  .nt-sep{height:1px;background:rgba(255,255,255,.08);margin:22px 0 16px}
+  .nt-rel{display:flex;flex-wrap:wrap;gap:8px}
+  .nt-rel a{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:#141417;border:1px solid rgba(255,255,255,.08);color:#A1A1AA;font-size:12.5px;font-weight:600;transition:all .18s ease}
+  .nt-rel a:hover{border-color:#5E6AD2;color:#fff}
+  .nt-cur{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(94,106,210,.12);border:1px solid #5E6AD2;color:#fff;font-size:12.5px;font-weight:700}
+  .nt-meta{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#71717A;font-size:12px}
+  .nt-meta a{color:#A1A1AA;border-bottom:1px dashed rgba(255,255,255,.08)}
+  .nt-meta a:hover{color:#5E6AD2}
+  @media(max-width:560px){.nt-row{flex-direction:column;align-items:flex-start}.nt-cta{width:100%;justify-content:center}}
+</style>
+<div class="nt-in">
+  <div class="nt-row">
+    <div class="nt-id">
+      <div class="nt-brand"><span class="mk">n</span> nano-tools</div>
+      <div class="nt-tag">单文件 · 零依赖 · 本地优先的开发者工具集</div>
+    </div>
+    <a class="nt-cta" href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">浏览全部 328 款工具 &rarr;</a>
+  </div>
+  <div class="nt-sep"></div>
+  <div class="nt-rel">
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BaseForge/" target="_blank" rel="noopener">BaseForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BoxKit/" target="_blank" rel="noopener">BoxKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CSSKit/" target="_blank" rel="noopener">CSSKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Chartify/" target="_blank" rel="noopener">Chartify</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ColorForge/" target="_blank" rel="noopener">ColorForge</a>
+      <span class="nt-cur">ContextLens &middot; 当前</span>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronForge/" target="_blank" rel="noopener">CronForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronText/" target="_blank" rel="noopener">CronText</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DataForge/" target="_blank" rel="noopener">DataForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DiffLens/" target="_blank" rel="noopener">DiffLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Graphite/" target="_blank" rel="noopener">Graphite</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/HashKit/" target="_blank" rel="noopener">HashKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/IconForge/" target="_blank" rel="noopener">IconForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Inkwell/" target="_blank" rel="noopener">Inkwell</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/JsonForge/" target="_blank" rel="noopener">JsonForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MarkForge/" target="_blank" rel="noopener">MarkForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MockForge/" target="_blank" rel="noopener">MockForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PalettePro/" target="_blank" rel="noopener">PalettePro</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PassForge/" target="_blank" rel="noopener">PassForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RESTKit/" target="_blank" rel="noopener">RESTKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RegexLab/" target="_blank" rel="noopener">RegexLab</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SVGForge/" target="_blank" rel="noopener">SVGForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SnapCompress/" target="_blank" rel="noopener">SnapCompress</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/UniConvert/" target="_blank" rel="noopener">UniConvert</a>
+  </div>
+  <div class="nt-meta">
+    <span>&copy; <span id="nt-yr"></span> nano-tools &middot; 由 HTML5 + 原生 JS 构建 &middot; 零依赖</span>
+    <span><a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> &middot; <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/ContextLens" target="_blank" rel="noopener">本工具源码</a></span>
+  </div>
+</div>
+<script>
+(function(){var y=document.getElementById('nt-yr');if(y)y.textContent=new Date().getFullYear();})();
+</script>
+</footer>
+
+<!-- nano-i18n:end -->
+
+
+
+
+
+<!-- nano-i18n:start -->
+<script>
+window.NANO_I18N_EXTRA = {
+  "ContextLens · 本地优先的 LLM 上下文与成本可视化器":"ContextLens · Local-first LLM Context & Cost Visualizer"
+};
+/* NANO_I18N_RUNTIME */
+(function(){
+  // nano-tools 通用双语运行时：翻译可见 UI 文本（按钮/标签/标题/hero），不入脚本/样式/输入区。
+  var COMMON = {
+    "复制":"Copy","复制结果":"Copy result","复制链接":"Copy link","复制代码":"Copy code",
+    "清空":"Clear","清除":"Clear","清除全部":"Clear all","清空全部":"Clear all",
+    "粘贴":"Paste","生成":"Generate","运行":"Run","执行":"Run","停止":"Stop","暂停":"Pause",
+    "继续":"Resume","重试":"Retry","格式化":"Format","压缩":"Minify","美化":"Beautify","压缩美化":"Minify",
+    "导出":"Export","导入":"Import","保存":"Save","删除":"Delete","移除":"Remove","添加":"Add",
+    "重置":"Reset","还原":"Reset","搜索":"Search","提交":"Submit","取消":"Cancel","确定":"OK",
+    "确认":"Confirm","关闭":"Close","输入":"Input","输出":"Output","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","名称":"Name","值":"Value","类型":"Type",
+    "大小":"Size","数量":"Count","颜色":"Color","文本":"Text","内容":"Content","编码":"Encode",
+    "解码":"Decode","加密":"Encrypt","解密":"Decrypt","校验":"Verify","计算":"Calculate",
+    "转换":"Convert","上传":"Upload","下载":"Download","全选":"Select all","折叠":"Collapse",
+    "展开":"Expand","开始":"Start","帮助":"Help","关于":"About","更多":"More","更少":"Less",
+    "示例":"Example","随机":"Random","全部":"All","中文":"中文","English":"English","浅色":"Light",
+    "深色":"Dark","亮色":"Light","暗色":"Dark","复制成功":"Copied","已复制":"Copied",
+    "加载中":"Loading…","暂无数据":"No data","请输入":"Please enter","或":"or","拖拽":"Drag",
+    "拖到此处":"Drop here","选择文件":"Choose file","字数":"Words","字符":"Characters",
+    "行数":"Lines","用时":"Time","耗时":"Elapsed","共":"Total","项":"items","条":"items",
+    "历史":"History","清空历史":"Clear history","复制结果":"Copy result","复制":"Copy",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh","应用":"Apply",
+    "不区分大小写":"Case-insensitive","忽略空白":"Ignore whitespace","换行":"Line break",
+    "正则表达式":"Regex","模式":"Mode","选项":"Options","高级":"Advanced","基础":"Basic",
+    "开启":"On","关闭":"Off","启用":"Enable","禁用":"Disable","显示":"Show","隐藏":"Hide",
+    "复制 SVG":"Copy SVG","下载 SVG":"Download SVG","复制 PNG":"Copy PNG","下载 PNG":"Download PNG",
+    "复制 CSS":"Copy CSS","复制 URL":"Copy URL","复制到剪贴板":"Copy to clipboard",
+    "已保存到本地":"Saved locally","解析中":"Parsing…","分析中":"Analyzing…","生成中":"Generating…",
+    "请选择":"Please select","请先":"Please first","不支持":"Not supported","错误":"Error",
+    "成功":"Success","失败":"Failed","完成":"Done","下一步":"Next","上一步":"Previous",
+    "当前":"Current","总计":"Total","平均":"Average","最大":"Max","最小":"Min",
+    "字符数":"Chars","词数":"Words","句数":"Sentences","段落":"Paragraphs",
+    "浅色模式":"Light mode","深色模式":"Dark mode","切换主题":"Toggle theme","切换语言":"Switch language",
+    "打开文件":"Open file","保存文件":"Save file","导出文件":"Export file","导入文件":"Import file",
+    "复制全部":"Copy all","清除结果":"Clear result","清空结果":"Clear result",
+    "全屏":"Fullscreen","退出全屏":"Exit fullscreen","适应屏幕":"Fit screen","缩放":"Zoom",
+    "放大":"Zoom in","缩小":"Zoom out","重置视图":"Reset view","居中":"Center",
+    "添加节点":"Add node","删除节点":"Delete node","添加连线":"Add edge","删除连线":"Delete edge",
+    "自动布局":"Auto layout","适应视图":"Fit view","导出 JSON":"Export JSON","导出 Markdown":"Export Markdown",
+    "开始分析":"Start analysis","停止分析":"Stop analysis","分析文件夹":"Analyze folder",
+    "拖拽文件夹到此处":"Drop a folder here","或点击选择":"or click to choose","粘贴文本":"Paste text",
+    "复制结果":"Copy result","复制代码":"Copy code"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p = node.parentElement;
+    while(p){
+      var t = p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  var current = 'zh';
+  function applyLang(lang){
+    var d = full();
+    var root = document.documentElement;
+    current = lang;
+    // 翻译 <title>（浏览器标签 / 分享卡片）
+    var rawTitle = document.title;
+    if(lang==='en'){
+      if(d[rawTitle]) document.title = d[rawTitle];
+    } else {
+      var ex = window.NANO_I18N_EXTRA || {};
+      for(var _k in ex){ if(ex[_k] === rawTitle){ document.title = _k; break; } }
+    }
+    if(lang==='en'){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n = w.nextNode()){ n.__zh = n.nodeValue; n.nodeValue = d[n.nodeValue.trim()]; }
+      // 整元素翻译（hero 含子结构，如彩色词 <span>）
+      var els = root.querySelectorAll('[data-i18n-html]');
+      for(var ei=0; ei<els.length; ei++){ var el=els[ei]; if(el.__zhtml===undefined){ el.__zhtml = el.innerHTML; } el.innerHTML = el.getAttribute('data-i18n-html'); }
+    } else {
+      var w2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m = w2.nextNode()){ m.nodeValue = m.__zh; m.__zh = undefined; }
+      // 还原整元素翻译
+      var els2 = root.querySelectorAll('[data-i18n-html]');
+      for(var ej=0; ej<els2.length; ej++){ var el2=els2[ej]; if(el2.__zhtml!==undefined){ el2.innerHTML = el2.__zhtml; el2.__zhtml = undefined; } }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en' ? 'zh' : 'en');
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand = document.createElement('a');
+    brand.id = 'nano-brand';
+    brand.href = 'https://wangzifan396-wzf.github.io/WB/';
+    brand.target = '_blank';
+    brand.rel = 'noopener';
+    brand.textContent = 'nano·tools';
+    brand.title = 'nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter = function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave = function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b = document.createElement('button');
+    b.id = 'nano-lang-btn';
+    b.title = 'Switch language / 切换语言';
+    b.textContent = 'EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter = function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave = function(){ b.style.transform='none'; };
+    b.onclick = toggle;
+    bar.appendChild(brand);
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved = localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved = ((navigator.language||'zh').slice(0,2).toLowerCase()==='en') ? 'en' : 'zh'; }
+    applyLang(saved);
+    mountBtn();
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (saved==='en'?'中':'EN');
+    // 捕获渲染后注入的静态文本（动态节点）
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+
+</script>
+<!-- nano-i18n:end -->
+</body>
+</html>

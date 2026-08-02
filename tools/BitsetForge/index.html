@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>BitsetForge — 位集合 Bitset：置位 / 位运算 / 汉明权重，定长零依赖</title>
+<meta property="og:title" content="BitsetForge">
+<meta property="og:description" content="位集合 Bitset：置位 / 位运算 / 汉明权重，定长零依赖">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="位集合 Bitset：置位 / 位运算 / 汉明权重，定长零依赖 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>BitsetForge</h1>
+  <p class="sub">位集合 Bitset：置位 / 位运算 / 汉明权重，定长零依赖 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>位数 N</label>
+<input id="n" type="number" value="33" min="1" max="1024">
+<label>操作序列（每行：set i | clear i | flip i | count）</label>
+<textarea id="ops" rows="6">set 0
+set 32
+count
+set 5
+count</textarea>
+<div class="row">
+  <button id="run">运行</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">运行位集合操作，观察置位与计数</div>
+<script>
+function bitsetCreate(n){
+  var words=Math.ceil(n/32)||1;
+  var arr=new Array(words); for(var i=0;i<words;i++) arr[i]=0;
+  return {n:n, words:words, arr:arr};
+}
+function bitsetSet(bs,i){
+  if(i<0||i>=bs.n) throw new Error('BIT_OUT_OF_RANGE');
+  var w=(i/32)|0, b=i%32; bs.arr[w]|=(1<<b);
+}
+function bitsetClear(bs,i){
+  if(i<0||i>=bs.n) throw new Error('BIT_OUT_OF_RANGE');
+  var w=(i/32)|0, b=i%32; bs.arr[w]&=~(1<<b);
+}
+function bitsetGet(bs,i){
+  if(i<0||i>=bs.n) throw new Error('BIT_OUT_OF_RANGE');
+  var w=(i/32)|0, b=i%32; return (bs.arr[w]>>b)&1;
+}
+function bitsetFlip(bs,i){
+  if(i<0||i>=bs.n) throw new Error('BIT_OUT_OF_RANGE');
+  var w=(i/32)|0, b=i%32; bs.arr[w]^=(1<<b);
+}
+function bitsetCount(bs){
+  var c=0; for(var i=0;i<bs.words;i++){ var v=bs.arr[i]; while(v){ v&=v-1; c++; } }
+  return c;
+}
+function bitsetOp(a,b,op){
+  if(a.n!==b.n) throw new Error('BITSET_SIZE_MISMATCH');
+  var r=bitsetCreate(a.n);
+  for(var i=0;i<a.words;i++){ r.arr[i]=(op(a.arr[i], b.arr[i]))>>>0; }
+  return r;
+}
+function bitsetOr(a,b){ return bitsetOp(a,b,function(x,y){return x|y;}); }
+function bitsetAnd(a,b){ return bitsetOp(a,b,function(x,y){return x&y;}); }
+function bitsetXor(a,b){ return bitsetOp(a,b,function(x,y){return x^y;}); }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { bitsetCreate:bitsetCreate, bitsetSet:bitsetSet, bitsetClear:bitsetClear, bitsetGet:bitsetGet, bitsetFlip:bitsetFlip, bitsetCount:bitsetCount, bitsetOr:bitsetOr, bitsetAnd:bitsetAnd, bitsetXor:bitsetXor };
+}
+if (typeof window !== 'undefined') {
+  window.BitsetForgePure = { bitsetCreate:bitsetCreate, bitsetSet:bitsetSet, bitsetClear:bitsetClear, bitsetGet:bitsetGet, bitsetFlip:bitsetFlip, bitsetCount:bitsetCount, bitsetOr:bitsetOr, bitsetAnd:bitsetAnd, bitsetXor:bitsetXor };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.BitsetForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      try {
+        var bs=P.bitsetCreate(parseInt($('n').value,10)||32); var log=[];
+        var lines=$('ops').value.split(/[\n]+/).map(function(x){return x.trim();}).filter(function(x){return x.length;});
+        for(var i=0;i<lines.length;i++){
+          var tk=lines[i].split(/\s+/);
+          if(tk[0]==='set'){ P.bitsetSet(bs, +tk[1]); }
+          else if(tk[0]==='clear'){ P.bitsetClear(bs, +tk[1]); }
+          else if(tk[0]==='flip'){ P.bitsetFlip(bs, +tk[1]); }
+          else if(tk[0]==='get'){ log.push('get '+tk[1]+' = '+P.bitsetGet(bs, +tk[1])); continue; }
+          else if(tk[0]==='count'){ log.push('count = '+P.bitsetCount(bs)); continue; }
+          log.push(tk[0]+' '+tk[1]+' -> count '+P.bitsetCount(bs));
+        }
+        $('out').textContent=log.join('\n');
+      } catch(e){ $('err').textContent=e.message; }
+    });
+    $('clear').addEventListener('click', function(){ $('ops').value=''; $('out').textContent='运行位集合操作，观察置位与计数'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

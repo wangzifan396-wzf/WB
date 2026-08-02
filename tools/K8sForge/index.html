@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>K8sForge — Kubernetes 清单生成器：Deployment / Service / Ingress / ConfigMap / Secret / HPA / PVC 一键产出合规 YAML，并做命名与配置体检。</title>
+<meta property="og:title" content="K8sForge">
+<meta property="og:description" content="Kubernetes 清单生成与体检，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Kubernetes 清单生成与体检，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>K8sForge</h1>
+  <p class="sub">云原生工具：选资源类型填名称/镜像/端口即生成 apps/v1、v1、networking.k8s.io/v1、autoscaling/v2 合规清单，Secret 值自动 base64，一键导出 Deploy+Svc+Ingress 全套，并提示镜像未带 tag、副本越界等风险 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="k8kind">资源类型</label>
+  <select id="k8kind">
+    <option value="deployment">Deployment</option>
+    <option value="service">Service</option>
+    <option value="configmap">ConfigMap</option>
+    <option value="secret">Secret</option>
+    <option value="ingress">Ingress</option>
+    <option value="hpa">HorizontalPodAutoscaler</option>
+    <option value="pvc">PersistentVolumeClaim</option>
+  </select>
+  <div class="grid">
+    <div><label for="k8name">名称</label><input type="text" id="k8name" value="web-app"></div>
+    <div><label for="k8ns">命名空间</label><input type="text" id="k8ns" value="default"></div>
+  </div>
+  <div class="grid">
+    <div><label for="k8image">镜像 image</label><input type="text" id="k8image" value="nginx:1.25"></div>
+    <div><label for="k8port">端口 port</label><input type="text" id="k8port" value="80"></div>
+  </div>
+  <div class="grid">
+    <div><label for="k8replicas">副本数 replicas</label><input type="text" id="k8replicas" value="3"></div>
+    <div><label for="k8host">Ingress host（仅 ingress）</label><input type="text" id="k8host" value="example.com"></div>
+  </div>
+  <div class="row">
+    <button id="k8gen">生成 YAML + 体检</button>
+    <button id="k8multi" class="ghost">一键全套（Deploy+Svc+Ingress）</button>
+  </div>
+  <div class="err" id="k8err"></div>
+  <div class="out" id="k8out"><pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">kind: Deployment</pre></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function utf8Bytes(s){
+  var out=[]; s=String(s==null?'':s);
+  for(var i=0;i<s.length;i++){
+    var c=s.charCodeAt(i);
+    if(c<0x80) out.push(c);
+    else if(c<0x800) out.push(0xC0|(c>>6),0x80|(c&63));
+    else if(c<0xD800||c>=0xE000) out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63));
+    else { i++; var c2=s.charCodeAt(i); var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);
+      out.push(0xF0|(cp>>18),0x80|((cp>>12)&63),0x80|((cp>>6)&63),0x80|(cp&63)); }
+  }
+  return out;
+}
+var B64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function b64encodeBytes(bytes){
+  var out='', i;
+  for(i=0;i+2<bytes.length;i+=3){
+    var n=(bytes[i]<<16)|(bytes[i+1]<<8)|bytes[i+2];
+    out+=B64[(n>>18)&63]+B64[(n>>12)&63]+B64[(n>>6)&63]+B64[n&63];
+  }
+  var rem=bytes.length-i;
+  if(rem===1){ var a=bytes[i]<<16; out+=B64[(a>>18)&63]+B64[(a>>12)&63]+'=='; }
+  else if(rem===2){ var b=(bytes[i]<<16)|(bytes[i+1]<<8); out+=B64[(b>>18)&63]+B64[(b>>12)&63]+B64[(b>>6)&63]+'='; }
+  return out;
+}
+function b64(s){ return b64encodeBytes(utf8Bytes(s==null?'':s)); }
+
+function sanitizeName(s){
+  var t=String(s==null?'':s).toLowerCase().trim();
+  t=t.replace(/[^a-z0-9.\-]/g,'-');
+  t=t.replace(/-+/g,'-').replace(/^-+/,'').replace(/-+$/,'');
+  t=t.slice(0,63);
+  return t;
+}
+function isValidName(s){ return /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(String(s==null?'':s)) && String(s).length<=63; }
+
+function indent(lines, pad){ return lines.map(function(l){ return l==='' ? '' : pad+l; }).join('\n'); }
+
+function genDeployment(o){
+  o=o||{};
+  var name=sanitizeName(o.name||'app');
+  var replicas=o.replicas==null?1:parseInt(o.replicas,10);
+  if(!isFinite(replicas)||replicas<0) replicas=1;
+  var img=o.image||'nginx:latest';
+  var port=o.port==null?80:parseInt(o.port,10);
+  if(!isFinite(port)||port<1||port>65535) port=80;
+  var cpu=o.cpu||'100m', mem=o.mem||'128Mi', ns=o.namespace||'default';
+  var L=[];
+  L.push('apiVersion: apps/v1');
+  L.push('kind: Deployment');
+  L.push('metadata:');
+  L.push('  name: '+name);
+  L.push('  namespace: '+ns);
+  L.push('spec:');
+  L.push('  replicas: '+replicas);
+  L.push('  selector:');
+  L.push('    matchLabels:');
+  L.push('      app: '+name);
+  L.push('  template:');
+  L.push('    metadata:');
+  L.push('      labels:');
+  L.push('        app: '+name);
+  L.push('    spec:');
+  L.push('      containers:');
+  L.push('      - name: '+name);
+  L.push('        image: '+img);
+  if(o.imagePullPolicy) L.push('        imagePullPolicy: '+o.imagePullPolicy);
+  L.push('        ports:');
+  L.push('        - containerPort: '+port);
+  L.push('        resources:');
+  L.push('          requests:');
+  L.push('            cpu: '+cpu);
+  L.push('            memory: '+mem);
+  if(o.env && o.env.length){
+    L.push('        env:');
+    o.env.forEach(function(e){ L.push('        - name: '+e.name+'');
+      if(e.value!=null) L.push('          value: '+JSON.stringify(String(e.value))); });
+  }
+  return L.join('\n');
+}
+
+function genService(o){
+  o=o||{};
+  var name=sanitizeName(o.name||'app');
+  var port=o.port==null?80:parseInt(o.port,10);
+  var targetPort=o.targetPort==null?port:parseInt(o.targetPort,10);
+  var ns=o.namespace||'default', typ=o.type||'ClusterIP';
+  var L=[];
+  L.push('apiVersion: v1');
+  L.push('kind: Service');
+  L.push('metadata:');
+  L.push('  name: '+name);
+  L.push('  namespace: '+ns);
+  L.push('spec:');
+  L.push('  type: '+typ);
+  L.push('  selector:');
+  L.push('    app: '+name);
+  L.push('  ports:');
+  L.push('  - port: '+port);
+  L.push('    targetPort: '+targetPort);
+  L.push('    protocol: TCP');
+  return L.join('\n');
+}
+
+function genConfigMap(o){
+  o=o||{};
+  var name=sanitizeName(o.name||'config');
+  var ns=o.namespace||'default';
+  var L=[];
+  L.push('apiVersion: v1');
+  L.push('kind: ConfigMap');
+  L.push('metadata:');
+  L.push('  name: '+name);
+  L.push('  namespace: '+ns);
+  L.push('data:');
+  var keys=o.data||{};
+  Object.keys(keys).forEach(function(k){ L.push('  '+k+': '+JSON.stringify(String(keys[k]))); });
+  if(!Object.keys(keys).length) L.push('  example: "value"');
+  return L.join('\n');
+}
+
+function genSecret(o){
+  o=o||{};
+  var name=sanitizeName(o.name||'secret');
+  var ns=o.namespace||'default';
+  var L=[];
+  L.push('apiVersion: v1');
+  L.push('kind: Secret');
+  L.push('metadata:');
+  L.push('  name: '+name);
+  L.push('  namespace: '+ns);
+  L.push('type: Opaque');
+  L.push('data:');
+  var keys=o.data||{};
+  Object.keys(keys).forEach(function(k){ L.push('  '+k+': '+b64(keys[k])); });
+  if(!Object.keys(keys).length) L.push('  token: '+b64('change-me'));
+  return L.join('\n');
+}
+
+function genIngress(o){
+  o=o||{};
+  var name=sanitizeName(o.name||'ingress');
+  var ns=o.namespace||'default';
+  var host=o.host||'example.com';
+  var svc=o.service||sanitizeName(o.name||'app');
+  var port=o.port==null?80:parseInt(o.port,10);
+  var L=[];
+  L.push('apiVersion: networking.k8s.io/v1');
+  L.push('kind: Ingress');
+  L.push('metadata:');
+  L.push('  name: '+name);
+  L.push('  namespace: '+ns);
+  L.push('spec:');
+  L.push('  rules:');
+  L.push('  - host: '+host);
+  L.push('    http:');
+  L.push('      paths:');
+  L.push('      - path: /');
+  L.push('        pathType: Prefix');
+  L.push('        backend:');
+  L.push('          service:');
+  L.push('            name: '+svc);
+  L.push('            port:');
+  L.push('              number: '+port);
+  return L.join('\n');
+}
+
+function genHPA(o){
+  o=o||{};
+  var name=sanitizeName(o.name||'app');
+  var ns=o.namespace||'default';
+  var min=o.minReplicas==null?2:parseInt(o.minReplicas,10);
+  var max=o.maxReplicas==null?10:parseInt(o.maxReplicas,10);
+  var cpu=o.cpuUtilization==null?80:parseInt(o.cpuUtilization,10);
+  var L=[];
+  L.push('apiVersion: autoscaling/v2');
+  L.push('kind: HorizontalPodAutoscaler');
+  L.push('metadata:');
+  L.push('  name: '+name);
+  L.push('  namespace: '+ns);
+  L.push('spec:');
+  L.push('  scaleTargetRef:');
+  L.push('    apiVersion: apps/v1');
+  L.push('    kind: Deployment');
+  L.push('    name: '+name);
+  L.push('  minReplicas: '+min);
+  L.push('  maxReplicas: '+max);
+  L.push('  metrics:');
+  L.push('  - type: Resource');
+  L.push('    resource:');
+  L.push('      name: cpu');
+  L.push('      target:');
+  L.push('        type: Utilization');
+  L.push('        averageUtilization: '+cpu);
+  return L.join('\n');
+}
+
+function genPVC(o){
+  o=o||{};
+  var name=sanitizeName(o.name||'data');
+  var ns=o.namespace||'default';
+  var size=o.size||'1Gi';
+  var L=[];
+  L.push('apiVersion: v1');
+  L.push('kind: PersistentVolumeClaim');
+  L.push('metadata:');
+  L.push('  name: '+name);
+  L.push('  namespace: '+ns);
+  L.push('spec:');
+  L.push('  accessModes:');
+  L.push('    - ReadWriteOnce');
+  L.push('  resources:');
+  L.push('    requests:');
+  L.push('      storage: '+size);
+  return L.join('\n');
+}
+
+var KIND_BUILDERS = {
+  deployment: genDeployment, service: genService, configmap: genConfigMap,
+  secret: genSecret, ingress: genIngress, hpa: genHPA, pvc: genPVC
+};
+
+function buildKind(opt){
+  opt=opt||{};
+  var kind=String(opt.kind||'').toLowerCase();
+  var fn=KIND_BUILDERS[kind];
+  if(!fn) return { error:'未知资源类型: '+kind, value:'' };
+  return { error:null, value: fn(opt), kind: kind };
+}
+
+function lintSpec(opt){
+  opt=opt||{};
+  var issues=[];
+  var raw=opt.name||'app';
+  if(!isValidName(raw)){
+    if(sanitizeName(raw)==='' || !isValidName(sanitizeName(raw)))
+      issues.push({level:'bad', msg:'名称 "'+raw+'" 不符合 RFC 1123（小写字母数字、-、.、≤63 字符）'});
+    else
+      issues.push({level:'warn', msg:'名称 "'+raw+'" 含非法字符，将按 RFC 1123 规范化为 "'+sanitizeName(raw)+'"'});
+  }
+  if(opt.image===undefined || opt.image==='') {
+    if(String(opt.kind).toLowerCase()!=='configmap' && String(opt.kind).toLowerCase()!=='secret'
+       && String(opt.kind).toLowerCase()!=='pvc' && String(opt.kind).toLowerCase()!=='hpa'
+       && String(opt.kind).toLowerCase()!=='ingress')
+      issues.push({level:'bad', msg:'缺少容器镜像 image'});
+  } else if(/:/.test(opt.image)===false && String(opt.kind).toLowerCase()!=='configmap' && String(opt.kind).toLowerCase()!=='secret')
+    issues.push({level:'warn', msg:'镜像 "'+opt.image+'" 未指定 tag，将使用 latest'});
+  var p=opt.port==null?80:parseInt(opt.port,10);
+  if(opt.port!=null && (!isFinite(p)||p<1||p>65535))
+    issues.push({level:'bad', msg:'端口 '+opt.port+' 超出 1–65535 范围'});
+  if(opt.kind==='hpa'){
+    var mn=parseInt(opt.minReplicas,10), mx=parseInt(opt.maxReplicas,10);
+    if(isFinite(mn)&&isFinite(mx)&&mn>mx) issues.push({level:'bad', msg:'HPA minReplicas 不能大于 maxReplicas'});
+  }
+  var score=100; issues.forEach(function(i){ score-=(i.level==='bad'?20:8); });
+  return { issues:issues, score:Math.max(0,score) };
+}
+
+function runtimeYaml(specs){
+  var out=[], errs=[];
+  (specs||[]).forEach(function(s){
+    var r=buildKind(s);
+    if(r.error){ errs.push(r.error); return; }
+    out.push(r.value);
+  });
+  return { value: out.join('\n---\n'), errors: errs };
+}
+
+var K8sForgePure = {
+  sanitizeName: sanitizeName, isValidName: isValidName, b64: b64,
+  genDeployment: genDeployment, genService: genService, genConfigMap: genConfigMap,
+  genSecret: genSecret, genIngress: genIngress, genHPA: genHPA, genPVC: genPVC,
+  buildKind: buildKind, lintSpec: lintSpec, runtimeYaml: runtimeYaml,
+  KIND_BUILDERS: KIND_BUILDERS
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = K8sForgePure;
+if (typeof window !== 'undefined') window.K8sForgePure = K8sForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.K8sForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function specFromUI(){
+    return { kind:$('k8kind').value, name:$('k8name').value.trim(), namespace:$('k8ns').value.trim(),
+      image:$('k8image').value.trim(), port:parseInt($('k8port').value,10),
+      replicas:parseInt($('k8replicas').value,10), host:$('k8host').value.trim() };
+  }
+  function render(text){
+    $('k8out').innerHTML='<pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">'+esc(text)+'</pre>';
+  }
+  function gen(){
+    var s=specFromUI();
+    var r=P.buildKind(s);
+    if(r.error){ $('k8err').textContent=r.error; render(''); return; }
+    var lint=P.lintSpec(s);
+    var html=r.value;
+    if(lint.issues.length){
+      html+='\n\n# --- lint ('+lint.score+' 分) ---';
+      lint.issues.forEach(function(i){ html+='\n# ['+i.level+'] '+i.msg; });
+    }
+    $('k8err').textContent=lint.issues.some(function(i){return i.level==='bad';})?'存在风险项，见注释':'';
+    render(html);
+  }
+  function multi(){
+    var s=specFromUI(), name=s.name, ns=s.namespace, img=s.image, port=s.port;
+    var specs=[
+      {kind:'deployment',name:name,namespace:ns,image:img,port:port,replicas:s.replicas},
+      {kind:'service',name:name,namespace:ns,port:port},
+      {kind:'ingress',name:name,namespace:ns,host:s.host,service:name,port:port}
+    ];
+    var r=P.runtimeYaml(specs);
+    render(r.value + (r.errors.length?'\n\n# errors:\n# '+r.errors.join('\n# '):''));
+  }
+  $('k8gen').addEventListener('click', gen);
+  $('k8multi').addEventListener('click', multi);
+  gen();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

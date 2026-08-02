@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SecretForge — 密钥 / 凭证扫描器：多规则正则 + 高熵检测，提交前本地自查</title>
+<meta property="og:title" content="SecretForge">
+<meta property="og:description" content="密钥 / 凭证扫描器：多规则正则 + 高熵检测，提交前本地自查">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="密钥 / 凭证扫描器：多规则正则 + 高熵检测，提交前本地自查 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SecretForge</h1>
+  <p class="sub">密钥 / 凭证扫描器：多规则正则 + 高熵检测，提交前本地自查 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>待扫描文本（粘贴代码 / 配置 / 日志）</label>
+<textarea id="text" rows="5">aws_key = "AKIAIOSFODNN7EXAMPLE"
+token = "ghp_1234567890abcdefABCDEF1234567890ab"
+normal_line = "just some code here"</textarea>
+<div class="row">
+  <button id="run">扫描</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">点击扫描以检测密钥 / 令牌 / 私钥等高敏感串</div>
+<script>
+function entropy(s){
+  if(!s || !s.length) return 0;
+  var f={}; for(var i=0;i<s.length;i++){ f[s[i]]=(f[s[i]]||0)+1; }
+  var e=0; for(var k in f){ var p=f[k]/s.length; e -= p*Math.log2(p); }
+  return e;
+}
+var RULES=[
+  {name:'AWS Access Key', re:/AKIA[0-9A-Z]{16}/},
+  {name:'AWS Secret', re:/aws_secret_access_key\s*[:=]\s*['"]?[A-Za-z0-9\/+=]{40}/i},
+  {name:'GitHub Token', re:/gh[pousr]_[A-Za-z0-9]{36,}/},
+  {name:'Slack Token', re:/xox[baprs]-[A-Za-z0-9-]{10,}/},
+  {name:'Google API', re:/AIza[0-9A-Za-z_-]{35}/},
+  {name:'Stripe Secret', re:/sk_live_[0-9a-zA-Z]{24}/},
+  {name:'Private Key', re:/-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/},
+  {name:'JWT', re:/eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/},
+  {name:'Password Assign', re:/(?:password|passwd|pwd)\s*[:=]\s*['"][^'"]{8,}['"]/i}
+];
+function scan(text){
+  var s=String(text||''), out=[];
+  for(var i=0;i<RULES.length;i++){
+    var r=RULES[i].re.exec(s);
+    if(r){ out.push({rule:RULES[i].name, match:r[0], index:r.index}); }
+  }
+  var runs=s.match(/[A-Za-z0-9\/+=]{20,}/g)||[];
+  for(var j=0;j<runs.length;j++){
+    if(entropy(runs[j])>3.8){
+      out.push({rule:'High-Entropy', match:runs[j].slice(0,40), index:s.indexOf(runs[j])});
+    }
+  }
+  return out;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { entropy:entropy, scan:scan, RULES:RULES };
+}
+if (typeof window !== 'undefined') {
+  window.SecretForgePure = { entropy:entropy, scan:scan, RULES:RULES };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.SecretForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      try {
+        var res=P.scan($('text').value);
+        if(!res.length){ $('out').textContent='未检测到明显密钥 / 令牌 / 高熵串。'; return; }
+        var lines=['发现 '+res.length+' 处疑似敏感串：'];
+        for(var i=0;i<res.length;i++){ lines.push('• ['+res[i].rule+'] '+res[i].match); }
+        $('out').textContent=lines.join('\n');
+      } catch(e){ $('err').textContent=e.message; }
+    });
+    $('clear').addEventListener('click', function(){ $('text').value=''; $('out').textContent='点击扫描以检测密钥 / 令牌 / 私钥等高敏感串'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

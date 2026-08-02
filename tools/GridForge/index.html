@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>GridForge — CSS Grid 模板生成器：列/行/间距/模板区域一键生成并实时预览。</title>
+<meta property="og:title" content="GridForge">
+<meta property="og:description" content="CSS Grid 模板生成器：实时生成并预览栅格布局，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="CSS Grid 模板生成器：实时生成并预览栅格布局，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>GridForge</h1>
+  <p class="sub">CSS Grid 生成器：列数/行数/单位/间距实时生成 grid-template 与模板区域，带可视预览 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>列数</label><input type="text" id="cols" value="3">
+<label>行数</label><input type="text" id="rows" value="2">
+<label>列单位 (如 1fr / 100px / auto)</label><input type="text" id="colu" value="1fr">
+<label>行单位</label><input type="text" id="rowu" value="auto">
+<label>间距 px</label><input type="text" id="gap" value="12">
+<div class="row"><button id="gen">生成 Grid</button></div>
+<div class="out" id="out">Grid CSS 将显示在这里</div>
+<div class="out" id="prev"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function gridCss(o){
+  o=o||{};
+  var cols=o.cols||1, rows=o.rows||1, colU=o.colUnit||'1fr', rowU=o.rowUnit||'auto', gap=(o.gap==null?8:o.gap);
+  function rep(nn,u){ var a=[]; for(var i=0;i<nn;i++) a.push(u); return a.join(' '); }
+  return 'display:grid;grid-template-columns:'+rep(cols,colU)+';grid-template-rows:'+rep(rows,rowU)+';gap:'+gap+'px;';
+}
+function gridAreas(names, cols){
+  var rows=[]; for(var i=0;i<names.length;i+=cols) rows.push(names.slice(i,i+cols).join(' '));
+  return 'grid-template-areas:"'+rows.join('" "')+'";';
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { gridCss:gridCss, gridAreas:gridAreas }; }
+if (typeof window !== 'undefined') { window.GridForgePure = { gridCss:gridCss, gridAreas:gridAreas }; }
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.GridForgePure;
+  function gen(){
+    var o={cols:parseInt($('cols').value,10)||1, rows:parseInt($('rows').value,10)||1, colUnit:$('colu').value||'1fr', rowUnit:$('rowu').value||'auto', gap:parseInt($('gap').value,10)||0};
+    var css=P.gridCss(o);
+    $('out').textContent=css;
+    var prev='<div style="'+css+'">';
+    var total=o.cols*o.rows;
+    for(var i=0;i<total;i++){ prev+='<div style="background:rgba(94,106,210,.25);border:1px solid var(--line);border-radius:6px;padding:8px;text-align:center;color:#A1A1AA">'+i+'</div>'; }
+    prev+='</div>';
+    $('prev').innerHTML=prev;
+  }
+  $('gen').addEventListener('click', gen);
+  gen();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

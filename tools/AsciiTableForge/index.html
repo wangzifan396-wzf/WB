@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>AsciiTableForge — 制表符表格生成器：行列数据渲染为对齐的纯文本 ASCII 表格。</title>
+<meta property="og:title" content="AsciiTableForge">
+<meta property="og:description" content="ASCII 文本表格生成器：行列数据渲染为对齐表格，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="ASCII 文本表格生成器：行列数据渲染为对齐表格，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>AsciiTableForge</h1>
+  <p class="sub">ASCII 表格生成：Tab/逗号分隔的行列数据渲染为带边框、对齐的纯文本表格，适合日志与文档 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>表格数据（每行用制表符或逗号分隔，留空行结束）</label>
+<textarea id="src" rows="6" spellcheck="false">Name	Age	City
+Alice	30	Beijing
+Bob	25	Shanghai</textarea>
+<label>分隔符</label>
+<select id="sep"><option value="	">Tab</option><option value=",">逗号</option></select>
+<div class="row"><button id="gen">生成表格</button></div>
+<div class="out" id="out" style="white-space:pre;font-size:13px">ASCII 表格将显示在这里</div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function asciiTable(rows, opts){
+  opts=opts||{}; if(!rows||!rows.length) return '';
+  var pad=(opts.pad==null?1:opts.pad);
+  var cols=rows[0].length, widths=[], r, c;
+  for(c=0;c<cols;c++){ var w=0; for(r=0;r<rows.length;r++){ var s=String(rows[r][c]==null?'':rows[r][c]); if(s.length>w) w=s.length; } widths.push(w); }
+  function fmt(row){ var cells=[]; for(c=0;c<cols;c++){ var s=String(row[c]==null?'':row[c]); var total=widths[c]+2*pad; cells.push(' '.repeat(pad)+s+' '.repeat(total-s.length)); } return '|'+cells.join('|')+'|'; }
+  function border(){ var segs=[]; for(c=0;c<cols;c++) segs.push('-'.repeat(widths[c]+2*pad)); return '+'+segs.join('+')+'+'; }
+  var lines=[border(), fmt(rows[0])];
+  for(r=1;r<rows.length;r++) lines.push(border(), fmt(rows[r]));
+  lines.push(border());
+  return lines.join('\n');
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { asciiTable:asciiTable }; }
+if (typeof window !== 'undefined') { window.AsciiTableForgePure = { asciiTable:asciiTable }; }
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.AsciiTableForgePure;
+  function gen(){
+    var sep=$('sep').value==='\\t'?'\t':',';
+    var lines=$('src').value.split('\n').filter(function(l){ return l.trim()!==''; });
+    var rows=lines.map(function(l){ return l.split(sep).map(function(x){ return x.trim(); }); });
+    var t=P.asciiTable(rows);
+    $('out').textContent=t;
+  }
+  $('gen').addEventListener('click', gen);
+  gen();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

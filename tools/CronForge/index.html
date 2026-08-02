@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>CronForge — 离线 Cron 表达式解析器：5 字段解析、下次运行时间、人类可读化</title>
+<meta property="og:title" content="CronForge">
+<meta property="og:description" content="离线 Cron 表达式解析器：5 字段解析、下次运行时间、人类可读化">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线 Cron 表达式解析器：5 字段解析、下次运行时间、人类可读化 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.flag-ok{color:var(--ok)} .flag-bad{color:var(--warn)} .flag-info{color:var(--info)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>CronForge</h1>
+  <p class="sub">离线 Cron 表达式解析器：5 字段解析、下次运行时间、人类可读化 · 单文件 · 零依赖 · 本地优先</p>
+
+<label for="expr">Cron 表达式（5 字段：分 时 日 月 周）</label>
+<input id="expr" type="text" value="30 9 * * 1-5" placeholder="分 时 日 月 周">
+<label for="start">起始时间（留空=现在，格式 YYYY-MM-DD HH:MM）</label>
+<input id="start" type="text" placeholder="2026-01-01 00:00">
+<div class="row">
+  <button id="run">下次运行</button>
+  <button id="desc" class="ghost">可读化</button>
+  <button id="copy" class="ghost">复制结果</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">结果会显示在这里</div>
+<script>
+var MONTHS = {JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12};
+var DOWS = {SUN:0,MON:1,TUE:2,WED:3,THU:4,FRI:5,SAT:6};
+var DOWCN = ['周日','周一','周二','周三','周四','周五','周六'];
+var MONTHCN = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+function pad(n){ return (n<10?'0':'')+n; }
+function parseField(field, min, max, names){
+  var allowed = {};
+  var parts = String(field).toUpperCase().split(',');
+  function mapName(tok){
+    tok = tok.trim();
+    if(names && names[tok] !== undefined) return names[tok];
+    var n = parseInt(tok,10);
+    if(n === 7) return 0;
+    return n;
+  }
+  for(var i=0;i<parts.length;i++){
+    var p = parts[i].trim();
+    if(p === '') continue;
+    var step = 1, range;
+    var slash = p.indexOf('/');
+    if(slash >= 0){ step = parseInt(p.slice(slash+1),10); range = p.slice(0,slash); }
+    else range = p;
+    var lo, hi;
+    if(range === '*' || range === ''){ lo = min; hi = max; }
+    else {
+      var dash = range.indexOf('-');
+      if(dash >= 0){ lo = mapName(range.slice(0,dash)); hi = mapName(range.slice(dash+1)); }
+      else { lo = mapName(range); hi = lo; }
+    }
+    if(isNaN(lo) || isNaN(hi) || isNaN(step)) return null;
+    for(var v = lo; v <= hi; v += step){ allowed[v] = true; }
+  }
+  return allowed;
+}
+function parse(expr){
+  var f = String(expr).trim().split(/\s+/);
+  if(f.length !== 5) return null;
+  var min = parseField(f[0],0,59,null);
+  var hour = parseField(f[1],0,23,null);
+  var dom = parseField(f[2],1,31,null);
+  var mon = parseField(f[3],1,12,MONTHS);
+  var dow = parseField(f[4],0,6,DOWS);
+  if(!min || !hour || !dom || !mon || !dow) return null;
+  return {min:min,hour:hour,dom:dom,mon:mon,dow:dow,raw:f};
+}
+function fits(parsed, d){
+  if(!parsed.min[d.getMinutes()]) return false;
+  if(!parsed.hour[d.getHours()]) return false;
+  if(!parsed.mon[d.getMonth()+1]) return false;
+  var domStar = parsed.raw[2] === '*';
+  var dowStar = parsed.raw[4] === '*';
+  var domOk = !!parsed.dom[d.getDate()];
+  var dowOk = !!parsed.dow[d.getDay()];
+  if(!domStar && !dowStar) return domOk || dowOk;
+  if(!domStar) return domOk;
+  if(!dowStar) return dowOk;
+  return true;
+}
+function next(expr, from, limit){
+  var p = parse(expr); if(!p) return null;
+  limit = limit || (8*366*24*60);
+  var d = from ? new Date(from.getTime()) : new Date();
+  d.setSeconds(0,0); d.setMinutes(d.getMinutes()+1);
+  for(var i=0;i<limit;i++){
+    if(fits(p,d)) return new Date(d.getTime());
+    d.setMinutes(d.getMinutes()+1);
+  }
+  return null;
+}
+function nextN(expr, from, n){
+  var out = []; var cur = from ? new Date(from.getTime()) : new Date();
+  for(var k=0;k<n;k++){
+    var r = next(expr, cur); if(!r) break;
+    out.push(new Date(r.getTime()));
+    cur = new Date(r.getTime()); cur.setMinutes(cur.getMinutes()+1);
+  }
+  return out;
+}
+function stepOf(arr, max){ if(arr.length<2) return 0; var k=arr[1]-arr[0]; if(k<=0||arr[0]!==0) return 0; for(var i=1;i<arr.length;i++) if(arr[i]!==arr[i-1]+k) return 0; if((arr.length-1)*k>max) return 0; return k; }
+function describe(expr){
+  var p = parse(expr); if(!p) return '表达式无法解析';
+  if((expr||'').trim() === '* * * * *') return '每分钟';
+  var allMin = Object.keys(p.min).length === 60;
+  var allHour = Object.keys(p.hour).length === 24;
+  var domStar = p.raw[2] === '*', monStar = p.raw[3] === '*', dowStar = p.raw[4] === '*';
+  var mins = Object.keys(p.min).map(Number).sort(function(a,b){return a-b;});
+  var hours = Object.keys(p.hour).map(Number).sort(function(a,b){return a-b;});
+  var mk = stepOf(mins, 59);
+  var t = '';
+  if(mins.length === 1 && hours.length === 1) t = pad(hours[0]) + ':' + pad(mins[0]);
+  else if(mk > 0) t = '每 ' + mk + ' 分钟';
+  else if(mins.length === 1 && allHour) t = '每小时第 ' + pad(mins[0]) + ' 分钟';
+  else if(allMin && hours.length === 1) t = '每小时 ' + pad(hours[0]) + ' 分';
+  else if(allMin && allHour) t = '每分钟';
+  else {
+    var hs = allHour ? '每小时' : ('在 ' + hours.map(pad).join('/') + ' 点');
+    var ms = allMin ? '' : (' 的 ' + mins.map(pad).join('/') + ' 分');
+    t = hs + ms;
+  }
+  var when = [];
+  if(!domStar || !dowStar){
+    if(!dowStar){
+      var dw = Object.keys(p.dow).map(Number).sort(function(a,b){return a-b;}).map(function(x){return DOWCN[x];});
+      when.push('每周' + dw.join('、'));
+    }
+    if(!domStar){
+      var dm = Object.keys(p.dom).map(Number).sort(function(a,b){return a-b;});
+      when.push('每月 ' + dm.join('、') + ' 日');
+    }
+  }
+  if(!monStar){
+    var mn = Object.keys(p.mon).map(Number).sort(function(a,b){return a-b;}).map(function(x){return MONTHCN[x];});
+    when.push('每年 ' + mn.join('、') + ' 月');
+  }
+  var s = '';
+  if(domStar && monStar && dowStar && t !== '每分钟') s = '每天 ';
+  if(when.length) s += when.join(' ') + ' ';
+  s += t;
+  return s;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { parse:parse, fits:fits, next:next, nextN:nextN, describe:describe, parseField:parseField };
+}
+if (typeof window !== 'undefined') {
+  window.CronForgePure = { parse:parse, fits:fits, next:next, nextN:nextN, describe:describe };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.CronForgePure;
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function parseStart(){
+      var s = $('start').value.trim();
+      if(!s) return new Date();
+      s = s.replace(' ', 'T');
+      var d = new Date(s);
+      return isNaN(d.getTime()) ? new Date() : d;
+    }
+    function fmt(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
+    function run(){
+      $('err').textContent='';
+      try {
+        var base = parseStart();
+        var runs = P.nextN($('expr').value, base, 5);
+        if(!runs.length){ $('out').textContent='在合理范围内未找到匹配时间'; return; }
+        $('out').textContent = runs.map(function(d){ return fmt(d); }).join('\n');
+      } catch(e){ $('err').textContent=e.message; }
+    }
+    function doDesc(){
+      $('err').textContent='';
+      try { $('out').textContent = P.describe($('expr').value); }
+      catch(e){ $('err').textContent=e.message; }
+    }
+    $('run').addEventListener('click', run);
+    $('desc').addEventListener('click', doDesc);
+    $('copy').addEventListener('click', function(){ copyText($('out').textContent); });
+    $('clear').addEventListener('click', function(){ $('expr').value=''; $('start').value=''; $('out').textContent='结果会显示在这里'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

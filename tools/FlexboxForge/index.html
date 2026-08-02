@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>FlexboxForge — 真实 Flexbox 沙盒：内置完整 flex 布局解算（换行行断、grow/shrink 加权、align-self、order），左浏览器原生、右内核坐标双视图，附 8 个布局配方与 CSS 导出、溢出体检。</title>
+<meta property="og:title" content="FlexboxForge">
+<meta property="og:description" content="Flexbox 沙盒：内置完整 flex 布局解算（换行行断、grow/shrink 加权、align-self、order），左浏览器原生、右内核坐标双视图对照，附圣杯布局等 8 个配方与 CSS 一键导出、溢出体检，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Flexbox 沙盒：内置完整 flex 布局解算（换行行断、grow/shrink 加权、align-self、order），左浏览器原生、右内核坐标双视图对照，附圣杯布局等 8 个配方与 CSS 一键导出、溢出体检，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>FlexboxForge</h1>
+  <p class="sub">CSS Flexbox 可视化沙盒 · 真实布局解算</p>
+  <div class="grid">
+    <div>
+      <label for="fxdir">flex-direction</label>
+      <select id="fxdir"><option>row</option><option>row-reverse</option><option>column</option><option>column-reverse</option></select>
+    </div>
+    <div>
+      <label for="fxwrap">flex-wrap</label>
+      <select id="fxwrap"><option>nowrap</option><option>wrap</option><option>wrap-reverse</option></select>
+    </div>
+    <div>
+      <label for="fxjust">justify-content</label>
+      <select id="fxjust"><option>flex-start</option><option>center</option><option>flex-end</option><option>space-between</option><option>space-around</option><option>space-evenly</option></select>
+    </div>
+    <div>
+      <label for="fxalign">align-items</label>
+      <select id="fxalign"><option>stretch</option><option>flex-start</option><option>center</option><option>flex-end</option></select>
+    </div>
+    <div>
+      <label for="fxac">align-content</label>
+      <select id="fxac"><option>stretch</option><option>flex-start</option><option>center</option><option>flex-end</option><option>space-between</option><option>space-around</option></select>
+    </div>
+    <div>
+      <label for="fxgap">gap (px)</label>
+      <input type="text" id="fxgap" value="12">
+    </div>
+  </div>
+  <label for="fxitems">子项定义（每行一个：flex 简写 | 内容宽 | 内容高 | align-self | order）</label>
+  <textarea id="fxitems" rows="5">0 1 auto | 120 | 48
+1 1 0% | 100 | 64
+0 0 160px | 160 | 40
+2 1 0% | 100 | 56</textarea>
+  <div class="row">
+    <button id="fxrun">重新计算</button>
+    <select id="fxpreset"><option value="">载入布局配方…</option></select>
+    <button class="ghost" id="fxcopy">复制 CSS</button>
+  </div>
+  <div class="err" id="fxerr"></div>
+  <label>可视化（左：浏览器原生 flex，右：内核算法解算的坐标）</label>
+  <div class="out" id="fxlive" style="padding:0;overflow:hidden"><div id="fxbox" style="display:flex;width:100%;height:220px;background:var(--surface)"></div></div>
+  <div class="out" id="fxsvg" style="margin-top:10px"></div>
+  <label>生成的 CSS</label>
+  <div class="out"><pre id="fxcss" style="margin:0;font-size:12px;white-space:pre-wrap">.container {
+  display: flex;
+}</pre></div>
+  <label>布局体检</label>
+  <div class="out" id="fxlint"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 349 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function parseFlex(sh){
+  if(sh==null) return {grow:0,shrink:1,basis:'auto'};
+  if(typeof sh==='number') return {grow:sh,shrink:1,basis:'0%'};
+  var s=String(sh).trim();
+  if(s==='none') return {grow:0,shrink:0,basis:'auto'};
+  if(s==='auto') return {grow:1,shrink:1,basis:'auto'};
+  if(s==='initial'||s==='') return {grow:0,shrink:1,basis:'auto'};
+  var parts=s.split(/\s+/);
+  var nums=[], basis=null;
+  for(var i=0;i<parts.length;i++){
+    var p=parts[i];
+    if(/^[0-9.]+$/.test(p) && nums.length<2 && basis===null) nums.push(parseFloat(p));
+    else basis=p;
+  }
+  var grow=nums.length>0?nums[0]:1;
+  var shrink=nums.length>1?nums[1]:1;
+  if(basis===null) basis = nums.length>0 ? '0%' : 'auto';
+  return {grow:grow, shrink:shrink, basis:basis};
+}
+
+function resolveBasis(basis, contentSize, mainSize){
+  if(basis==null||basis==='auto'||basis==='content') return contentSize;
+  if(typeof basis==='number') return basis;
+  var s=String(basis).trim();
+  if(/%$/.test(s)) return mainSize*(parseFloat(s)||0)/100;
+  var v=parseFloat(s);
+  return isFinite(v)?v:contentSize;
+}
+
+function normItems(items){
+  var out=[];
+  for(var i=0;i<items.length;i++){
+    var it=items[i]||{};
+    var f = it.flex!=null ? parseFlex(it.flex)
+          : {grow: it.grow||0,
+             shrink: it.shrink==null?1:it.shrink,
+             basis: it.basis==null?'auto':it.basis};
+    out.push({i:i, w:it.w==null?100:it.w, h:it.h==null?40:it.h,
+              grow:f.grow, shrink:f.shrink, basis:f.basis,
+              alignSelf:it.alignSelf||null, order:it.order||0,
+              label:it.label==null?String(i+1):it.label});
+  }
+  return out;
+}
+
+function orderItems(items){
+  var idx=items.map(function(x,k){ return {x:x,k:k}; });
+  idx.sort(function(a,b){ return (a.x.order-b.x.order) || (a.k-b.k); });
+  return idx.map(function(e){ return e.x; });
+}
+
+function breakLines(items, hyp, mainSize, gap, wrap){
+  if(wrap==='nowrap') return [{items:items, hyp:hyp}];
+  var lines=[], cur=[], curH=[], acc=0;
+  for(var i=0;i<items.length;i++){
+    var need = hyp[i] + (cur.length?gap:0);
+    if(cur.length && acc+need > mainSize + 0.001){
+      lines.push({items:cur, hyp:curH}); cur=[]; curH=[]; acc=0; need=hyp[i];
+    }
+    cur.push(items[i]); curH.push(hyp[i]); acc+=need;
+  }
+  if(cur.length) lines.push({items:cur, hyp:curH});
+  return lines;
+}
+
+function flexLine(line, mainSize, gap){
+  var n=line.items.length;
+  var sizes=line.hyp.slice();
+  var total=0; for(var i=0;i<n;i++) total+=sizes[i];
+  var free = mainSize - total - gap*(n-1);
+  if(free > 0.001){
+    var tg=0; for(var a=0;a<n;a++) tg+=line.items[a].grow;
+    if(tg>0) for(var b=0;b<n;b++) sizes[b] += free*line.items[b].grow/tg;
+  } else if(free < -0.001){
+    var scaled=0;
+    for(var c=0;c<n;c++) scaled += line.items[c].shrink*line.hyp[c];
+    if(scaled>0) for(var d=0;d<n;d++){
+      sizes[d] += free*(line.items[d].shrink*line.hyp[d])/scaled;
+      if(sizes[d]<0) sizes[d]=0;
+    }
+  }
+  return sizes;
+}
+
+function distribute(mode, free, n, gap){
+  var start=0, between=gap;
+  if(free<0) free=0;
+  if(mode==='flex-end'||mode==='end') start=free;
+  else if(mode==='center') start=free/2;
+  else if(mode==='space-between') { if(n>1) between=gap+free/(n-1); }
+  else if(mode==='space-around'){ var ea=free/n; start=ea/2; between=gap+ea; }
+  else if(mode==='space-evenly'){ var ee=free/(n+1); start=ee; between=gap+ee; }
+  return {start:start, between:between};
+}
+
+function crossPos(mode, lineStart, lineCross, itemCross){
+  if(mode==='flex-end'||mode==='end') return lineStart + lineCross - itemCross;
+  if(mode==='center') return lineStart + (lineCross-itemCross)/2;
+  return lineStart;
+}
+
+function layout(cfg, items, box){
+  cfg = cfg||{};
+  var dir = cfg.direction||'row';
+  var isRow = dir==='row'||dir==='row-reverse';
+  var revMain = dir==='row-reverse'||dir==='column-reverse';
+  var wrap = cfg.wrap||'nowrap';
+  var gap = cfg.gap||0;
+  var justify = cfg.justify||'flex-start';
+  var align = cfg.align||'stretch';
+  var alignContent = cfg.alignContent||'stretch';
+  var mainSize = isRow ? box.w : box.h;
+  var crossSize = isRow ? box.h : box.w;
+
+  var norm = orderItems(normItems(items));
+  var hyp = norm.map(function(it){
+    return resolveBasis(it.basis, isRow?it.w:it.h, mainSize);
+  });
+  var lines = breakLines(norm, hyp, mainSize, gap, wrap);
+
+  var lineCross = lines.map(function(ln){
+    var m=0;
+    for(var i=0;i<ln.items.length;i++){ var cv = isRow?ln.items[i].h:ln.items[i].w; if(cv>m) m=cv; }
+    return m;
+  });
+  var totalCross=0; for(var q=0;q<lineCross.length;q++) totalCross+=lineCross[q];
+  var crossFree = crossSize - totalCross - gap*(lines.length-1);
+  var stretchLines = (alignContent==='stretch' && lines.length>0 && crossFree>0);
+  if(stretchLines){
+    var add = crossFree/lines.length;
+    for(var w2=0;w2<lineCross.length;w2++) lineCross[w2]+=add;
+    crossFree = 0;
+  }
+  var cd = distribute(alignContent==='stretch'?'flex-start':alignContent, crossFree, lines.length, gap);
+
+  var out=[];
+  var cy = cd.start;
+  var order = (wrap==='wrap-reverse') ? lines.slice().reverse() : lines;
+  var orderCross = (wrap==='wrap-reverse') ? lineCross.slice().reverse() : lineCross;
+
+  for(var li=0; li<order.length; li++){
+    var ln=order[li];
+    var sizes=flexLine(ln, mainSize, gap);
+    var used=0; for(var s2=0;s2<sizes.length;s2++) used+=sizes[s2];
+    var mFree = mainSize - used - gap*(sizes.length-1);
+    var md = distribute(justify, mFree, sizes.length, gap);
+    var mp = md.start;
+    for(var k=0;k<ln.items.length;k++){
+      var it=ln.items[k];
+      var mainLen=sizes[k];
+      var selfAlign = it.alignSelf && it.alignSelf!=='auto' ? it.alignSelf : align;
+      var natCross = isRow?it.h:it.w;
+      var crossLen = (selfAlign==='stretch') ? orderCross[li] : natCross;
+      var cp = crossPos(selfAlign, cy, orderCross[li], crossLen);
+      var mStart = revMain ? (mainSize - mp - mainLen) : mp;
+      out.push(isRow
+        ? {i:it.i, label:it.label, x:round2(mStart), y:round2(cp), w:round2(mainLen), h:round2(crossLen)}
+        : {i:it.i, label:it.label, x:round2(cp), y:round2(mStart), w:round2(crossLen), h:round2(mainLen)});
+      mp += mainLen + md.between;
+    }
+    cy += orderCross[li] + cd.between;
+  }
+  out.sort(function(a,b){ return a.i-b.i; });
+  return {boxes:out, lines:lines.length, lineCross:lineCross.map(round2)};
+}
+
+function round2(v){ return Math.round(v*100)/100; }
+
+function containerCss(cfg){
+  cfg=cfg||{};
+  var L=['display: flex;'];
+  if(cfg.direction && cfg.direction!=='row') L.push('flex-direction: '+cfg.direction+';');
+  if(cfg.wrap && cfg.wrap!=='nowrap') L.push('flex-wrap: '+cfg.wrap+';');
+  if(cfg.justify && cfg.justify!=='flex-start') L.push('justify-content: '+cfg.justify+';');
+  if(cfg.align && cfg.align!=='stretch') L.push('align-items: '+cfg.align+';');
+  if(cfg.wrap && cfg.wrap!=='nowrap' && cfg.alignContent && cfg.alignContent!=='stretch')
+    L.push('align-content: '+cfg.alignContent+';');
+  if(cfg.gap) L.push('gap: '+cfg.gap+'px;');
+  return '.container {\n  ' + L.join('\n  ') + '\n}';
+}
+
+function itemCss(it, sel){
+  it=it||{};
+  var f = it.flex!=null ? parseFlex(it.flex)
+        : {grow:it.grow||0, shrink:it.shrink==null?1:it.shrink, basis:it.basis==null?'auto':it.basis};
+  var basis = typeof f.basis==='number' ? f.basis+'px' : f.basis;
+  var L=['flex: '+f.grow+' '+f.shrink+' '+basis+';'];
+  if(it.alignSelf && it.alignSelf!=='auto') L.push('align-self: '+it.alignSelf+';');
+  if(it.order) L.push('order: '+it.order+';');
+  return (sel||'.item') + ' {\n  ' + L.join('\n  ') + '\n}';
+}
+
+function fullCss(cfg, items){
+  var parts=[containerCss(cfg)];
+  var norm=normItems(items||[]);
+  for(var i=0;i<norm.length;i++){
+    var it=norm[i];
+    var isDefault = it.grow===0 && it.shrink===1 && (it.basis==='auto') && !it.alignSelf && !it.order;
+    if(!isDefault) parts.push(itemCss(items[i], '.item-'+(i+1)));
+  }
+  return parts.join('\n\n');
+}
+
+function lint(cfg, items, box){
+  cfg=cfg||{}; items=items||[]; box=box||{w:640,h:220};
+  var w=[];
+  var norm=normItems(items);
+  var isRow=(cfg.direction||'row').indexOf('row')===0;
+  var mainSize=isRow?box.w:box.h;
+  var gap=cfg.gap||0;
+  var sum=0;
+  for(var i=0;i<norm.length;i++) sum += resolveBasis(norm[i].basis, isRow?norm[i].w:norm[i].h, mainSize);
+  sum += gap*Math.max(0,norm.length-1);
+  var noShrink = norm.length>0 && norm.every(function(x){ return x.shrink===0; });
+  if((cfg.wrap||'nowrap')==='nowrap' && sum>mainSize+0.5 && noShrink)
+    w.push({level:'error', msg:'nowrap + flex-shrink:0 且内容总宽 '+round2(sum)+'px 超过容器 '+mainSize+'px，会直接溢出'});
+  else if((cfg.wrap||'nowrap')==='nowrap' && sum>mainSize+0.5)
+    w.push({level:'warn', msg:'nowrap 下内容总长 '+round2(sum)+'px 超过容器 '+mainSize+'px，子项将被压缩'});
+  if(cfg.alignContent && cfg.alignContent!=='stretch' && (cfg.wrap||'nowrap')==='nowrap')
+    w.push({level:'warn', msg:'align-content 仅在 flex-wrap:wrap 多行时生效，当前为 nowrap'});
+  if((cfg.justify==='space-between'||cfg.justify==='space-around') && norm.length<2)
+    w.push({level:'warn', msg:'justify-content:'+cfg.justify+' 在只有 1 个子项时没有可见效果'});
+  var pctBasis = norm.filter(function(x){ return typeof x.basis==='string' && /%$/.test(x.basis); });
+  if(pctBasis.length && (cfg.wrap||'nowrap')==='wrap' && gap>0)
+    w.push({level:'warn', msg:'百分比 flex-basis 不扣除 gap，'+pctBasis.length+' 个子项可能提前换行，建议改用 calc(50% - '+gap/2+'px)'});
+  var growNoBasis = norm.filter(function(x){ return x.grow>0 && x.basis==='auto'; });
+  if(growNoBasis.length>1)
+    w.push({level:'info', msg:growNoBasis.length+' 个子项使用 flex-grow + basis:auto，最终宽度受内容影响；要等分请用 flex:1 1 0'});
+  if(norm.some(function(x){ return x.order!==0; }))
+    w.push({level:'info', msg:'使用了 order 会让视觉顺序与 DOM 顺序不一致，键盘 Tab 与读屏仍按 DOM 顺序'});
+  return w;
+}
+
+var FlexboxForgePure = {
+  parseFlex:parseFlex, resolveBasis:resolveBasis, normItems:normItems, orderItems:orderItems,
+  breakLines:breakLines, flexLine:flexLine, distribute:distribute, layout:layout,
+  containerCss:containerCss, itemCss:itemCss, fullCss:fullCss, lint:lint
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = FlexboxForgePure;
+if (typeof window !== 'undefined') window.FlexboxForgePure = FlexboxForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.FlexboxForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var BOX={w:0,h:220};
+  var PRESETS=[
+    ['圣杯三栏（两侧固定 中间自适应）','row|nowrap|flex-start|stretch|stretch|0','0 0 200px | 200 | 200\n1 1 0% | 100 | 200\n0 0 200px | 200 | 200'],
+    ['导航栏（logo 左 菜单右）','row|nowrap|flex-start|center|stretch|16','0 0 auto | 120 | 40\n1 1 0% | 100 | 40\n0 0 auto | 80 | 40\n0 0 auto | 80 | 40'],
+    ['等分卡片三列','row|nowrap|flex-start|stretch|stretch|16','1 1 0% | 100 | 120\n1 1 0% | 100 | 120\n1 1 0% | 100 | 120'],
+    ['响应式换行网格','row|wrap|flex-start|flex-start|flex-start|12','0 0 180px | 180 | 60\n0 0 180px | 180 | 60\n0 0 180px | 180 | 60\n0 0 180px | 180 | 60\n0 0 180px | 180 | 60'],
+    ['垂直居中单卡','row|nowrap|center|center|stretch|0','0 0 240px | 240 | 100'],
+    ['底部对齐工具条','row|nowrap|space-between|flex-end|stretch|8','0 0 auto | 90 | 36\n0 0 auto | 90 | 52\n0 0 auto | 90 | 44'],
+    ['侧边栏 + 主区（列方向）','column|nowrap|flex-start|stretch|stretch|10','0 0 56px | 300 | 56\n1 1 0% | 300 | 100\n0 0 40px | 300 | 40'],
+    ['粘性页脚','column|nowrap|space-between|stretch|stretch|0','0 0 60px | 300 | 60\n1 1 auto | 300 | 60\n0 0 48px | 300 | 48']
+  ];
+  PRESETS.forEach(function(p,i){ var o=D.createElement('option'); o.value=String(i); o.textContent=p[0]; $('fxpreset').appendChild(o); });
+
+  function parseItems(){
+    var out=[], lines=$('fxitems').value.split(/\n/);
+    for(var i=0;i<lines.length;i++){
+      var ln=lines[i].trim(); if(!ln) continue;
+      var c=ln.split('|').map(function(x){ return x.trim(); });
+      out.push({flex:c[0]||'0 1 auto', w:parseFloat(c[1])||100, h:parseFloat(c[2])||40,
+                alignSelf:c[3]||null, order:parseInt(c[4],10)||0, label:String(out.length+1)});
+    }
+    return out;
+  }
+  function cfg(){
+    return {direction:$('fxdir').value, wrap:$('fxwrap').value, justify:$('fxjust').value,
+            align:$('fxalign').value, alignContent:$('fxac').value, gap:parseFloat($('fxgap').value)||0};
+  }
+  function paintLive(c, items){
+    var box=$('fxbox');
+    box.style.flexDirection=c.direction; box.style.flexWrap=c.wrap;
+    box.style.justifyContent=c.justify; box.style.alignItems=c.align;
+    box.style.alignContent=c.alignContent; box.style.gap=c.gap+'px';
+    box.innerHTML='';
+    var pal=['#5E6AD2','#22D3EE','#10B981','#F5A623','#A78BFA','#EF4444'];
+    items.forEach(function(it,i){
+      var d=D.createElement('div');
+      var f=P.parseFlex(it.flex);
+      d.style.flex=f.grow+' '+f.shrink+' '+(typeof f.basis==='number'?f.basis+'px':f.basis);
+      if(it.alignSelf) d.style.alignSelf=it.alignSelf;
+      if(it.order) d.style.order=it.order;
+      d.style.minWidth='0'; d.style.minHeight=it.h+'px';
+      d.style.background=pal[i%pal.length]; d.style.opacity='.85';
+      d.style.borderRadius='6px'; d.style.color='#fff'; d.style.fontSize='12px';
+      d.style.display='flex'; d.style.alignItems='center'; d.style.justifyContent='center';
+      d.textContent=it.label;
+      box.appendChild(d);
+    });
+  }
+  function paintSvg(res, c){
+    var W=BOX.w||640, H=BOX.h;
+    var pal=['#5E6AD2','#22D3EE','#10B981','#F5A623','#A78BFA','#EF4444'];
+    var s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'" style="display:block;background:#0A0A0B;border-radius:6px">';
+    s+='<rect x="0.5" y="0.5" width="'+(W-1)+'" height="'+(H-1)+'" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="4 4"/>';
+    res.boxes.forEach(function(b,i){
+      s+='<rect x="'+b.x+'" y="'+b.y+'" width="'+Math.max(0,b.w)+'" height="'+Math.max(0,b.h)+'" rx="6" fill="'+pal[i%pal.length]+'" fill-opacity="0.85"/>';
+      s+='<text x="'+(b.x+Math.max(0,b.w)/2)+'" y="'+(b.y+Math.max(0,b.h)/2+4)+'" text-anchor="middle" font-size="11" fill="#fff">'+esc(b.label)+'</text>';
+      s+='<text x="'+(b.x+2)+'" y="'+(b.y+11)+'" font-size="9" fill="rgba(255,255,255,.75)">'+b.w+'x'+b.h+'</text>';
+    });
+    s+='</svg>';
+    $('fxsvg').innerHTML=s;
+  }
+  function run(){
+    var c=cfg(), items;
+    try { items=parseItems(); } catch(e){ $('fxerr').textContent='子项解析失败: '+e.message; return; }
+    if(!items.length){ $('fxerr').textContent='请至少定义一个子项'; return; }
+    $('fxerr').textContent='';
+    BOX.w = $('fxlive').clientWidth || 640;
+    paintLive(c, items);
+    var res=P.layout(c, items, {w:BOX.w, h:BOX.h});
+    paintSvg(res, c);
+    $('fxcss').textContent=P.fullCss(c, items);
+    var ws=P.lint(c, items, {w:BOX.w, h:BOX.h});
+    var col={error:'var(--warn)', warn:'var(--warn)', info:'var(--muted)'};
+    $('fxlint').innerHTML = ws.length
+      ? ws.map(function(x){ return '<div style="font-size:12px;color:'+col[x.level]+';padding:3px 0">['+x.level+'] '+esc(x.msg)+'</div>'; }).join('')
+      : '<div style="font-size:12px;color:var(--ok)">没有发现问题 · '+res.lines+' 行 · '+res.boxes.length+' 个子项</div>';
+  }
+  ['fxdir','fxwrap','fxjust','fxalign','fxac'].forEach(function(id){ $(id).addEventListener('change', run); });
+  ['fxgap','fxitems'].forEach(function(id){ $(id).addEventListener('input', run); });
+  $('fxrun').addEventListener('click', run);
+  $('fxpreset').addEventListener('change', function(){
+    var v=$('fxpreset').value; if(v==='') return;
+    var p=PRESETS[parseInt(v,10)], f=p[1].split('|');
+    $('fxdir').value=f[0]; $('fxwrap').value=f[1]; $('fxjust').value=f[2];
+    $('fxalign').value=f[3]; $('fxac').value=f[4]; $('fxgap').value=f[5];
+    $('fxitems').value=p[2]; run();
+  });
+  $('fxcopy').addEventListener('click', function(){
+    var t=$('fxcss').textContent;
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t);
+    $('fxcopy').textContent='已复制'; setTimeout(function(){ $('fxcopy').textContent='复制 CSS'; },1200);
+  });
+  window.addEventListener('resize', run);
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

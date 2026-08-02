@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>IbanForge — IBAN 与银行卡校验：mod-97 校验位、41 国长度表、Luhn 校验，离线可用。</title>
+<meta property="og:title" content="IbanForge">
+<meta property="og:description" content="IBAN 与银行卡校验：mod-97 校验、国家长度表、Luhn 校验，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="IBAN 与银行卡校验：mod-97 校验、国家长度表、Luhn 校验，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>IbanForge</h1>
+  <p class="sub">IBAN 与银行卡校验：mod-97 校验位推算、41 国长度表、四位分组、Luhn 校验 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>IBAN 账号</label>
+<input type="text" id="src" value="DE89 3704 0044 0532 0130 00">
+<div class="row">
+  <button id="run">校验 IBAN</button>
+  <button id="fmt" class="ghost">四位分组</button>
+</div>
+<label>银行卡号 / 任意数字串（Luhn 校验）</label>
+<input type="text" id="card" value="4539 1488 0343 6467">
+<div class="row"><button id="luhn" class="ghost">Luhn 校验</button></div>
+<div class="err" id="err"></div>
+<div class="out" id="out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var IB_LEN = { AD:24,AE:23,AT:20,BE:16,BG:22,CH:21,CY:28,CZ:24,DE:22,DK:18,EE:20,ES:24,
+  FI:18,FR:27,GB:22,GI:23,GR:27,HR:21,HU:28,IE:22,IL:23,IS:26,IT:27,LI:21,LT:20,LU:20,
+  LV:21,MC:27,MT:31,NL:18,NO:15,PL:28,PT:25,RO:24,RS:22,SA:24,SE:24,SI:19,SK:24,SM:27,TR:26,UA:29 };
+function ibNormalize(s){ return String(s==null?'':s).toUpperCase().replace(/[\s-]/g,''); }
+function ibMod97(str){
+  var rem=0;
+  for(var i=0;i<str.length;i++) rem=(rem*10+(str.charCodeAt(i)-48))%97;
+  return rem;
+}
+function ibToNumeric(iban){
+  var re=iban.slice(4)+iban.slice(0,4), out='';
+  for(var i=0;i<re.length;i++){
+    var c=re.charCodeAt(i);
+    if(c>=65 && c<=90) out += (c-55);
+    else out += re[i];
+  }
+  return out;
+}
+function ibValidate(input){
+  var s=ibNormalize(input);
+  if(!s) return { error:'\u8bf7\u8f93\u5165 IBAN' };
+  if(!/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(s))
+    return { error:null, valid:false, reason:'\u683c\u5f0f\u5e94\u4e3a 2 \u4f4d\u56fd\u5bb6\u7801 + 2 \u4f4d\u6821\u9a8c\u4f4d + \u5b57\u6bcd\u6570\u5b57', iban:s };
+  var cc=s.slice(0,2), want=IB_LEN[cc];
+  if(want && s.length!==want)
+    return { error:null, valid:false, reason:cc+' \u7684 IBAN \u957f\u5ea6\u5e94\u4e3a '+want+'\uff0c\u5b9e\u9645 '+s.length, iban:s, country:cc };
+  var mod=ibMod97(ibToNumeric(s));
+  return { error:null, valid:mod===1, iban:s, country:cc, known:!!want, mod:mod,
+           reason: mod===1 ? '' : 'mod-97 \u6821\u9a8c\u5931\u8d25\uff08\u4f59\u6570 '+mod+'\uff0c\u5e94\u4e3a 1\uff09' };
+}
+function ibFormat(input){
+  var s=ibNormalize(input);
+  return s.replace(/(.{4})/g,'$1 ').trim();
+}
+function ibCheckDigits(cc, bban){
+  var body=ibNormalize(cc)+'00'+ibNormalize(bban);
+  var mod=ibMod97(ibToNumeric(body));
+  var cd=98-mod;
+  return (cd<10?'0':'')+cd;
+}
+function ibLuhn(num){
+  var s=String(num==null?'':num).replace(/[\s-]/g,'');
+  if(!/^\d+$/.test(s) || s.length<2) return { valid:false, reason:'\u8bf7\u8f93\u5165\u81f3\u5c11 2 \u4f4d\u6570\u5b57' };
+  var sum=0, alt=false;
+  for(var i=s.length-1;i>=0;i--){
+    var d=s.charCodeAt(i)-48;
+    if(alt){ d*=2; if(d>9) d-=9; }
+    sum+=d; alt=!alt;
+  }
+  return { valid: sum%10===0, sum:sum, reason: sum%10===0 ? '' : 'Luhn \u6821\u9a8c\u4f4d\u4e0d\u6b63\u786e' };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { ibNormalize:ibNormalize, ibMod97:ibMod97, ibToNumeric:ibToNumeric,
+                     ibValidate:ibValidate, ibFormat:ibFormat, ibCheckDigits:ibCheckDigits, ibLuhn:ibLuhn, IB_LEN:IB_LEN };
+}
+if (typeof window !== 'undefined') {
+  window.IbanForgePure = { ibNormalize:ibNormalize, ibMod97:ibMod97, ibToNumeric:ibToNumeric,
+                     ibValidate:ibValidate, ibFormat:ibFormat, ibCheckDigits:ibCheckDigits, ibLuhn:ibLuhn, IB_LEN:IB_LEN };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.IbanForgePure;
+  function run(){
+    var v=P.ibValidate($('src').value);
+    if(v.error){ $('err').textContent=v.error; $('out').innerHTML=''; return; }
+    $('err').textContent = v.valid ? '' : (v.reason||'');
+    $('out').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>校验</b><span style="color:'+(v.valid?'#10B981':'#EF4444')+'">'+(v.valid?'通过':'失败')+'</span></div>'+
+      '<div class="kv"><b>国家码</b><span>'+(v.country||'-')+'</span></div>'+
+      '<div class="kv"><b>长度</b><span>'+v.iban.length+(v.known?(' / 应为 '+P.IB_LEN[v.country]):' / 未登记')+'</span></div>'+
+      '<div class="kv"><b>mod-97</b><span>'+(v.mod===undefined?'-':v.mod)+'</span></div>'+
+      '<div class="kv"><b>分组显示</b><span>'+P.ibFormat(v.iban)+'</span></div>'+
+      '<div class="kv"><b>BBAN</b><span>'+v.iban.slice(4)+'</span></div></div>';
+  }
+  $('run').addEventListener('click', run);
+  $('fmt').addEventListener('click', function(){ $('src').value=P.ibFormat($('src').value); });
+  $('luhn').addEventListener('click', function(){
+    var L=P.ibLuhn($('card').value);
+    $('err').textContent = L.valid ? '' : L.reason;
+    $('out').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>Luhn</b><span style="color:'+(L.valid?'#10B981':'#EF4444')+'">'+(L.valid?'通过':'失败')+'</span></div>'+
+      '<div class="kv"><b>加权和</b><span>'+(L.sum===undefined?'-':L.sum)+'</span></div></div>';
+  });
+  $('src').addEventListener('keydown', function(e){ if(e.key==='Enter') run(); });
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

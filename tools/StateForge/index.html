@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>StateForge — 有限状态机：定义/事件推演/可达性/死状态检测</title>
+<meta property="og:title" content="StateForge">
+<meta property="og:description" content="有限状态机：定义/事件推演/可达性/死状态检测">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="有限状态机：定义/事件推演/可达性/死状态检测 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>StateForge</h1>
+  <p class="sub">有限状态机：定义/事件推演/可达性/死状态检测 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>状态机定义（每行 from,event,to；首个 from 为初始态；* 前缀标终态）</label>
+<textarea id="txt" rows="8">draft,submit,review
+review,approve,*approved
+review,reject,draft
+review,escalate,legal
+legal,approve,*approved
+legal,reject,draft
+orphan,noop,orphan</textarea>
+<label>事件序列（逗号分隔，可留空只做静态分析）</label>
+<input id="evs" type="text" value="submit, escalate, approve" style="width:100%">
+<div class="row">
+  <button id="run">分析 + 运行</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>结果</label>
+<div class="out" id="out" aria-live="polite">可达性 / 死状态 / 事件推演</div>
+<script>
+function fsmParse(text){
+  var lines=String(text).replace(/\r/g,'').split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+  if(!lines.length) return { value:null, error:'定义为空' };
+  var trans={}, states={}, finals={}, initial=null;
+  for(var i=0;i<lines.length;i++){
+    var p=lines[i].split(',').map(function(s){ return s.trim(); });
+    if(p.length!==3||!p[0]||!p[1]||!p[2]) return { value:null, error:'第 '+(i+1)+' 行需 from,event,to' };
+    var from=p[0].replace(/^\*/,''), ev=p[1], toRaw=p[2], to=toRaw.replace(/^\*/,'');
+    if(p[0][0]==='*') finals[from]=true;
+    if(toRaw[0]==='*') finals[to]=true;
+    if(initial===null) initial=from;
+    states[from]=true; states[to]=true;
+    trans[from]=trans[from]||{};
+    if(trans[from][ev]!==undefined && trans[from][ev]!==to)
+      return { value:null, error:'第 '+(i+1)+' 行: 状态 '+from+' 的事件 '+ev+' 已指向 '+trans[from][ev]+'（非确定）' };
+    trans[from][ev]=to;
+  }
+  return { value:{ initial:initial, states:Object.keys(states).sort(),
+    finals:Object.keys(finals).sort(), trans:trans }, error:null };
+}
+function fsmReachable(fsm){
+  var seen={}, queue=[fsm.initial];
+  seen[fsm.initial]=true;
+  while(queue.length){
+    var s=queue.shift(), t=fsm.trans[s]||{};
+    for(var ev in t){ if(!seen[t[ev]]){ seen[t[ev]]=true; queue.push(t[ev]); } }
+  }
+  var unreachable=fsm.states.filter(function(s){ return !seen[s]; });
+  return { value:{ reachable:Object.keys(seen).sort(), unreachable:unreachable }, error:null };
+}
+function fsmDeadStates(fsm){
+  // dead = non-final state with no outgoing transitions, or state that cannot reach any final
+  var canReachFinal={};
+  fsm.finals.forEach(function(f){ canReachFinal[f]=true; });
+  var changed=true;
+  while(changed){
+    changed=false;
+    for(var s in fsm.trans){
+      if(canReachFinal[s]) continue;
+      for(var ev in fsm.trans[s]){
+        if(canReachFinal[fsm.trans[s][ev]]){ canReachFinal[s]=true; changed=true; break; }
+      }
+    }
+  }
+  var dead=fsm.states.filter(function(s){ return !canReachFinal[s]; });
+  return { value:dead, error:null };
+}
+function fsmRun(fsm, events){
+  if(!Array.isArray(events)) return { value:null, error:'事件必须是数组' };
+  var cur=fsm.initial, path=[cur];
+  for(var i=0;i<events.length;i++){
+    var t=fsm.trans[cur]||{};
+    if(t[events[i]]===undefined)
+      return { value:null, error:'状态 '+cur+' 无事件 "'+events[i]+'"（第 '+(i+1)+' 步），可用: '+(Object.keys(t).join(', ')||'无') };
+    cur=t[events[i]];
+    path.push(cur);
+  }
+  return { value:{ path:path, end:cur, accepted:fsm.finals.indexOf(cur)>=0 }, error:null };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { fsmParse:fsmParse, fsmReachable:fsmReachable, fsmDeadStates:fsmDeadStates, fsmRun:fsmRun };
+}
+if (typeof window !== 'undefined') {
+  window.StateForgePure = { fsmParse:fsmParse, fsmReachable:fsmReachable, fsmDeadStates:fsmDeadStates, fsmRun:fsmRun };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.StateForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      var pr=P.fsmParse($('txt').value);
+      if(pr.error){ $('err').textContent=pr.error; return; }
+      var fsm=pr.value;
+      var rc=P.fsmReachable(fsm).value;
+      var dead=P.fsmDeadStates(fsm).value;
+      var lines=[
+        '状态 '+fsm.states.length+' 个: '+fsm.states.join(', '),
+        '初始: '+fsm.initial+' | 终态: '+(fsm.finals.join(', ')||'(无)'),
+        '不可达: '+(rc.unreachable.join(', ')||'(无)'),
+        '死状态（到不了终态）: '+(dead.join(', ')||'(无)')
+      ];
+      var evs=$('evs').value.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+      if(evs.length){
+        var rr=P.fsmRun(fsm, evs);
+        if(rr.error){ lines.push('', '运行: '+rr.error); }
+        else lines.push('', '运行: '+rr.value.path.join(' → ')+'\n结束于 '+rr.value.end+(rr.value.accepted?'（终态 ✓）':'（非终态）'));
+      }
+      $('out').textContent=lines.join('\n');
+    });
+    $('clear').addEventListener('click', function(){ $('txt').value=''; $('evs').value=''; $('out').textContent='可达性 / 死状态 / 事件推演'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

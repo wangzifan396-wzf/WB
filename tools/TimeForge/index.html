@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TimeForge — 时间戳转换 / 时区对照 / 日期计算</title>
+<meta name="description" content="TimeForge：单文件离线时间工具箱。Unix 时间戳 ⇄ 日期互转（自动识别秒/毫秒）、多时区对照、日期差计算、时长人性化，零依赖零上传。">
+<style>
+:root{
+  --bg:#0A0A0B;--surf:#141417;--surf2:#1A1B1E;--txt:#FFFFFF;--txt2:#A1A1AA;--txt3:#71717A;
+  --bord:rgba(255,255,255,0.08);--bord2:rgba(255,255,255,0.14);
+  --acc:#5E6AD2;--ok:#10B981;--warn:#F5A623;--info:#22D3EE;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+header{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--bord);flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+.logo-mark{width:26px;height:26px;border-radius:7px;background:var(--acc);display:grid;place-items:center}
+.logo-mark svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2}
+.logo b{color:var(--acc)}
+.spacer{flex:1}
+#nowLine{color:var(--txt2);font-size:13px;font-variant-numeric:tabular-nums}
+#nowLine b{color:var(--info);font-weight:600}
+main{max-width:960px;margin:0 auto;padding:24px 20px;display:grid;gap:18px}
+.card{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:20px}
+.card h2{font-size:15px;margin-bottom:4px}
+.card .sub{color:var(--txt3);font-size:12px;margin-bottom:14px}
+button,input,select{font-family:inherit;font-size:13px;color:var(--txt)}
+input,select{background:var(--surf2);border:1px solid var(--bord);border-radius:8px;padding:8px 12px;outline:none}
+input:focus,select:focus{border-color:var(--acc)}
+.btn{background:var(--surf2);border:1px solid var(--bord);border-radius:8px;padding:8px 14px;cursor:pointer}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.zones{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+.zone{background:var(--surf2);border:1px solid var(--bord);border-radius:10px;padding:12px 14px}
+.zone .zn{color:var(--txt3);font-size:12px;margin-bottom:5px}
+.zone .zv{font-size:14px;font-variant-numeric:tabular-nums;word-break:break-all}
+.zone.hl{border-color:rgba(94,106,210,.5)}
+.zone.hl .zv{color:var(--acc)}
+.result{background:var(--surf2);border:1px solid var(--bord);border-radius:10px;padding:12px 14px;font-variant-numeric:tabular-nums;line-height:1.9;font-size:13px}
+.result b{color:var(--ok)}
+.err{color:#EF4444;font-size:12px}
+footer{text-align:center;color:var(--txt3);font-size:12px;padding:20px}
+footer a{color:var(--acc);text-decoration:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">TimeForge — 时间戳转换 / 时区对照 / 日期计算</h1>
+<header>
+  <div class="logo"><span class="logo-mark"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg></span>Time<b>Forge</b></div>
+  <span style="color:var(--txt3);font-size:12px">时间戳 · 时区 · 日期计算 · 全程离线</span>
+  <div class="spacer"></div>
+  <div id="nowLine"></div>
+</header>
+<main>
+  <div class="card">
+    <h2>Unix 时间戳 → 日期</h2>
+    <div class="sub">自动识别秒（10 位）/ 毫秒（13 位），多时区对照</div>
+    <div class="row">
+      <input id="tsInput" style="flex:1;min-width:200px" placeholder="粘贴时间戳，如 1753500000 或 1753500000000">
+      <button class="btn" id="tsNow">当前时间戳</button>
+    </div>
+    <div class="err" id="tsErr"></div>
+    <div class="zones" id="tsZones"></div>
+  </div>
+
+  <div class="card">
+    <h2>日期 → Unix 时间戳</h2>
+    <div class="sub">按所选时区解释输入的日期时间</div>
+    <div class="row">
+      <input id="dtInput" type="datetime-local" step="1">
+      <select id="dtZone"></select>
+      <button class="btn" id="dtNowBtn">现在</button>
+    </div>
+    <div class="result" id="dtResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>日期差计算</h2>
+    <div class="sub">两个日期之间相差多少天 / 时 / 分，以及人性化时长</div>
+    <div class="row">
+      <input id="dA" type="datetime-local" step="1">
+      <span style="color:var(--txt3)">→</span>
+      <input id="dB" type="datetime-local" step="1">
+    </div>
+    <div class="result" id="diffResult"></div>
+  </div>
+</main>
+<footer>TimeForge · 单文件 · 零依赖 · <a href="https://github.com/wangzifan396-wzf/WB">nano-tools 矩阵</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+
+<script>
+/* ================= TimeForge pure functions (top-level, testable) ================= */
+function normalizeTimestamp(input){
+  var s=String(input==null?'':input).trim();
+  if(!/^-?\d+$/.test(s)) return null;
+  var n=Number(s);
+  if(!isFinite(n)) return null;
+  var abs=Math.abs(n);
+  if(abs>=1e15) return null;                     // too large even for ms
+  if(abs>=1e11) return { ms:n, unit:'ms' };      // 12+ digits → ms
+  return { ms:n*1000, unit:'s' };                // else seconds
+}
+function pad2(n){ return (n<10?'0':'')+n; }
+function formatInZone(ms, offsetMinutes){
+  var d=new Date(ms + offsetMinutes*60000);
+  return d.getUTCFullYear()+'-'+pad2(d.getUTCMonth()+1)+'-'+pad2(d.getUTCDate())
+    +' '+pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes())+':'+pad2(d.getUTCSeconds());
+}
+function weekdayInZone(ms, offsetMinutes){
+  var names=['周日','周一','周二','周三','周四','周五','周六'];
+  return names[new Date(ms + offsetMinutes*60000).getUTCDay()];
+}
+function isoInZone(ms, offsetMinutes){
+  var sign=offsetMinutes>=0?'+':'-';
+  var a=Math.abs(offsetMinutes);
+  var tz=sign+pad2(Math.floor(a/60))+':'+pad2(a%60);
+  return formatInZone(ms,offsetMinutes).replace(' ','T')+tz;
+}
+function parseDateTimeInZone(str, offsetMinutes){
+  var m=String(str==null?'':str).trim().match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if(!m) return null;
+  var utc=Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+  return utc - offsetMinutes*60000;
+}
+function dateDiff(msA, msB){
+  var delta=Math.abs(msB-msA);
+  var sec=Math.floor(delta/1000);
+  return {
+    totalMs:delta,
+    totalSeconds:sec,
+    totalMinutes:Math.floor(sec/60),
+    totalHours:Math.floor(sec/3600),
+    totalDays:Math.floor(sec/86400),
+    days:Math.floor(sec/86400),
+    hours:Math.floor(sec%86400/3600),
+    minutes:Math.floor(sec%3600/60),
+    seconds:sec%60
+  };
+}
+function humanizeDuration(ms){
+  var sec=Math.floor(Math.abs(ms)/1000);
+  if(sec<1) return '不到 1 秒';
+  var d=Math.floor(sec/86400), h=Math.floor(sec%86400/3600), m=Math.floor(sec%3600/60), s=sec%60;
+  var parts=[];
+  if(d) parts.push(d+' 天');
+  if(h) parts.push(h+' 小时');
+  if(m) parts.push(m+' 分');
+  if(s&&!d) parts.push(s+' 秒');
+  return parts.slice(0,3).join(' ');
+}
+function isLeapYear(y){
+  return (y%4===0&&y%100!==0)||y%400===0;
+}
+function daysInMonth(y,m){
+  return [31,isLeapYear(y)?29:28,31,30,31,30,31,31,30,31,30,31][m-1];
+}
+var ZONES=[
+  { name:'北京 / 上海 (UTC+8)', offset:480 },
+  { name:'UTC', offset:0 },
+  { name:'东京 (UTC+9)', offset:540 },
+  { name:'伦敦 (UTC+0/夏令+1)', offset:0 },
+  { name:'纽约 (UTC-5/夏令-4)', offset:-300 },
+  { name:'洛杉矶 (UTC-8/夏令-7)', offset:-480 }
+];
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { normalizeTimestamp:normalizeTimestamp, pad2:pad2, formatInZone:formatInZone,
+    weekdayInZone:weekdayInZone, isoInZone:isoInZone, parseDateTimeInZone:parseDateTimeInZone,
+    dateDiff:dateDiff, humanizeDuration:humanizeDuration, isLeapYear:isLeapYear, daysInMonth:daysInMonth, ZONES:ZONES };
+}
+if (typeof window !== 'undefined') {
+  window.TimeForgePure = { normalizeTimestamp:normalizeTimestamp, pad2:pad2, formatInZone:formatInZone,
+    weekdayInZone:weekdayInZone, isoInZone:isoInZone, parseDateTimeInZone:parseDateTimeInZone,
+    dateDiff:dateDiff, humanizeDuration:humanizeDuration, isLeapYear:isLeapYear, daysInMonth:daysInMonth, ZONES:ZONES };
+}
+</script>
+<script>
+/* ================= UI layer ================= */
+if (typeof window !== 'undefined' && typeof document !== 'undefined') (function(){
+  var P=window.TimeForgePure;
+  var $=function(id){ return document.getElementById(id); };
+
+  /* live clock */
+  function tick(){
+    var now=Date.now();
+    $('nowLine').innerHTML='现在：<b>'+Math.floor(now/1000)+'</b> · '+P.formatInZone(now,480)+' (北京)';
+  }
+  tick(); setInterval(tick,1000);
+
+  /* timestamp → date */
+  function renderTs(){
+    var v=$('tsInput').value.trim();
+    var err=$('tsErr'), zones=$('tsZones');
+    if(!v){ err.textContent=''; zones.innerHTML=''; return; }
+    var r=P.normalizeTimestamp(v);
+    if(!r){ err.textContent='无法识别：请输入 10 位（秒）或 13 位（毫秒）纯数字时间戳'; zones.innerHTML=''; return; }
+    err.textContent='';
+    var html='<div class="zone hl"><div class="zn">识别为 '+(r.unit==='s'?'秒':'毫秒')+' · ISO (UTC+8)</div><div class="zv">'+P.isoInZone(r.ms,480)+'</div></div>';
+    P.ZONES.forEach(function(z){
+      html+='<div class="zone"><div class="zn">'+z.name+'</div><div class="zv">'+P.formatInZone(r.ms,z.offset)+' '+P.weekdayInZone(r.ms,z.offset)+'</div></div>';
+    });
+    zones.innerHTML=html;
+  }
+  $('tsInput').oninput=renderTs;
+  $('tsNow').onclick=function(){ $('tsInput').value=String(Math.floor(Date.now()/1000)); renderTs(); };
+
+  /* date → timestamp */
+  var zoneSel=$('dtZone');
+  P.ZONES.forEach(function(z,i){
+    var o=document.createElement('option'); o.value=z.offset; o.textContent=z.name;
+    if(i===0) o.selected=true;
+    zoneSel.appendChild(o);
+  });
+  function renderDt(){
+    var v=$('dtInput').value;
+    var off=Number(zoneSel.value)||0;
+    var out=$('dtResult');
+    if(!v){ out.innerHTML='<span style="color:var(--txt3)">选择日期时间后自动换算</span>'; return; }
+    var ms=P.parseDateTimeInZone(v.length===16?v+':00':v, off);
+    if(ms==null){ out.innerHTML='<span class="err">格式不正确</span>'; return; }
+    out.innerHTML='秒级：<b>'+Math.floor(ms/1000)+'</b><br>毫秒级：<b>'+ms+'</b><br>ISO：'+P.isoInZone(ms,off);
+  }
+  $('dtInput').oninput=renderDt; zoneSel.onchange=renderDt;
+  $('dtNowBtn').onclick=function(){
+    var now=Date.now(), off=Number(zoneSel.value)||0;
+    $('dtInput').value=P.formatInZone(now,off).replace(' ','T');
+    renderDt();
+  };
+  renderDt();
+
+  /* date diff */
+  function renderDiff(){
+    var a=$('dA').value, b=$('dB').value, out=$('diffResult');
+    if(!a||!b){ out.innerHTML='<span style="color:var(--txt3)">选择两个日期后自动计算</span>'; return; }
+    var msA=P.parseDateTimeInZone(a.length===16?a+':00':a,0);
+    var msB=P.parseDateTimeInZone(b.length===16?b+':00':b,0);
+    if(msA==null||msB==null){ out.innerHTML='<span class="err">格式不正确</span>'; return; }
+    var d=P.dateDiff(msA,msB);
+    out.innerHTML='相差：<b>'+d.days+'</b> 天 <b>'+d.hours+'</b> 小时 <b>'+d.minutes+'</b> 分 <b>'+d.seconds+'</b> 秒'
+      +'<br>共 '+d.totalDays+' 天 ｜ '+d.totalHours+' 小时 ｜ '+d.totalMinutes+' 分钟'
+      +'<br>人性化：<b>'+P.humanizeDuration(d.totalMs)+'</b>';
+  }
+  $('dA').oninput=renderDiff; $('dB').oninput=renderDiff;
+  renderDiff();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

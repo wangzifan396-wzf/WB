@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>JqForge — jq 风格 JSON 变换器：字段访问、索引、管道、map/select/keys/sort_by/group_by 等子集解释器，本地即时变换。</title>
+<meta property="og:title" content="JqForge">
+<meta property="og:description" content="jq 风格 JSON 变换，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="jq 风格 JSON 变换，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>JqForge</h1>
+  <p class="sub">数据工具：用 jq 子集语法（.a.b、.[0]、| 管道、map/select/keys/sort_by/group_by/unique/add 等）在浏览器里直接变换 JSON，支持比较与 and/or 过滤，零依赖、数据不出本机 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="jqin">JSON 输入</label>
+  <textarea id="jqin" rows="5">[
+  {"name":"Alice","age":30,"tags":["x","y"]},
+  {"name":"Bob","age":17,"tags":["z"]},
+  {"name":"Cara","age":25,"tags":["x"]}
+]</textarea>
+  <label for="jqf">jq 表达式（子集）</label>
+  <input type="text" id="jqf" value=".[] | select(.age >= 18)">
+  <div class="row">
+    <button id="jqrun">运行变换</button>
+    <select id="jqTpl"><option value="">载入示例…</option></select>
+  </div>
+  <div class="err" id="jqerr"></div>
+  <div class="out" id="jqout"><pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">[3,4]</pre></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function tokenize(src){
+  var i=0, n=src.length, toks=[];
+  function isId(c){ return /[a-zA-Z_$]/.test(c); }
+  function isDigit(c){ return c>='0'&&c<='9'; }
+  while(i<n){
+    var c=src[i];
+    if(c===' '||c==='\t'||c==='\n'||c==='\r'){ i++; continue; }
+    if(c==='.'){ toks.push({t:'DOT'}); i++; continue; }
+    if(c==='|'){ toks.push({t:'PIPE'}); i++; continue; }
+    if(c==='['){ toks.push({t:'LB'}); i++; continue; }
+    if(c===']'){ toks.push({t:'RB'}); i++; continue; }
+    if(c==='('){ toks.push({t:'LP'}); i++; continue; }
+    if(c===')'){ toks.push({t:'RP'}); i++; continue; }
+    if(c==='{'){ toks.push({t:'LC'}); i++; continue; }
+    if(c==='}'){ toks.push({t:'RC'}); i++; continue; }
+    if(c===':'){ toks.push({t:'COLON'}); i++; continue; }
+    if(c===','){ toks.push({t:'COMMA'}); i++; continue; }
+    if(c==='+'||c==='*'||c==='/'){ toks.push({t:'OP',v:c}); i++; continue; }
+    if(c==='-'){ toks.push({t:'OP',v:c}); i++; continue; }
+    if(c==='='){ if(src[i+1]==='='){ toks.push({t:'CMP',v:'=='}); i+=2; continue; } throw new Error('不支持赋值 = （仅 == 比较）'); }
+    if(c==='!'){ if(src[i+1]==='='){ toks.push({t:'CMP',v:'!='}); i+=2; continue; } throw new Error('不支持 ! （仅 != 比较）'); }
+    if(c==='>'){ if(src[i+1]==='='){ toks.push({t:'CMP',v:'>='}); i+=2; continue; } toks.push({t:'CMP',v:'>'}); i++; continue; }
+    if(c==='<'){ if(src[i+1]==='='){ toks.push({t:'CMP',v:'<='}); i+=2; continue; } toks.push({t:'CMP',v:'<'}); i++; continue; }
+    if(c==='"'){
+      i++; var s='';
+      while(i<n && src[i]!=='"'){
+        if(src[i]==='\\'){ var e=src[i+1]; i+=2;
+          if(e==='n') s+='\n'; else if(e==='t') s+='\t'; else if(e==='r') s+='\r';
+          else if(e==='"') s+='"'; else if(e==='\\') s+='\\'; else if(e==='/') s+='/'; else s+=e;
+        } else { s+=src[i]; i++; }
+      }
+      i++; toks.push({t:'STR',v:s}); continue;
+    }
+    if(isDigit(c) || (c==='-'&&isDigit(src[i+1]))){
+      var num=''; if(c==='-'){ num+='-'; i++; }
+      while(i<n && isDigit(src[i])){ num+=src[i]; i++; }
+      if(src[i]==='.'){ num+='.'; i++; while(i<n&&isDigit(src[i])){ num+=src[i]; i++; } }
+      toks.push({t:'NUM',v:parseFloat(num)}); continue;
+    }
+    if(isId(c)){
+      var w=''; while(i<n && (isId(src[i])||isDigit(src[i]))){ w+=src[i]; i++; }
+      if(w==='and'||w==='or'||w==='not'||w==='contains') toks.push({t:'KW',v:w});
+      else toks.push({t:'ID',v:w});
+      continue;
+    }
+    throw new Error('无法识别的字符: '+c);
+  }
+  toks.push({t:'EOF'}); return toks;
+}
+
+function parse(src){
+  var ZERO_ARG={keys:1,length:1,sort:1,unique:1,add:1,min:1,max:1,reverse:1,flatten:1,values:1,to_entries:1,from_entries:1};
+  var toks=tokenize(src), p=0;
+  function peek(){ return toks[p]; }
+  function next(){ return toks[p++]; }
+  function expect(t){ if(toks[p].t!==t) throw new Error('期望 '+t+' 但得到 '+toks[p].t); return toks[p++]; }
+
+  function parsePipe(){
+    var left=parseOr();
+    while(peek().t==='PIPE'){ next(); var right=parseOr(); left={t:'pipe',l:left,r:right}; }
+    return left;
+  }
+  function parseOr(){
+    var left=parseAnd();
+    while(peek().t==='KW'&&peek().v==='or'){ next(); var r=parseAnd(); left={t:'bin',op:'or',l:left,r:r}; }
+    return left;
+  }
+  function parseAnd(){
+    var left=parseCmp();
+    while(peek().t==='KW'&&peek().v==='and'){ next(); var r=parseCmp(); left={t:'bin',op:'and',l:left,r:r}; }
+    return left;
+  }
+  function parseCmp(){
+    var left=parseAdd();
+    var tk=peek();
+    if(tk.t==='CMP'){ next(); var r=parseAdd(); left={t:'cmp',op:tk.v,l:left,r:r}; }
+    else if(tk.t==='KW'&&tk.v==='contains'){ next(); var r=parseAdd(); left={t:'cmp',op:'contains',l:left,r:r}; }
+    return left;
+  }
+  function parseAdd(){
+    var left=parseMul();
+    while(peek().t==='OP'&&(peek().v==='+'||peek().v==='-')){ var op=next().v; var r=parseMul(); left={t:'arith',op:op,l:left,r:r}; }
+    return left;
+  }
+  function parseMul(){
+    var left=parseUnary();
+    while(peek().t==='OP'&&(peek().v==='*'||peek().v==='/')){ var op=next().v; var r=parseUnary(); left={t:'arith',op:op,l:left,r:r}; }
+    return left;
+  }
+  function parseUnary(){
+    var tk=peek();
+    if(tk.t==='OP'&&tk.v==='-'){ next(); return {t:'neg',e:parseUnary()}; }
+    if(tk.t==='KW'&&tk.v==='not'){ next(); return {t:'not',e:parseUnary()}; }
+    return parsePostfix();
+  }
+  function parseIndex(){
+    if(peek().t==='RB') return {wild:true};
+    if(peek().t==='COLON'){ next(); if(peek().t==='RB') return {slice:{start:null,end:null}}; var end=parseSignedNum(); return {slice:{start:null,end:end}}; }
+    var base;
+    if(peek().t==='STR') base={key:next().v};
+    else base={idx:parseSignedNum()};
+    if(peek().t==='COLON'){ next(); if(peek().t==='RB') return {slice:base}; var end=peek().t==='RB'?null:parseSignedNum(); return {slice:{start:base,end:end}}; }
+    return base;
+  }
+  function parseNum(){ if(peek().t==='NUM') return next().v; throw new Error('期望数字（索引）'); }
+  function parseSignedNum(){ var s=1; if(peek().t==='OP'&&peek().v==='-'){ next(); s=-1; } if(peek().t!=='NUM') throw new Error('期望数字（索引）'); return s*next().v; }
+  function parsePostfix(){
+    var node=parsePrimary();
+    for(;;){
+      var tk=peek();
+      if(tk.t==='DOT'){ next();
+        if(peek().t==='ID'){ var name=next().v; node={t:'field',e:node,name:name}; }
+        else if(peek().t==='LB'){ next(); var idx=parseIndex(); expect('RB'); node={t:'index',e:node,idx:idx}; }
+        else throw new Error('"." 后需要字段名或 [ ]');
+      } else if(tk.t==='LB'){ next(); var idx2=parseIndex(); expect('RB'); node={t:'index',e:node,idx:idx2}; }
+      else break;
+    }
+    return node;
+  }
+  function parsePrimary(){
+    var tk=peek();
+    if(tk.t==='DOT'){ next();
+      if(peek().t==='ID') return {t:'field',e:{t:'id'},name:next().v};
+      if(peek().t==='LB'){ next(); var idx=parseIndex(); expect('RB'); return {t:'index',e:{t:'id'},idx:idx}; }
+      return {t:'id'};
+    }
+    if(tk.t==='KW' && tk.v==='contains'){
+      next();
+      if(peek().t!=='LP') throw new Error('contains 需要参数，如 contains("x")');
+      next(); var cargs=[]; if(peek().t!=='RP'){ cargs.push(parsePipe()); while(peek().t==='COMMA'){ next(); cargs.push(parsePipe()); } } expect('RP');
+      return {t:'func',name:'contains',args:cargs};
+    }
+    if(tk.t==='ID'){
+      var name=next().v;
+      if(name==='true') return {t:'lit',v:true};
+      if(name==='false') return {t:'lit',v:false};
+      if(name==='null') return {t:'lit',v:null};
+      if(peek().t==='LP'){
+        next(); var args=[];
+        if(peek().t!=='RP'){ args.push(parsePipe()); while(peek().t==='COMMA'){ next(); args.push(parsePipe()); } }
+        expect('RP');
+        return {t:'func',name:name,args:args};
+      }
+      if(ZERO_ARG[name]) return {t:'func',name:name,args:[]};
+      return {t:'field',e:{t:'id'},name:name};
+    }
+    if(tk.t==='NUM') return {t:'lit',v:next().v};
+    if(tk.t==='STR') return {t:'lit',v:next().v};
+    if(tk.t==='LB'){ next(); var arr=[]; if(peek().t!=='RB'){ arr.push(parsePipe()); while(peek().t==='COMMA'){ next(); arr.push(parsePipe()); } } expect('RB'); return {t:'array',v:arr}; }
+    if(tk.t==='LP'){ next(); var e=parsePipe(); expect('RP'); return e; }
+    throw new Error('意外的标记: '+tk.t);
+  }
+  var ast=parsePipe();
+  if(peek().t!=='EOF') throw new Error('多余的内容: '+peek().t);
+  return ast;
+}
+
+// ---------- evaluation ----------
+function truthy(v){ return v!==false && v!==null && v!==undefined; }
+function getField(obj,name){
+  if(obj && typeof obj==='object' && !Array.isArray(obj)) return obj[name];
+  return undefined;
+}
+function applyIndex(obj,idx){
+  if(idx.wild){ if(Array.isArray(obj)) return obj; if(obj&&typeof obj==='object') return Object.values(obj); return [obj]; }
+  if(idx.key!=null) return obj?obj[idx.key]:undefined;
+  if(idx.idx!=null){
+    if(Array.isArray(obj)){ var i=idx.idx; if(i<0) i=obj.length+i; return obj[i]; }
+    if(typeof obj==='string') return obj[idx.idx];
+    return obj?obj[idx.idx]:undefined;
+  }
+  if(idx.slice){
+    var s=idx.slice.start, e=idx.slice.end;
+    var arr = Array.isArray(obj)?obj.slice():(typeof obj==='string'?obj.split(''):[]);
+    var a=(s==null||s.idx==null)?0:(s.idx!=null?s.idx:(typeof s==='number'?s:0));
+    var b=(e==null||e.idx==null)?undefined:(e.idx!=null?e.idx:undefined);
+    return arr.slice(a,b);
+  }
+  return undefined;
+}
+function deepEqual(a,b){
+  if(a===b) return true;
+  if(typeof a!==typeof b) return false;
+  if(Array.isArray(a)&&Array.isArray(b)){ if(a.length!==b.length) return false; for(var i=0;i<a.length;i++) if(!deepEqual(a[i],b[i])) return false; return true; }
+  if(a&&b&&typeof a==='object'&&typeof b==='object'){ var ka=Object.keys(a),kb=Object.keys(b); if(ka.length!==kb.length) return false; for(var j=0;j<ka.length;j++) if(!deepEqual(a[ka[j]],b[ka[j]])) return false; return true; }
+  return false;
+}
+function contains(a,b){
+  if(typeof a==='string') return b==null?false:a.indexOf(String(b))>=0;
+  if(Array.isArray(a)){ if(!Array.isArray(b)) return a.some(function(x){return deepEqual(x,b);}); return b.every(function(x){return a.some(function(y){return deepEqual(x,y);});}); }
+  if(a&&typeof a==='object'){ if(!(b&&typeof b==='object')) return false; return Object.keys(b).every(function(k){ return a[k]!==undefined && contains(a[k],b[k]); }); }
+  return false;
+}
+
+function evalNode(node, input){
+  switch(node.t){
+    case 'id': return input;
+    case 'lit': return node.v;
+    case 'field': {
+      var e=evalNode(node.e, input);
+      if(Array.isArray(e)) return e.map(function(x){ return getField(x,node.name); });
+      return getField(e,node.name);
+    }
+    case 'index': {
+      var ev=evalNode(node.e, input);
+      if(node.idx.wild){
+        if(Array.isArray(ev)) return ev;
+        if(ev && typeof ev==='object') return Object.values(ev);
+        return [ev];
+      }
+      return applyIndex(ev, node.idx);
+    }
+    case 'array': return node.v.map(function(el){ return evalNode(el, input); });
+    case 'neg': { var v=evalNode(node.e,input); return -toNumber(v); }
+    case 'not': return !truthy(evalNode(node.e,input));
+    case 'bin': {
+      var l=evalNode(node.l,input), r=evalNode(node.r,input);
+      if(node.op==='and') return truthy(l)&&truthy(r);
+      return truthy(l)||truthy(r);
+    }
+    case 'cmp': {
+      var L=evalNode(node.l,input), R=evalNode(node.r,input);
+      if(node.op==='contains') return contains(L,R);
+      if(node.op==='==') return deepEqual(L,R);
+      if(node.op==='!=') return !deepEqual(L,R);
+      var a=toNumber(L), b=toNumber(R);
+      if(node.op==='>') return a>b; if(node.op==='<') return a<b;
+      if(node.op==='>=') return a>=b; return a<=b;
+    }
+    case 'arith': {
+      var la=evalNode(node.l,input), ra=evalNode(node.r,input);
+      if(node.op==='+'){ if(Array.isArray(la)&&Array.isArray(ra)) return la.concat(ra); if(typeof la==='string'&&typeof ra==='string') return la+ra; return toNumber(la)+toNumber(ra); }
+      if(node.op==='-') return toNumber(la)-toNumber(ra);
+      if(node.op==='*') return toNumber(la)*toNumber(ra);
+      return toNumber(la)/toNumber(ra);
+    }
+    case 'pipe': { var lv=evalNode(node.l,input); return evalNode(node.r,lv); }
+    case 'func': return applyFunc(node.name,node.args,input);
+  }
+  throw new Error('未知节点: '+node.t);
+}
+
+function toNumber(v){ if(typeof v==='number') return v; if(typeof v==='string'){ var f=parseFloat(v); return isFinite(f)?f:0; } if(typeof v==='boolean') return v?1:0; return 0; }
+
+function applyFunc(name,args,input){
+  var KNOWN={map:1,select:1,keys:1,length:1,sort:1,sort_by:1,group_by:1,add:1,unique:1,min:1,max:1,reverse:1,flatten:1,values:1,to_entries:1,from_entries:1,contains:1};
+  if(!KNOWN[name]) throw new Error('不支持的函数: '+name);
+  var a0=args[0]?evalNode(args[0],input):null;
+  if(name==='map'){
+    var arr=Array.isArray(input)?input:(input==null?[]:[input]);
+    return arr.map(function(x){ return evalNode(args[0],x); });
+  }
+  if(name==='select'){
+    var arr2=Array.isArray(input)?input:(input==null?[]:[input]);
+    return arr2.filter(function(x){ return truthy(evalNode(args[0],x)); });
+  }
+  if(name==='keys'){
+    if(Array.isArray(input)) return input.map(function(_,i){return i;});
+    if(input&&typeof input==='object') return Object.keys(input).sort();
+    return [];
+  }
+  if(name==='length'){
+    if(input==null) return 0; if(Array.isArray(input)||typeof input==='string') return input.length;
+    if(typeof input==='object') return Object.keys(input).length; return 0;
+  }
+  if(name==='sort'){ return (input||[]).slice().sort(cmpJSON); }
+  if(name==='sort_by'){ return (input||[]).slice().sort(function(x,y){ return cmpJSON(evalNode(args[0],x),evalNode(args[0],y)); }); }
+  if(name==='group_by'){
+    var sorted=(input||[]).slice().sort(function(x,y){ return cmpJSON(evalNode(args[0],x),evalNode(args[0],y)); });
+    var out=[]; for(var i=0;i<sorted.length;i++){ var k=cmpJSON(evalNode(args[0],sorted[i]),null); if(!out.length||cmpJSON(evalNode(args[0],sorted[i-1]),evalNode(args[0],sorted[i]))!==0){ out.push([sorted[i]]); } else out[out.length-1].push(sorted[i]); }
+    return out;
+  }
+  if(name==='add'){ return (input||[]).reduce(function(acc,x){ if(acc==null) return x; if(typeof acc==='number'&&typeof x==='number') return acc+x; if(typeof acc==='string'&&typeof x==='string') return acc+x; if(Array.isArray(acc)&&Array.isArray(x)) return acc.concat(x); return acc; }, null); }
+  if(name==='unique'){ var seen={},res=[]; (input||[]).forEach(function(x){ var k=JSON.stringify(x); if(!seen[k]){ seen[k]=1; res.push(x); } }); return res; }
+  if(name==='min'){ return (input||[]).slice().sort(cmpJSON)[0]; }
+  if(name==='max'){ var s=(input||[]).slice().sort(cmpJSON); return s[s.length-1]; }
+  if(name==='reverse'){ return (input||[]).slice().reverse(); }
+  if(name==='flatten'){ return flat(input||[]); }
+  if(name==='values'){ return (input||[]).filter(function(x){ return x!==null && x!==false; }); }
+  if(name==='to_entries'){
+    if(Array.isArray(input)) return input.map(function(v,i){ return {key:i,value:v}; });
+    var es=[]; Object.keys(input||{}).sort().forEach(function(k){ es.push({key:k,value:input[k]}); }); return es;
+  }
+  if(name==='from_entries'){
+    var obj={}; (input||[]).forEach(function(e){ var k=e.key!=null?e.key:(e.k!=null?e.k:undefined); var v=e.value!=null?e.value:(e.v!=null?e.v:undefined); if(k!=null) obj[k]=v; }); return obj;
+  }
+  if(name==='contains'){ return contains(input, args[0]?evalNode(args[0],input):null); }
+  throw new Error('未实现: '+name);
+}
+function cmpJSON(a,b){
+  if(a===b) return 0;
+  var sa=JSON.stringify(a), sb=JSON.stringify(b);
+  return sa<sb?-1:(sa>sb?1:0);
+}
+function flat(arr){
+  return arr.reduce(function(acc,x){ return acc.concat(Array.isArray(x)?flat(x):[x]); }, []);
+}
+
+function transform(filter, data){
+  var ast=parse(filter);
+  var out=evalNode(ast, data);
+  return out;
+}
+
+var JqForgePure = {
+  tokenize: tokenize, parse: parse, transform: transform, evalNode: evalNode,
+  contains: contains, deepEqual: deepEqual
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = JqForgePure;
+if (typeof window !== 'undefined') window.JqForgePure = JqForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.JqForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var EX=[['选取成年人','.[] | select(.age >= 18)'],['取名字','.[] | select(.age >= 18) | .name'],
+    ['按年龄排序','sort_by(.age)'],['年龄分组','group_by(.age)'],['标签含 x','.[] | select(.tags contains "x")'],
+    ['平均年龄(键)','map(.age) | add'],['转 entries','to_entries'],['年龄+1','map(.age + 1)']];
+  EX.forEach(function(t){ var o=document.createElement('option'); o.value=t[1]; o.textContent=t[0]; $('jqTpl').appendChild(o); });
+  function run(){
+    var raw=$('jqin').value, f=$('jqf').value;
+    var data; try { data=JSON.parse(raw); } catch(e){ $('jqerr').textContent='JSON 解析失败: '+e.message; return; }
+    var out; try { out=P.transform(f, data); } catch(e){ $('jqerr').textContent='表达式错误: '+e.message; $('jqout').innerHTML='<pre style="margin:0;font-size:12px;color:var(--warn)">'+esc(e.message)+'</pre>'; return; }
+    $('jqerr').textContent='';
+    $('jqout').innerHTML='<pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">'+esc(JSON.stringify(out,null,2))+'</pre>';
+  }
+  $('jqrun').addEventListener('click', run);
+  $('jqTpl').addEventListener('change', function(){ if($('jqTpl').value){ $('jqf').value=$('jqTpl').value; run(); } });
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>TldrForge — 命令速查：tldr-pages 风格的常用 CLI 命令示例库，输入关键词即可检索 git / docker / ssh / kubectl 等命令与用法，离线可用、一键复制。</title>
+<meta property="og:title" content="TldrForge">
+<meta property="og:description" content="命令速查：内联一份常用 CLI 命令示例库，覆盖 git、npm、docker、kubectl、curl、ssh、tar、grep、awk 等 40+ 工具，输入关键词即检索命令与典型用法，支持分类筛选与一键复制，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="命令速查：内联一份常用 CLI 命令示例库，覆盖 git、npm、docker、kubectl、curl、ssh、tar、grep、awk 等 40+ 工具，输入关键词即检索命令与典型用法，支持分类筛选与一键复制，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>TldrForge</h1>
+  <p class="sub">CLI 命令 · 速查 · 复制</p>
+
+  <label for="tl_q">搜索命令（git / docker / curl / ssh / tar / kubectl ...）</label>
+  <input type="text" id="tl_q" placeholder="输入命令或关键词，如 docker、压缩、ssh" style="flex:1">
+  <div class="tl-chips" id="tl_cats"></div>
+  <div id="tl_out" class="out"></div>
+  <style>
+  .tl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .tl-chip{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
+  .tl-chip.on{color:#fff;background:var(--accent);border-color:transparent}
+  .tl-card{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:12px}
+  .tl-name{font:600 15px/1.4 system-ui,-apple-system,sans-serif;color:var(--fg)}
+  .tl-desc{color:var(--muted);font-size:13px;margin:2px 0 8px}
+  .tl-ex{padding:7px 0;border-top:1px dashed var(--line)}
+  .tl-ex:first-of-type{border-top:0;padding-top:0}
+  .tl-d{color:var(--dim);font-size:12px;margin-bottom:3px}
+  .tl-c{display:flex;align-items:center;gap:8px}
+  .tl-c code{flex:1;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--info);word-break:break-all}
+  .tl-cp{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer}
+  .tl-cp:hover{color:var(--fg);border-color:var(--line2)}
+  </style>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 361 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+/* ============ TldrForge 内核 ============
+   一份内联命令库 + 纯函数检索，不依赖网络。 */
+var TldrForgePure = (function(){
+  var DB = [
+    {name:'git', cat:'版本控制', desc:'分布式版本控制系统', keys:['vcs','commit','branch','github','gitlab'], examples:[
+      {d:'克隆远程仓库', c:'git clone {{url}}'},
+      {d:'查看工作区状态', c:'git status'},
+      {d:'暂存并提交', c:'git add -A && git commit -m "{{message}}"'},
+      {d:'新建并切换到分支', c:'git checkout -b {{branch}}'},
+      {d:'推送到远程', c:'git push -u origin {{branch}}'},
+      {d:'查看提交历史', c:'git log --oneline --graph --all'}
+    ]},
+    {name:'npm', cat:'包管理', desc:'Node.js 包管理器', keys:['node','install','script'], examples:[
+      {d:'安装依赖', c:'npm install'},
+      {d:'安装某个包', c:'npm install {{package}}'},
+      {d:'运行脚本', c:'npm run {{script}}'},
+      {d:'初始化项目', c:'npm init -y'}
+    ]},
+    {name:'yarn', cat:'包管理', desc:'Yarn 包管理器', keys:['node','install'], examples:[
+      {d:'安装依赖', c:'yarn install'},
+      {d:'添加依赖', c:'yarn add {{package}}'},
+      {d:'运行脚本', c:'yarn {{script}}'}
+    ]},
+    {name:'docker', cat:'容器', desc:'Docker 容器引擎', keys:['container','image','compose'], examples:[
+      {d:'列出运行中的容器', c:'docker ps'},
+      {d:'运行容器并映射端口', c:'docker run -d -p {{host}}:{{container}} {{image}}'},
+      {d:'构建镜像', c:'docker build -t {{tag}} .'},
+      {d:'查看日志', c:'docker logs -f {{container}}'},
+      {d:'删除容器', c:'docker rm -f {{container}}'}
+    ]},
+    {name:'docker-compose', cat:'容器', desc:'多容器编排', keys:['compose','service'], examples:[
+      {d:'后台启动服务', c:'docker compose up -d'},
+      {d:'停止并移除', c:'docker compose down'},
+      {d:'查看服务状态', c:'docker compose ps'}
+    ]},
+    {name:'kubectl', cat:'容器', desc:'Kubernetes 命令行', keys:['k8s','pod','deploy'], examples:[
+      {d:'查看 Pod', c:'kubectl get pods'},
+      {d:'应用清单', c:'kubectl apply -f {{file}}.yaml'},
+      {d:'查看日志', c:'kubectl logs -f {{pod}}'},
+      {d:'进入容器', c:'kubectl exec -it {{pod}} -- sh'}
+    ]},
+    {name:'curl', cat:'网络', desc:'HTTP 请求工具', keys:['http','request','api'], examples:[
+      {d:'GET 请求', c:'curl {{url}}'},
+      {d:'POST JSON', c:"curl -X POST -H 'Content-Type: application/json' -d '{{json}}' {{url}}"},
+      {d:'下载到文件', c:'curl -o {{file}} {{url}}'},
+      {d:'跟随重定向', c:'curl -L {{url}}'}
+    ]},
+    {name:'wget', cat:'网络', desc:'文件下载工具', keys:['download'], examples:[
+      {d:'下载文件', c:'wget {{url}}'},
+      {d:'后台下载', c:'wget -b {{url}}'}
+    ]},
+    {name:'ssh', cat:'远程', desc:'安全远程登录', keys:['remote','shell'], examples:[
+      {d:'登录主机', c:'ssh {{user}}@{{host}}'},
+      {d:'远程执行命令', c:"ssh {{user}}@{{host}} '{{command}}'"},
+      {d:'端口转发', c:'ssh -N -L {{local}}:localhost:{{remote}} {{user}}@{{host}}'}
+    ]},
+    {name:'scp', cat:'远程', desc:'安全复制文件', keys:['copy','transfer'], examples:[
+      {d:'上传文件', c:'scp {{file}} {{user}}@{{host}}:{{path}}'},
+      {d:'下载文件', c:'scp {{user}}@{{host}}:{{path}} {{local}}'}
+    ]},
+    {name:'ssh-keygen', cat:'远程', desc:'SSH 密钥生成', keys:['key','ed25519','rsa'], examples:[
+      {d:'生成 Ed25519 密钥', c:'ssh-keygen -t ed25519 -C "{{email}}"'},
+      {d:'指定文件名', c:'ssh-keygen -t rsa -b 4096 -f ~/.ssh/{{name}}'}
+    ]},
+    {name:'rsync', cat:'远程', desc:'增量文件同步', keys:['sync','backup'], examples:[
+      {d:'同步目录', c:'rsync -avz {{src}}/ {{dest}}/'},
+      {d:'排除文件', c:'rsync -avz --exclude={{pattern}} {{src}}/ {{dest}}/'},
+      {d:'远程同步', c:'rsync -avz -e ssh {{src}}/ {{user}}@{{host}}:{{dest}}/'},
+      {d:'删除多余文件', c:'rsync -avz --delete {{src}}/ {{dest}}/'},
+      {d:'限速同步', c:'rsync -avz --bwlimit={{kb}} {{src}}/ {{dest}}/'},
+      {d:'干跑预览', c:'rsync -avzn {{src}}/ {{dest}}/'},
+      {d:'压缩传输', c:'rsync -avz --compress {{src}}/ {{dest}}/'},
+      {d:'保留权限', c:'rsync -avA {{src}}/ {{dest}}/'},
+      {d:'显示进度', c:'rsync -avz --progress {{src}}/ {{dest}}/'},
+      {d:'仅更新', c:'rsync -avu {{src}}/ {{dest}}/'}
+    ]},
+    {name:'tar', cat:'压缩', desc:'归档工具', keys:['archive','zip','backup'], examples:[
+      {d:'打包并压缩', c:'tar -czf {{name}}.tar.gz {{dir}}'},
+      {d:'解压', c:'tar -xzf {{name}}.tar.gz'},
+      {d:'列出内容', c:'tar -tzf {{name}}.tar.gz'}
+    ]},
+    {name:'gzip', cat:'压缩', desc:'Gzip 压缩', keys:['compress'], examples:[
+      {d:'压缩文件', c:'gzip {{file}}'},
+      {d:'解压', c:'gzip -d {{file}}.gz'}
+    ]},
+    {name:'unzip', cat:'压缩', desc:'解压 zip', keys:['extract'], examples:[
+      {d:'解压到目录', c:'unzip {{file}}.zip -d {{dir}}'}
+    ]},
+    {name:'grep', cat:'文本', desc:'文本搜索', keys:['search','pattern','regex'], examples:[
+      {d:'查找模式', c:'grep "{{pattern}}" {{file}}'},
+      {d:'递归搜索', c:'grep -r "{{pattern}}" {{dir}}'},
+      {d:'忽略大小写', c:'grep -i "{{pattern}}" {{file}}'},
+      {d:'显示行号', c:'grep -n "{{pattern}}" {{file}}'}
+    ]},
+    {name:'find', cat:'文件', desc:'文件查找', keys:['search','locate'], examples:[
+      {d:'按名称查找', c:'find {{dir}} -name "{{pattern}}"'},
+      {d:'按类型查找', c:'find {{dir}} -type f -name "*.{{ext}}"'},
+      {d:'按大小查找', c:'find {{dir}} -size +{{n}}M'}
+    ]},
+    {name:'ls', cat:'文件', desc:'列出目录', keys:['list','dir'], examples:[
+      {d:'详细列表', c:'ls -la {{dir}}'},
+      {d:'按时间排序', c:'ls -lt {{dir}}'}
+    ]},
+    {name:'cp', cat:'文件', desc:'复制文件', keys:['copy'], examples:[
+      {d:'复制文件', c:'cp {{src}} {{dest}}'},
+      {d:'递归复制目录', c:'cp -r {{src}} {{dest}}'}
+    ]},
+    {name:'mv', cat:'文件', desc:'移动 / 重命名', keys:['move','rename'], examples:[
+      {d:'移动文件', c:'mv {{src}} {{dest}}'},
+      {d:'重命名', c:'mv {{old}} {{new}}'}
+    ]},
+    {name:'rm', cat:'文件', desc:'删除文件', keys:['delete'], examples:[
+      {d:'删除文件', c:'rm {{file}}'},
+      {d:'递归删除', c:'rm -rf {{dir}}'}
+    ]},
+    {name:'mkdir', cat:'文件', desc:'创建目录', keys:['directory'], examples:[
+      {d:'创建目录', c:'mkdir {{name}}'},
+      {d:'递归创建', c:'mkdir -p {{path}}'}
+    ]},
+    {name:'chmod', cat:'权限', desc:'修改权限', keys:['permission','mode'], examples:[
+      {d:'添加可执行', c:'chmod +x {{file}}'},
+      {d:'设置为 755', c:'chmod 755 {{file}}'}
+    ]},
+    {name:'chown', cat:'权限', desc:'修改所有者', keys:['owner'], examples:[
+      {d:'修改所有者', c:'sudo chown {{user}}:{{group}} {{file}}'}
+    ]},
+    {name:'awk', cat:'文本', desc:'文本处理语言', keys:['column','parse'], examples:[
+      {d:'打印某列', c:"awk '{print $1}' {{file}}"},
+      {d:'按条件过滤', c:"awk '$3 > {{n}} {print $0}' {{file}}"}
+    ]},
+    {name:'sed', cat:'文本', desc:'流编辑器', keys:['replace','substitute'], examples:[
+      {d:'替换（原地）', c:"sed -i 's/{{old}}/{{new}}/g' {{file}}"},
+      {d:'删除空行', c:"sed -i '/^$/d' {{file}}"}
+    ]},
+    {name:'cat', cat:'文件', desc:'查看文件内容', keys:['print','read'], examples:[
+      {d:'打印文件', c:'cat {{file}}'},
+      {d:'带行号', c:'cat -n {{file}}'}
+    ]},
+    {name:'head', cat:'文件', desc:'查看开头', keys:['top'], examples:[
+      {d:'前 20 行', c:'head -n 20 {{file}}'}
+    ]},
+    {name:'tail', cat:'文件', desc:'查看末尾', keys:['log','bottom'], examples:[
+      {d:'最后 10 行', c:'tail -n 10 {{file}}'},
+      {d:'实时追踪', c:'tail -f {{file}}'}
+    ]},
+    {name:'sort', cat:'文本', desc:'排序', keys:['order'], examples:[
+      {d:'按数值排序', c:'sort -n {{file}}'},
+      {d:'去重排序', c:'sort -u {{file}}'}
+    ]},
+    {name:'uniq', cat:'文本', desc:'去重', keys:['unique'], examples:[
+      {d:'统计出现次数', c:'sort {{file}} | uniq -c'}
+    ]},
+    {name:'wc', cat:'文本', desc:'行数字数统计', keys:['count'], examples:[
+      {d:'统计行数', c:'wc -l {{file}}'}
+    ]},
+    {name:'cut', cat:'文本', desc:'截取字段', keys:['column'], examples:[
+      {d:'按分隔符取列', c:"cut -d',' -f1 {{file}}"}
+    ]},
+    {name:'ps', cat:'进程', desc:'查看进程', keys:['process'], examples:[
+      {d:'列出全部进程', c:'ps aux'},
+      {d:'按名查找', c:"ps aux | grep {{name}}"}
+    ]},
+    {name:'kill', cat:'进程', desc:'终止进程', keys:['stop','signal'], examples:[
+      {d:'按 PID 终止', c:'kill {{pid}}'},
+      {d:'强制终止', c:'kill -9 {{pid}}'}
+    ]},
+    {name:'df', cat:'磁盘', desc:'磁盘空间', keys:['disk','space'], examples:[
+      {d:'人类可读', c:'df -h'}
+    ]},
+    {name:'du', cat:'磁盘', desc:'目录占用', keys:['disk','usage'], examples:[
+      {d:'目录总大小', c:'du -sh {{dir}}'},
+      {d:'排序前 10', c:'du -h {{dir}}/* | sort -rh | head -10'}
+    ]},
+    {name:'ping', cat:'网络', desc:'连通性测试', keys:['icmp','network'], examples:[
+      {d:'Ping 主机', c:'ping {{host}}'},
+      {d:'指定次数', c:'ping -c 4 {{host}}'}
+    ]},
+    {name:'python', cat:'运行', desc:'Python 解释器', keys:['script','repl'], examples:[
+      {d:'运行脚本', c:'python {{script}}.py'},
+      {d:'启动 HTTP 服务', c:'python -m http.server {{port}}'},
+      {d:'进入交互', c:'python'}
+    ]},
+    {name:'node', cat:'运行', desc:'Node.js 运行时', keys:['js','script'], examples:[
+      {d:'运行脚本', c:'node {{script}}.js'},
+      {d:'REPL', c:'node'}
+    ]},
+    {name:'pip', cat:'包管理', desc:'Python 包管理器', keys:['python','install'], examples:[
+      {d:'安装包', c:'pip install {{package}}'},
+      {d:'冻结依赖', c:'pip freeze > requirements.txt'}
+    ]},
+    {name:'go', cat:'运行', desc:'Go 工具链', keys:['golang','build'], examples:[
+      {d:'运行', c:'go run {{file}}.go'},
+      {d:'构建', c:'go build -o {{bin}} .'}
+    ]},
+    {name:'cargo', cat:'运行', desc:'Rust 工具链', keys:['rust','build'], examples:[
+      {d:'构建', c:'cargo build --release'},
+      {d:'运行', c:'cargo run'}
+    ]},
+    {name:'openssl', cat:'加密', desc:'TLS / 密码学工具箱', keys:['tls','cert','key'], examples:[
+      {d:'生成 RSA 私钥', c:'openssl genrsa -out key.pem 2048'},
+      {d:'生成自签证书', c:'openssl req -x509 -newkey rsa:2048 -keyout k.pem -out c.pem -days 365'},
+      {d:'计算摘要', c:'openssl dgst -sha256 {{file}}'}
+    ]},
+    {name:'systemctl', cat:'服务', desc:'系统服务管理', keys:['service','daemon'], examples:[
+      {d:'启动服务', c:'sudo systemctl start {{service}}'},
+      {d:'开机自启', c:'sudo systemctl enable {{service}}'},
+      {d:'查看状态', c:'sudo systemctl status {{service}}'}
+    ]},
+    {name:'export', cat:'环境', desc:'设置环境变量', keys:['env','variable'], examples:[
+      {d:'导出变量', c:'export {{NAME}}={{value}}'},
+      {d:'持久化到 profile', c:'echo "export {{NAME}}={{value}}" >> ~/.bashrc'}
+    ]},
+    {name:'echo', cat:'shell', desc:'输出文本', keys:['print','shell'], examples:[
+      {d:'输出到文件', c:'echo "{{text}}" > {{file}}'},
+      {d:'追加', c:'echo "{{text}}" >> {{file}}'}
+    ]}
+  ];
+
+  function norm(s){ return String(s).toLowerCase(); }
+  function search(q){
+    q = norm(q).trim();
+    if(!q) return DB.slice();
+    return DB.filter(function(e){
+      if(norm(e.name).indexOf(q)>=0) return true;
+      if(norm(e.desc).indexOf(q)>=0) return true;
+      if((e.keys||[]).some(function(k){ return norm(k).indexOf(q)>=0; })) return true;
+      if(e.examples.some(function(x){ return norm(x.c).indexOf(q)>=0 || norm(x.d).indexOf(q)>=0; })) return true;
+      return false;
+    });
+  }
+  function get(name){ for(var i=0;i<DB.length;i++) if(DB[i].name===name) return DB[i]; return null; }
+  function all(){ return DB.slice(); }
+  function cats(){ var m={}; DB.forEach(function(e){ m[e.cat]=(m[e.cat]||0)+1; }); return m; }
+
+  return { search:search, get:get, all:all, cats:cats, DB:DB };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = TldrForgePure;
+if (typeof window !== 'undefined') window.TldrForgePure = TldrForgePure;
+
+</script>
+<script>
+
+(function(){
+  var P = window.TldrForgePure;
+  var $ = function(id){ return document.getElementById(id); };
+  var q = $('tl_q'), catsBox = $('tl_cats'), out = $('tl_out');
+  var curCat = '';
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function escAttr(s){ return esc(s).replace(/'/g,'&#39;'); }
+  function renderCats(){
+    var cs = P.cats(); var html='';
+    html += '<span class="tl-chip'+(curCat===''?' on':'')+'" data-c="">全部</span>';
+    Object.keys(cs).forEach(function(c){ html += '<span class="tl-chip'+(curCat===c?' on':'')+'" data-c="'+escAttr(c)+'">'+esc(c)+' · '+cs[c]+'</span>'; });
+    catsBox.innerHTML = html;
+    catsBox.querySelectorAll('.tl-chip').forEach(function(el){ el.addEventListener('click', function(){ curCat = el.getAttribute('data-c'); renderCats(); render(); }); });
+  }
+  function render(){
+    var list = P.search(q.value);
+    if(curCat) list = list.filter(function(e){ return e.cat===curCat; });
+    if(!list.length){ out.innerHTML = '<div class="err">没有匹配的命令，换个关键词试试。</div>'; return; }
+    out.innerHTML = list.map(function(e){
+      var ex = e.examples.map(function(x){
+        return '<div class="tl-ex"><div class="tl-d">'+esc(x.d)+'</div>'
+          + '<div class="tl-c"><code>'+esc(x.c)+'</code>'
+          + '<button class="tl-cp" data-c="'+escAttr(x.c)+'">复制</button></div></div>';
+      }).join('');
+      return '<div class="tl-card"><div class="tl-name">'+esc(e.name)+'</div>'
+        + '<div class="tl-desc">'+esc(e.desc)+'</div>'+ex+'</div>';
+    }).join('');
+    out.querySelectorAll('.tl-cp').forEach(function(b){
+      b.addEventListener('click', function(){
+        var txt = b.getAttribute('data-c');
+        if(navigator.clipboard) navigator.clipboard.writeText(txt).catch(function(){});
+        b.textContent='已复制'; setTimeout(function(){ b.textContent='复制'; }, 1200);
+      });
+    });
+  }
+  q.addEventListener('input', render);
+  renderCats(); render();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>LinearForge — 线性回归：最小二乘拟合，斜率 / 截距 / R² / RMSE / 预测</title>
+<meta property="og:title" content="LinearForge">
+<meta property="og:description" content="线性回归：最小二乘拟合，斜率 / 截距 / R² / RMSE / 预测">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="线性回归：最小二乘拟合，斜率 / 截距 / R² / RMSE / 预测 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>LinearForge</h1>
+  <p class="sub">线性回归：最小二乘拟合，斜率 / 截距 / R² / RMSE / 预测 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>数据点（每行 x,y）</label>
+<textarea id="pts" rows="6">1, 2.1
+2, 3.9
+3, 6.2
+4, 7.8
+5, 10.1</textarea>
+<label>预测 x</label>
+<input id="px" type="number" value="6" step="any">
+<div class="row">
+  <button id="run">拟合并预测</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">输入数据点后运行</div>
+<script>
+function linParse(text){
+  var pts=[];
+  var lines=String(text).split('\n');
+  for(var i=0;i<lines.length;i++){
+    var ln=lines[i].trim();
+    if(!ln) continue;
+    var parts=ln.split(/[,\t]+/).map(function(x){ return Number(x.trim()); });
+    if(parts.length<2||isNaN(parts[0])||isNaN(parts[1]))
+      return {value:null, error:'第 '+(i+1)+' 行格式错误（需 x,y）'};
+    pts.push([parts[0], parts[1]]);
+  }
+  return {value:pts, error:null};
+}
+function linFit(pts){
+  var n=pts.length;
+  if(n<2) return {value:null, error:'至少需要 2 个点'};
+  var sx=0, sy=0, sxx=0, sxy=0, syy=0;
+  for(var i=0;i<n;i++){
+    var x=pts[i][0], y=pts[i][1];
+    sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; syy+=y*y;
+  }
+  var den=n*sxx-sx*sx;
+  if(den===0) return {value:null, error:'x 全部相同，无法拟合'};
+  var slope=(n*sxy-sx*sy)/den;
+  var intercept=(sy-slope*sx)/n;
+  var meanY=sy/n, ssTot=0, ssRes=0;
+  for(var j=0;j<n;j++){
+    var pred=slope*pts[j][0]+intercept;
+    ssTot+=(pts[j][1]-meanY)*(pts[j][1]-meanY);
+    ssRes+=(pts[j][1]-pred)*(pts[j][1]-pred);
+  }
+  var r2 = ssTot===0 ? 1 : 1-ssRes/ssTot;
+  var covDen=Math.sqrt((n*sxx-sx*sx)*(n*syy-sy*sy));
+  var r = covDen===0 ? 0 : (n*sxy-sx*sy)/covDen;
+  return {value:{slope:slope, intercept:intercept, r2:r2, r:r, n:n}, error:null};
+}
+function linPredict(model, x){ return model.slope*x+model.intercept; }
+function linResiduals(model, pts){
+  return pts.map(function(p){ return p[1]-linPredict(model, p[0]); });
+}
+function linRmse(model, pts){
+  var res=linResiduals(model, pts);
+  var s=0;
+  for(var i=0;i<res.length;i++) s+=res[i]*res[i];
+  return Math.sqrt(s/res.length);
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { linParse:linParse, linFit:linFit, linPredict:linPredict, linResiduals:linResiduals, linRmse:linRmse };
+}
+if (typeof window !== 'undefined') {
+  window.LinearForgePure = { linParse:linParse, linFit:linFit, linPredict:linPredict, linResiduals:linResiduals, linRmse:linRmse };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.LinearForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      var pr=P.linParse($('pts').value);
+      if(pr.error){ $('err').textContent=pr.error; return; }
+      var fr=P.linFit(pr.value);
+      if(fr.error){ $('err').textContent=fr.error; return; }
+      var mdl=fr.value;
+      var px=Number($('px').value);
+      $('out').textContent=
+        'y = '+mdl.slope.toFixed(6)+' · x + '+mdl.intercept.toFixed(6)+'\n'
+        +'R² = '+mdl.r2.toFixed(6)+'   r = '+mdl.r.toFixed(6)+'   n = '+mdl.n+'\n'
+        +'RMSE = '+P.linRmse(mdl, pr.value).toFixed(6)+'\n'
+        +'预测 x='+px+' → y = '+P.linPredict(mdl, px).toFixed(6);
+    });
+    $('clear').addEventListener('click', function(){ $('pts').value=''; $('out').textContent='输入数据点后运行'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

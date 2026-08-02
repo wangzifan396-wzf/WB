@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>VectorForge — 向量相似度计算器：余弦 / 欧氏 / 曼哈顿 / 点积 + Top-K 检索，RAG 向量度量</title>
+<meta property="og:title" content="VectorForge">
+<meta property="og:description" content="向量相似度计算器：余弦 / 欧氏 / 曼哈顿 / 点积 + Top-K 检索，RAG 向量度量">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="向量相似度计算器：余弦 / 欧氏 / 曼哈顿 / 点积 + Top-K 检索，RAG 向量度量 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>VectorForge</h1>
+  <p class="sub">向量相似度计算器：余弦 / 欧氏 / 曼哈顿 / 点积 + Top-K 检索，RAG 向量度量 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>向量 A（逗号或空格分隔）</label>
+<input id="va" type="text" value="1, 2, 3">
+<label>向量 B</label>
+<input id="vb" type="text" value="4, 5, 6">
+<div class="opt">
+  <label>度量
+    <select id="metric"><option value="cosine">余弦相似度 Cosine</option><option value="euclidean">欧氏距离 Euclidean</option><option value="manhattan">曼哈顿距离 Manhattan</option><option value="dot">点积 Dot</option></select>
+  </label>
+</div>
+<div class="row">
+  <button id="run">计算</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">输入两个等长向量后计算</div>
+<script>
+function parseVec(s){
+  if(!s || !String(s).trim()) return { value:null, error:'向量为空' };
+  var parts=String(s).trim().split(/[,\s]+/).filter(function(x){return x.length;});
+  var out=[];
+  for(var i=0;i<parts.length;i++){
+    var n=Number(parts[i]);
+    if(!isFinite(n)) return { value:null, error:'非法数字: '+parts[i] };
+    out.push(n);
+  }
+  return { value:out, error:null };
+}
+function dot(a,b){ var s=0; for(var i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+function norm(a){ return Math.sqrt(dot(a,a)); }
+function cosineSim(a,b){
+  if(a.length!==b.length) throw new Error('DIM_MISMATCH');
+  var na=norm(a), nb=norm(b);
+  if(na===0||nb===0) throw new Error('ZERO_VECTOR');
+  return dot(a,b)/(na*nb);
+}
+function euclidean(a,b){
+  if(a.length!==b.length) throw new Error('DIM_MISMATCH');
+  var s=0; for(var i=0;i<a.length;i++){ var d=a[i]-b[i]; s+=d*d; }
+  return Math.sqrt(s);
+}
+function manhattan(a,b){
+  if(a.length!==b.length) throw new Error('DIM_MISMATCH');
+  var s=0; for(var i=0;i<a.length;i++) s+=Math.abs(a[i]-b[i]);
+  return s;
+}
+function topK(query, docs, k, metric){
+  metric = metric || 'cosine';
+  var scored = docs.map(function(d, idx){
+    var s;
+    if(metric==='cosine') s=cosineSim(query, d.vec);
+    else if(metric==='dot') s=dot(query, d.vec);
+    else if(metric==='manhattan') s=-manhattan(query, d.vec);
+    else s=-euclidean(query, d.vec);
+    return { id:(d.id!==undefined?d.id:idx), score:s };
+  });
+  scored.sort(function(x,y){ return y.score-x.score; });
+  return scored.slice(0, k||scored.length);
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { parseVec:parseVec, dot:dot, norm:norm, cosineSim:cosineSim,
+    euclidean:euclidean, manhattan:manhattan, topK:topK };
+}
+if (typeof window !== 'undefined') {
+  window.VectorForgePure = { parseVec:parseVec, dot:dot, norm:norm, cosineSim:cosineSim,
+    euclidean:euclidean, manhattan:manhattan, topK:topK };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.VectorForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      try {
+        var ra=P.parseVec($('va').value), rb=P.parseVec($('vb').value);
+        if(ra.error) throw new Error('A: '+ra.error);
+        if(rb.error) throw new Error('B: '+rb.error);
+        var m=$('metric').value, v;
+        if(m==='cosine') v=P.cosineSim(ra.value, rb.value);
+        else if(m==='dot') v=P.dot(ra.value, rb.value);
+        else if(m==='manhattan') v=P.manhattan(ra.value, rb.value);
+        else v=P.euclidean(ra.value, rb.value);
+        var lines=['维度: '+ra.value.length, m+' = '+ (Math.round(v*1e6)/1e6),
+                   '|A| = '+(Math.round(P.norm(ra.value)*1e6)/1e6), '|B| = '+(Math.round(P.norm(rb.value)*1e6)/1e6)];
+        $('out').textContent=lines.join('\n');
+      } catch(e){ $('err').textContent=e.message; }
+    });
+    $('clear').addEventListener('click', function(){ $('va').value=''; $('vb').value=''; $('out').textContent='输入两个等长向量后计算'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

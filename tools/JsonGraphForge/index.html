@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>JsonGraphForge — JSON 图谱：把 JSON 结构渲染为节点-连线树图，直观看清嵌套与键关系。</title>
+<meta property="og:title" content="JsonGraphForge">
+<meta property="og:description" content="JSON 图谱：把 JSON 结构渲染为节点-连线树图，直观看清嵌套与键关系。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="JSON 图谱：把 JSON 结构渲染为节点-连线树图，直观看清嵌套与键关系。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>JsonGraphForge</h1>
+  <p class="sub">JSON 图谱：把 JSON 结构渲染为节点-连线树图，直观看清嵌套与键关系。 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>JSON</label>
+<textarea id="src" rows="8" spellcheck="false">{
+  "name": "nano-tools",
+  "stars": 1200,
+  "tags": ["offline","zero-dep"],
+  "meta": { "lang": "zh", "open": true }
+}</textarea>
+<div class="row">
+  <button id="draw">生成图谱</button>
+  <button id="sample" class="ghost">示例</button>
+</div>
+<div class="err" id="err"></div>
+<div class="canvas" id="cv"></div>
+<script>
+function jgParse(s){ return JSON.parse(s); }
+function jgGraph(obj, rootId){
+  var nodes=[], edges=[], idc=0;
+  function walk(o, parent, key, depth){
+    var id='n'+(idc++);
+    var label = key!==null ? key : (rootId||'root');
+    var type = Array.isArray(o)?'array': o&&typeof o==='object'?'object':'value';
+    var val = type==='value' ? String(o) : (type==='array'?('['+o.length+']'):'{'+(Object.keys(o).length)+'}');
+    nodes.push({id:id, label:label, type:type, val:val, depth:depth});
+    if(parent) edges.push({from:parent, to:id});
+    if(type==='object'){ var ks=Object.keys(o); for(var i=0;i<ks.length;i++) walk(o[ks[i]], id, ks[i], depth+1); }
+    else if(type==='array'){ for(var i=0;i<o.length;i++) walk(o[i], id, '['+i+']', depth+1); }
+    return id;
+  }
+  walk(obj, null, null, 0);
+  return {nodes:nodes, edges:edges};
+}
+function jgLayout(graph, W, H){
+  var byDepth={}, maxDepth=0;
+  graph.nodes.forEach(function(n){ (byDepth[n.depth]=byDepth[n.depth]||[]).push(n); maxDepth=Math.max(maxDepth,n.depth); });
+  var colW=(W-40)/(maxDepth+1), rowH=34;
+  graph.nodes.forEach(function(n){ n.x=n.depth*colW+30; });
+  Object.keys(byDepth).forEach(function(d){ var arr=byDepth[d]; arr.forEach(function(n,i){ n.y=20+i*rowH+10; }); });
+  graph._h = 20 + (Math.max.apply(null, Object.keys(byDepth).map(function(d){ return byDepth[d].length; })))*rowH + 10;
+  return graph;
+}
+function jgSvg(graph, W, H){
+  graph=jgLayout(graph, W, H);
+  var pos={}; graph.nodes.forEach(function(n){ pos[n.id]={x:n.x,y:n.y}; });
+  var s='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+(graph._h||H)+'" viewBox="0 0 '+W+' '+(graph._h||H)+'"><rect width="'+W+'" height="'+(graph._h||H)+'" fill="#0A0A0B"/>';
+  graph.edges.forEach(function(e){ var a=pos[e.from], b=pos[e.to]; s+='<path d="M'+(a.x+8)+' '+a.y+' C'+(a.x+60)+' '+a.y+' '+(b.x-60)+' '+b.y+' '+b.x+'" fill="none" stroke="#3f3f46" stroke-width="1.2"/>'; });
+  graph.nodes.forEach(function(n){ var col=n.type==='object'?'#5E6AD2':n.type==='array'?'#22D3EE':'#10B981'; s+='<g transform="translate('+n.x+','+n.y+')"><rect x="0" y="-12" width="120" height="24" rx="6" fill="#141417" stroke="'+col+'" stroke-width="1.3"/>'; s+='<text x="8" y="4" fill="#E4E4E7" font-size="11">'+esc(n.label)+' <tspan fill="#71717A">'+(n.val.length>10?n.val.slice(0,9)+'…':esc(n.val))+'</tspan></text></g>'; });
+  return s+'</svg>';
+}
+function esc(s){ return String(s).replace(/[&<>]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }); }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { jgParse:jgParse, jgGraph:jgGraph, jgLayout:jgLayout, jgSvg:jgSvg };
+}
+if (typeof window !== 'undefined') {
+  window.JsonGraphForgePure = { jgParse:jgParse, jgGraph:jgGraph, jgLayout:jgLayout, jgSvg:jgSvg };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.JsonGraphForgePure;
+    function draw(){ $('err').textContent=''; try { var g=P.jgGraph(P.jgParse($('src').value)); $('cv').innerHTML=P.jgSvg(g, 560, 360); } catch(e){ $('err').textContent=e.message; } }
+    $('draw').addEventListener('click', draw);
+    $('src').addEventListener('input', draw);
+    draw();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PkceForge — OAuth 2.0 PKCE 全流程本地推演：verifier / challenge 生成、授权 URL、回调校验与流程体检。</title>
+<meta property="og:title" content="PkceForge">
+<meta property="og:description" content="OAuth 2.0 PKCE verifier/challenge 生成与流程体检，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="OAuth 2.0 PKCE verifier/challenge 生成与流程体检，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>PkceForge</h1>
+  <p class="sub">OAuth 工具：RFC 7636 内置测试向量，verifier 与 S256 challenge 全在浏览器里算（零依赖 SHA-256），授权 URL 拼装、回调 state 校验、token 请求与 curl 复现、公共客户端安全体检评分 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="pkver">code_verifier（43–128 位 unreserved 字符）</label>
+  <textarea id="pkver" rows="2">dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk</textarea>
+  <div class="row">
+    <button id="pkgen" class="ghost">随机生成 verifier</button>
+    <select id="pklen">
+      <option value="43">43 字符（256 bit）</option>
+      <option value="64">64 字符</option>
+      <option value="96">96 字符</option>
+      <option value="128">128 字符（上限）</option>
+    </select>
+    <select id="pkmethod">
+      <option value="S256">S256（推荐）</option>
+      <option value="plain">plain（仅测试）</option>
+    </select>
+  </div>
+  <div class="err" id="pkerr"></div>
+  <div class="out" id="pkout"></div>
+  <label for="pkep">authorization_endpoint</label>
+  <input type="text" id="pkep" value="https://auth.example.com/oauth/authorize">
+  <div class="grid">
+    <div><label for="pkcid">client_id</label><input type="text" id="pkcid" value="nano_spa_client"></div>
+    <div><label for="pkstate">state</label><input type="text" id="pkstate" value="9f2c41ab77de05e3"></div>
+  </div>
+  <div class="grid">
+    <div><label for="pkredir">redirect_uri</label><input type="text" id="pkredir" value="https://app.example.com/callback"></div>
+    <div><label for="pkscope">scope</label><input type="text" id="pkscope" value="openid profile offline_access"></div>
+  </div>
+  <div class="grid">
+    <div><label for="pknonce">nonce（OIDC 可选）</label><input type="text" id="pknonce" value="b31d7e40c9"></div>
+    <div><label for="pktoken">token_endpoint</label><input type="text" id="pktoken" value="https://auth.example.com/oauth/token"></div>
+  </div>
+  <div class="row">
+    <button id="pkbuild">生成授权 URL + 体检</button>
+    <button id="pkcurl" class="ghost">生成换取 token 的 curl</button>
+  </div>
+  <div class="out" id="pkurlout"></div>
+  <label for="pkcb">回调 URL（校验 state 与 code）</label>
+  <textarea id="pkcb" rows="2">https://app.example.com/callback?code=AUTH_CODE_123&amp;state=9f2c41ab77de05e3</textarea>
+  <div class="row"><button id="pkparse" class="ghost">解析回调</button></div>
+  <div class="out" id="pkcbout"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function utf8Bytes(str){
+  var out=[], s=String(str===undefined?'':str);
+  for(var i=0;i<s.length;i++){
+    var c=s.charCodeAt(i);
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xc0|(c>>6), 0x80|(c&63)); }
+    else if(c>=0xd800 && c<=0xdbff && i+1<s.length){
+      var c2=s.charCodeAt(i+1);
+      var cp=0x10000+((c-0xd800)<<10)+(c2-0xdc00); i++;
+      out.push(0xf0|(cp>>18), 0x80|((cp>>12)&63), 0x80|((cp>>6)&63), 0x80|(cp&63));
+    } else { out.push(0xe0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }
+  }
+  return out;
+}
+function rotr32(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }
+var SHA256_K=[
+0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256Bytes(bytes){
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var msg=bytes.slice(), bitLen=msg.length*8;
+  msg.push(0x80);
+  while(msg.length%64!==56) msg.push(0);
+  var hi=Math.floor(bitLen/4294967296)>>>0, lo=(bitLen>>>0);
+  msg.push((hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255);
+  msg.push((lo>>>24)&255,(lo>>>16)&255,(lo>>>8)&255,lo&255);
+  var w=new Array(64);
+  for(var i=0;i<msg.length;i+=64){
+    for(var t=0;t<16;t++) w[t]=((msg[i+t*4]<<24)|(msg[i+t*4+1]<<16)|(msg[i+t*4+2]<<8)|msg[i+t*4+3])>>>0;
+    for(t=16;t<64;t++){
+      var s0=(rotr32(w[t-15],7)^rotr32(w[t-15],18)^(w[t-15]>>>3))>>>0;
+      var s1=(rotr32(w[t-2],17)^rotr32(w[t-2],19)^(w[t-2]>>>10))>>>0;
+      w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(t=0;t<64;t++){
+      var S1=(rotr32(e,6)^rotr32(e,11)^rotr32(e,25))>>>0;
+      var ch=((e&f)^((~e)&g))>>>0;
+      var t1=(h+S1+ch+SHA256_K[t]+w[t])>>>0;
+      var S0=(rotr32(a,2)^rotr32(a,13)^rotr32(a,22))>>>0;
+      var maj=((a&b)^(a&c)^(b&c))>>>0;
+      var t2=(S0+maj)>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+  }
+  var out=[];
+  for(var j=0;j<8;j++) out.push((H[j]>>>24)&255,(H[j]>>>16)&255,(H[j]>>>8)&255,H[j]&255);
+  return out;
+}
+function bytesToHex(bytes){
+  var s='';
+  for(var i=0;i<bytes.length;i++) s += ('0'+(bytes[i]&255).toString(16)).slice(-2);
+  return s;
+}
+
+var B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+var UNRESERVED = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+
+function base64UrlFromBytes(bytes){
+  var b = bytes || [], out = '', i = 0;
+  for (i = 0; i + 2 < b.length; i += 3){
+    var n = ((b[i] & 255) << 16) | ((b[i+1] & 255) << 8) | (b[i+2] & 255);
+    out += B64URL.charAt((n >>> 18) & 63) + B64URL.charAt((n >>> 12) & 63) +
+           B64URL.charAt((n >>> 6) & 63) + B64URL.charAt(n & 63);
+  }
+  var rem = b.length - i;
+  if (rem === 1){
+    var a = (b[i] & 255) << 16;
+    out += B64URL.charAt((a >>> 18) & 63) + B64URL.charAt((a >>> 12) & 63);
+  } else if (rem === 2){
+    var c = ((b[i] & 255) << 16) | ((b[i+1] & 255) << 8);
+    out += B64URL.charAt((c >>> 18) & 63) + B64URL.charAt((c >>> 12) & 63) + B64URL.charAt((c >>> 6) & 63);
+  }
+  return out;
+}
+
+function bytesFromBase64Url(s){
+  var str = String(s == null ? '' : s).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  var out = [], buf = 0, bits = 0;
+  for (var i = 0; i < str.length; i++){
+    var idx = B64URL.indexOf(str.charAt(i));
+    if (idx < 0) return null;
+    buf = (buf << 6) | idx; bits += 6;
+    if (bits >= 8){ bits -= 8; out.push((buf >>> bits) & 255); }
+  }
+  return out;
+}
+
+function sha256Base64Url(text){
+  return base64UrlFromBytes(sha256Bytes(utf8Bytes(String(text == null ? '' : text))));
+}
+
+function verifierFromBytes(bytes){
+  return base64UrlFromBytes(bytes || []);
+}
+
+function verifierFromEntropy(bytes, len){
+  var n = parseInt(len, 10);
+  if (!isFinite(n)) n = 43;
+  n = Math.max(43, Math.min(128, n));
+  var b = bytes || [], out = '';
+  for (var i = 0; i < n; i++){
+    var v = b.length ? (b[i % b.length] & 255) : 0;
+    if (i >= b.length) v = (v + i * 31) & 255;
+    out += UNRESERVED.charAt(v % 66);
+  }
+  return out;
+}
+
+function entropyBits(v){
+  var n = String(v == null ? '' : v).length;
+  return Math.round(n * Math.log(66) / Math.LN2);
+}
+
+function uniqChars(s){
+  var seen = {}, out = [];
+  for (var i = 0; i < s.length; i++){
+    var c = s.charAt(i);
+    if (!seen[c]){ seen[c] = 1; out.push(c); }
+  }
+  return out.join('');
+}
+
+function validateVerifier(v){
+  var s = String(v == null ? '' : v), issues = [];
+  if (s.length === 0) issues.push({ level:'bad', msg:'code_verifier 为空' });
+  else {
+    if (s.length < 43) issues.push({ level:'bad', msg:'长度 ' + s.length + '，低于 RFC 7636 规定的 43 字符下限' });
+    if (s.length > 128) issues.push({ level:'bad', msg:'长度 ' + s.length + '，超过 128 字符上限' });
+  }
+  var bad = s.replace(/[A-Za-z0-9\-._~]/g, '');
+  if (bad.length) issues.push({ level:'bad', msg:'含 ' + bad.length + ' 个非 unreserved 字符：' + uniqChars(bad) });
+  var bits = entropyBits(s);
+  var hard = 0;
+  for (var i = 0; i < issues.length; i++) if (issues[i].level === 'bad') hard++;
+  if (!hard && bits < 256) issues.push({ level:'warn', msg:'熵约 ' + bits + ' bit，建议不低于 256 bit（43 字符）' });
+  return { ok: hard === 0, length: s.length, bits: bits, issues: issues };
+}
+
+function codeChallenge(verifier, method){
+  var m = String(method == null ? 'S256' : method).toUpperCase();
+  var v = String(verifier == null ? '' : verifier);
+  if (m === 'PLAIN') return { value: v, method: 'plain', error: null };
+  if (m !== 'S256') return { value: '', method: m, error: 'unsupported method: ' + m };
+  return { value: sha256Base64Url(v), method: 'S256', error: null };
+}
+
+function verifyChallenge(verifier, challenge, method){
+  var c = codeChallenge(verifier, method);
+  if (c.error) return { ok:false, reason:c.error, expected:'' };
+  var got = String(challenge == null ? '' : challenge).trim();
+  var exp = c.value;
+  if (got.length !== exp.length) return { ok:false, reason:'长度不一致，challenge 与 verifier 不匹配', expected:exp };
+  var diff = 0;
+  for (var i = 0; i < exp.length; i++) diff |= (exp.charCodeAt(i) ^ got.charCodeAt(i));
+  return { ok: diff === 0, reason: diff === 0 ? 'challenge 与 verifier 匹配' : 'challenge 不匹配', expected: exp };
+}
+
+function buildAuthUrl(opt){
+  opt = opt || {};
+  var base = String(opt.endpoint == null ? '' : opt.endpoint).trim();
+  if (!base) return { value:'', params:[], error:'缺少授权端点 authorization_endpoint' };
+  var params = [
+    ['response_type', opt.responseType || 'code'],
+    ['client_id', opt.clientId || ''],
+    ['redirect_uri', opt.redirectUri || ''],
+    ['scope', opt.scope || ''],
+    ['state', opt.state || ''],
+    ['code_challenge', opt.challenge || ''],
+    ['code_challenge_method', opt.method || 'S256']
+  ];
+  if (opt.nonce) params.push(['nonce', opt.nonce]);
+  if (opt.audience) params.push(['audience', opt.audience]);
+  var qs = [];
+  for (var i = 0; i < params.length; i++){
+    if (params[i][1] === '' || params[i][1] == null) continue;
+    qs.push(encodeURIComponent(params[i][0]) + '=' + encodeURIComponent(params[i][1]));
+  }
+  var sep = base.indexOf('?') >= 0 ? '&' : '?';
+  return { value: base + sep + qs.join('&'), params: params, error: null };
+}
+
+function parseCallback(url, expectedState){
+  var s = String(url == null ? '' : url).trim();
+  var query = '';
+  var qi = s.indexOf('?');
+  if (qi >= 0) query = s.slice(qi + 1).split('#')[0];
+  else {
+    var hi = s.indexOf('#');
+    if (hi >= 0) query = s.slice(hi + 1);
+    else if (s.indexOf('=') >= 0) query = s;
+  }
+  var out = { code:null, state:null, error:null, errorDescription:null, extra:{}, raw:query };
+  var parts = query ? query.split('&') : [];
+  for (var i = 0; i < parts.length; i++){
+    if (!parts[i]) continue;
+    var eq = parts[i].indexOf('=');
+    var k = eq < 0 ? parts[i] : parts[i].slice(0, eq);
+    var v = eq < 0 ? '' : parts[i].slice(eq + 1);
+    try { k = decodeURIComponent(k); } catch (e1){}
+    try { v = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e2){}
+    if (k === 'code') out.code = v;
+    else if (k === 'state') out.state = v;
+    else if (k === 'error') out.error = v;
+    else if (k === 'error_description') out.errorDescription = v;
+    else out.extra[k] = v;
+  }
+  out.stateMatch = (expectedState == null || expectedState === '') ? null : (out.state === expectedState);
+  out.ok = !!out.code && !out.error && out.stateMatch !== false;
+  if (out.error) out.reason = '授权服务器返回错误：' + out.error + (out.errorDescription ? '（' + out.errorDescription + '）' : '');
+  else if (out.stateMatch === false) out.reason = 'state 不匹配，疑似 CSRF 或回调串号，必须丢弃';
+  else if (!out.code) out.reason = '回调中没有 code 参数';
+  else out.reason = '回调有效，可用 code 换取 token';
+  return out;
+}
+
+function buildTokenRequest(opt){
+  opt = opt || {};
+  var fields = [
+    ['grant_type', 'authorization_code'],
+    ['code', opt.code || ''],
+    ['redirect_uri', opt.redirectUri || ''],
+    ['client_id', opt.clientId || ''],
+    ['code_verifier', opt.verifier || '']
+  ];
+  var body = [];
+  for (var i = 0; i < fields.length; i++){
+    if (fields[i][1] === '' || fields[i][1] == null) continue;
+    body.push(encodeURIComponent(fields[i][0]) + '=' + encodeURIComponent(fields[i][1]));
+  }
+  return {
+    endpoint: opt.endpoint || '',
+    method: 'POST',
+    contentType: 'application/x-www-form-urlencoded',
+    body: body.join('&'),
+    fields: fields
+  };
+}
+
+function curlToken(opt){
+  var r = buildTokenRequest(opt);
+  var lines = ["curl -sS -X POST '" + (r.endpoint || 'https://auth.example.com/oauth/token') + "' \\"];
+  lines.push("  -H 'Content-Type: application/x-www-form-urlencoded' \\");
+  lines.push("  --data-raw '" + r.body.replace(/'/g, "'\\''") + "'");
+  return lines.join('\n');
+}
+
+function isLoopback(host){
+  var h = String(host || '').toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1';
+}
+
+function splitUri(uri){
+  var m = /^([a-z][a-z0-9+.\-]*):\/\/([^\/?#]*)([^?#]*)/i.exec(String(uri || ''));
+  if (!m) return null;
+  var hostport = m[2];
+  var host = hostport.replace(/:\d+$/, '');
+  return { scheme: m[1].toLowerCase(), host: host, path: m[3] || '' };
+}
+
+function lintFlow(opt){
+  opt = opt || {};
+  var issues = [];
+  var method = String(opt.method || 'S256').toUpperCase();
+  if (method === 'PLAIN') issues.push({ level:'bad', msg:'code_challenge_method=plain 起不到防截获作用，务必改用 S256' });
+  else if (method !== 'S256') issues.push({ level:'bad', msg:'未知 code_challenge_method：' + method });
+
+  var ve = validateVerifier(opt.verifier || '');
+  for (var i = 0; i < ve.issues.length; i++) issues.push(ve.issues[i]);
+
+  var ep = splitUri(opt.endpoint || '');
+  if (!ep) issues.push({ level:'bad', msg:'授权端点不是合法的绝对 URL' });
+  else if (ep.scheme !== 'https') issues.push({ level:'bad', msg:'授权端点使用 ' + ep.scheme + '，必须走 https' });
+
+  var ru = String(opt.redirectUri || '').trim();
+  if (!ru) issues.push({ level:'bad', msg:'缺少 redirect_uri，无法完成回跳' });
+  else {
+    var r = splitUri(ru);
+    if (!r) issues.push({ level:'bad', msg:'redirect_uri 不是合法的绝对 URI' });
+    else if (r.scheme === 'http' && !isLoopback(r.host)) issues.push({ level:'bad', msg:'redirect_uri 使用明文 http 且非回环地址，authorization code 会被中间人截获' });
+    if (ru.indexOf('*') >= 0) issues.push({ level:'bad', msg:'redirect_uri 含通配符，多数授权服务器会拒绝且存在开放重定向风险' });
+    if (/#/.test(ru)) issues.push({ level:'warn', msg:'redirect_uri 含 fragment，RFC 6749 要求不带片段' });
+  }
+
+  var st = String(opt.state || '');
+  if (!st) issues.push({ level:'bad', msg:'缺少 state，无法防御 CSRF 与回调串号' });
+  else if (st.length < 16) issues.push({ level:'warn', msg:'state 仅 ' + st.length + ' 字符，建议 ≥16 且随机生成' });
+
+  if (opt.clientSecret) issues.push({ level:'bad', msg:'公共客户端（SPA / 移动端）不应内置 client_secret，PKCE 的意义正是替代它' });
+  if (!opt.clientId) issues.push({ level:'bad', msg:'缺少 client_id' });
+
+  var scope = String(opt.scope || '');
+  if (!scope) issues.push({ level:'warn', msg:'未声明 scope，将拿到服务端默认权限，建议按最小权限显式声明' });
+  else if (/(^|\s)\*($|\s)/.test(scope)) issues.push({ level:'bad', msg:'scope 含通配符 *，违反最小权限原则' });
+  if (/(^|\s)openid($|\s)/.test(scope) && !opt.nonce) issues.push({ level:'warn', msg:'OIDC 流程（scope 含 openid）建议同时带 nonce 以绑定 id_token' });
+
+  if (opt.responseType && String(opt.responseType).indexOf('token') >= 0) issues.push({ level:'bad', msg:'response_type 含 token 即隐式流，已被 OAuth 2.1 废弃，应只用 code' });
+
+  var score = 100;
+  for (var j = 0; j < issues.length; j++) score -= (issues[j].level === 'bad' ? 20 : 8);
+  score = Math.max(0, score);
+  return { issues: issues, score: score, grade: gradeOf(score) };
+}
+
+function gradeOf(score){
+  if (score >= 90) return 'A';
+  if (score >= 75) return 'B';
+  if (score >= 60) return 'C';
+  if (score >= 40) return 'D';
+  return 'F';
+}
+
+var PkceForgePure = {
+  base64UrlFromBytes: base64UrlFromBytes, bytesFromBase64Url: bytesFromBase64Url,
+  sha256Base64Url: sha256Base64Url, verifierFromBytes: verifierFromBytes,
+  verifierFromEntropy: verifierFromEntropy, entropyBits: entropyBits,
+  validateVerifier: validateVerifier, codeChallenge: codeChallenge, verifyChallenge: verifyChallenge,
+  buildAuthUrl: buildAuthUrl, parseCallback: parseCallback, buildTokenRequest: buildTokenRequest,
+  curlToken: curlToken, lintFlow: lintFlow, splitUri: splitUri, gradeOf: gradeOf,
+  UNRESERVED: UNRESERVED
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = PkceForgePure;
+if (typeof window !== 'undefined') window.PkceForgePure = PkceForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.PkceForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function col(l){ return l === 'bad' ? 'var(--warn)' : l === 'warn' ? 'var(--info)' : 'var(--ok)'; }
+
+  function randomBytes(n){
+    var out = [];
+    var c = window.crypto || window.msCrypto;
+    if (c && c.getRandomValues){
+      var a = new Uint8Array(n); c.getRandomValues(a);
+      for (var i = 0; i < n; i++) out.push(a[i]);
+      return out;
+    }
+    for (var j = 0; j < n; j++) out.push(Math.floor(Math.random() * 256));
+    return out;
+  }
+
+  function renderChallenge(){
+    var v = $('pkver').value.trim();
+    var method = $('pkmethod').value;
+    var c = P.codeChallenge(v, method);
+    var ve = P.validateVerifier(v);
+    var html = '';
+    html += '<div class="kv"><b>code_challenge</b><span style="word-break:break-all">' + esc(c.value || '—') + '</span></div>';
+    html += '<div class="kv"><b>code_challenge_method</b><span>' + esc(c.method) + '</span></div>';
+    html += '<div class="kv"><b>verifier 长度 / 熵</b><span>' + ve.length + ' 字符 · 约 ' + ve.bits + ' bit</span></div>';
+    html += '<div class="kv"><b>字符集合规</b><span style="color:' + (ve.ok ? 'var(--ok)' : 'var(--warn)') + '">' + (ve.ok ? '符合 RFC 7636' : '不合规') + '</span></div>';
+    for (var i = 0; i < ve.issues.length; i++){
+      html += '<div style="color:' + col(ve.issues[i].level) + ';font-size:13px;margin-top:6px">• ' + esc(ve.issues[i].msg) + '</div>';
+    }
+    $('pkout').innerHTML = html;
+    $('pkerr').textContent = c.error || (ve.ok ? '' : 'verifier 不合规，授权服务器会拒绝');
+    return c;
+  }
+
+  function buildUrl(){
+    var c = renderChallenge();
+    var opt = {
+      endpoint: $('pkep').value.trim(), clientId: $('pkcid').value.trim(),
+      redirectUri: $('pkredir').value.trim(), scope: $('pkscope').value.trim(),
+      state: $('pkstate').value.trim(), challenge: c.value, method: c.method,
+      nonce: $('pknonce').value.trim(), verifier: $('pkver').value.trim()
+    };
+    var u = P.buildAuthUrl(opt);
+    var lint = P.lintFlow(opt);
+    var html = '';
+    if (u.error) html += '<div class="kv"><b>授权 URL</b><span style="color:var(--warn)">' + esc(u.error) + '</span></div>';
+    else html += '<pre style="white-space:pre-wrap;word-break:break-all;margin:0 0 10px;font-size:12px">' + esc(u.value) + '</pre>';
+    html += '<div class="kv"><b>流程体检</b><span>评分 ' + lint.score + ' · 等级 ' + lint.grade + '</span></div>';
+    if (!lint.issues.length) html += '<div style="color:var(--ok);font-size:13px;margin-top:6px">• 未发现问题，符合 OAuth 2.1 公共客户端最佳实践</div>';
+    for (var i = 0; i < lint.issues.length; i++){
+      html += '<div style="color:' + col(lint.issues[i].level) + ';font-size:13px;margin-top:6px">• ' + esc(lint.issues[i].msg) + '</div>';
+    }
+    $('pkurlout').innerHTML = html;
+  }
+
+  function curl(){
+    var cb = P.parseCallback($('pkcb').value.trim(), $('pkstate').value.trim());
+    var cmd = P.curlToken({
+      endpoint: $('pktoken').value.trim(), code: cb.code || 'AUTH_CODE',
+      redirectUri: $('pkredir').value.trim(), clientId: $('pkcid').value.trim(),
+      verifier: $('pkver').value.trim()
+    });
+    $('pkurlout').innerHTML = '<pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">' + esc(cmd) + '</pre>';
+  }
+
+  function parseCb(){
+    var expect = $('pkstate').value.trim();
+    var r = P.parseCallback($('pkcb').value.trim(), expect);
+    var html = '<div class="kv"><b>结论</b><span style="color:' + (r.ok ? 'var(--ok)' : 'var(--warn)') + '">' + esc(r.reason) + '</span></div>';
+    html += '<div class="kv"><b>code</b><span style="word-break:break-all">' + esc(r.code || '—') + '</span></div>';
+    html += '<div class="kv"><b>state</b><span>' + esc(r.state || '—') + (r.stateMatch === null ? '' : (r.stateMatch ? ' · 匹配' : ' · 不匹配')) + '</span></div>';
+    if (r.error) html += '<div class="kv"><b>error</b><span style="color:var(--warn)">' + esc(r.error) + '</span></div>';
+    var keys = Object.keys(r.extra);
+    for (var i = 0; i < keys.length; i++){
+      html += '<div class="kv"><b>' + esc(keys[i]) + '</b><span>' + esc(r.extra[keys[i]]) + '</span></div>';
+    }
+    $('pkcbout').innerHTML = html;
+  }
+
+  function gen(){
+    var n = parseInt($('pklen').value, 10) || 43;
+    $('pkver').value = n === 43 ? P.verifierFromBytes(randomBytes(32)) : P.verifierFromEntropy(randomBytes(n), n);
+    renderChallenge();
+  }
+
+  $('pkgen').addEventListener('click', gen);
+  $('pkmethod').addEventListener('change', renderChallenge);
+  $('pkver').addEventListener('input', renderChallenge);
+  $('pkbuild').addEventListener('click', buildUrl);
+  $('pkcurl').addEventListener('click', curl);
+  $('pkparse').addEventListener('click', parseCb);
+  renderChallenge(); buildUrl(); parseCb();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

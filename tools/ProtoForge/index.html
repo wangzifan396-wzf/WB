@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>ProtoForge — Protobuf 结构解析：字段线类型、tag 字节开销与 TypeScript 类型导出。</title>
+<meta property="og:title" content="ProtoForge">
+<meta property="og:description" content="Protobuf 定义解析、体检与 TypeScript 导出，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Protobuf 定义解析、体检与 TypeScript 导出，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>ProtoForge</h1>
+  <p class="sub">Protobuf 工具：.proto 语法解析（message/enum/service/oneof/map）、wire type 与 tag 字节开销测算、字段号保留区与命名规范 lint、TypeScript 接口导出 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="pproto">.proto 源码</label>
+  <textarea id="pproto" rows="16">syntax = "proto3";
+package shop.v1;
+
+// 订单状态
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PAID = 1;
+  ORDER_STATUS_SHIPPED = 2;
+}
+
+message Order {
+  string id = 1;
+  int64 amount_cents = 2;
+  OrderStatus status = 3;
+  repeated OrderItem items = 4;
+  map<string, string> labels = 5;
+}
+
+message OrderItem {
+  string sku = 1;
+  int32 qty = 2;
+  double price = 3;
+}
+
+service OrderService {
+  rpc GetOrder(GetOrderRequest) returns (Order);
+  rpc StreamOrders(GetOrderRequest) returns (stream Order);
+}
+
+message GetOrderRequest {
+  string id = 1;
+}
+</textarea>
+  <div class="row">
+    <button id="pparse">解析并体检</button>
+    <button id="pts" class="ghost">生成 TypeScript</button>
+  </div>
+  <div class="err" id="perr"></div>
+  <div class="out" id="pout"></div>
+  <div class="out" id="ptable"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var PB_SCALARS = {
+  'double':{wire:1,size:8,ts:'number'}, 'float':{wire:5,size:4,ts:'number'},
+  'int32':{wire:0,size:5,ts:'number'}, 'int64':{wire:0,size:10,ts:'string'},
+  'uint32':{wire:0,size:5,ts:'number'}, 'uint64':{wire:0,size:10,ts:'string'},
+  'sint32':{wire:0,size:5,ts:'number'}, 'sint64':{wire:0,size:10,ts:'string'},
+  'fixed32':{wire:5,size:4,ts:'number'}, 'fixed64':{wire:1,size:8,ts:'string'},
+  'sfixed32':{wire:5,size:4,ts:'number'}, 'sfixed64':{wire:1,size:8,ts:'string'},
+  'bool':{wire:0,size:1,ts:'boolean'}, 'string':{wire:2,size:0,ts:'string'}, 'bytes':{wire:2,size:0,ts:'Uint8Array'}
+};
+var PB_WIRE_NAME = { 0:'Varint', 1:'64-bit', 2:'Length-delimited', 5:'32-bit' };
+
+function stripComments(text){
+  var s = String(text == null ? '' : text);
+  s = s.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  return s.split(/\r?\n/).map(function(l){
+    var inS = false, inD = false;
+    for (var i = 0; i < l.length - 1; i++){
+      var c = l.charAt(i);
+      if (c === "'" && !inD) inS = !inS;
+      else if (c === '"' && !inS) inD = !inD;
+      else if (c === '/' && l.charAt(i + 1) === '/' && !inS && !inD) return l.slice(0, i);
+    }
+    return l;
+  }).join('\n');
+}
+
+function wireTypeOf(type){
+  if (PB_SCALARS[type]) return PB_SCALARS[type].wire;
+  return 2;
+}
+
+function tagBytes(num){
+  var n = parseInt(num, 10);
+  if (!(n > 0)) return 0;
+  var tag = n * 8;
+  var bytes = 1;
+  while (tag >= 128){ tag = Math.floor(tag / 128); bytes++; }
+  return bytes;
+}
+
+function parseProto(text){
+  var src = stripComments(text).replace(/([{};])/g, '$1\n');
+  var lines = src.split(/\r?\n/);
+  var res = { syntax: '', pkg: '', imports: [], messages: [], enums: [], services: [], options: {}, errors: [] };
+  var stack = [], cur = null, curKind = '';
+  for (var i = 0; i < lines.length; i++){
+    var raw = lines[i], t = raw.trim();
+    if (!t) continue;
+    var mSyn = /^syntax\s*=\s*["']([^"']+)["']\s*;/.exec(t);
+    if (mSyn){ res.syntax = mSyn[1]; continue; }
+    var mPkg = /^package\s+([\w.]+)\s*;/.exec(t);
+    if (mPkg){ res.pkg = mPkg[1]; continue; }
+    var mImp = /^import\s+(?:public\s+|weak\s+)?["']([^"']+)["']\s*;/.exec(t);
+    if (mImp){ res.imports.push(mImp[1]); continue; }
+    var mOpt = /^option\s+([\w.()]+)\s*=\s*(.+?)\s*;/.exec(t);
+    if (mOpt && !cur){ res.options[mOpt[1]] = mOpt[2].replace(/^["']|["']$/g, ''); continue; }
+    var mMsg = /^message\s+(\w+)\s*\{?/.exec(t);
+    if (mMsg){
+      var msg = { name: mMsg[1], fields: [], reserved: [], oneofs: [], line: i + 1, parent: cur ? cur.name : '' };
+      res.messages.push(msg);
+      if (cur) stack.push({ obj: cur, kind: curKind });
+      cur = msg; curKind = 'message';
+      continue;
+    }
+    var mEnum = /^enum\s+(\w+)\s*\{?/.exec(t);
+    if (mEnum){
+      var en = { name: mEnum[1], values: [], line: i + 1 };
+      res.enums.push(en);
+      if (cur) stack.push({ obj: cur, kind: curKind });
+      cur = en; curKind = 'enum';
+      continue;
+    }
+    var mSvc = /^service\s+(\w+)\s*\{?/.exec(t);
+    if (mSvc){
+      var sv = { name: mSvc[1], rpcs: [], line: i + 1 };
+      res.services.push(sv);
+      if (cur) stack.push({ obj: cur, kind: curKind });
+      cur = sv; curKind = 'service';
+      continue;
+    }
+    if (/^\}/.test(t)){
+      var up = stack.pop();
+      cur = up ? up.obj : null; curKind = up ? up.kind : '';
+      continue;
+    }
+    if (curKind === 'service'){
+      var mRpc = /^rpc\s+(\w+)\s*\(\s*(stream\s+)?([\w.]+)\s*\)\s*returns\s*\(\s*(stream\s+)?([\w.]+)\s*\)/.exec(t);
+      if (mRpc) cur.rpcs.push({ name: mRpc[1], input: mRpc[3], output: mRpc[5], clientStream: !!mRpc[2], serverStream: !!mRpc[4] });
+      continue;
+    }
+    if (curKind === 'enum'){
+      var mVal = /^(\w+)\s*=\s*(-?\d+)\s*(?:\[[^\]]*\])?\s*;/.exec(t);
+      if (mVal) cur.values.push({ name: mVal[1], number: parseInt(mVal[2], 10), line: i + 1 });
+      continue;
+    }
+    if (curKind === 'message'){
+      var mRes = /^reserved\s+(.+?)\s*;/.exec(t);
+      if (mRes){ cur.reserved.push(mRes[1]); continue; }
+      var mOne = /^oneof\s+(\w+)\s*\{?/.exec(t);
+      if (mOne){ cur.oneofs.push(mOne[1]); continue; }
+      var mMap = /^map\s*<\s*([\w.]+)\s*,\s*([\w.]+)\s*>\s+(\w+)\s*=\s*(\d+)\s*(?:\[[^\]]*\])?\s*;/.exec(t);
+      if (mMap){
+        cur.fields.push({ label: 'map', type: 'map<' + mMap[1] + ',' + mMap[2] + '>', keyType: mMap[1], valType: mMap[2], name: mMap[3], number: parseInt(mMap[4], 10), line: i + 1, repeated: true });
+        continue;
+      }
+      var mFld = /^(optional\s+|required\s+|repeated\s+)?([\w.]+)\s+(\w+)\s*=\s*(\d+)\s*(?:\[([^\]]*)\])?\s*;/.exec(t);
+      if (mFld){
+        var label = (mFld[1] || '').trim();
+        cur.fields.push({
+          label: label || 'singular', type: mFld[2], name: mFld[3], number: parseInt(mFld[4], 10),
+          opts: mFld[5] || '', line: i + 1, repeated: label === 'repeated',
+          packed: /packed\s*=\s*true/.test(mFld[5] || '')
+        });
+        continue;
+      }
+      if (t !== '{' && t !== '}') res.errors.push({ line: i + 1, text: t });
+    }
+  }
+  return res;
+}
+
+function fieldRows(msg){
+  var out = [];
+  for (var i = 0; i < msg.fields.length; i++){
+    var f = msg.fields[i], sc = PB_SCALARS[f.type];
+    out.push({
+      name: f.name, type: f.type, number: f.number, label: f.label,
+      wire: wireTypeOf(f.type), wireName: PB_WIRE_NAME[wireTypeOf(f.type)],
+      tagBytes: tagBytes(f.number),
+      maxBytes: sc ? (sc.size ? tagBytes(f.number) + sc.size : 0) : 0,
+      scalar: !!sc, ts: tsTypeOf(f)
+    });
+  }
+  return out;
+}
+
+function tsTypeOf(f){
+  if (f.label === 'map'){
+    var kt = PB_SCALARS[f.keyType] ? PB_SCALARS[f.keyType].ts : 'string';
+    var vt = PB_SCALARS[f.valType] ? PB_SCALARS[f.valType].ts : f.valType;
+    return 'Record<' + (kt === 'boolean' ? 'string' : kt) + ', ' + vt + '>';
+  }
+  var base = PB_SCALARS[f.type] ? PB_SCALARS[f.type].ts : f.type.replace(/^.*\./, '');
+  return f.repeated ? base + '[]' : base;
+}
+
+function toTypeScript(res){
+  var out = [];
+  for (var e = 0; e < res.enums.length; e++){
+    var en = res.enums[e];
+    out.push('export enum ' + en.name + ' {');
+    for (var v = 0; v < en.values.length; v++) out.push('  ' + en.values[v].name + ' = ' + en.values[v].number + ',');
+    out.push('}');
+    out.push('');
+  }
+  for (var i = 0; i < res.messages.length; i++){
+    var m = res.messages[i];
+    out.push('export interface ' + m.name + ' {');
+    for (var j = 0; j < m.fields.length; j++){
+      var f = m.fields[j];
+      var opt = (res.syntax === 'proto3' && f.label !== 'repeated' && f.label !== 'map') ? '?' : '';
+      out.push('  ' + f.name + opt + ': ' + tsTypeOf(f) + ';');
+    }
+    out.push('}');
+    out.push('');
+  }
+  return out.join('\n').replace(/\n+$/, '\n');
+}
+
+function lintProto(res){
+  var issues = [];
+  function add(level, where, msg){ issues.push({ level: level, where: where, msg: msg }); }
+  if (!res.syntax) add('warn', 'file', '未声明 syntax，protoc 会默认按 proto2 处理');
+  if (!res.pkg) add('warn', 'file', '未声明 package，跨文件引用容易撞名');
+  if (!res.messages.length && !res.services.length) add('bad', 'file', '没有解析到任何 message 或 service');
+  for (var i = 0; i < res.errors.length; i++) add('warn', 'L' + res.errors[i].line, '无法识别的语句：' + res.errors[i].text.slice(0, 48));
+  for (var m = 0; m < res.messages.length; m++){
+    var msg = res.messages[m], seen = {}, names = {};
+    if (!/^[A-Z][A-Za-z0-9]*$/.test(msg.name)) add('warn', msg.name, 'message 名建议使用 PascalCase');
+    if (!msg.fields.length) add('warn', msg.name, '空 message，确认是否占位');
+    for (var f = 0; f < msg.fields.length; f++){
+      var fd = msg.fields[f], at = msg.name + '.' + fd.name;
+      if (seen[fd.number]) add('bad', at, '字段编号 ' + fd.number + ' 与 ' + seen[fd.number] + ' 重复');
+      else seen[fd.number] = fd.name;
+      if (names[fd.name]) add('bad', at, '字段名重复');
+      else names[fd.name] = 1;
+      if (fd.number < 1) add('bad', at, '字段编号必须 >= 1');
+      if (fd.number >= 19000 && fd.number <= 19999) add('bad', at, '字段编号 ' + fd.number + ' 落在 protobuf 保留区 19000-19999');
+      if (fd.number > 536870911) add('bad', at, '字段编号超过上限 536870911');
+      if (fd.number > 15 && fd.number < 2048 && f < 3) add('warn', at, '前置高频字段用了 ' + fd.number + '（需 2 字节 tag），1-15 更省空间');
+      if (res.syntax === 'proto3' && fd.label === 'required') add('bad', at, 'proto3 不支持 required');
+      if (!/^[a-z][a-z0-9_]*$/.test(fd.name)) add('warn', at, '字段名建议使用 lower_snake_case');
+      if (fd.repeated && PB_SCALARS[fd.type] && PB_SCALARS[fd.type].wire !== 2 && res.syntax !== 'proto3' && !fd.packed)
+        add('warn', at, 'repeated 标量建议加 [packed=true]');
+      if (fd.type === 'float' || fd.type === 'double'){
+        if (/amount|price|money|fee|cost|balance/i.test(fd.name)) add('warn', at, '金额字段用浮点会有精度损失，建议 int64 分单位或 string');
+      }
+    }
+    var used = Object.keys(seen).map(Number).sort(function(a, b){ return a - b; });
+    if (used.length){
+      var gaps = [];
+      for (var g = 1; g < used[used.length - 1]; g++) if (used.indexOf(g) < 0) gaps.push(g);
+      if (gaps.length && !msg.reserved.length) add('warn', msg.name, '编号存在空洞 ' + gaps.slice(0, 8).join(',') + (gaps.length > 8 ? '…' : '') + '，删过字段就该写 reserved');
+    }
+  }
+  for (var e = 0; e < res.enums.length; e++){
+    var en = res.enums[e];
+    if (!en.values.length){ add('warn', en.name, '空枚举'); continue; }
+    if (res.syntax === 'proto3' && en.values[0].number !== 0) add('bad', en.name, 'proto3 枚举第一个值必须为 0');
+    var ez = {};
+    for (var v = 0; v < en.values.length; v++){
+      if (ez[en.values[v].number] !== undefined) add('warn', en.name, '枚举值 ' + en.values[v].number + ' 重复（需 allow_alias）');
+      ez[en.values[v].number] = 1;
+      if (!/^[A-Z][A-Z0-9_]*$/.test(en.values[v].name)) add('warn', en.name + '.' + en.values[v].name, '枚举值建议 UPPER_SNAKE_CASE');
+    }
+  }
+  for (var s = 0; s < res.services.length; s++){
+    var sv = res.services[s];
+    if (!sv.rpcs.length) add('warn', sv.name, 'service 没有任何 rpc');
+    for (var r = 0; r < sv.rpcs.length; r++){
+      var rp = sv.rpcs[r];
+      if (!/^[A-Z]/.test(rp.name)) add('warn', sv.name + '.' + rp.name, 'rpc 名建议 PascalCase');
+    }
+  }
+  var bad = issues.filter(function(x){ return x.level === 'bad'; }).length;
+  return { issues: issues, bad: bad, warn: issues.length - bad, score: Math.max(0, 100 - bad * 15 - (issues.length - bad) * 4) };
+}
+
+function stats(res){
+  var fields = 0, oneofs = 0, rpcs = 0;
+  for (var i = 0; i < res.messages.length; i++){ fields += res.messages[i].fields.length; oneofs += res.messages[i].oneofs.length; }
+  for (var s = 0; s < res.services.length; s++) rpcs += res.services[s].rpcs.length;
+  return { messages: res.messages.length, enums: res.enums.length, services: res.services.length, fields: fields, oneofs: oneofs, rpcs: rpcs, imports: res.imports.length };
+}
+
+var ProtoForgePure = {
+  stripComments: stripComments, parseProto: parseProto, wireTypeOf: wireTypeOf, tagBytes: tagBytes,
+  fieldRows: fieldRows, tsTypeOf: tsTypeOf, toTypeScript: toTypeScript, lintProto: lintProto,
+  stats: stats, SCALARS: PB_SCALARS, WIRE_NAME: PB_WIRE_NAME
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = ProtoForgePure;
+if (typeof window !== 'undefined') window.ProtoForgePure = ProtoForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.ProtoForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var WC = { 0:'var(--ok)', 1:'var(--warn)', 2:'var(--info)', 5:'#A78BFA' };
+
+  function run(){
+    var res = P.parseProto($('pproto').value);
+    var st = P.stats(res), lint = P.lintProto(res);
+    $('perr').textContent = lint.bad ? (lint.bad + ' 个严重问题') : '';
+    var html = '<div class="kv"><b>syntax / package</b><span>' + esc(res.syntax || '(未声明)') + ' · ' + esc(res.pkg || '(未声明)') + '</span></div>' +
+      '<div class="kv"><b>message / enum / service</b><span>' + st.messages + ' / ' + st.enums + ' / ' + st.services + '</span></div>' +
+      '<div class="kv"><b>字段 / oneof / rpc</b><span>' + st.fields + ' / ' + st.oneofs + ' / ' + st.rpcs + '</span></div>' +
+      '<div class="kv"><b>规范评分</b><span style="color:' + (lint.score >= 80 ? 'var(--ok)' : lint.score >= 50 ? 'var(--warn)' : '#EF4444') + '">' + lint.score + ' 分（' + lint.bad + ' 严重 / ' + lint.warn + ' 提示）</span></div>';
+    for (var i = 0; i < lint.issues.length && i < 30; i++){
+      var it = lint.issues[i];
+      html += '<div style="font-size:13px;margin-top:6px;color:' + (it.level === 'bad' ? 'var(--warn)' : 'var(--muted)') + '">• <code>' + esc(it.where) + '</code> ' + esc(it.msg) + '</div>';
+    }
+    $('pout').innerHTML = html;
+
+    var tb = '';
+    for (var m = 0; m < res.messages.length; m++){
+      var msg = res.messages[m], rows = P.fieldRows(msg);
+      tb += '<div style="margin-top:' + (m ? 16 : 0) + 'px;color:var(--fg);font-size:14px">message <b>' + esc(msg.name) + '</b></div>';
+      tb += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:4px"><tr style="color:var(--muted)"><th style="text-align:left;padding:3px 0">#</th><th style="text-align:left">字段</th><th style="text-align:left">类型</th><th style="text-align:left">wire</th><th style="text-align:right">tag 字节</th></tr>';
+      for (var r = 0; r < rows.length; r++){
+        var f = rows[r];
+        tb += '<tr><td style="padding:2px 0;color:var(--dim)">' + f.number + '</td><td>' + esc(f.name) + (f.label === 'repeated' ? ' <span style="color:var(--dim)">[]</span>' : '') + '</td><td><code>' + esc(f.type) + '</code></td><td style="color:' + (WC[f.wire] || 'var(--muted)') + '">' + f.wireName + '</td><td style="text-align:right;color:var(--dim)">' + f.tagBytes + '</td></tr>';
+      }
+      tb += '</table>';
+    }
+    for (var e = 0; e < res.enums.length; e++){
+      tb += '<div style="margin-top:14px;color:var(--fg);font-size:14px">enum <b>' + esc(res.enums[e].name) + '</b> <span style="color:var(--dim)">' + res.enums[e].values.map(function(v){ return v.name + '=' + v.number; }).join(', ') + '</span></div>';
+    }
+    for (var s = 0; s < res.services.length; s++){
+      var sv = res.services[s];
+      tb += '<div style="margin-top:14px;color:var(--fg);font-size:14px">service <b>' + esc(sv.name) + '</b></div>';
+      for (var rp = 0; rp < sv.rpcs.length; rp++){
+        var q = sv.rpcs[rp];
+        tb += '<div style="font-size:13px;color:var(--muted)">· ' + esc(q.name) + '(' + (q.clientStream ? 'stream ' : '') + esc(q.input) + ') → ' + (q.serverStream ? 'stream ' : '') + esc(q.output) + '</div>';
+      }
+    }
+    $('ptable').innerHTML = tb;
+  }
+
+  function ts(){
+    var res = P.parseProto($('pproto').value);
+    $('ptable').innerHTML = '<pre style="white-space:pre-wrap;margin:0;font-size:12px">' + esc(P.toTypeScript(res)) + '</pre>';
+  }
+
+  $('pparse').addEventListener('click', run);
+  $('pts').addEventListener('click', ts);
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

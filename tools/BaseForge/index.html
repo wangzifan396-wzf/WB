@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<link rel="icon" href="favicon.svg">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BaseForge · 进制转换增强版</title>
+<meta property="og:title" content="BaseForge">
+<meta property="og:description" content="任意进制互转：大整数（BigInt）、小数部分、自定义字符表、2-36 进制。单文件·零依赖·本地优先。">
+<meta property="og:image" content="og.svg">
+<style>
+:root{--bg:#0A0A0B;--card:#141417;--card2:#1A1B1E;--text:#FFFFFF;--mut:#A1A1AA;--mut2:#71717A;--border:rgba(255,255,255,0.08);--accent:#5e6ad2;--cyan:#22D3EE;--green:#10B981;--red:#F43F5E;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+body{max-width:860px;margin:0 auto;padding:32px 20px 80px;line-height:1.5}
+h1{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.sub{color:var(--mut);font-size:14px;margin-top:6px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-top:20px}
+h2{font-size:15px;font-weight:600;color:var(--mut);margin-bottom:14px;text-transform:uppercase;letter-spacing:.08em}
+label{display:block;font-size:12px;color:var(--mut2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em}
+input[type=text],select{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:11px 13px;font-size:15px;font-family:ui-monospace,monospace;width:100%}
+.row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.row>div{flex:1;min-width:120px}
+.field{margin-bottom:14px}
+.err{color:var(--red);font-size:13px;margin-top:8px;min-height:16px}
+.outs{display:flex;flex-direction:column;gap:8px}
+.out{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:11px 13px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.out .k{color:var(--mut2);font-size:12px;text-transform:uppercase;letter-spacing:.06em;flex-shrink:0}
+.out .v{font-family:ui-monospace,monospace;font-size:14px;word-break:break-all;text-align:right}
+.out .v.accent{color:var(--cyan)}
+.hint{color:var(--mut2);font-size:12px;margin-top:8px;line-height:1.6}
+.copy{cursor:pointer;background:none;border:1px solid var(--border);color:var(--mut);border-radius:6px;padding:4px 8px;font-size:11px;flex-shrink:0}
+.copy:hover{color:var(--text);border-color:var(--accent)}
+footer{margin-top:34px;color:var(--mut2);font-size:12px;text-align:center}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+
+  <meta name="theme-color" content="#0A0A0B">
+  <meta name="color-scheme" content="dark">
+  <meta property="og:type" content="website">
+  <meta name="description" content="任意进制互转：大整数（BigInt）、小数部分、自定义字符表、2-36 进制。单文件·零依赖·本地优先。">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="BaseForge · 进制转换增强版">
+<meta name="twitter:description" content="任意进制互转：大整数（BigInt）、小数部分、自定义字符表、2-36 进制。单文件·零依赖·本地优先。">
+<meta name="twitter:image" content="og.svg">
+<style id="nano-a11y">
+:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</head>
+<body>
+<h1>BaseForge</h1>
+<div class="sub">进制转换增强版 · 大整数 · 小数 · 自定义字符表 · 单文件 · 零依赖</div>
+
+<div class="card">
+  <h2>输入</h2>
+  <div class="row">
+    <div>
+      <label>数值</label>
+      <input type="text" id="val" value="255.5" spellcheck="false">
+    </div>
+    <div style="flex:0 0 130px">
+      <label>源进制</label>
+      <input type="text" id="from" value="10" spellcheck="false">
+    </div>
+  </div>
+  <div class="err" id="err"></div>
+</div>
+
+<div class="card">
+  <h2>常用进制</h2>
+  <div class="outs" id="commons"></div>
+</div>
+
+<div class="card">
+  <h2>自定义</h2>
+  <div class="row">
+    <div style="flex:0 0 130px">
+      <label>目标进制</label>
+      <input type="text" id="tobase" value="16" spellcheck="false">
+    </div>
+    <div>
+      <label>自定义字符表（可选，覆盖进制）</label>
+      <input type="text" id="alpha" placeholder="例如 0123456789ABCDEF 或 base62..." spellcheck="false">
+    </div>
+  </div>
+  <div class="out"><span class="k">结果</span><span class="v accent" id="custom">—</span></div>
+  <div class="hint">留空字符表时用标准 0-9a-z（2–36 进制）。填入字符表则进制 = 字符表长度，支持任意符号集（如 base62、base58）。</div>
+</div>
+
+<footer>MIT Licensed · 全程本地计算 · BigInt 精度</footer>
+
+<script>
+// ---------- pure functions ----------
+var STD='0123456789abcdefghijklmnopqrstuvwxyz';
+
+// digit value of a char within an alphabet (case-insensitive for STD)
+function digitVal(ch, alpha){
+  var i = alpha.indexOf(ch);
+  if(i<0 && alpha===STD) i = alpha.indexOf(ch.toLowerCase());
+  return i;
+}
+
+// parse a string in given base/alphabet into {int:BigInt, frac:Number, neg:Bool}
+function parseNum(str, base, alpha){
+  alpha = alpha || STD.slice(0, base);
+  base = alpha.length;
+  str = String(str).trim();
+  if(!str) throw new Error('空输入');
+  var neg=false;
+  if(str[0]==='-'){neg=true; str=str.slice(1);}
+  else if(str[0]==='+'){str=str.slice(1);}
+  var parts = str.split('.');
+  if(parts.length>2) throw new Error('小数点过多');
+  var intPart = parts[0]||'0', fracPart = parts[1]||'';
+  var B = BigInt(base);
+  var iv = 0n;
+  for(var i=0;i<intPart.length;i++){
+    var d = digitVal(intPart[i], alpha);
+    if(d<0 || d>=base) throw new Error('字符 "'+intPart[i]+'" 不在 '+base+' 进制范围');
+    iv = iv*B + BigInt(d);
+  }
+  var fv = 0, scale = 1;
+  for(var j=0;j<fracPart.length;j++){
+    var fd = digitVal(fracPart[j], alpha);
+    if(fd<0 || fd>=base) throw new Error('字符 "'+fracPart[j]+'" 不在 '+base+' 进制范围');
+    scale /= base; fv += fd*scale;
+  }
+  return {int:iv, frac:fv, neg:neg};
+}
+
+// format {int, frac, neg} into target base/alphabet
+function formatNum(num, base, alpha, fracDigits){
+  alpha = alpha || STD.slice(0, base);
+  base = alpha.length;
+  fracDigits = fracDigits==null?12:fracDigits;
+  var B = BigInt(base);
+  var iv = num.int, out='';
+  if(iv===0n){ out=alpha[0]; }
+  else { var t=iv; while(t>0n){ out = alpha[Number(t%B)] + out; t=t/B; } }
+  // fractional
+  var fstr='';
+  if(num.frac>0){
+    var f=num.frac, cnt=0;
+    while(f>1e-12 && cnt<fracDigits){ f*=base; var d=Math.floor(f); fstr+=alpha[d]; f-=d; cnt++; }
+  }
+  return (num.neg?'-':'') + out + (fstr?('.'+fstr):'');
+}
+
+// one-shot convert
+function convert(str, fromBase, toBase, fromAlpha, toAlpha){
+  var num = parseNum(str, fromBase, fromAlpha);
+  return formatNum(num, toBase, toAlpha);
+}
+
+if(typeof module!=='undefined'&&module.exports){module.exports={STD,digitVal,parseNum,formatNum,convert};}
+
+// ---------- UI ----------
+if(typeof window!=='undefined'){
+  var $=function(id){return document.getElementById(id);};
+  var COMMON=[['二进制',2],['八进制',8],['十进制',10],['十六进制',16]];
+  function copyText(t){ navigator.clipboard && navigator.clipboard.writeText(t); }
+  function render(){
+    var val=$('val').value, from=parseInt($('from').value,10);
+    $('err').textContent='';
+    if(isNaN(from)||from<2||from>36){ $('err').textContent='源进制需在 2–36'; return; }
+    var num;
+    try{ num=parseNum(val, from); }
+    catch(e){ $('err').textContent=e.message; $('commons').innerHTML=''; $('custom').textContent='—'; return; }
+    // commons
+    $('commons').innerHTML=COMMON.map(function(c){
+      var r=formatNum(num, c[1]);
+      return '<div class="out"><span class="k">'+c[0]+' (base'+c[1]+')</span>'+
+             '<span class="v">'+r+'</span>'+
+             '<button class="copy" data-v="'+r+'">复制</button></div>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('.copy'),function(b){
+      b.onclick=function(){ copyText(b.getAttribute('data-v')); b.textContent='已复制'; setTimeout(function(){b.textContent='复制';},900); };
+    });
+    // custom
+    var tob=parseInt($('tobase').value,10), alpha=$('alpha').value.trim();
+    try{
+      var r2 = alpha ? formatNum(num, alpha.length, alpha) : formatNum(num, tob);
+      if(!alpha && (isNaN(tob)||tob<2||tob>36)) throw new Error('目标进制需在 2–36（或填字符表）');
+      $('custom').textContent=r2;
+    }catch(e){ $('custom').textContent='⚠ '+e.message; }
+  }
+  ['val','from','tobase','alpha'].forEach(function(id){ $(id).addEventListener('input',render); });
+  render();
+}
+</script>
+<footer id="nt-foot">
+<style>
+  .nt-foot{position:relative;z-index:2;margin-top:56px;border-top:1px solid rgba(255,255,255,.08);background:#0A0A0B;color:#71717A;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6}
+  .nt-foot *{box-sizing:border-box}
+  .nt-foot a{text-decoration:none}
+  .nt-in{max-width:1080px;margin:0 auto;padding:34px 24px 30px}
+  .nt-row{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .nt-id{min-width:0}
+  .nt-brand{display:flex;align-items:center;gap:10px;font-weight:700;color:#fff;font-size:15px;letter-spacing:-.02em}
+  .nt-brand .mk{width:26px;height:26px;border-radius:7px;background:#5E6AD2;display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px}
+  .nt-tag{margin-top:4px;color:#71717A;font-size:12.5px}
+  .nt-cta{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:9px;background:#5E6AD2;color:#fff;font-weight:600;font-size:13.5px;border:1px solid #5E6AD2;transition:transform .18s ease,background .2s ease,box-shadow .2s ease}
+  .nt-cta:hover{transform:translateY(-1px);background:#7C84E8;box-shadow:0 6px 20px rgba(94,106,210,.3)}
+  .nt-sep{height:1px;background:rgba(255,255,255,.08);margin:22px 0 16px}
+  .nt-rel{display:flex;flex-wrap:wrap;gap:8px}
+  .nt-rel a{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:#141417;border:1px solid rgba(255,255,255,.08);color:#A1A1AA;font-size:12.5px;font-weight:600;transition:all .18s ease}
+  .nt-rel a:hover{border-color:#5E6AD2;color:#fff}
+  .nt-cur{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(94,106,210,.12);border:1px solid #5E6AD2;color:#fff;font-size:12.5px;font-weight:700}
+  .nt-meta{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#71717A;font-size:12px}
+  .nt-meta a{color:#A1A1AA;border-bottom:1px dashed rgba(255,255,255,.08)}
+  .nt-meta a:hover{color:#5E6AD2}
+  @media(max-width:560px){.nt-row{flex-direction:column;align-items:flex-start}.nt-cta{width:100%;justify-content:center}}
+</style>
+<div class="nt-in">
+  <div class="nt-row">
+    <div class="nt-id">
+      <div class="nt-brand"><span class="mk">n</span> nano-tools</div>
+      <div class="nt-tag">单文件 · 零依赖 · 本地优先的开发者工具集</div>
+    </div>
+    <a class="nt-cta" href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">浏览全部 328 款工具 &rarr;</a>
+  </div>
+  <div class="nt-sep"></div>
+  <div class="nt-rel">
+      <span class="nt-cur">BaseForge &middot; 当前</span>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BoxKit/" target="_blank" rel="noopener">BoxKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CSSKit/" target="_blank" rel="noopener">CSSKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Chartify/" target="_blank" rel="noopener">Chartify</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ColorForge/" target="_blank" rel="noopener">ColorForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ContextLens/" target="_blank" rel="noopener">ContextLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronForge/" target="_blank" rel="noopener">CronForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronText/" target="_blank" rel="noopener">CronText</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DataForge/" target="_blank" rel="noopener">DataForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DiffLens/" target="_blank" rel="noopener">DiffLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Graphite/" target="_blank" rel="noopener">Graphite</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/HashKit/" target="_blank" rel="noopener">HashKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/IconForge/" target="_blank" rel="noopener">IconForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Inkwell/" target="_blank" rel="noopener">Inkwell</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/JsonForge/" target="_blank" rel="noopener">JsonForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MarkForge/" target="_blank" rel="noopener">MarkForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MockForge/" target="_blank" rel="noopener">MockForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PalettePro/" target="_blank" rel="noopener">PalettePro</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PassForge/" target="_blank" rel="noopener">PassForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RESTKit/" target="_blank" rel="noopener">RESTKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RegexLab/" target="_blank" rel="noopener">RegexLab</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SVGForge/" target="_blank" rel="noopener">SVGForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SnapCompress/" target="_blank" rel="noopener">SnapCompress</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/UniConvert/" target="_blank" rel="noopener">UniConvert</a>
+  </div>
+  <div class="nt-meta">
+    <span>&copy; <span id="nt-yr"></span> nano-tools &middot; 由 HTML5 + 原生 JS 构建 &middot; 零依赖</span>
+    <span><a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> &middot; <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/BaseForge" target="_blank" rel="noopener">本工具源码</a></span>
+  </div>
+</div>
+<script>
+(function(){var y=document.getElementById('nt-yr');if(y)y.textContent=new Date().getFullYear();})();
+</script>
+</footer>
+
+
+
+
+
+<!-- nano-i18n:start -->
+<script>
+window.NANO_I18N_EXTRA = {
+  "BaseForge · 进制转换增强版":"BaseForge · Advanced Base/Radix Converter"
+};
+/* NANO_I18N_RUNTIME */
+(function(){
+  // nano-tools 通用双语运行时：翻译可见 UI 文本（按钮/标签/标题/hero），不入脚本/样式/输入区。
+  var COMMON = {
+    "复制":"Copy","复制结果":"Copy result","复制链接":"Copy link","复制代码":"Copy code",
+    "清空":"Clear","清除":"Clear","清除全部":"Clear all","清空全部":"Clear all",
+    "粘贴":"Paste","生成":"Generate","运行":"Run","执行":"Run","停止":"Stop","暂停":"Pause",
+    "继续":"Resume","重试":"Retry","格式化":"Format","压缩":"Minify","美化":"Beautify","压缩美化":"Minify",
+    "导出":"Export","导入":"Import","保存":"Save","删除":"Delete","移除":"Remove","添加":"Add",
+    "重置":"Reset","还原":"Reset","搜索":"Search","提交":"Submit","取消":"Cancel","确定":"OK",
+    "确认":"Confirm","关闭":"Close","输入":"Input","输出":"Output","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","名称":"Name","值":"Value","类型":"Type",
+    "大小":"Size","数量":"Count","颜色":"Color","文本":"Text","内容":"Content","编码":"Encode",
+    "解码":"Decode","加密":"Encrypt","解密":"Decrypt","校验":"Verify","计算":"Calculate",
+    "转换":"Convert","上传":"Upload","下载":"Download","全选":"Select all","折叠":"Collapse",
+    "展开":"Expand","开始":"Start","帮助":"Help","关于":"About","更多":"More","更少":"Less",
+    "示例":"Example","随机":"Random","全部":"All","中文":"中文","English":"English","浅色":"Light",
+    "深色":"Dark","亮色":"Light","暗色":"Dark","复制成功":"Copied","已复制":"Copied",
+    "加载中":"Loading…","暂无数据":"No data","请输入":"Please enter","或":"or","拖拽":"Drag",
+    "拖到此处":"Drop here","选择文件":"Choose file","字数":"Words","字符":"Characters",
+    "行数":"Lines","用时":"Time","耗时":"Elapsed","共":"Total","项":"items","条":"items",
+    "历史":"History","清空历史":"Clear history","复制结果":"Copy result","复制":"Copy",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh","应用":"Apply",
+    "不区分大小写":"Case-insensitive","忽略空白":"Ignore whitespace","换行":"Line break",
+    "正则表达式":"Regex","模式":"Mode","选项":"Options","高级":"Advanced","基础":"Basic",
+    "开启":"On","关闭":"Off","启用":"Enable","禁用":"Disable","显示":"Show","隐藏":"Hide",
+    "复制 SVG":"Copy SVG","下载 SVG":"Download SVG","复制 PNG":"Copy PNG","下载 PNG":"Download PNG",
+    "复制 CSS":"Copy CSS","复制 URL":"Copy URL","复制到剪贴板":"Copy to clipboard",
+    "已保存到本地":"Saved locally","解析中":"Parsing…","分析中":"Analyzing…","生成中":"Generating…",
+    "请选择":"Please select","请先":"Please first","不支持":"Not supported","错误":"Error",
+    "成功":"Success","失败":"Failed","完成":"Done","下一步":"Next","上一步":"Previous",
+    "当前":"Current","总计":"Total","平均":"Average","最大":"Max","最小":"Min",
+    "字符数":"Chars","词数":"Words","句数":"Sentences","段落":"Paragraphs",
+    "浅色模式":"Light mode","深色模式":"Dark mode","切换主题":"Toggle theme","切换语言":"Switch language",
+    "打开文件":"Open file","保存文件":"Save file","导出文件":"Export file","导入文件":"Import file",
+    "复制全部":"Copy all","清除结果":"Clear result","清空结果":"Clear result",
+    "全屏":"Fullscreen","退出全屏":"Exit fullscreen","适应屏幕":"Fit screen","缩放":"Zoom",
+    "放大":"Zoom in","缩小":"Zoom out","重置视图":"Reset view","居中":"Center",
+    "添加节点":"Add node","删除节点":"Delete node","添加连线":"Add edge","删除连线":"Delete edge",
+    "自动布局":"Auto layout","适应视图":"Fit view","导出 JSON":"Export JSON","导出 Markdown":"Export Markdown",
+    "开始分析":"Start analysis","停止分析":"Stop analysis","分析文件夹":"Analyze folder",
+    "拖拽文件夹到此处":"Drop a folder here","或点击选择":"or click to choose","粘贴文本":"Paste text",
+    "复制结果":"Copy result","复制代码":"Copy code"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p = node.parentElement;
+    while(p){
+      var t = p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  var current = 'zh';
+  function applyLang(lang){
+    var d = full();
+    var root = document.documentElement;
+    current = lang;
+    // 翻译 <title>（浏览器标签 / 分享卡片）
+    var rawTitle = document.title;
+    if(lang==='en'){
+      if(d[rawTitle]) document.title = d[rawTitle];
+    } else {
+      var ex = window.NANO_I18N_EXTRA || {};
+      for(var _k in ex){ if(ex[_k] === rawTitle){ document.title = _k; break; } }
+    }
+    if(lang==='en'){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n = w.nextNode()){ n.__zh = n.nodeValue; n.nodeValue = d[n.nodeValue.trim()]; }
+      // 整元素翻译（hero 含子结构，如彩色词 <span>）
+      var els = root.querySelectorAll('[data-i18n-html]');
+      for(var ei=0; ei<els.length; ei++){ var el=els[ei]; if(el.__zhtml===undefined){ el.__zhtml = el.innerHTML; } el.innerHTML = el.getAttribute('data-i18n-html'); }
+    } else {
+      var w2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m = w2.nextNode()){ m.nodeValue = m.__zh; m.__zh = undefined; }
+      // 还原整元素翻译
+      var els2 = root.querySelectorAll('[data-i18n-html]');
+      for(var ej=0; ej<els2.length; ej++){ var el2=els2[ej]; if(el2.__zhtml!==undefined){ el2.innerHTML = el2.__zhtml; el2.__zhtml = undefined; } }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en' ? 'zh' : 'en');
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand = document.createElement('a');
+    brand.id = 'nano-brand';
+    brand.href = 'https://wangzifan396-wzf.github.io/WB/';
+    brand.target = '_blank';
+    brand.rel = 'noopener';
+    brand.textContent = 'nano·tools';
+    brand.title = 'nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter = function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave = function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b = document.createElement('button');
+    b.id = 'nano-lang-btn';
+    b.title = 'Switch language / 切换语言';
+    b.textContent = 'EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter = function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave = function(){ b.style.transform='none'; };
+    b.onclick = toggle;
+    bar.appendChild(brand);
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved = localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved = ((navigator.language||'zh').slice(0,2).toLowerCase()==='en') ? 'en' : 'zh'; }
+    applyLang(saved);
+    mountBtn();
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (saved==='en'?'中':'EN');
+    // 捕获渲染后注入的静态文本（动态节点）
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+
+</script>
+<!-- nano-i18n:end -->
+</body>
+</html>

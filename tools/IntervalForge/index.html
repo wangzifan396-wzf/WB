@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>IntervalForge — 区间合并/交集/最大不重叠调度/最少会议室，扫描线 + 贪心</title>
+<meta property="og:title" content="IntervalForge">
+<meta property="og:description" content="区间合并/交集/最大不重叠调度/最少会议室，扫描线 + 贪心">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="区间合并/交集/最大不重叠调度/最少会议室，扫描线 + 贪心 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>IntervalForge</h1>
+  <p class="sub">区间合并/交集/最大不重叠调度/最少会议室，扫描线 + 贪心 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>区间列表（每行 start,end 或 start-end）</label>
+<textarea id="txt" rows="6">1,3
+2,6
+8,10
+15,18
+9,12</textarea>
+<div class="opt">
+  <label>操作
+    <select id="mode">
+      <option value="merge">合并重叠区间</option>
+      <option value="schedule">最大不重叠调度</option>
+      <option value="rooms">最少会议室数</option>
+      <option value="gaps">空隙区间</option>
+    </select>
+  </label>
+</div>
+<div class="row">
+  <button id="run">计算</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>结果</label>
+<div class="out" id="out" aria-live="polite">选择操作后计算</div>
+<script>
+function ivParse(text){
+  var lines=String(text).replace(/\r/g,'').split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+  if(!lines.length) return { value:null, error:'没有区间' };
+  var out=[];
+  for(var i=0;i<lines.length;i++){
+    var m=lines[i].split(/[,\-~\s]+/).filter(Boolean);
+    if(m.length!==2) return { value:null, error:'第 '+(i+1)+' 行格式错误（需 start,end）' };
+    var a=Number(m[0]), b=Number(m[1]);
+    if(!isFinite(a)||!isFinite(b)) return { value:null, error:'第 '+(i+1)+' 行不是数字' };
+    if(a>b) return { value:null, error:'第 '+(i+1)+' 行 start > end' };
+    out.push([a,b]);
+  }
+  return { value:out, error:null };
+}
+function ivMerge(intervals){
+  if(!Array.isArray(intervals)||!intervals.length) return { value:[], error:null };
+  var s=intervals.slice().sort(function(a,b){ return a[0]-b[0]||a[1]-b[1]; });
+  var out=[[s[0][0],s[0][1]]];
+  for(var i=1;i<s.length;i++){
+    var last=out[out.length-1];
+    if(s[i][0]<=last[1]) last[1]=Math.max(last[1],s[i][1]);
+    else out.push([s[i][0],s[i][1]]);
+  }
+  return { value:out, error:null };
+}
+function ivIntersect(a,b){
+  var lo=Math.max(a[0],b[0]), hi=Math.min(a[1],b[1]);
+  if(lo>hi) return null;
+  return [lo,hi];
+}
+function ivSchedule(intervals){
+  if(!intervals.length) return { value:{ count:0, picked:[] }, error:null };
+  var s=intervals.slice().sort(function(a,b){ return a[1]-b[1]; });
+  var picked=[], lastEnd=-Infinity;
+  for(var i=0;i<s.length;i++){
+    if(s[i][0]>=lastEnd){ picked.push(s[i]); lastEnd=s[i][1]; }
+  }
+  return { value:{ count:picked.length, picked:picked }, error:null };
+}
+function ivRooms(intervals){
+  if(!intervals.length) return { value:0, error:null };
+  var evs=[];
+  for(var i=0;i<intervals.length;i++){ evs.push([intervals[i][0],1]); evs.push([intervals[i][1],-1]); }
+  evs.sort(function(a,b){ return a[0]-b[0]||a[1]-b[1]; }); // end(-1) before start(+1) at same time
+  var cur=0, max=0;
+  for(var j=0;j<evs.length;j++){ cur+=evs[j][1]; if(cur>max) max=cur; }
+  return { value:max, error:null };
+}
+function ivGaps(intervals){
+  var m=ivMerge(intervals).value;
+  var out=[];
+  for(var i=1;i<m.length;i++){
+    if(m[i][0]>m[i-1][1]) out.push([m[i-1][1],m[i][0]]);
+  }
+  return { value:out, error:null };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { ivParse:ivParse, ivMerge:ivMerge, ivIntersect:ivIntersect,
+    ivSchedule:ivSchedule, ivRooms:ivRooms, ivGaps:ivGaps };
+}
+if (typeof window !== 'undefined') {
+  window.IntervalForgePure = { ivParse:ivParse, ivMerge:ivMerge, ivIntersect:ivIntersect,
+    ivSchedule:ivSchedule, ivRooms:ivRooms, ivGaps:ivGaps };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.IntervalForgePure;
+    function fmt(list){ return list.map(function(iv){ return '['+iv[0]+', '+iv[1]+']'; }).join('  '); }
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      var pr=P.ivParse($('txt').value);
+      if(pr.error){ $('err').textContent=pr.error; return; }
+      var mode=$('mode').value, ivs=pr.value;
+      if(mode==='merge'){
+        var mr=P.ivMerge(ivs);
+        $('out').textContent=ivs.length+' 个区间 → '+mr.value.length+' 个:\n'+fmt(mr.value);
+      } else if(mode==='schedule'){
+        var sr=P.ivSchedule(ivs);
+        $('out').textContent='最多可选 '+sr.value.count+' 个不重叠区间:\n'+fmt(sr.value.picked);
+      } else if(mode==='rooms'){
+        $('out').textContent='最少需要 '+P.ivRooms(ivs).value+' 个会议室（最大并发数）';
+      } else {
+        var gr=P.ivGaps(ivs);
+        $('out').textContent=gr.value.length?('空隙 '+gr.value.length+' 段:\n'+fmt(gr.value)):'无空隙';
+      }
+    });
+    $('clear').addEventListener('click', function(){ $('txt').value=''; $('out').textContent='选择操作后计算'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

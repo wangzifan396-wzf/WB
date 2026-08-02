@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DateForge · 日期计算器</title>
+<meta name="description" content="单文件离线日期计算器：日期间隔、加减推算、ISO 周、工作日、年龄计算。零依赖，本地优先。">
+<meta property="og:title" content="DateForge · 日期计算器">
+<meta property="og:description" content="日期间隔 / 加减推算 / ISO 周 / 工作日 / 年龄计算，单文件零依赖离线可用。">
+<meta property="og:image" content="og.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0A0A0B">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --panel:#1A1B1E;
+  --text:#FFFFFF; --text2:#A1A1AA; --text3:#71717A;
+  --border:rgba(255,255,255,.08); --border2:rgba(255,255,255,.14);
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;line-height:1.6}
+.wrap{max-width:880px;margin:0 auto;padding:32px 20px 64px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#5E6AD2,#A78BFA);display:flex;align-items:center;justify-content:center;flex:none}
+.logo svg{width:20px;height:20px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.sub{color:var(--text3);font-size:13px;margin-bottom:24px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:7px 14px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text2);font-size:13px;cursor:pointer;transition:all .15s}
+.tab:hover{border-color:var(--border2);color:var(--text)}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:6px;min-width:150px;flex:1}
+.field label{font-size:12px;color:var(--text3)}
+input[type=date],input[type=number],select{background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 12px;font-size:14px;font-family:inherit;outline:none;color-scheme:dark;width:100%}
+input:focus,select:focus{border-color:var(--accent)}
+button.act{background:var(--accent);border:none;border-radius:8px;color:#fff;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s;flex:none}
+button.act:hover{opacity:.88}
+button.ghost{background:var(--panel);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer;flex:none}
+button.ghost:hover{border-color:var(--border2);color:var(--text)}
+.res{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.stat .k{font-size:12px;color:var(--text3);margin-bottom:4px}
+.stat .v{font-size:17px;font-weight:700;letter-spacing:-.01em;word-break:break-all}
+.stat .v.accent{color:var(--accent)} .stat .v.ok{color:var(--ok)} .stat .v.info{color:var(--info)} .stat .v.purple{color:var(--purple)} .stat .v.warn{color:var(--warn)}
+.hint{color:var(--text3);font-size:12px;margin-top:10px}
+.hide{display:none}
+footer{margin-top:40px;color:var(--text3);font-size:12px;display:flex;gap:14px;flex-wrap:wrap}
+footer a{color:var(--text2);text-decoration:none}
+footer a:hover{color:var(--text)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<script>
+/* DateForge 纯函数内核（无 DOM 依赖，可被 Node 单测直接加载） */
+var DF = (function(){
+  'use strict';
+  function pad2(n){ return (n<10?'0':'')+n; }
+  function isLeap(y){ return (y%4===0 && y%100!==0) || y%400===0; }
+  var DIM = [31,28,31,30,31,30,31,31,30,31,30,31];
+  function dim(y,m){ return m===2 && isLeap(y) ? 29 : DIM[m-1]; }
+  function valid(y,m,d){
+    return Number.isInteger(y) && Number.isInteger(m) && Number.isInteger(d) &&
+      y>=1 && y<=9999 && m>=1 && m<=12 && d>=1 && d<=dim(y,m);
+  }
+  /* Howard Hinnant days-from-civil：返回自 1970-01-01 起的天数（可为负） */
+  function toSerial(y,m,d){
+    var yy = y - (m<=2 ? 1 : 0);
+    var era = Math.floor(yy/400);
+    var yoe = yy - era*400;
+    var doy = Math.floor((153*(m + (m>2 ? -3 : 9)) + 2)/5) + d - 1;
+    var doe = yoe*365 + Math.floor(yoe/4) - Math.floor(yoe/100) + doy;
+    return era*146097 + doe - 719468;
+  }
+  function fromSerial(n){
+    var z = n + 719468;
+    var era = Math.floor(z/146097);
+    var doe = z - era*146097;
+    var yoe = Math.floor((doe - Math.floor(doe/1460) + Math.floor(doe/36524) - Math.floor(doe/146096))/365);
+    var y = yoe + era*400;
+    var doy = doe - (365*yoe + Math.floor(yoe/4) - Math.floor(yoe/100));
+    var mp = Math.floor((5*doy + 2)/153);
+    var d = doy - Math.floor((153*mp+2)/5) + 1;
+    var m = mp + (mp<10 ? 3 : -9);
+    return { y: y + (m<=2 ? 1 : 0), m: m, d: d };
+  }
+  function parse(str){
+    if(typeof str !== 'string') return null;
+    var s = str.trim();
+    var m = s.match(/^(\d{4})[-/.年]?(\d{1,2})[-/.月]?(\d{1,2})日?$/);
+    if(!m) return null;
+    var o = { y:+m[1], m:+m[2], d:+m[3] };
+    return valid(o.y,o.m,o.d) ? o : null;
+  }
+  function fmt(o, sep){
+    sep = sep === undefined ? '-' : sep;
+    return o.y + sep + pad2(o.m) + sep + pad2(o.d);
+  }
+  /* 星期：0=周一 … 6=周日（1970-01-01 是周四） */
+  function weekday(o){
+    var s = toSerial(o.y,o.m,o.d);
+    return ((s+3)%7+7)%7;
+  }
+  var WD_ZH = ['周一','周二','周三','周四','周五','周六','周日'];
+  function weekdayName(i){ return WD_ZH[i]; }
+  function diffDays(a,b){ return toSerial(b.y,b.m,b.d) - toSerial(a.y,a.m,a.d); }
+  /* Y/M/D 分解差（含符号，锚点法：a + Ny+Nm 收敛后再数天） */
+  function diffYMD(a,b){
+    var sign = 1;
+    if(diffDays(a,b) < 0){ var t=a; a=b; b=t; sign=-1; }
+    var tm = (b.y - a.y)*12 + (b.m - a.m);
+    var anchor = addMonths(a, tm);
+    if(diffDays(anchor, b) < 0){ tm -= 1; anchor = addMonths(a, tm); }
+    var years = Math.floor(tm/12);
+    return { sign:sign, years:years, months: tm - years*12,
+             days: diffDays(anchor, b), totalDays: Math.abs(diffDays(a,b)) };
+  }
+  function addDays(o,n){ return fromSerial(toSerial(o.y,o.m,o.d) + n); }
+  function addMonths(o,n){
+    var idx = (o.y*12 + (o.m-1)) + n;
+    var y = Math.floor(idx/12), m = idx - y*12 + 1;
+    var d = Math.min(o.d, dim(y,m));
+    return { y:y, m:m, d:d };
+  }
+  function addYears(o,n){
+    var y = o.y + n;
+    return { y:y, m:o.m, d: Math.min(o.d, dim(y,o.m)) };
+  }
+  /* ISO 8601 周数 */
+  function isoWeek(o){
+    var s = toSerial(o.y,o.m,o.d);
+    var dow = ((s+3)%7+7)%7;          /* 0=周一 */
+    var thursday = s - dow + 3;
+    var t = fromSerial(thursday);
+    var week = Math.floor((thursday - toSerial(t.y,1,1))/7) + 1;
+    return { year: t.y, week: week };
+  }
+  function dayOfYear(o){ return toSerial(o.y,o.m,o.d) - toSerial(o.y,1,1) + 1; }
+  /* 工作日（周一~周五）计数，含首尾两端 */
+  function workdays(a,b){
+    var neg = false;
+    if(diffDays(a,b) < 0){ var t=a; a=b; b=t; neg=true; }
+    var total = diffDays(a,b) + 1;
+    var weeks = Math.floor(total/7), rem = total%7;
+    var cnt = weeks*5;
+    var wd = weekday(a);
+    for(var i=0;i<rem;i++){ if(((wd+i)%7) < 5) cnt++; }
+    return neg ? -cnt : cnt;
+  }
+  /* 年龄：生日→参考日 Y/M/D + 下次生日倒计时 */
+  function age(birth, ref){
+    var a = diffYMD(birth, ref);
+    var ny = ref.y;
+    var bm = birth.m, bd = birth.d;
+    function mk(y){ return { y:y, m:bm, d: Math.min(bd, dim(y,bm)) }; }
+    var next = mk(ny);
+    if(diffDays(ref, next) <= 0) next = mk(ny+1);
+    return { years:a.years, months:a.months, days:a.days, totalDays:a.totalDays,
+             nextBirthday: next, nextBirthdayDays: diffDays(ref, next) };
+  }
+  function toUnix(o){ return toSerial(o.y,o.m,o.d)*86400; }
+  function fromUnix(sec){
+    var days = Math.floor(sec/86400);
+    return fromSerial(days);
+  }
+  function today(){
+    var d = new Date();
+    return { y:d.getFullYear(), m:d.getMonth()+1, d:d.getDate() };
+  }
+  return {
+    pad2:pad2, isLeap:isLeap, dim:dim, valid:valid,
+    toSerial:toSerial, fromSerial:fromSerial, parse:parse, fmt:fmt,
+    weekday:weekday, weekdayName:weekdayName,
+    diffDays:diffDays, diffYMD:diffYMD,
+    addDays:addDays, addMonths:addMonths, addYears:addYears,
+    isoWeek:isoWeek, dayOfYear:dayOfYear, workdays:workdays,
+    age:age, toUnix:toUnix, fromUnix:fromUnix, today:today
+  };
+})();
+if(typeof module!=='undefined' && module.exports){ module.exports = DF; }
+if(typeof window!=='undefined'){ window.__DATEFORGE__ = DF; }
+</script>
+
+<div class="wrap">
+  <header>
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 16l2 2 4-4"/></svg></div>
+    <h1>DateForge</h1>
+  </header>
+  <div class="sub">日期间隔 · 加减推算 · ISO 周 · 工作日 · 年龄计算 —— 单文件 / 零依赖 / 离线可用</div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="diff" id="tabDiff">日期间隔</button>
+    <button class="tab" data-tab="calc" id="tabCalc">日期加减</button>
+    <button class="tab" data-tab="info" id="tabInfo">日期信息</button>
+    <button class="tab" data-tab="ageT" id="tabAge">年龄计算</button>
+  </div>
+
+  <!-- 日期间隔 -->
+  <div class="card pane" id="pane-diff">
+    <div class="row">
+      <div class="field"><label>起始日期</label><input type="date" id="diffA"></div>
+      <div class="field"><label>结束日期</label><input type="date" id="diffB"></div>
+      <button class="act" id="diffGo">计算间隔</button>
+    </div>
+    <div class="res hide" id="diffRes"></div>
+    <div class="hint">工作日 = 周一至周五（含首尾两端），不含法定节假日调休。</div>
+  </div>
+
+  <!-- 日期加减 -->
+  <div class="card pane hide" id="pane-calc">
+    <div class="row">
+      <div class="field"><label>基准日期</label><input type="date" id="calcBase"></div>
+      <div class="field" style="max-width:120px"><label>数量</label><input type="number" id="calcN" value="30"></div>
+      <div class="field" style="max-width:120px"><label>单位</label>
+        <select id="calcUnit"><option value="d">天</option><option value="m">月</option><option value="y">年</option></select>
+      </div>
+      <button class="act" id="calcGo">推算</button>
+    </div>
+    <div class="res hide" id="calcRes"></div>
+    <div class="hint">支持负数（向前推算）；跨月自动收敛（如 1月31日 +1月 = 2月28/29日）。</div>
+  </div>
+
+  <!-- 日期信息 -->
+  <div class="card pane hide" id="pane-info">
+    <div class="row">
+      <div class="field"><label>日期</label><input type="date" id="infoD"></div>
+      <button class="act" id="infoGo">查看信息</button>
+      <button class="ghost" id="infoToday">今天</button>
+    </div>
+    <div class="res hide" id="infoRes"></div>
+  </div>
+
+  <!-- 年龄计算 -->
+  <div class="card pane hide" id="pane-ageT">
+    <div class="row">
+      <div class="field"><label>出生日期</label><input type="date" id="ageBirth"></div>
+      <div class="field"><label>计算至（默认今天）</label><input type="date" id="ageRef"></div>
+      <button class="act" id="ageGo">计算年龄</button>
+    </div>
+    <div class="res hide" id="ageRes"></div>
+  </div>
+
+  <footer>
+    <span>DateForge · nano-tools</span>
+    <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/DateForge" rel="noopener">GitHub</a>
+    <a href="https://wangzifan396-wzf.github.io/WB/" rel="noopener">全部工具</a>
+  </footer>
+</div>
+
+<script>
+if(typeof window!=='undefined' && window.document){
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* Tab 切换 */
+  var tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      tabs.forEach(function(x){ x.classList.remove('on'); });
+      t.classList.add('on');
+      document.querySelectorAll('.pane').forEach(function(p){ p.classList.add('hide'); });
+      $('pane-'+t.getAttribute('data-tab')).classList.remove('hide');
+    });
+  });
+
+  function getDate(id){
+    var v = $(id).value;
+    return v ? DF.parse(v) : null;
+  }
+  function stat(k,v,cls){
+    return '<div class="stat"><div class="k">'+k+'</div><div class="v '+(cls||'')+'">'+v+'</div></div>';
+  }
+  function show(id, html){
+    var el = $(id);
+    el.innerHTML = html;
+    el.classList.remove('hide');
+  }
+  function initToday(){
+    var t = DF.fmt(DF.today());
+    ['diffA','diffB','calcBase','infoD','ageRef'].forEach(function(id){ if(!$(id).value) $(id).value = t; });
+  }
+  initToday();
+
+  /* 日期间隔 */
+  $('diffGo').addEventListener('click', function(){
+    var a = getDate('diffA'), b = getDate('diffB');
+    if(!a || !b){ show('diffRes', stat('提示','请选择两个日期','warn')); return; }
+    var days = DF.diffDays(a,b);
+    var ymd = DF.diffYMD(a,b);
+    var wk = DF.workdays(a,b);
+    var sgn = ymd.sign < 0 ? '-' : '';
+    show('diffRes',
+      stat('相差天数', days + ' 天', 'accent') +
+      stat('分解', sgn + ymd.years+' 年 '+ymd.months+' 月 '+ymd.days+' 天', 'purple') +
+      stat('相差周数', (days/7).toFixed(1) + ' 周', 'info') +
+      stat('工作日（含两端）', wk + ' 天', 'ok')
+    );
+  });
+
+  /* 日期加减 */
+  $('calcGo').addEventListener('click', function(){
+    var base = getDate('calcBase');
+    var n = parseInt($('calcN').value, 10);
+    if(!base || isNaN(n)){ show('calcRes', stat('提示','请输入基准日期与数量','warn')); return; }
+    var u = $('calcUnit').value;
+    var r = u==='d' ? DF.addDays(base,n) : u==='m' ? DF.addMonths(base,n) : DF.addYears(base,n);
+    show('calcRes',
+      stat('结果日期', DF.fmt(r), 'accent') +
+      stat('星期', DF.weekdayName(DF.weekday(r)), 'info') +
+      stat('距今', DF.diffDays(DF.today(), r) + ' 天', 'purple')
+    );
+  });
+
+  /* 日期信息 */
+  function renderInfo(){
+    var d = getDate('infoD');
+    if(!d){ show('infoRes', stat('提示','请选择日期','warn')); return; }
+    var iw = DF.isoWeek(d);
+    show('infoRes',
+      stat('星期', DF.weekdayName(DF.weekday(d)), 'accent') +
+      stat('ISO 周', iw.year + ' 年第 ' + iw.week + ' 周', 'info') +
+      stat('年内第几天', '第 ' + DF.dayOfYear(d) + ' 天', 'purple') +
+      stat('是否闰年', DF.isLeap(d.y) ? '闰年' : '平年', DF.isLeap(d.y)?'ok':'') +
+      stat('当月天数', DF.dim(d.y,d.m) + ' 天') +
+      stat('Unix 时间戳（0点 UTC）', DF.toUnix(d), 'warn')
+    );
+  }
+  $('infoGo').addEventListener('click', renderInfo);
+  $('infoToday').addEventListener('click', function(){ $('infoD').value = DF.fmt(DF.today()); renderInfo(); });
+
+  /* 年龄计算 */
+  $('ageGo').addEventListener('click', function(){
+    var b = getDate('ageBirth');
+    var ref = getDate('ageRef') || DF.today();
+    if(!b){ show('ageRes', stat('提示','请选择出生日期','warn')); return; }
+    if(DF.diffDays(b, ref) < 0){ show('ageRes', stat('提示','出生日期需早于参考日期','warn')); return; }
+    var a = DF.age(b, ref);
+    show('ageRes',
+      stat('年龄', a.years + ' 岁 ' + a.months + ' 个月 ' + a.days + ' 天', 'accent') +
+      stat('已生活天数', a.totalDays + ' 天', 'purple') +
+      stat('下次生日', DF.fmt(a.nextBirthday) + '（' + DF.weekdayName(DF.weekday(a.nextBirthday)) + '）', 'info') +
+      stat('生日倒计时', a.nextBirthdayDays + ' 天', 'ok')
+    );
+  });
+
+  /* PWA */
+  if('serviceWorker' in navigator && location.protocol !== 'file:'){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+})();
+}
+</script>
+</body>
+</html>

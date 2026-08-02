@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TempForge — 离线温度换算：摄氏度 / 华氏度 / 开尔文 / 兰氏度四标度互转</title>
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.preview{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;justify-content:center;align-items:center;min-height:90px}
+.preview svg{max-width:100%}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.big{font:40px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
+.kv{color:var(--muted);font-size:13px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线温度换算：摄氏度 / 华氏度 / 开尔文 / 兰氏度四标度互转，实时计算。">
+</head>
+<body>
+<div class="app">
+  <h1>TempForge</h1>
+  <p class="sub">离线温度换算：摄氏度 / 华氏度 / 开尔文 / 兰氏度四标度互转 · 单文件 · 零依赖 · 本地优先</p>
+
+<label for="val">数值</label>
+<input id="val" type="number" value="0" step="any">
+<div class="row">
+  <select id="from">
+    <option value="c">摄氏度 °C</option>
+    <option value="f">华氏度 °F</option>
+    <option value="k">开尔文 K</option>
+    <option value="r">兰氏度 °R</option>
+  </select>
+  <span>→</span>
+  <select id="to">
+    <option value="f">华氏度 °F</option>
+    <option value="c">摄氏度 °C</option>
+    <option value="k">开尔文 K</option>
+    <option value="r">兰氏度 °R</option>
+  </select>
+  <button id="run">换算</button>
+  <button id="copy" class="ghost">复制结果</button>
+</div>
+<div class="err" id="err"></div>
+<label>结果</label>
+<div class="big" id="out">—</div>
+<script>
+function convertTemp(value, from, to){
+  from=String(from).toLowerCase(); to=String(to).toLowerCase();
+  value=Number(value);
+  if(isNaN(value)) throw new Error('数值无效');
+  var c;
+  if(from==='c') c=value;
+  else if(from==='f') c=(value-32)*5/9;
+  else if(from==='k') c=value-273.15;
+  else if(from==='r') c=(value-491.67)*5/9;
+  else throw new Error('未知单位 '+from);
+  var res;
+  if(to==='c') res=c;
+  else if(to==='f') res=c*9/5+32;
+  else if(to==='k') res=c+273.15;
+  else if(to==='r') res=c*9/5+491.67;
+  else throw new Error('未知单位 '+to);
+  return res;
+}
+function fmt(n){
+  if(!isFinite(n)) return String(n);
+  var r=Math.round(n*1e4)/1e4;
+  return String(r);
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { convertTemp:convertTemp, fmt:fmt };
+}
+if (typeof window !== 'undefined') {
+  window.TempForgePure = { convertTemp:convertTemp, fmt:fmt };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.TempForgePure;
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function run(){
+      $('err').textContent='';
+      try {
+        var v=P.convertTemp($('val').value, $('from').value, $('to').value);
+        $('out').textContent=P.fmt(v)+' '+$('to').selectedOptions[0].textContent.trim().replace(/^.*\s/,'');
+      } catch(e){ $('err').textContent=e.message; $('out').textContent='—'; }
+    }
+    $('run').addEventListener('click', run);
+    $('copy').addEventListener('click', function(){ copyText($('out').textContent); });
+    $('val').addEventListener('input', run);
+    $('from').addEventListener('change', run);
+    $('to').addEventListener('change', run);
+    run();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

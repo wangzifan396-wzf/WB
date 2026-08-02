@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>WAFForge — WAF 规则生成器：以 ModSecurity / OWASP-CRS 风格产出 SecRule 与 JSON 策略，内置 SQLi/XSS/限流/封禁模板。</title>
+<meta property="og:title" content="WAFForge">
+<meta property="og:description" content="WAF 规则（ModSecurity/CRS 风格）生成与体检，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="WAF 规则（ModSecurity/CRS 风格）生成与体检，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>WAFForge</h1>
+  <p class="sub">安全工具：选择变量、操作符、phase 与动作即生成 SecRule 指令与等价 JSON 策略，内置 SQL 注入、XSS、路径遍历、IP 封禁、限流、恶意爬虫等模板，并对 rule id、phase、动作合法性做体检 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="wafTpl">载入模板</label>
+  <select id="wafTpl"><option value="">（自定义）…</option></select>
+  <div class="grid">
+    <div><label for="wafId">规则 id</label><input type="text" id="wafId" value="100001"></div>
+    <div><label for="wafPhase">phase</label>
+      <select id="wafPhase"><option value="1">1 请求头</option><option value="2" selected>2 请求体</option><option value="3">3 响应头</option><option value="4">4 响应体</option><option value="5">5 审计</option></select>
+    </div>
+  </div>
+  <div class="grid">
+    <div><label for="wafVar">匹配变量 variable</label><input type="text" id="wafVar" value="ARGS"></div>
+    <div><label for="wafOp">操作符 operator</label><input type="text" id="wafOp" value="detectSQLi"></div>
+  </div>
+  <div class="grid">
+    <div><label for="wafAction">动作 action</label>
+      <select id="wafAction"><option value="block">block (deny 403)</option><option value="allow">allow</option><option value="pass">pass</option><option value="log">log only</option></select>
+    </div>
+    <div><label for="wafSeverity">severity</label><input type="text" id="wafSeverity" value="CRITICAL"></div>
+  </div>
+  <label for="wafXform">transforms（逗号分隔）</label>
+  <input type="text" id="wafXform" value="lowercase">
+  <label for="wafMsg">msg</label>
+  <input type="text" id="wafMsg" value="SQLi attempt">
+  <div class="row">
+    <button id="wafGen">生成 SecRule + 体检</button>
+    <button id="wafJson" class="ghost">导出 JSON 策略</button>
+  </div>
+  <div class="err" id="wafErr"></div>
+  <div class="out" id="wafOut"><pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">SecRule</pre></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var PHASES = {1:'请求头',2:'请求体',3:'响应头',4:'响应体',5:'日志/审计'};
+var VALID_ACTIONS = {block:1,deny:1,allow:1,pass:1,log:1,redirect:1,'pass,log':1,'deny,log':1,'allow,log':1};
+var DEFAULT_VARS = ['REQUEST_URI','REQUEST_HEADERS:User-Agent','REQUEST_BODY','ARGS','ARGS_GET','ARGS_POST','REQUEST_HEADERS:Host','REMOTE_ADDR','REQUEST_LINE','REQUEST_METHOD'];
+
+function sanitizeRuleId(id){
+  var n=parseInt(String(id==null?'':id).replace(/\D/g,''),10);
+  if(!isFinite(n)||n<1||n>999999) return null;
+  return n;
+}
+function escapeQuotes(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+
+function buildSecRule(spec){
+  spec=spec||{};
+  var id=sanitizeRuleId(spec.id);
+  if(!id) return { error:'rule id 必须是 1–999999 的整数', value:'' };
+  var variable=String(spec.variable||'').trim();
+  if(!variable) return { error:'缺少匹配变量 variable', value:'' };
+  var operator=String(spec.operator||'').trim();
+  if(!operator) return { error:'缺少操作符 operator（如 @rx 或 @pm）', value:'' };
+  var phase=parseInt(spec.phase,10);
+  if(!(phase>=1&&phase<=5)) return { error:'phase 必须是 1–5', value:'' };
+  var action=String(spec.action||'block').toLowerCase();
+  var actionStr = action==='block'||action==='deny' ? 'deny,status:403' :
+                  action==='allow' ? 'allow' : action==='log' ? 'pass,log' :
+                  action==='pass' ? 'pass' : action;
+  var parts=[];
+  parts.push('id:'+id);
+  parts.push('phase:'+phase);
+  if(spec.msg) parts.push("msg:'"+escapeQuotes(spec.msg)+"'");
+  (spec.transforms||[]).forEach(function(t){ if(t) parts.push('t:'+t); });
+  parts.push(actionStr);
+  if(spec.log==='no'||spec.log===false) parts.push('nolog');
+  else parts.push('log');
+  if(spec.severity) parts.push('severity:'+spec.severity);
+  if(spec.chain) parts.push('chain');
+  if(spec.tag) parts.push("tag:'"+escapeQuotes(spec.tag)+"'");
+  return { error:null,
+    value:'SecRule '+variable+' "'+operator.replace(/^@?/, '@')+'" "'+parts.join(',')+'"' };
+}
+
+function buildPolicy(spec){
+  spec=spec||{};
+  var r=buildSecRule(spec);
+  if(r.error) return { error:r.error, value:null };
+  return { error:null, value: {
+    name: spec.name || ('rule-'+spec.id),
+    engine: 'modsecurity-v3',
+    rule: {
+      id: sanitizeRuleId(spec.id),
+      phase: parseInt(spec.phase,10),
+      variable: String(spec.variable||'').trim(),
+      operator: spec.operator,
+      transforms: spec.transforms||[],
+      action: String(spec.action||'block').toLowerCase(),
+      msg: spec.msg||'',
+      severity: spec.severity||'',
+      tag: spec.tag||''
+    }
+  } };
+}
+
+function lintRule(spec){
+  spec=spec||{};
+  var issues=[];
+  if(!sanitizeRuleId(spec.id)) issues.push({level:'bad',msg:'rule id 必须是 1–999999 的整数'});
+  if(!String(spec.variable||'').trim()) issues.push({level:'bad',msg:'缺少匹配变量 variable'});
+  if(!String(spec.operator||'').trim()) issues.push({level:'bad',msg:'缺少操作符 operator'});
+  var ph=parseInt(spec.phase,10);
+  if(!(ph>=1&&ph<=5)) issues.push({level:'bad',msg:'phase 必须是 1–5'});
+  var act=String(spec.action||'').toLowerCase();
+  if(act && !VALID_ACTIONS[act] && !VALID_ACTIONS[act+',log']) issues.push({level:'warn',msg:'动作 "'+act+'" 不在常见集合（block/allow/log/pass）'});
+  if(spec.transforms && spec.transforms.some(function(t){ return !/^(lowercase|uppercase|urlDecode|urlDecodeUni|htmlEntityDecode|compressWhitespace|removeWhitespace|normalisePath|base64Decode|cmdLine|none)$/.test(t); }))
+    issues.push({level:'warn',msg:'存在不常见的 transform（t:）'});
+  var score=100; issues.forEach(function(i){ score-=(i.level==='bad'?25:10); });
+  return { issues:issues, score:Math.max(0,score) };
+}
+
+function templates(){
+  return [
+    {id:'100001',name:'SQL 注入 (CRS)', variable:'ARGS|REQUEST_HEADERS', operator:'detectSQLi', phase:2, action:'block', transforms:['lowercase'], msg:'SQLi', tag:'OWASP_CRS/WEB_ATTACK/SQL_INJECTION', severity:'CRITICAL'},
+    {id:'100002',name:'XSS (CRS)', variable:'ARGS|REQUEST_HEADERS', operator:'detectXSS', phase:2, action:'block', transforms:['lowercase'], msg:'XSS', tag:'OWASP_CRS/WEB_ATTACK/XSS', severity:'CRITICAL'},
+    {id:'100003',name:'路径遍历', variable:'REQUEST_URI', operator:'../', phase:1, action:'block', transforms:['urlDecodeUni','lowercase'], msg:'path traversal', tag:'attack/traversal', severity:'CRITICAL'},
+    {id:'100004',name:'IP 封禁', variable:'REMOTE_ADDR', operator:'@ipMatch 1.2.3.4', phase:1, action:'deny', msg:'blocked IP', severity:'ALERT'},
+    {id:'100005',name:'限流 10r/s', variable:'IP', operator:'@rlimit 10', phase:1, action:'block', msg:'rate limit', severity:'WARNING'},
+    {id:'100006',name:'恶意爬虫', variable:'REQUEST_HEADERS:User-Agent', operator:'@pm badbot scraper', phase:1, action:'block', transforms:['lowercase'], msg:'bad bot', tag:'bot', severity:'WARNING'},
+    {id:'100007',name:'缺少 UA', variable:'&REQUEST_HEADERS:User-Agent', operator:'@eq 0', phase:1, action:'block', msg:'empty UA', severity:'WARNING'}
+  ];
+}
+
+var WAFForgePure = {
+  sanitizeRuleId: sanitizeRuleId, buildSecRule: buildSecRule, buildPolicy: buildPolicy,
+  lintRule: lintRule, templates: templates, PHASES: PHASES, VALID_ACTIONS: VALID_ACTIONS,
+  DEFAULT_VARS: DEFAULT_VARS
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = WAFForgePure;
+if (typeof window !== 'undefined') window.WAFForgePure = WAFForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.WAFForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  P.templates().forEach(function(t){ var o=document.createElement('option'); o.value=JSON.stringify(t); o.textContent=t.name; $('wafTpl').appendChild(o); });
+  function specFromUI(){
+    return { id:$('wafId').value.trim(), phase:parseInt($('wafPhase').value,10),
+      variable:$('wafVar').value.trim(), operator:$('wafOp').value.trim(),
+      action:$('wafAction').value, severity:$('wafSeverity').value.trim(),
+      transforms:$('wafXform').value.split(',').map(function(s){return s.trim();}).filter(Boolean),
+      msg:$('wafMsg').value.trim() };
+  }
+  function gen(){
+    var s=specFromUI();
+    var r=P.buildSecRule(s);
+    if(r.error){ $('wafErr').textContent=r.error; $('wafOut').innerHTML='<pre style="margin:0;font-size:12px;color:var(--warn)">'+esc(r.error)+'</pre>'; return; }
+    var lint=P.lintRule(s);
+    var html=r.value + (lint.issues.length?'\n\n# lint ('+lint.score+'分)\n'+lint.issues.map(function(i){return '# ['+i.level+'] '+i.msg;}).join('\n'):'');
+    $('wafErr').textContent='';
+    $('wafOut').innerHTML='<pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">'+esc(html)+'</pre>';
+  }
+  function json(){
+    var s=specFromUI();
+    var r=P.buildPolicy(s);
+    if(r.error){ $('wafErr').textContent=r.error; return; }
+    $('wafErr').textContent='';
+    $('wafOut').innerHTML='<pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">'+esc(JSON.stringify(r.value,null,2))+'</pre>';
+  }
+  $('wafGen').addEventListener('click', gen);
+  $('wafJson').addEventListener('click', json);
+  $('wafTpl').addEventListener('change', function(){
+    if(!$('wafTpl').value) return;
+    var t=JSON.parse($('wafTpl').value);
+    $('wafId').value=t.id||'100001'; $('wafPhase').value=String(t.phase||2);
+    $('wafVar').value=t.variable; $('wafOp').value=t.operator.replace(/^@/, '');
+    $('wafAction').value=t.action||'block'; $('wafSeverity').value=t.severity||'';
+    $('wafXform').value=(t.transforms||[]).join(','); $('wafMsg').value=t.msg||'';
+    gen();
+  });
+  gen();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

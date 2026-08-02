@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MorseForge — 离线莫尔斯电码：文本 ↔ 电码互转，自动识别方向，内置速查表</title>
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.preview{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;justify-content:center;align-items:center;min-height:90px}
+.preview svg{max-width:100%}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.big{font:40px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
+.kv{color:var(--muted);font-size:13px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线莫尔斯电码：文本 ↔ 电码互转，自动识别方向，内置完整速查表可点击输入。">
+</head>
+<body>
+<div class="app">
+  <h1>MorseForge</h1>
+  <p class="sub">离线莫尔斯电码：文本 ↔ 电码互转，自动识别方向，内置速查表 · 单文件 · 零依赖 · 本地优先</p>
+
+<label for="in">输入文本或莫尔斯电码</label>
+<textarea id="in" rows="4" placeholder="例如 SOS 或 ... --- ...">HELLO WORLD</textarea>
+<div class="row">
+  <select id="mode">
+    <option value="auto">自动识别</option>
+    <option value="encode">文本 → 莫尔斯</option>
+    <option value="decode">莫尔斯 → 文本</option>
+  </select>
+  <button id="run">转换</button>
+  <button id="copy" class="ghost">复制结果</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">结果会显示在这里</div>
+<label>速查表（点击字符可追加到输入）</label>
+<div class="out" id="table"></div>
+<script>
+var MORSE_MAP={
+  'A':'.-','B':'-...','C':'-.-.','D':'-..','E':'.','F':'..-.','G':'--.','H':'....',
+  'I':'..','J':'.---','K':'-.-','L':'.-..','M':'--','N':'-.','O':'---','P':'.--.',
+  'Q':'--.-','R':'.-.','S':'...','T':'-','U':'..-','V':'...-','W':'.--','X':'-..-',
+  'Y':'-.--','Z':'--..',
+  '0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....',
+  '6':'-....','7':'--...','8':'---..','9':'----.',
+  '.':'.-.-.-',',':'--..--','?':'..--..',"'":'.----.','!':'-.-.--','/':'-..-.',
+  '(':'-.--.',')':'-.--.-','&':'.-...',':':'---...',';':'-.-.-.','=':'-...-',
+  '+':'.-.-.','-':'-....-','_':'..--.-','"':'.-..-.','$':'...-..-','@':'.--.-.'
+};
+var MORSE_REV=(function(){ var r={}; for(var k in MORSE_MAP) r[MORSE_MAP[k]]=k; return r; })();
+function toMorse(text){
+  var out=[], words=String(text).toUpperCase().split(/\s+/);
+  for(var w=0;w<words.length;w++){
+    if(!words[w]) continue;
+    var letters=[];
+    for(var i=0;i<words[w].length;i++){
+      var ch=words[w][i];
+      if(!MORSE_MAP[ch]) throw new Error('无法编码字符: '+ch);
+      letters.push(MORSE_MAP[ch]);
+    }
+    out.push(letters.join(' '));
+  }
+  return out.join(' / ');
+}
+function fromMorse(code){
+  var s=String(code).trim().replace(/\|/g,'/').replace(/\u2022/g,'.').replace(/[\u2013\u2014]/g,'-');
+  if(!/^[.\-\/ ]+$/.test(s)) throw new Error('莫尔斯电码仅含 . - 空格 和 /');
+  var words=s.split(/\s*\/\s*/), out=[];
+  for(var w=0;w<words.length;w++){
+    if(!words[w].trim()) continue;
+    var letters=words[w].trim().split(/\s+/), buf='';
+    for(var i=0;i<letters.length;i++){
+      var ch=MORSE_REV[letters[i]];
+      if(!ch) throw new Error('无法解码序列: '+letters[i]);
+      buf+=ch;
+    }
+    out.push(buf);
+  }
+  return out.join(' ');
+}
+function isMorse(s){ return /^[.\-\/\s\u2022\u2013\u2014|]+$/.test(String(s).trim()) && /[.\-\u2022]/.test(String(s)); }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { toMorse:toMorse, fromMorse:fromMorse, isMorse:isMorse, MORSE_MAP:MORSE_MAP };
+}
+if (typeof window !== 'undefined') {
+  window.MorseForgePure = { toMorse:toMorse, fromMorse:fromMorse, isMorse:isMorse, MORSE_MAP:MORSE_MAP };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.MorseForgePure;
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function run(){
+      var v=$('in').value.trim(), mode=$('mode').value, out;
+      $('err').textContent='';
+      if(!v){ $('out').textContent='结果会显示在这里'; return; }
+      try {
+        if(mode==='encode') out=P.toMorse(v);
+        else if(mode==='decode') out=P.fromMorse(v);
+        else out=P.isMorse(v) ? P.fromMorse(v) : P.toMorse(v);
+        $('out').textContent=out;
+      } catch(e){ $('err').textContent=e.message; $('out').textContent='结果会显示在这里'; }
+    }
+    function buildTable(){
+      var host=$('table'), keys=Object.keys(P.MORSE_MAP), html='';
+      for(var i=0;i<keys.length;i++){
+        html+='<span class="badge" data-ch="'+keys[i].replace('"','&quot;')+'" style="cursor:pointer;margin:2px;display:inline-block">'+
+              (keys[i]==='"'?'&quot;':keys[i])+' '+P.MORSE_MAP[keys[i]]+'</span>';
+      }
+      host.innerHTML=html;
+      host.addEventListener('click', function(e){
+        var t=e.target.closest('[data-ch]');
+        if(t){ $('in').value+=t.getAttribute('data-ch'); run(); }
+      });
+    }
+    $('run').addEventListener('click', run);
+    $('copy').addEventListener('click', function(){ copyText($('out').textContent); });
+    $('clear').addEventListener('click', function(){ $('in').value=''; $('out').textContent='结果会显示在这里'; $('err').textContent=''; });
+    $('in').addEventListener('input', run);
+    $('mode').addEventListener('change', run);
+    buildTable(); run();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

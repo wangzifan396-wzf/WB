@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SankeyForge — 桑基流量图：一行一条流向，自动分层与流量守恒体检。</title>
+<meta property="og:title" content="SankeyForge">
+<meta property="og:description" content="文本直出桑基流量图，含守恒体检，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="文本直出桑基流量图，含守恒体检，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SankeyForge</h1>
+  <p class="sub">桑基图：`源 -> 目标: 数值` 文本直出 SVG，最长路径自动分层、贝塞尔缎带渲染、节点进出流量守恒校验、悬停查看明细、SVG 一键下载 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="skin">流量数据（每行 <code>源 -&gt; 目标: 数值</code>）</label>
+  <textarea id="skin" rows="12">自然搜索 -> 落地页: 4200
+社交推荐 -> 落地页: 2600
+付费投放 -> 落地页: 1800
+落地页 -> 注册: 3100
+落地页 -> 流失: 5500
+注册 -> 激活: 2200
+注册 -> 沉默: 900
+激活 -> 付费: 640
+激活 -> 留存未付费: 1560</textarea>
+  <div class="row">
+    <button id="skrun">绘制桑基图</button>
+    <button id="sksvg" class="ghost">导出 SVG</button>
+  </div>
+  <div class="err" id="skerr"></div>
+  <div class="out" id="skchart">桑基图渲染区</div>
+  <div class="out" id="skinfo"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var SK_PALETTE = ['#5E6AD2','#22D3EE','#10B981','#F5A623','#A78BFA','#EF4444','#38BDF8','#F472B6'];
+
+function parseFlows(text){
+  var lines = String(text == null ? '' : text).split(/\r?\n/);
+  var links = [], errors = [];
+  for (var i = 0; i < lines.length; i++){
+    var l = lines[i].trim();
+    if (!l || l.charAt(0) === '#') continue;
+    var m = /^(.+?)\s*(?:->|=>|→)\s*(.+?)\s*[:：\[]\s*(-?[\d.]+)\s*\]?$/.exec(l);
+    if (!m){ errors.push({ line:i + 1, text:l, why:'格式应为 源 -> 目标: 数值' }); continue; }
+    var v = parseFloat(m[3]);
+    if (!isFinite(v) || v <= 0){ errors.push({ line:i + 1, text:l, why:'数值必须为正数' }); continue; }
+    var from = m[1].trim(), to = m[2].trim();
+    if (!from || !to){ errors.push({ line:i + 1, text:l, why:'节点名为空' }); continue; }
+    if (from === to){ errors.push({ line:i + 1, text:l, why:'自环流不被支持' }); continue; }
+    links.push({ from:from, to:to, value:v });
+  }
+  return { links:links, errors:errors };
+}
+
+function mergeLinks(links){
+  var map = {}, order = [];
+  for (var i = 0; i < links.length; i++){
+    var k = links[i].from + '\u0001' + links[i].to;
+    if (map[k] === undefined){ map[k] = links.length ? order.length : 0; order.push({ from:links[i].from, to:links[i].to, value:0 }); map[k] = order.length - 1; }
+    order[map[k]].value += links[i].value;
+  }
+  return order;
+}
+
+function nodeList(links){
+  var seen = {}, out = [];
+  for (var i = 0; i < links.length; i++){
+    if (!seen[links[i].from]){ seen[links[i].from] = 1; out.push(links[i].from); }
+    if (!seen[links[i].to]){ seen[links[i].to] = 1; out.push(links[i].to); }
+  }
+  return out;
+}
+
+function assignLayers(links){
+  var names = nodeList(links), inc = {}, adj = {};
+  for (var i = 0; i < names.length; i++){ inc[names[i]] = []; adj[names[i]] = []; }
+  for (var j = 0; j < links.length; j++){ adj[links[j].from].push(links[j].to); inc[links[j].to].push(links[j].from); }
+  var layer = {}, guard = {}, capped = false;
+  function depth(n, d){
+    if (d > names.length){ capped = true; return 0; }
+    if (layer[n] !== undefined) return layer[n];
+    if (guard[n]){ capped = true; return 0; }
+    guard[n] = 1;
+    var best = 0;
+    for (var k = 0; k < inc[n].length; k++) best = Math.max(best, depth(inc[n][k], d + 1) + 1);
+    guard[n] = 0;
+    layer[n] = best;
+    return best;
+  }
+  for (var m = 0; m < names.length; m++) depth(names[m], 0);
+  var maxLayer = 0;
+  for (var q = 0; q < names.length; q++) maxLayer = Math.max(maxLayer, layer[names[q]]);
+  for (var s = 0; s < names.length; s++){
+    if (!adj[names[s]].length) layer[names[s]] = maxLayer;
+  }
+  return { layer:layer, names:names, maxLayer:maxLayer, cyclic:capped, adj:adj, inc:inc };
+}
+
+function nodeTotals(links){
+  var t = {};
+  function touch(n){ if (!t[n]) t[n] = { name:n, inSum:0, outSum:0 }; }
+  for (var i = 0; i < links.length; i++){
+    touch(links[i].from); touch(links[i].to);
+    t[links[i].from].outSum += links[i].value;
+    t[links[i].to].inSum += links[i].value;
+  }
+  for (var k in t) if (Object.prototype.hasOwnProperty.call(t, k)) t[k].value = Math.max(t[k].inSum, t[k].outSum);
+  return t;
+}
+
+function balanceCheck(links){
+  var t = nodeTotals(links), out = [];
+  for (var k in t){
+    if (!Object.prototype.hasOwnProperty.call(t, k)) continue;
+    var n = t[k];
+    if (n.inSum > 0 && n.outSum > 0 && Math.abs(n.inSum - n.outSum) > 1e-9){
+      out.push({ name:n.name, inSum:round3(n.inSum), outSum:round3(n.outSum), delta:round3(n.outSum - n.inSum) });
+    }
+  }
+  out.sort(function(a, b){ return Math.abs(b.delta) - Math.abs(a.delta); });
+  return out;
+}
+
+function round3(n){ return Math.round(n * 1000) / 1000; }
+
+function layout(links, opt){
+  opt = opt || {};
+  var W = opt.width || 680, H = opt.height || 360;
+  var pad = opt.pad || 24, nodeW = opt.nodeW || 12, gap = opt.gap || 8;
+  var merged = mergeLinks(links);
+  if (!merged.length) return { nodes:[], ribbons:[], width:W, height:H, empty:true };
+  var la = assignLayers(merged), totals = nodeTotals(merged);
+  var cols = {}, i;
+  for (i = 0; i < la.names.length; i++){
+    var lv = la.layer[la.names[i]];
+    (cols[lv] = cols[lv] || []).push(la.names[i]);
+  }
+  var maxLayer = la.maxLayer;
+  var colX = function(l){ return maxLayer === 0 ? pad : pad + l * ((W - pad * 2 - nodeW) / maxLayer); };
+  var maxColSum = 0;
+  for (var c in cols){
+    if (!Object.prototype.hasOwnProperty.call(cols, c)) continue;
+    var s = 0;
+    for (i = 0; i < cols[c].length; i++) s += totals[cols[c][i]].value;
+    maxColSum = Math.max(maxColSum, s);
+  }
+  var maxCount = 0;
+  for (var c2 in cols) if (Object.prototype.hasOwnProperty.call(cols, c2)) maxCount = Math.max(maxCount, cols[c2].length);
+  var avail = H - pad * 2 - gap * Math.max(0, maxCount - 1);
+  var scale = maxColSum > 0 ? avail / maxColSum : 1;
+  var nodes = {}, order = [];
+  for (var lv2 in cols){
+    if (!Object.prototype.hasOwnProperty.call(cols, lv2)) continue;
+    var list = cols[lv2].slice().sort(function(a, b){ return totals[b].value - totals[a].value || (a < b ? -1 : 1); });
+    var y = pad;
+    for (i = 0; i < list.length; i++){
+      var nm = list[i], h = Math.max(2, totals[nm].value * scale);
+      var nd = { name:nm, layer:parseInt(lv2, 10), x:colX(parseInt(lv2, 10)), y:y, w:nodeW, h:h,
+                 value:round3(totals[nm].value), inSum:round3(totals[nm].inSum), outSum:round3(totals[nm].outSum),
+                 color:SK_PALETTE[parseInt(lv2, 10) % SK_PALETTE.length], outCursor:y, inCursor:y };
+      nodes[nm] = nd; order.push(nd);
+      y += h + gap;
+    }
+  }
+  var sorted = merged.slice().sort(function(a, b){ return nodes[a.from].y - nodes[b.from].y || nodes[a.to].y - nodes[b.to].y; });
+  var ribbons = [];
+  for (i = 0; i < sorted.length; i++){
+    var lk = sorted[i], a = nodes[lk.from], b = nodes[lk.to];
+    var th = Math.max(1, lk.value * scale);
+    var y0 = a.outCursor, y1 = b.inCursor;
+    a.outCursor += th; b.inCursor += th;
+    ribbons.push({ from:lk.from, to:lk.to, value:round3(lk.value), thickness:round3(th),
+                   x0:a.x + a.w, y0:y0, x1:b.x, y1:y1, color:a.color });
+  }
+  return { nodes:order, ribbons:ribbons, width:W, height:H, scale:scale, maxLayer:maxLayer, cyclic:la.cyclic, empty:false };
+}
+
+function ribbonPath(r){
+  var x0 = r.x0, x1 = r.x1, t = r.thickness;
+  var cx = (x0 + x1) / 2;
+  var top0 = r.y0, top1 = r.y1;
+  return 'M' + f(x0) + ',' + f(top0) +
+         ' C' + f(cx) + ',' + f(top0) + ' ' + f(cx) + ',' + f(top1) + ' ' + f(x1) + ',' + f(top1) +
+         ' L' + f(x1) + ',' + f(top1 + t) +
+         ' C' + f(cx) + ',' + f(top1 + t) + ' ' + f(cx) + ',' + f(top0 + t) + ' ' + f(x0) + ',' + f(top0 + t) + ' Z';
+}
+
+function f(n){ return Math.round(n * 100) / 100; }
+
+function escXml(s){
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toSvg(lay, opt){
+  opt = opt || {};
+  if (!lay || lay.empty) return '<svg xmlns="http://www.w3.org/2000/svg" width="' + ((lay && lay.width) || 680) + '" height="' + ((lay && lay.height) || 360) + '"></svg>';
+  var out = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + lay.width + ' ' + lay.height + '" width="100%" height="' + lay.height + '" role="img" aria-label="桑基流向图">'];
+  out.push('<rect width="' + lay.width + '" height="' + lay.height + '" fill="#0A0A0B"/>');
+  for (var i = 0; i < lay.ribbons.length; i++){
+    var r = lay.ribbons[i];
+    out.push('<path d="' + ribbonPath(r) + '" fill="' + r.color + '" fill-opacity="' + (opt.opacity || 0.32) + '"><title>' + escXml(r.from + ' → ' + r.to + ': ' + r.value) + '</title></path>');
+  }
+  for (var j = 0; j < lay.nodes.length; j++){
+    var n = lay.nodes[j];
+    out.push('<rect x="' + f(n.x) + '" y="' + f(n.y) + '" width="' + n.w + '" height="' + f(n.h) + '" rx="2" fill="' + n.color + '"><title>' + escXml(n.name + ': ' + n.value) + '</title></rect>');
+    var anchor = n.layer === lay.maxLayer ? 'end' : 'start';
+    var tx = n.layer === lay.maxLayer ? n.x - 6 : n.x + n.w + 6;
+    out.push('<text x="' + f(tx) + '" y="' + f(n.y + n.h / 2 + 4) + '" fill="#A1A1AA" font-size="11" text-anchor="' + anchor + '" font-family="system-ui,sans-serif">' + escXml(n.name) + ' ' + n.value + '</text>');
+  }
+  out.push('</svg>');
+  return out.join('');
+}
+
+function summary(links){
+  var merged = mergeLinks(links);
+  var totals = nodeTotals(merged), la = assignLayers(merged);
+  var sources = [], sinks = [], total = 0;
+  for (var k in totals){
+    if (!Object.prototype.hasOwnProperty.call(totals, k)) continue;
+    if (totals[k].inSum === 0){ sources.push(k); total += totals[k].outSum; }
+    if (totals[k].outSum === 0) sinks.push(k);
+  }
+  var biggest = merged.slice().sort(function(a, b){ return b.value - a.value; })[0] || null;
+  return { nodes:la.names.length, links:merged.length, layers:la.maxLayer + 1, sources:sources.sort(), sinks:sinks.sort(),
+           throughput:round3(total), biggest:biggest, cyclic:la.cyclic, unbalanced:balanceCheck(merged) };
+}
+
+var SankeyForgePure = {
+  parseFlows: parseFlows, mergeLinks: mergeLinks, nodeList: nodeList, assignLayers: assignLayers,
+  nodeTotals: nodeTotals, balanceCheck: balanceCheck, layout: layout, ribbonPath: ribbonPath,
+  toSvg: toSvg, summary: summary, PALETTE: SK_PALETTE
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = SankeyForgePure;
+if (typeof window !== 'undefined') window.SankeyForgePure = SankeyForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.SankeyForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function run(){
+    var p = P.parseFlows($('skin').value);
+    $('skerr').textContent = p.errors.length ? ('第 ' + p.errors.map(function(e){ return e.line; }).join(',') + ' 行无法解析：' + p.errors[0].why) : '';
+    if (!p.links.length){ $('skchart').textContent = '桑基图渲染区（暂无有效数据）'; $('skinfo').innerHTML = ''; return; }
+    var lay = P.layout(p.links, { width:660, height:380 });
+    $('skchart').innerHTML = P.toSvg(lay);
+    var s = P.summary(p.links);
+    var html = '<div class="kv"><b>节点 / 连边 / 层级</b><span>' + s.nodes + ' / ' + s.links + ' / ' + s.layers + '</span></div>' +
+      '<div class="kv"><b>入口总流量</b><span>' + s.throughput + '</span></div>' +
+      '<div class="kv"><b>源头</b><span>' + esc(s.sources.join('、') || '—') + '</span></div>' +
+      '<div class="kv"><b>终点</b><span>' + esc(s.sinks.join('、') || '—') + '</span></div>';
+    if (s.biggest) html += '<div class="kv"><b>最粗一条</b><span>' + esc(s.biggest.from + ' → ' + s.biggest.to) + ' = ' + s.biggest.value + '</span></div>';
+    if (s.cyclic) html += '<div style="color:var(--warn);font-size:13px;margin-top:6px">• 数据中存在环，层级已按最长路径截断</div>';
+    for (var i = 0; i < s.unbalanced.length; i++){
+      var u = s.unbalanced[i];
+      html += '<div style="color:var(--muted);font-size:13px;margin-top:6px">• ' + esc(u.name) + ' 进 ' + u.inSum + ' / 出 ' + u.outSum + '，差额 ' + (u.delta > 0 ? '+' : '') + u.delta + '</div>';
+    }
+    $('skinfo').innerHTML = html;
+  }
+
+  function download(){
+    var p = P.parseFlows($('skin').value);
+    if (!p.links.length) return;
+    var svg = P.toSvg(P.layout(p.links, { width:660, height:380 }));
+    var blob = new Blob([svg], { type:'image/svg+xml' });
+    var a = D.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'sankey.svg';
+    D.body.appendChild(a); a.click(); D.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  $('skrun').addEventListener('click', run);
+  $('sksvg').addEventListener('click', download);
+  $('skin').addEventListener('input', run);
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

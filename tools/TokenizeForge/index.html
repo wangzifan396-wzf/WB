@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>TokenizeForge — BPE 分词可视化：在语料上训练字节对合并规则，对任意文本切分子词并着色展示，离线可用。</title>
+<meta property="og:title" content="TokenizeForge">
+<meta property="og:description" content="BPE 分词可视化：在语料上训练字节对合并规则，对任意文本切分子词并着色展示，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="BPE 分词可视化：在语料上训练字节对合并规则，对任意文本切分子词并着色展示，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>TokenizeForge</h1>
+  <p class="sub">BPE 分词可视化：在语料上训练字节对合并规则，对任意文本切分子词并着色展示，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>训练语料（空格分词）</label>
+<textarea id="corpus" rows="4">low low low low lower lower lowest newest newest newest wider wide widest</textarea>
+<label>合并次数</label>
+<input id="merges" type="number" value="8" min="1" max="200">
+<label>待切分文本</label>
+<input id="text" type="text" value="lowest wideness">
+<div class="row">
+  <button id="run">训练并切分</button>
+</div>
+<div class="err" id="err"></div>
+<div id="mergesOut" style="margin-top:12px;font-family:ui-monospace,monospace;font-size:12px;color:#A1A1AA;"></div>
+<div id="tokensOut" style="margin-top:12px;line-height:2.2;"></div>
+<script>
+function tkWords(text){ return String(text||'').trim().split(/\s+/).filter(Boolean); }
+function tkPairCounts(words){
+  var c = {};
+  for(var i=0;i<words.length;i++){
+    var w = words[i];
+    for(var j=0;j<w.length-1;j++){
+      var k = w[j] + '\u0001' + w[j+1];
+      c[k] = (c[k]||0) + 1;
+    }
+  }
+  return c;
+}
+function tkBestPair(counts){
+  var best = null, bestN = 1;
+  for(var k in counts){
+    if(counts[k] > bestN || (counts[k] === bestN && best !== null && k < best)){
+      best = k; bestN = counts[k];
+    }
+  }
+  return best ? { pair: best.split('\u0001'), count: bestN } : null;
+}
+function tkMergeWord(w, a, b){
+  var out = [], i = 0;
+  while(i < w.length){
+    if(i < w.length-1 && w[i] === a && w[i+1] === b){ out.push(a+b); i += 2; }
+    else { out.push(w[i]); i++; }
+  }
+  return out;
+}
+function tkTrain(text, numMerges){
+  var words = tkWords(text).map(function(w){ return w.split(''); });
+  var merges = [];
+  for(var m=0;m<numMerges;m++){
+    var best = tkBestPair(tkPairCounts(words));
+    if(!best || best.count < 2) break;
+    merges.push(best.pair);
+    for(var i=0;i<words.length;i++) words[i] = tkMergeWord(words[i], best.pair[0], best.pair[1]);
+  }
+  return merges;
+}
+function tkEncodeWord(word, merges){
+  var w = String(word).split('');
+  for(var m=0;m<merges.length;m++) w = tkMergeWord(w, merges[m][0], merges[m][1]);
+  return w;
+}
+function tkEncode(text, merges){
+  var out = [];
+  var ws = tkWords(text);
+  for(var i=0;i<ws.length;i++) out.push(tkEncodeWord(ws[i], merges));
+  return out;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { tkWords:tkWords, tkPairCounts:tkPairCounts, tkBestPair:tkBestPair, tkMergeWord:tkMergeWord, tkTrain:tkTrain, tkEncodeWord:tkEncodeWord, tkEncode:tkEncode };
+}
+if (typeof window !== 'undefined') {
+  window.TokenizeForgePure = { tkWords:tkWords, tkPairCounts:tkPairCounts, tkBestPair:tkBestPair, tkMergeWord:tkMergeWord, tkTrain:tkTrain, tkEncodeWord:tkEncodeWord, tkEncode:tkEncode };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.TokenizeForgePure;
+    var COLORS = ['#5E6AD2','#10B981','#F5A623','#22D3EE','#A78BFA','#EF4444'];
+    function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function run(){
+      var merges = P.tkTrain($('corpus').value, Number($('merges').value)||8);
+      var mh = merges.map(function(p,i){ return (i+1)+'. '+esc(p[0])+' + '+esc(p[1])+' \u2192 '+esc(p[0]+p[1]); }).join('<br>');
+      $('mergesOut').innerHTML = merges.length ? '<b style="color:#FFF;">合并规则</b><br>'+mh : '语料太小，未产生合并规则';
+      var enc = P.tkEncode($('text').value, merges), html = '';
+      for(var i=0;i<enc.length;i++){
+        for(var j=0;j<enc[i].length;j++){
+          var c = COLORS[(i*7+j) % COLORS.length];
+          html += '<span style="background:'+c+'22;border:1px solid '+c+'66;color:'+c+';border-radius:6px;padding:2px 8px;margin:2px;display:inline-block;font-family:ui-monospace,monospace;">'+esc(enc[i][j])+'</span>';
+        }
+        html += '<span style="display:inline-block;width:14px;"></span>';
+      }
+      $('tokensOut').innerHTML = html;
+    }
+    $('run').addEventListener('click', run);
+    run();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

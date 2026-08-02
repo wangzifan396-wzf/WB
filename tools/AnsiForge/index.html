@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>AnsiForge — ANSI 终端着色渲染：转义序列转 HTML、去色纯文本、SGR 统计，离线可用。</title>
+<meta property="og:title" content="AnsiForge">
+<meta property="og:description" content="ANSI 转义序列渲染为 HTML、去色纯文本、SGR 统计，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="ANSI 转义序列渲染为 HTML、去色纯文本、SGR 统计，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>AnsiForge</h1>
+  <p class="sub">ANSI 终端着色：转义序列渲染为 HTML、一键去色、SGR 序列统计 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>含 ANSI 转义序列的终端日志（\x1b[ 或粘贴原始输出）</label>
+<textarea id="src" rows="7" spellcheck="false"></textarea>
+<div class="row">
+  <button id="run">渲染为 HTML</button>
+  <button id="strip" class="ghost">去除转义（纯文本）</button>
+  <button id="copy" class="ghost">复制 HTML</button>
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="out"></div>
+<label>预览</label>
+<div class="out" id="prev" style="font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var AN_FG = { 30:'#3F3F46', 31:'#EF4444', 32:'#10B981', 33:'#F5A623', 34:'#5E6AD2',
+              35:'#A78BFA', 36:'#22D3EE', 37:'#D4D4D8',
+              90:'#71717A', 91:'#F87171', 92:'#34D399', 93:'#FBBF24', 94:'#818CF8',
+              95:'#C4B5FD', 96:'#67E8F9', 97:'#FFFFFF' };
+var AN_BG = { 40:'#3F3F46', 41:'#7F1D1D', 42:'#064E3B', 43:'#78350F', 44:'#312E81',
+              45:'#4C1D95', 46:'#164E63', 47:'#E4E4E7' };
+function anTokenize(text){
+  var s=String(text==null?'':text), out=[], re=/\x1b\[([0-9;]*)m/g, last=0, m;
+  while((m=re.exec(s))!==null){
+    if(m.index>last) out.push({ kind:'text', value:s.slice(last,m.index) });
+    out.push({ kind:'sgr', codes:(m[1]===''?['0']:m[1].split(';')).map(Number) });
+    last=re.lastIndex;
+  }
+  if(last<s.length) out.push({ kind:'text', value:s.slice(last) });
+  return out;
+}
+function anApply(state, codes){
+  var st={ fg:state.fg, bg:state.bg, bold:state.bold, italic:state.italic, underline:state.underline };
+  for(var i=0;i<codes.length;i++){
+    var c=codes[i];
+    if(c===0){ st={ fg:null,bg:null,bold:false,italic:false,underline:false }; }
+    else if(c===1) st.bold=true;
+    else if(c===3) st.italic=true;
+    else if(c===4) st.underline=true;
+    else if(c===22) st.bold=false;
+    else if(c===23) st.italic=false;
+    else if(c===24) st.underline=false;
+    else if(c===39) st.fg=null;
+    else if(c===49) st.bg=null;
+    else if(AN_FG[c]) st.fg=AN_FG[c];
+    else if(AN_BG[c]) st.bg=AN_BG[c];
+  }
+  return st;
+}
+function anStyle(st){
+  var p=[];
+  if(st.fg) p.push('color:'+st.fg);
+  if(st.bg) p.push('background:'+st.bg);
+  if(st.bold) p.push('font-weight:700');
+  if(st.italic) p.push('font-style:italic');
+  if(st.underline) p.push('text-decoration:underline');
+  return p.join(';');
+}
+function anEscapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function anToHtml(text){
+  var toks=anTokenize(text), st={ fg:null,bg:null,bold:false,italic:false,underline:false }, out='';
+  for(var i=0;i<toks.length;i++){
+    if(toks[i].kind==='sgr'){ st=anApply(st, toks[i].codes); continue; }
+    var css=anStyle(st), body=anEscapeHtml(toks[i].value);
+    out += css ? '<span style="'+css+'">'+body+'</span>' : body;
+  }
+  return out;
+}
+function anStrip(text){
+  return String(text==null?'':text).replace(/\x1b\[[0-9;]*m/g,'');
+}
+function anStats(text){
+  var toks=anTokenize(text), sgr=0, chars=0;
+  for(var i=0;i<toks.length;i++){
+    if(toks[i].kind==='sgr') sgr++; else chars+=toks[i].value.length;
+  }
+  return { sequences:sgr, visibleChars:chars, rawLength:String(text==null?'':text).length };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { anTokenize:anTokenize, anApply:anApply, anStyle:anStyle, anToHtml:anToHtml,
+                     anStrip:anStrip, anStats:anStats, anEscapeHtml:anEscapeHtml, AN_FG:AN_FG, AN_BG:AN_BG };
+}
+if (typeof window !== 'undefined') {
+  window.AnsiForgePure = { anTokenize:anTokenize, anApply:anApply, anStyle:anStyle, anToHtml:anToHtml,
+                     anStrip:anStrip, anStats:anStats, anEscapeHtml:anEscapeHtml, AN_FG:AN_FG, AN_BG:AN_BG };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.AnsiForgePure;
+  function run(){
+    var raw=$('src').value.replace(/\\x1b|\\033|\\e/g, '\x1b');
+    var s=P.anStats(raw);
+    $('err').textContent='';
+    $('out').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>SGR 序列</b><span>'+s.sequences+'</span></div>'+
+      '<div class="kv"><b>可见字符</b><span>'+s.visibleChars+'</span></div>'+
+      '<div class="kv"><b>原始长度</b><span>'+s.rawLength+'</span></div>'+
+      '<div class="kv"><b>压缩比</b><span>'+(s.rawLength? (100*s.visibleChars/s.rawLength).toFixed(0):0)+'%</span></div></div>';
+    $('prev').innerHTML=P.anToHtml(raw);
+  }
+  $('run').addEventListener('click', run);
+  $('strip').addEventListener('click', function(){
+    var raw=$('src').value.replace(/\\x1b|\\033|\\e/g, '\x1b');
+    $('prev').textContent=P.anStrip(raw);
+  });
+  $('copy').addEventListener('click', function(){
+    var raw=$('src').value.replace(/\\x1b|\\033|\\e/g, '\x1b');
+    if(navigator.clipboard) navigator.clipboard.writeText(P.anToHtml(raw));
+  });
+  $('src').value='\\x1b[32m\u2714 build passed\\x1b[0m in \\x1b[1m1.2s\\x1b[0m\n\\x1b[31m\u2718 2 tests failed\\x1b[0m \\x1b[33m(retrying)\\x1b[0m';
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

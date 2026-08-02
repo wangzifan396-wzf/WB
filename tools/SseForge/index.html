@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SseForge — Server-Sent Events 工作台：内置符合 WHATWG 规范的 SSE 线格式解析器（CRLF/CR/LF、BOM、多行 data 拼接、空 data 不派发、非法 retry 忽略），支持分块投喂模拟、流体检、EventSource 实时客户端与服务端速查。</title>
+<meta property="og:title" content="SseForge">
+<meta property="og:description" content="Server-Sent Events 工作台：内置符合 WHATWG 规范的 SSE 线格式解析器，正确处理 CRLF/CR/LF 混排、BOM、多行 data 拼接、空 data 不派发与非法 retry 忽略；支持逐字节分块投喂模拟、流体检、EventSource 实时客户端与 Nginx/Node 服务端速查，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Server-Sent Events 工作台：内置符合 WHATWG 规范的 SSE 线格式解析器，正确处理 CRLF/CR/LF 混排、BOM、多行 data 拼接、空 data 不派发与非法 retry 忽略；支持逐字节分块投喂模拟、流体检、EventSource 实时客户端与 Nginx/Node 服务端速查，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SseForge</h1>
+  <p class="sub">SSE 线格式解析器 · 分块投喂模拟</p>
+  <label for="sse_raw">原始 SSE 响应体（粘贴 curl -N 的输出即可）</label>
+  <textarea id="sse_raw" rows="10" spellcheck="false">: keepalive
+
+retry: 5000
+id: 1
+event: tick
+data: {"t":1712000000,"v":42}
+
+id: 2
+data: 第一行
+data: 第二行
+
+event: done
+data: bye
+</textarea>
+  <div class="row">
+    <button id="sse_parse">解析</button>
+    <button id="sse_sample" class="ghost">载入疑难样例</button>
+    <button id="sse_clear" class="ghost">清空</button>
+  </div>
+
+  <label>解析出的事件</label>
+  <div class="out" id="sse_events"></div>
+
+  <label>流统计</label>
+  <div class="grid" id="sse_stats"></div>
+
+  <label>流体检</label>
+  <div class="out" id="sse_lint"></div>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <h2 style="font-size:16px;margin:0 0 4px">分块投喂模拟</h2>
+  <p class="sub">SSE 的事件会被 TCP 随意切断在任意字节上。把上面的流按固定长度切块喂给增量解析器，验证跨块拼接是否正确。</p>
+  <div class="grid">
+    <div><label for="sse_chunk">每块字节数</label><input type="text" id="sse_chunk" value="7"></div>
+    <div><label for="sse_chunk_run" style="margin-top:14px">&nbsp;</label><button id="sse_chunk_run">按块重放</button></div>
+  </div>
+  <div class="out" id="sse_chunk_out"></div>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <h2 style="font-size:16px;margin:0 0 4px">实时客户端</h2>
+  <p class="sub">用浏览器原生 EventSource 连一个真实端点，观察自动重连与 Last-Event-ID 回填。</p>
+  <div class="grid">
+    <div><label for="sse_url">SSE 端点</label><input type="text" id="sse_url" value="https://sse.dev/test" spellcheck="false"></div>
+    <div><label for="sse_types">额外监听的事件名（逗号分隔）</label><input type="text" id="sse_types" value="tick,done" spellcheck="false"></div>
+  </div>
+  <div class="row">
+    <button id="sse_connect">连接</button>
+    <button id="sse_disconnect" class="ghost">断开</button>
+    <span id="sse_state" class="badge">未连接</span>
+  </div>
+  <div class="err" id="sse_err"></div>
+  <div class="out" id="sse_live" style="max-height:220px;overflow:auto;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"></div>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <h2 style="font-size:16px;margin:0 0 4px">服务端速查</h2>
+  <div class="row">
+    <button id="sse_snip_node" class="ghost">Node 响应头</button>
+    <button id="sse_snip_nginx" class="ghost">Nginx 反代</button>
+    <button id="sse_snip_curl" class="ghost">curl 命令</button>
+  </div>
+  <div class="out"><pre id="sse_snip" style="margin:0;white-space:pre-wrap;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"></pre></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 353 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+/* ---- SSE wire format, per WHATWG HTML "server-sent events" section ---------------
+   一条流由若干行组成：
+     - 行分隔符可以是 CRLF、CR 或单个 LF
+     - 以 U+FEFF (BOM) 开头的流须先去掉 BOM
+     - 以 ':' 开头的行是注释（常用作心跳保活），整行忽略
+     - 'field:value'，冒号后若紧跟一个空格则去掉这一个空格（且只去一个）
+     - 没有冒号的行，整行视为字段名，值为空字符串
+     - 空行触发一次「派发」：data 缓冲非空才会真正产生事件
+     - data 字段可多次出现，用 '\n' 连接；派发后若结尾有 '\n' 需去掉最后一个
+     - retry 只有全数字才生效，否则忽略
+     - id 含 U+0000 时按规范忽略该 id
+------------------------------------------------------------------------------- */
+
+function splitLines(text){
+  var s = String(text==null?'':text);
+  if(s.charCodeAt(0)===0xFEFF) s = s.slice(1);
+  // 保留「最后一段是否以换行结束」的信息：不用 split 直接扫描
+  var lines=[], cur='', i=0, complete=[];
+  while(i < s.length){
+    var ch = s.charAt(i);
+    if(ch==='\r'){
+      lines.push(cur); complete.push(true); cur='';
+      if(s.charAt(i+1)==='\n') i+=2; else i+=1;
+    } else if(ch==='\n'){
+      lines.push(cur); complete.push(true); cur=''; i+=1;
+    } else { cur+=ch; i+=1; }
+  }
+  if(cur!==''){ lines.push(cur); complete.push(false); }
+  return {lines:lines, complete:complete};
+}
+
+function parseField(line){
+  var l = String(line);
+  if(l===''){ return {kind:'blank'}; }
+  if(l.charAt(0)===':'){ return {kind:'comment', value:l.slice(1)}; }
+  var ci = l.indexOf(':');
+  if(ci<0) return {kind:'field', name:l, value:''};
+  var name = l.slice(0, ci);
+  var value = l.slice(ci+1);
+  if(value.charAt(0)===' ') value = value.slice(1);
+  return {kind:'field', name:name, value:value};
+}
+
+function createParser(){
+  var state = {dataBuf:'', eventType:'', lastId:'', retry:null, sawData:false, pending:''};
+  var lineNo = 0;
+
+  function dispatch(out){
+    if(!state.sawData){
+      state.dataBuf=''; state.eventType=''; state.sawData=false;
+      return;
+    }
+    var data = state.dataBuf;
+    if(data.charAt(data.length-1)==='\n') data = data.slice(0, -1);
+    out.push({event: state.eventType || 'message', data: data, id: state.lastId,
+              retry: state.retry, lineNo: lineNo});
+    state.dataBuf=''; state.eventType=''; state.sawData=false;
+  }
+
+  function handleLine(line, out, comments){
+    lineNo++;
+    var f = parseField(line);
+    if(f.kind==='blank'){ dispatch(out); return; }
+    if(f.kind==='comment'){ comments.push({lineNo:lineNo, text:f.value}); return; }
+    switch(f.name){
+      case 'event': state.eventType = f.value; break;
+      case 'data': state.dataBuf += f.value + '\n'; state.sawData = true; break;
+      case 'id': if(f.value.indexOf('\u0000')<0) state.lastId = f.value; break;
+      case 'retry': if(/^[0-9]+$/.test(f.value)) state.retry = parseInt(f.value,10); break;
+      default: break; // 未知字段按规范忽略
+    }
+  }
+
+  return {
+    feed: function(chunk){
+      var out=[], comments=[];
+      var buf = state.pending + String(chunk==null?'':chunk);
+      state.pending = '';
+      var r = splitLines(buf);
+      for(var i=0;i<r.lines.length;i++){
+        if(r.complete[i]) handleLine(r.lines[i], out, comments);
+        else state.pending = r.lines[i];
+      }
+      return {events:out, comments:comments, pending:state.pending};
+    },
+    end: function(){
+      var out=[], comments=[];
+      if(state.pending){ handleLine(state.pending, out, comments); state.pending=''; }
+      return {events:out, comments:comments};
+    },
+    state: function(){ return {lastId:state.lastId, retry:state.retry, buffered:state.dataBuf, pending:state.pending}; }
+  };
+}
+
+function parseStream(text){
+  var p = createParser();
+  var r1 = p.feed(text);
+  var st = p.state();
+  return {events:r1.events, comments:r1.comments, incomplete:(st.buffered!=='' || st.pending!==''),
+          pendingData:st.buffered, pendingLine:st.pending, lastId:st.lastId, retry:st.retry};
+}
+
+function serialize(events, opts){
+  var o = opts||{};
+  var out = [];
+  (events||[]).forEach(function(e){
+    if(e.comment !== undefined && e.comment !== null){ out.push(':' + e.comment); out.push(''); return; }
+    if(e.id !== undefined && e.id !== null && e.id !== '') out.push('id: ' + e.id);
+    if(e.retry !== undefined && e.retry !== null && e.retry !== '') out.push('retry: ' + e.retry);
+    if(e.event && e.event !== 'message') out.push('event: ' + e.event);
+    var d = (e.data === undefined || e.data === null) ? '' : String(e.data);
+    d.split('\n').forEach(function(line){ out.push('data: ' + line); });
+    out.push('');
+  });
+  // 每一行（含各事件末尾的空行）都必须自带换行，否则最后一条事件缺收尾空行、永远不会派发
+  var text = out.map(function(l){ return l + '\n'; }).join('');
+  return o.crlf ? text.replace(/\n/g, '\r\n') : text;
+}
+
+function lint(text){
+  var s = String(text==null?'':text);
+  var out = [];
+  function add(level, msg){ out.push({level:level, msg:msg}); }
+  if(!s){ add('info', '输入为空，粘贴一段 SSE 原始响应体即可开始分析。'); return out; }
+  if(s.charCodeAt(0)===0xFEFF) add('info', '流以 BOM (U+FEFF) 开头；规范要求解析器丢弃它，但很多手写解析器会把它当成字段名的一部分。');
+
+  var hasCRLF = /\r\n/.test(s);
+  var hasBareCR = /\r(?!\n)/.test(s);
+  var hasLF = /(^|[^\r])\n/.test(s);
+  if(hasCRLF && hasLF) add('warn', '同时出现 CRLF 与裸 LF 换行：规范允许，但手写解析器最容易在这里出错，建议统一。');
+  if(hasBareCR) add('warn', '出现裸 CR 换行：规范允许，但 curl、浏览器 DevTools 与多数日志工具都会显示异常。');
+
+  var r = parseStream(s);
+  if(!r.events.length) add('warn', '没有解析出任何事件：SSE 要求每条事件以一个空行结束，检查是否漏了空行。');
+  if(r.incomplete){
+    if(r.pendingData) add('warn', '流末尾有未派发的 data 缓冲（缺少收尾空行），最后一条事件不会送达客户端。');
+    if(r.pendingLine) add('warn', '流末尾有不完整的行「' + r.pendingLine.slice(0,40) + '」，通常表示响应被截断。');
+  }
+  if(!/\n\n$|\r\n\r\n$|\r\r$/.test(s)) add('info', '流未以空行结束；作为持续流是正常的，作为一次性响应体则会丢掉最后一条事件。');
+
+  var rawRetry = /(^|[\r\n])retry:\s*([^\r\n]*)/g, mm;
+  while((mm = rawRetry.exec(s))){
+    var v = mm[2].trim();
+    if(!/^[0-9]+$/.test(v)) add('warn', 'retry 值「' + v + '」不是纯数字，按规范会被整条忽略（不会报错，只是静默失效）。');
+  }
+  if(/(^|[\r\n])id:[^\r\n]*\u0000/.test(s)) add('warn', 'id 字段包含 U+0000，规范要求忽略该 id，Last-Event-ID 不会更新。');
+
+  if(!r.comments.length) add('info', '没有注释行：生产环境建议每 15–30 秒发一行「: keepalive」，防止 Nginx/ELB 的空闲超时切断长连接。');
+
+  var unknown = {};
+  var fieldRe = /(^|[\r\n])([A-Za-z][A-Za-z0-9_-]*):/g, fm;
+  while((fm = fieldRe.exec(s))){
+    var name = fm[2];
+    if(['event','data','id','retry'].indexOf(name)<0) unknown[name]=1;
+  }
+  Object.keys(unknown).forEach(function(k){
+    add('warn', '未知字段「' + k + '」会被规范要求的解析器静默丢弃；SSE 没有自定义字段扩展位，元数据请放进 data 的 JSON 里。');
+  });
+
+  r.events.forEach(function(e){
+    if(e.data==='') add('info', '第 ' + e.lineNo + ' 行附近有一条空 data 事件，多数客户端会照常触发回调。');
+  });
+  var noData = /(^|[\r\n])event:[^\r\n]*[\r\n]+[\r\n]/.test(s);
+  if(noData) add('warn', '存在只有 event: 而没有 data: 的块：data 缓冲为空时规范规定不派发，这条事件会凭空消失。');
+  return out;
+}
+
+function stats(parsed){
+  var p = parsed || {events:[], comments:[]};
+  var byType = {}, bytes = 0, ids = 0, maxLen = 0;
+  p.events.forEach(function(e){
+    byType[e.event] = (byType[e.event]||0) + 1;
+    var n = e.data.length;
+    bytes += n;
+    if(n>maxLen) maxLen = n;
+    if(e.id) ids++;
+  });
+  return {events:p.events.length, comments:(p.comments||[]).length, types:byType,
+          typeCount:Object.keys(byType).length, dataBytes:bytes, withId:ids,
+          maxDataLen:maxLen, lastId:p.lastId||'', retry:(p.retry===undefined?null:p.retry)};
+}
+
+function toCurl(url, headers){
+  var u = String(url||'').trim() || 'https://example.com/events';
+  var parts = ['curl -N', '-H "Accept: text/event-stream"'];
+  var h = headers||{};
+  Object.keys(h).forEach(function(k){
+    if(h[k]!=='' && h[k]!==null && h[k]!==undefined) parts.push('-H "' + k + ': ' + String(h[k]).replace(/"/g,'\\"') + '"');
+  });
+  parts.push('"' + u + '"');
+  return parts.join(' ');
+}
+
+function serverSnippet(kind){
+  if(kind==='nginx'){
+    return ['location /events {',
+            '  proxy_pass http://upstream;',
+            '  proxy_http_version 1.1;',
+            '  proxy_set_header Connection "";   # 关掉 keep-alive 复用外的 Connection 头',
+            '  proxy_buffering off;              # 关键：开着会把整条流缓存到结束才吐出',
+            '  proxy_cache off;',
+            '  proxy_read_timeout 3600s;         # 默认 60s 会把长连接切断',
+            '  chunked_transfer_encoding off;',
+            '}'].join('\n');
+  }
+  if(kind==='node'){
+    return ['res.writeHead(200, {',
+            "  'Content-Type': 'text/event-stream',",
+            "  'Cache-Control': 'no-cache, no-transform',  // no-transform 防止代理压缩改写",
+            "  'Connection': 'keep-alive',",
+            "  'X-Accel-Buffering': 'no'                   // 让 Nginx 别缓冲这一条响应",
+            '});',
+            "res.write('retry: 5000\\n\\n');",
+            "setInterval(() => res.write(': keepalive\\n\\n'), 20000);",
+            "res.write(`id: 42\\nevent: tick\\ndata: ${JSON.stringify({t: Date.now()})}\\n\\n`);"].join('\n');
+  }
+  return ['# Content-Type 必须是 text/event-stream',
+          '# 不要设置 Content-Length，SSE 是不定长流',
+          '# 关掉一切缓冲与压缩，否则事件会被攒住不发'].join('\n');
+}
+
+var SseForgePure = {
+  splitLines:splitLines, parseField:parseField, createParser:createParser, parseStream:parseStream,
+  serialize:serialize, lint:lint, stats:stats, toCurl:toCurl, serverSnippet:serverSnippet
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = SseForgePure;
+if (typeof window !== 'undefined') window.SseForgePure = SseForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.SseForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var LEVEL_COLOR={error:'var(--warn)', warn:'var(--warn)', info:'var(--muted)'};
+
+  var TRICKY = [': 这一行是注释，常被用作 keepalive 心跳',
+    '',
+    'retry: 3s',
+    'id: a1',
+    'event: message',
+    'data:没有前导空格也合法',
+    '',
+    'event: 只有 event 没有 data',
+    '',
+    'data: 第一行',
+    'data:',
+    'data: 第三行（中间那行是空 data）',
+    '',
+    'custom: 未知字段会被静默丢弃',
+    'data: 带未知字段的事件',
+    '',
+    'data: 末尾没有空行，这条会卡在缓冲里'].join('\n');
+
+  function renderEvents(parsed){
+    var box=$('sse_events');
+    if(!parsed.events.length){
+      box.innerHTML='<span style="color:var(--dim)">没有解析出事件。SSE 每条事件必须以一个空行结束。</span>';
+      return;
+    }
+    box.innerHTML = parsed.events.map(function(e,i){
+      var tag = e.event==='message' ? '<span style="color:var(--dim)">message</span>'
+                                    : '<span style="color:var(--info)">'+esc(e.event)+'</span>';
+      var meta = [];
+      if(e.id) meta.push('id='+esc(e.id));
+      if(e.retry!==null && e.retry!==undefined) meta.push('retry='+e.retry+'ms');
+      var multiline = e.data.indexOf('\n')>=0 ? ' <span style="color:var(--dim)">('+(e.data.split('\n').length)+' 行拼接)</span>' : '';
+      return '<div style="padding:6px 0;border-bottom:1px dashed var(--line)">'+
+        '<div><span style="color:var(--dim)">#'+(i+1)+'</span> '+tag+
+        (meta.length?(' <span style="color:var(--dim)">'+esc(meta.join(' '))+'</span>'):'')+multiline+'</div>'+
+        '<div style="white-space:pre-wrap;margin-top:2px">'+esc(e.data)+'</div></div>';
+    }).join('');
+  }
+  function renderStats(parsed){
+    var s=P.stats(parsed);
+    var types=Object.keys(s.types).map(function(k){ return k+'×'+s.types[k]; }).join(', ') || '—';
+    var rows=[['事件数',s.events],['注释 / 心跳',s.comments],['事件类型',types],
+      ['data 字节',s.dataBytes],['带 id 的事件',s.withId],
+      ['Last-Event-ID',s.lastId||'—'],['retry',s.retry===null?'—':(s.retry+' ms')],
+      ['最长 data',s.maxDataLen]];
+    $('sse_stats').innerHTML=rows.map(function(r){
+      return '<div class="kv"><b>'+r[0]+'</b><span>'+esc(String(r[1]))+'</span></div>';
+    }).join('');
+  }
+  function renderLint(text){
+    var issues=P.lint(text);
+    if(!issues.length){ $('sse_lint').innerHTML='<span style="color:var(--ok)">流体检通过。</span>'; return; }
+    $('sse_lint').innerHTML=issues.map(function(i){
+      var tag = i.level==='error' ? '错误' : (i.level==='warn' ? '警告' : '提示');
+      return '<div style="margin:4px 0;font-size:13px"><span style="color:'+(LEVEL_COLOR[i.level]||'var(--muted)')+'">['+tag+']</span> '+esc(i.msg)+'</div>';
+    }).join('');
+  }
+  function run(){
+    var text=$('sse_raw').value;
+    var parsed=P.parseStream(text);
+    renderEvents(parsed); renderStats(parsed); renderLint(text);
+  }
+
+  function replay(){
+    var text=$('sse_raw').value;
+    var size=Math.max(1, parseInt($('sse_chunk').value,10)||1);
+    var p=P.createParser();
+    var got=[], chunks=0;
+    for(var i=0;i<text.length;i+=size){
+      chunks++;
+      var r=p.feed(text.slice(i, i+size));
+      r.events.forEach(function(e){ got.push(e); });
+    }
+    var tail=p.end();
+    var whole=P.parseStream(text).events;
+    var same = got.length===whole.length && got.every(function(e,i){
+      return e.event===whole[i].event && e.data===whole[i].data && e.id===whole[i].id;
+    });
+    $('sse_chunk_out').innerHTML=
+      '<div class="kv"><b>切成的块数</b><span>'+chunks+' 块 × '+size+' 字节</span></div>'+
+      '<div class="kv"><b>增量派发事件</b><span>'+got.length+'</span></div>'+
+      '<div class="kv"><b>整体解析事件</b><span>'+whole.length+'</span></div>'+
+      '<div class="kv"><b>末尾残留</b><span>'+(tail.events.length?('补派发 '+tail.events.length+' 条'):'无')+'</span></div>'+
+      '<div style="margin-top:8px;color:'+(same?'var(--ok)':'var(--warn)')+'">'+
+      (same?'一致：跨块拼接正确，逐字节切割不会丢事件。':'不一致：跨块拼接出现偏差。')+'</div>';
+  }
+
+  var es=null;
+  function setState(txt, cls){
+    var el=$('sse_state'); el.textContent=txt;
+    el.style.background = cls==='on' ? 'var(--ok)' : (cls==='wait' ? 'var(--warn)' : 'var(--surface)');
+    el.style.color = cls ? '#0A0A0B' : 'var(--muted)';
+    el.style.borderColor = cls ? 'transparent' : 'var(--line)';
+  }
+  var liveLog=[];
+  function pushLive(kind, text){
+    liveLog.push({t:Date.now(), kind:kind, text:text});
+    if(liveLog.length>300) liveLog.shift();
+    var box=$('sse_live');
+    box.innerHTML=liveLog.slice(-150).map(function(e){
+      var color = e.kind==='error' ? 'var(--warn)' : (e.kind==='sys' ? 'var(--dim)' : 'var(--ok)');
+      return '<div><span style="color:var(--dim)">'+new Date(e.t).toTimeString().slice(0,8)+'</span> '+
+             '<span style="color:'+color+';white-space:pre-wrap">'+esc(e.text)+'</span></div>';
+    }).join('');
+    box.scrollTop=box.scrollHeight;
+  }
+  function connect(){
+    if(typeof EventSource === 'undefined'){ $('sse_err').textContent='当前环境不支持 EventSource'; return; }
+    disconnect();
+    var url=$('sse_url').value.trim();
+    if(!url){ $('sse_err').textContent='请填写端点地址'; return; }
+    $('sse_err').textContent='';
+    setState('连接中…','wait');
+    try{ es=new EventSource(url); }
+    catch(err){ $('sse_err').textContent='创建失败：'+err.message; setState('未连接',''); return; }
+    es.onopen=function(){ setState('已连接','on'); pushLive('sys','连接已建立 '+url); };
+    es.onmessage=function(ev){ pushLive('msg','[message] id='+(ev.lastEventId||'—')+' '+ev.data); };
+    es.onerror=function(){
+      if(es && es.readyState===2){ setState('已关闭',''); pushLive('error','连接被关闭且不会自动重连（readyState=CLOSED）'); }
+      else { setState('重连中…','wait'); pushLive('error','连接中断，EventSource 正在按 retry 间隔自动重连'); }
+    };
+    (($('sse_types').value||'').split(',')).forEach(function(t){
+      var name=t.trim(); if(!name) return;
+      es.addEventListener(name, function(ev){ pushLive('msg','['+name+'] id='+(ev.lastEventId||'—')+' '+ev.data); });
+    });
+  }
+  function disconnect(){
+    if(es){ try{ es.close(); }catch(e){} es=null; setState('未连接',''); }
+  }
+
+  $('sse_parse').addEventListener('click', run);
+  $('sse_raw').addEventListener('input', run);
+  $('sse_sample').addEventListener('click', function(){ $('sse_raw').value=TRICKY; run(); });
+  $('sse_clear').addEventListener('click', function(){ $('sse_raw').value=''; run(); });
+  $('sse_chunk_run').addEventListener('click', replay);
+  $('sse_connect').addEventListener('click', connect);
+  $('sse_disconnect').addEventListener('click', disconnect);
+  $('sse_snip_node').addEventListener('click', function(){ $('sse_snip').textContent=P.serverSnippet('node'); });
+  $('sse_snip_nginx').addEventListener('click', function(){ $('sse_snip').textContent=P.serverSnippet('nginx'); });
+  $('sse_snip_curl').addEventListener('click', function(){
+    $('sse_snip').textContent=P.toCurl($('sse_url').value, {'Last-Event-ID':'42','Cache-Control':'no-cache'});
+  });
+
+  run(); replay();
+  $('sse_snip').textContent=P.serverSnippet('node');
+  pushLive('sys','尚未连接。点「连接」用原生 EventSource 打开一条真实长连接。');
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

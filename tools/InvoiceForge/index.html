@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InvoiceForge — 离线发票 / 报价单生成器</title>
+<meta name="description" content="InvoiceForge：单文件离线发票与报价单工作台。行项目自动计税、人民币大写金额、一键打印导出 PDF、JSON 备份，数据永不离机。">
+<style>
+:root{
+  --bg:#0A0A0B;--surf:#141417;--surf2:#1A1B1E;--txt:#FFFFFF;--txt2:#A1A1AA;--txt3:#71717A;
+  --bord:rgba(255,255,255,0.08);--bord2:rgba(255,255,255,0.14);
+  --acc:#5E6AD2;--ok:#10B981;--warn:#F5A623;--red:#EF4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px}
+header{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--bord);flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+.logo-mark{width:26px;height:26px;border-radius:7px;background:var(--acc);display:grid;place-items:center}
+.logo-mark svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2}
+.logo b{color:var(--acc)}
+.spacer{flex:1}
+button,input,select,textarea{font-family:inherit;font-size:13px;color:var(--txt)}
+.btn{background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:7px 14px;cursor:pointer}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.primary:hover{filter:brightness(1.1);color:#fff}
+main{display:grid;grid-template-columns:400px 1fr;gap:0;height:calc(100vh - 57px)}
+@media (max-width:900px){main{grid-template-columns:1fr;height:auto}}
+.panel{overflow-y:auto;padding:18px;border-right:1px solid var(--bord)}
+.sect{margin-bottom:18px}
+.sect h3{font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.row{display:flex;gap:8px;margin-bottom:8px}
+.row>*{flex:1}
+input,select,textarea{background:var(--surf);border:1px solid var(--bord);border-radius:8px;padding:7px 10px;width:100%;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--acc)}
+label{display:block;color:var(--txt2);font-size:12px;margin-bottom:4px}
+.items-table{width:100%}
+.item-row{display:grid;grid-template-columns:1fr 60px 80px 26px;gap:6px;margin-bottom:6px;align-items:center}
+.item-del{background:none;border:none;color:var(--txt3);cursor:pointer;font-size:15px}
+.item-del:hover{color:var(--red)}
+.preview-wrap{overflow-y:auto;padding:24px;background:#111113;display:flex;justify-content:center;align-items:flex-start}
+.sheet{background:#fff;color:#111;width:794px;min-height:560px;padding:48px 56px;border-radius:4px;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.sheet h1{font-size:26px;letter-spacing:.35em;text-align:center;margin-bottom:6px}
+.sheet .inv-no{text-align:center;color:#555;font-size:12px;margin-bottom:26px}
+.sheet .parties{display:flex;gap:32px;margin-bottom:22px;font-size:12px;line-height:1.9}
+.sheet .party{flex:1}
+.sheet .party h4{font-size:12px;color:#888;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:6px}
+.sheet table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px}
+.sheet th{background:#f4f4f5;text-align:left;padding:8px;border:1px solid #e4e4e7;font-weight:600}
+.sheet td{padding:8px;border:1px solid #e4e4e7}
+.sheet .num{text-align:right;font-variant-numeric:tabular-nums}
+.sheet .totals{margin-left:auto;width:280px;font-size:12px}
+.sheet .totals div{display:flex;justify-content:space-between;padding:4px 0}
+.sheet .totals .grand{border-top:2px solid #111;font-weight:700;font-size:15px;padding-top:8px;margin-top:4px}
+.sheet .cnupper{background:#fafafa;border:1px solid #e4e4e7;border-radius:4px;padding:10px 12px;font-size:12px;margin:14px 0}
+.sheet .notes{font-size:11px;color:#666;line-height:1.8;white-space:pre-wrap}
+.sheet .foot{margin-top:36px;display:flex;justify-content:space-between;font-size:12px;color:#555}
+@media print{
+  body>header,.panel{display:none!important}
+  main{display:block;height:auto}
+  .preview-wrap{padding:0;background:#fff}
+  .sheet{box-shadow:none;border-radius:0;width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+</head>
+<body>
+<header>
+  <div class="logo"><span class="logo-mark"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg></span>Invoice<b>Forge</b></div>
+  <span style="color:var(--txt3);font-size:12px">离线发票 / 报价单 · 数据永不离机</span>
+  <div class="spacer"></div>
+  <button class="btn" id="exportJson">导出 JSON</button>
+  <button class="btn" id="importJson">导入 JSON</button>
+  <button class="btn primary" id="printBtn">打印 / 导出 PDF</button>
+</header>
+<main>
+  <div class="panel" id="panel">
+    <div class="sect">
+      <h3>单据信息</h3>
+      <div class="row"><div><label>标题</label><select id="fTitle"><option>报价单</option><option>发票</option><option>收据</option><option>结算单</option></select></div>
+        <div><label>编号</label><input id="fNo"></div></div>
+      <div class="row"><div><label>开票日期</label><input id="fDate" type="date"></div>
+        <div><label>有效期至 / 到期日</label><input id="fDue" type="date"></div></div>
+    </div>
+    <div class="sect">
+      <h3>开票方（卖方）</h3>
+      <div class="row"><input id="sName" placeholder="公司 / 姓名"></div>
+      <div class="row"><input id="sTax" placeholder="统一社会信用代码 / 税号"></div>
+      <div class="row"><input id="sAddr" placeholder="地址、电话"></div>
+      <div class="row"><input id="sBank" placeholder="开户行及账号"></div>
+    </div>
+    <div class="sect">
+      <h3>收票方（买方）</h3>
+      <div class="row"><input id="bName" placeholder="公司 / 姓名"></div>
+      <div class="row"><input id="bTax" placeholder="统一社会信用代码 / 税号"></div>
+      <div class="row"><input id="bAddr" placeholder="地址、电话"></div>
+    </div>
+    <div class="sect">
+      <h3>行项目（名称 · 数量 · 单价）</h3>
+      <div class="items-table" id="itemsTable"></div>
+      <button class="btn" id="addItem" style="width:100%">＋ 添加行项目</button>
+    </div>
+    <div class="sect">
+      <h3>税与优惠</h3>
+      <div class="row"><div><label>税率 %</label><input id="fTaxRate" type="number" min="0" max="100" step="0.5" value="0"></div>
+        <div><label>优惠金额 ¥</label><input id="fDiscount" type="number" min="0" step="0.01" value="0"></div></div>
+    </div>
+    <div class="sect">
+      <h3>备注</h3>
+      <textarea id="fNotes" rows="3" placeholder="付款方式、交付条款等"></textarea>
+    </div>
+  </div>
+  <div class="preview-wrap"><div class="sheet" id="sheet"></div></div>
+</main>
+<input type="file" id="fileInput" accept=".json" style="display:none">
+
+<script>
+/* ================= InvoiceForge pure functions (top-level, testable) ================= */
+function round2(n){
+  return Math.round((Number(n)||0)*100)/100;
+}
+function escapeHTML(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function formatMoney(n){
+  var v=round2(n);
+  var neg=v<0; if(neg) v=-v;
+  var parts=v.toFixed(2).split('.');
+  parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  return (neg?'-':'')+parts.join('.');
+}
+function lineTotal(item){
+  return round2((Number(item.qty)||0)*(Number(item.price)||0));
+}
+function calcTotals(items, taxRate, discount){
+  var subtotal=0;
+  (items||[]).forEach(function(it){ subtotal=round2(subtotal+lineTotal(it)); });
+  var disc=round2(Math.min(Number(discount)||0, subtotal));
+  var taxable=round2(subtotal-disc);
+  var tax=round2(taxable*(Number(taxRate)||0)/100);
+  var total=round2(taxable+tax);
+  return { subtotal:subtotal, discount:disc, taxable:taxable, tax:tax, total:total };
+}
+function intToCn(integer){
+  var digits='零壹贰叁肆伍陆柒捌玖';
+  var units=['','拾','佰','仟'];
+  var bigUnits=['','万','亿','万亿'];
+  integer=Math.floor(Math.abs(Number(integer)||0));
+  if(integer===0) return '零';
+  var s=String(integer);
+  var groups=[];
+  while(s.length){ groups.unshift(s.slice(-4)); s=s.slice(0,-4); }
+  var out='';
+  for(var g=0; g<groups.length; g++){
+    var grpVal=parseInt(groups[g],10);
+    var bigIdx=groups.length-1-g;
+    if(grpVal===0) continue;
+    if(out && groups[g].length===4 && groups[g].charAt(0)==='0') out+='零';
+    var grp=String(grpVal), gs='', pendingZero=false;
+    for(var i=0;i<grp.length;i++){
+      var d=+grp.charAt(i), pos=grp.length-1-i;
+      if(d===0){ pendingZero=true; continue; }
+      if(pendingZero){ gs+='零'; pendingZero=false; }
+      gs+=digits.charAt(d)+units[pos];
+    }
+    out+=gs+bigUnits[bigIdx];
+  }
+  return out;
+}
+function cnUpper(n){
+  var v=round2(Number(n)||0);
+  if(v<0) return '负'+cnUpper(-v);
+  var digits='零壹贰叁肆伍陆柒捌玖';
+  var integer=Math.floor(v);
+  var cents=Math.round((v-integer)*100);
+  var jiao=Math.floor(cents/10), fen=cents%10;
+  var out=intToCn(integer)+'元';
+  if(jiao===0&&fen===0) return out+'整';
+  if(jiao>0) out+=digits.charAt(jiao)+'角';
+  else if(fen>0) out+='零';
+  if(fen>0) out+=digits.charAt(fen)+'分';
+  else out+='整';
+  return out;
+}
+function genInvoiceNo(date, seq){
+  var d=date instanceof Date?date:new Date();
+  var y=d.getFullYear(), m=('0'+(d.getMonth()+1)).slice(-2), day=('0'+d.getDate()).slice(-2);
+  var s=('000'+(seq==null?1:seq)).slice(-4);
+  return 'INV-'+y+m+day+'-'+s;
+}
+function defaultInvoice(){
+  var today=new Date().toISOString().slice(0,10);
+  return {
+    title:'报价单', no:genInvoiceNo(new Date(),1), date:today, due:'',
+    seller:{ name:'', tax:'', addr:'', bank:'' },
+    buyer:{ name:'', tax:'', addr:'' },
+    items:[ { name:'示例服务项', qty:1, price:1000 } ],
+    taxRate:0, discount:0, notes:''
+  };
+}
+function toJSON(inv){
+  return JSON.stringify({ app:'InvoiceForge', version:1, invoice:inv }, null, 2);
+}
+function fromJSON(text){
+  var data=JSON.parse(text);
+  var inv=data&&data.invoice?data.invoice:data;
+  if(!inv||!Array.isArray(inv.items)) throw new Error('invalid invoice');
+  var base=defaultInvoice();
+  for(var k in base) if(inv[k]===undefined) inv[k]=base[k];
+  inv.items=inv.items.map(function(it){
+    return { name:String(it.name||''), qty:Number(it.qty)||0, price:Number(it.price)||0 };
+  });
+  return inv;
+}
+function renderInvoice(inv){
+  var t=calcTotals(inv.items, inv.taxRate, inv.discount);
+  var rows='';
+  (inv.items||[]).forEach(function(it,i){
+    rows+='<tr><td>'+(i+1)+'</td><td>'+escapeHTML(it.name)+'</td>'
+      +'<td class="num">'+(Number(it.qty)||0)+'</td>'
+      +'<td class="num">'+formatMoney(it.price)+'</td>'
+      +'<td class="num">'+formatMoney(lineTotal(it))+'</td></tr>';
+  });
+  var h='<h1>'+escapeHTML(inv.title||'报价单')+'</h1>'
+    +'<div class="inv-no">编号：'+escapeHTML(inv.no||'-')+' ｜ 日期：'+escapeHTML(inv.date||'-')
+    +(inv.due?' ｜ 有效期至：'+escapeHTML(inv.due):'')+'</div>'
+    +'<div class="parties"><div class="party"><h4>开票方</h4>'
+    +'<div><b>'+escapeHTML(inv.seller.name||'—')+'</b></div>'
+    +(inv.seller.tax?'<div>税号：'+escapeHTML(inv.seller.tax)+'</div>':'')
+    +(inv.seller.addr?'<div>'+escapeHTML(inv.seller.addr)+'</div>':'')
+    +(inv.seller.bank?'<div>'+escapeHTML(inv.seller.bank)+'</div>':'')
+    +'</div><div class="party"><h4>收票方</h4>'
+    +'<div><b>'+escapeHTML(inv.buyer.name||'—')+'</b></div>'
+    +(inv.buyer.tax?'<div>税号：'+escapeHTML(inv.buyer.tax)+'</div>':'')
+    +(inv.buyer.addr?'<div>'+escapeHTML(inv.buyer.addr)+'</div>':'')
+    +'</div></div>'
+    +'<table><thead><tr><th style="width:36px">#</th><th>项目名称</th><th style="width:70px" class="num">数量</th>'
+    +'<th style="width:100px" class="num">单价 (¥)</th><th style="width:110px" class="num">金额 (¥)</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table>'
+    +'<div class="totals">'
+    +'<div><span>小计</span><span>¥ '+formatMoney(t.subtotal)+'</span></div>'
+    +(t.discount>0?'<div><span>优惠</span><span>- ¥ '+formatMoney(t.discount)+'</span></div>':'')
+    +(Number(inv.taxRate)>0?'<div><span>税额 ('+inv.taxRate+'%)</span><span>¥ '+formatMoney(t.tax)+'</span></div>':'')
+    +'<div class="grand"><span>合计</span><span>¥ '+formatMoney(t.total)+'</span></div></div>'
+    +'<div class="cnupper">金额大写：<b>'+cnUpper(t.total)+'</b></div>'
+    +(inv.notes?'<div class="notes">'+escapeHTML(inv.notes)+'</div>':'')
+    +'<div class="foot"><span>开票人签字：____________</span><span>InvoiceForge · 本地生成</span></div>';
+  return h;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { round2:round2, escapeHTML:escapeHTML, formatMoney:formatMoney, lineTotal:lineTotal,
+    calcTotals:calcTotals, intToCn:intToCn, cnUpper:cnUpper, genInvoiceNo:genInvoiceNo,
+    defaultInvoice:defaultInvoice, toJSON:toJSON, fromJSON:fromJSON, renderInvoice:renderInvoice };
+}
+if (typeof window !== 'undefined') {
+  window.InvoiceForgePure = { round2:round2, escapeHTML:escapeHTML, formatMoney:formatMoney, lineTotal:lineTotal,
+    calcTotals:calcTotals, intToCn:intToCn, cnUpper:cnUpper, genInvoiceNo:genInvoiceNo,
+    defaultInvoice:defaultInvoice, toJSON:toJSON, fromJSON:fromJSON, renderInvoice:renderInvoice };
+}
+</script>
+<script>
+/* ================= UI layer ================= */
+if (typeof window !== 'undefined' && typeof document !== 'undefined') (function(){
+  var P=window.InvoiceForgePure;
+  var LS_KEY='invoiceforge.doc.v1';
+  var inv;
+  function load(){
+    try{ var raw=localStorage.getItem(LS_KEY); if(raw){ inv=P.fromJSON(raw); return; } }catch(e){}
+    inv=P.defaultInvoice();
+  }
+  function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify({invoice:inv})); }catch(e){} }
+
+  var $=function(id){ return document.getElementById(id); };
+  function syncForm(){
+    $('fTitle').value=inv.title; $('fNo').value=inv.no; $('fDate').value=inv.date; $('fDue').value=inv.due;
+    $('sName').value=inv.seller.name; $('sTax').value=inv.seller.tax; $('sAddr').value=inv.seller.addr; $('sBank').value=inv.seller.bank;
+    $('bName').value=inv.buyer.name; $('bTax').value=inv.buyer.tax; $('bAddr').value=inv.buyer.addr;
+    $('fTaxRate').value=inv.taxRate; $('fDiscount').value=inv.discount; $('fNotes').value=inv.notes;
+    renderItems();
+  }
+  function renderItems(){
+    var html='';
+    inv.items.forEach(function(it,i){
+      html+='<div class="item-row">'
+        +'<input data-f="name" data-i="'+i+'" value="'+P.escapeHTML(it.name)+'" placeholder="项目名称">'
+        +'<input data-f="qty" data-i="'+i+'" type="number" min="0" step="1" value="'+it.qty+'">'
+        +'<input data-f="price" data-i="'+i+'" type="number" min="0" step="0.01" value="'+it.price+'">'
+        +'<button class="item-del" data-del="'+i+'" title="删除">×</button></div>';
+    });
+    $('itemsTable').innerHTML=html;
+    $('itemsTable').querySelectorAll('input').forEach(function(el){
+      el.oninput=function(){
+        var i=+el.getAttribute('data-i'), f=el.getAttribute('data-f');
+        inv.items[i][f]=f==='name'?el.value:Number(el.value)||0;
+        save(); renderPreview();
+      };
+    });
+    $('itemsTable').querySelectorAll('[data-del]').forEach(function(b){
+      b.onclick=function(){ inv.items.splice(+b.getAttribute('data-del'),1); save(); renderItems(); renderPreview(); };
+    });
+  }
+  function renderPreview(){ $('sheet').innerHTML=P.renderInvoice(inv); }
+
+  [['fTitle','title'],['fNo','no'],['fDate','date'],['fDue','due'],['fNotes','notes']].forEach(function(pair){
+    $(pair[0]).oninput=function(e){ inv[pair[1]]=e.target.value; save(); renderPreview(); };
+  });
+  [['sName','name'],['sTax','tax'],['sAddr','addr'],['sBank','bank']].forEach(function(pair){
+    $(pair[0]).oninput=function(e){ inv.seller[pair[1]]=e.target.value; save(); renderPreview(); };
+  });
+  [['bName','name'],['bTax','tax'],['bAddr','addr']].forEach(function(pair){
+    $(pair[0]).oninput=function(e){ inv.buyer[pair[1]]=e.target.value; save(); renderPreview(); };
+  });
+  $('fTaxRate').oninput=function(e){ inv.taxRate=Number(e.target.value)||0; save(); renderPreview(); };
+  $('fDiscount').oninput=function(e){ inv.discount=Number(e.target.value)||0; save(); renderPreview(); };
+  $('addItem').onclick=function(){ inv.items.push({name:'',qty:1,price:0}); save(); renderItems(); renderPreview(); };
+  $('printBtn').onclick=function(){ window.print(); };
+
+  function download(name,text,mime){
+    var blob=new Blob([text],{type:mime||'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=name; a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},500);
+  }
+  $('exportJson').onclick=function(){ download((inv.no||'invoice')+'.json',P.toJSON(inv)); };
+  var fileInput=$('fileInput');
+  $('importJson').onclick=function(){ fileInput.click(); };
+  fileInput.onchange=function(){
+    var f=fileInput.files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){
+      try{ inv=P.fromJSON(String(r.result)); save(); syncForm(); renderPreview(); }
+      catch(e){ alert('导入失败：'+e.message); }
+    };
+    r.readAsText(f); fileInput.value='';
+  };
+
+  load(); syncForm(); renderPreview();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<footer style="margin-top:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);color:#71717A;font-size:12px;text-align:center">nano-tools · 单文件 · 零依赖 · 本地优先 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</body>
+</html>

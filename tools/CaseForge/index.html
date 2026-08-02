@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>CaseForge · 离线文本大小写与行工具</title>
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --sub:#1A1B1E; --line:rgba(255,255,255,0.08);
+    --line2:rgba(255,255,255,0.14); --t1:#fff; --t2:#A1A1AA; --t3:#71717A;
+    --accent:#5E6AD2; --good:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--t1);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;line-height:1.6;padding:32px 18px 60px}
+  .wrap{max-width:880px;margin:0 auto}
+  header h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
+  header p{color:var(--t2);margin:0 0 22px;font-size:14px}
+  .sec{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+  .sec h2{font-size:14px;margin:0 0 12px;color:var(--t1);display:flex;align-items:center;gap:8px}
+  .sec h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  label{display:block;font-size:12px;color:var(--t2);margin:10px 0 6px}
+  textarea,input[type=text],select{width:100%;background:var(--sub);border:1px solid var(--line);color:var(--t1);border-radius:8px;padding:10px 12px;font-size:13px;font-family:inherit;outline:none}
+  textarea:focus,input:focus,select:focus{border-color:var(--line2)}
+  textarea{resize:vertical;min-height:90px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row>*{flex:1;min-width:150px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;margin-top:10px}
+  .out{background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:12px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;color:var(--t1);min-height:24px}
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .stat{background:var(--sub);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--t2)}
+  .stat b{display:block;font-size:18px;color:var(--t1);font-weight:600}
+  .hint{font-size:12px;color:var(--t3);margin-top:8px}
+  footer{color:var(--t3);font-size:12px;text-align:center;margin-top:24px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线文本大小写转换与行工具：camelCase/snake_case/kebab-case 等、去重、排序、加前缀与行号。">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>CaseForge <span style="display:inline-block;font-size:11px;color:var(--good);border:1px solid rgba(16,185,129,.4);border-radius:999px;padding:1px 8px;margin-left:8px;vertical-align:middle">离线 · 零上传</span></h1>
+    <p>文本大小写转换（camelCase / snake_case / kebab-case / PascalCase / CONSTANT 等）与行工具（去重、排序、加前缀、编号、反转、统计）。纯前端，数据永不离机。</p>
+  </header>
+
+  <div class="sec">
+    <h2><span class="dot"></span>大小写转换</h2>
+    <textarea id="text" placeholder="输入文本，例如 Hello World">hello world</textarea>
+    <div class="row">
+      <div>
+        <label>目标格式</label>
+        <select id="caseSel">
+          <option value="camel">camelCase</option>
+          <option value="pascal">PascalCase</option>
+          <option value="snake">snake_case</option>
+          <option value="kebab">kebab-case</option>
+          <option value="constant">CONSTANT_CASE</option>
+          <option value="train">Train-Case</option>
+          <option value="dot">dot.case</option>
+          <option value="path">path/case</option>
+          <option value="title">Title Case</option>
+          <option value="sentence">Sentence case</option>
+        </select>
+      </div>
+    </div>
+    <button id="btnCase">转换</button>
+    <div class="out" id="caseOut"></div>
+    <div class="stats" id="statOut"></div>
+  </div>
+
+  <div class="sec">
+    <h2><span class="dot"></span>行工具</h2>
+    <textarea id="lineInput" placeholder="每行一项">c
+a
+b
+a</textarea>
+    <div class="row">
+      <div>
+        <label>操作</label>
+        <select id="lineOp">
+          <option value="dedupe">去重</option>
+          <option value="sort">排序（升序）</option>
+          <option value="rsort">排序（降序）</option>
+          <option value="prefix">加前缀</option>
+          <option value="suffix">加后缀</option>
+          <option value="number">加行号</option>
+          <option value="reverse">反转行序</option>
+          <option value="trim">去除行首尾空格</option>
+        </select>
+      </div>
+      <div>
+        <label>参数（前缀/后缀用）</label>
+        <input type="text" id="lineArg" placeholder="例如 > "/>
+      </div>
+    </div>
+    <button id="btnLine">执行</button>
+    <div class="out" id="lineOut"></div>
+  </div>
+
+  <footer>CaseForge · 单文件 · 本地优先 · 零依赖 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+
+<script>
+/* ===== 纯函数 ===== */
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+function splitWords(s){
+  if(s == null) return [];
+  var str = String(s);
+  str = str.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+  str = str.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+  str = str.replace(/[^\p{L}\p{N}]+/gu, ' ');
+  return str.trim().split(/\s+/).filter(Boolean);
+}
+function capitalize(w){ return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); }
+
+function toCamel(s){ return splitWords(s).map(function(x, i){ return i === 0 ? x.toLowerCase() : capitalize(x); }).join(''); }
+function toPascal(s){ return splitWords(s).map(capitalize).join(''); }
+function toSnake(s){ return splitWords(s).map(function(w){ return w.toLowerCase(); }).join('_'); }
+function toKebab(s){ return splitWords(s).map(function(w){ return w.toLowerCase(); }).join('-'); }
+function toConstant(s){ return splitWords(s).map(function(w){ return w.toUpperCase(); }).join('_'); }
+function toTrain(s){ return splitWords(s).map(capitalize).join('-'); }
+function toDot(s){ return splitWords(s).map(function(w){ return w.toLowerCase(); }).join('.'); }
+function toPath(s){ return splitWords(s).map(function(w){ return w.toLowerCase(); }).join('/'); }
+function toTitle(s){ return splitWords(s).map(capitalize).join(' '); }
+function toSentence(s){
+  var w = splitWords(s);
+  return w.map(function(x, i){ return i === 0 ? capitalize(x) : x.toLowerCase(); }).join(' ');
+}
+
+function countStats(s){
+  var str = String(s);
+  var chars = str.length;
+  var charsNoSpace = str.replace(/\s/g, '').length;
+  var words = (str.trim().match(/\S+/g) || []).length;
+  var bytes;
+  try { bytes = new TextEncoder().encode(str).length; }
+  catch(e){ bytes = str.length; }
+  return { chars: chars, charsNoSpace: charsNoSpace, words: words, lines: str.split('\n').length, bytes: bytes };
+}
+
+function toLines(s){ return String(s).split('\n'); }
+function dedupeLines(s, opts){
+  opts = opts || {};
+  var seen = {}, out = [];
+  toLines(s).forEach(function(l){
+    var k = opts.ignoreCase ? l.toLowerCase() : l;
+    if(!seen[k]){ seen[k] = 1; out.push(l); }
+  });
+  return out.join('\n');
+}
+function sortLines(s, opts){
+  opts = opts || {};
+  var arr = toLines(s);
+  arr.sort();
+  if(opts.dir === 'desc') arr.reverse();
+  return arr.join('\n');
+}
+function prefixLines(s, pre){ return toLines(s).map(function(l){ return (pre || '') + l; }).join('\n'); }
+function suffixLines(s, suf){ return toLines(s).map(function(l){ return l + (suf || ''); }).join('\n'); }
+function numberLines(s, opts){
+  opts = opts || {};
+  var start = (opts.start != null) ? opts.start : 1;
+  var sep = (opts.sep != null) ? opts.sep + '\t' : '\t';
+  return toLines(s).map(function(l, i){ return (start + i) + sep + l; }).join('\n');
+}
+function reverseLines(s){ return toLines(s).slice().reverse().join('\n'); }
+function trimLines(s){ return toLines(s).map(function(l){ return l.trim(); }).join('\n'); }
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    splitWords: splitWords,
+    toCamel: toCamel, toPascal: toPascal, toSnake: toSnake, toKebab: toKebab,
+    toConstant: toConstant, toTrain: toTrain, toDot: toDot, toPath: toPath,
+    toTitle: toTitle, toSentence: toSentence,
+    countStats: countStats,
+    dedupeLines: dedupeLines, sortLines: sortLines, prefixLines: prefixLines,
+    suffixLines: suffixLines, numberLines: numberLines, reverseLines: reverseLines, trimLines: trimLines
+  };
+}
+
+/* ===== UI ===== */
+if (typeof window !== 'undefined' && window.document) {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+
+    function renderStats(){
+      var st = countStats($('text').value);
+      $('statOut').innerHTML = [
+        ['字符', st.chars],
+        ['非空字符', st.charsNoSpace],
+        ['词', st.words],
+        ['行', st.lines],
+        ['字节', st.bytes]
+      ].map(function(x){ return '<div class="stat">' + x[0] + '<b>' + x[1] + '</b></div>'; }).join('');
+    }
+
+    function doCase(){
+      var fnMap = {
+        camel: toCamel, pascal: toPascal, snake: toSnake, kebab: toKebab,
+        constant: toConstant, train: toTrain, dot: toDot, path: toPath,
+        title: toTitle, sentence: toSentence
+      };
+      var fn = fnMap[$('caseSel').value] || toCamel;
+      $('caseOut').textContent = fn($('text').value);
+      renderStats();
+    }
+
+    function doLine(){
+      var op = $('lineOp').value;
+      var src = $('lineInput').value;
+      var arg = $('lineArg').value;
+      var out = '';
+      if(op === 'dedupe') out = dedupeLines(src, { ignoreCase: false });
+      else if(op === 'sort') out = sortLines(src, { dir: 'asc' });
+      else if(op === 'rsort') out = sortLines(src, { dir: 'desc' });
+      else if(op === 'prefix') out = prefixLines(src, arg);
+      else if(op === 'suffix') out = suffixLines(src, arg);
+      else if(op === 'number') out = numberLines(src, { start: 1 });
+      else if(op === 'reverse') out = reverseLines(src);
+      else if(op === 'trim') out = trimLines(src);
+      $('lineOut').textContent = out;
+    }
+
+    $('btnCase').addEventListener('click', doCase);
+    $('btnLine').addEventListener('click', doLine);
+    $('text').addEventListener('input', renderStats);
+
+    // 初始渲染
+    doCase();
+    doLine();
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

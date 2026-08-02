@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>CarbonForge — 代码转图片：把代码渲染成带窗口装饰的漂亮图片（carbon.now.sh / ray.so 风格），轻量语法高亮、可换主题与背景、导出 SVG/PNG。</title>
+<meta property="og:title" content="CarbonForge">
+<meta property="og:description" content="代码转图片：把代码片段渲染成带 macOS 窗口装饰的漂亮图片（对标 carbon.now.sh / ray.so），内置轻量语法高亮，支持 JavaScript / Python / Bash / JSON / HTML，可切换明暗主题与背景色、调整字号，一键导出 SVG 或 PNG，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="代码转图片：把代码片段渲染成带 macOS 窗口装饰的漂亮图片（对标 carbon.now.sh / ray.so），内置轻量语法高亮，支持 JavaScript / Python / Bash / JSON / HTML，可切换明暗主题与背景色、调整字号，一键导出 SVG 或 PNG，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>CarbonForge</h1>
+  <p class="sub">代码 · 转图片 · 分享</p>
+
+  <label for="cb_code">代码</label>
+  <textarea id="cb_code" rows="8" style="flex:1">function fib(n){
+  let a=0, b=1;
+  for(let i=0; i<n; i++){ [a,b]=[b,a+b]; }
+  return a;
+}</textarea>
+
+  <div class="row">
+    <div style="flex:1;min-width:150px">
+      <label for="cb_lang" style="margin-top:0">语言</label>
+      <select id="cb_lang" style="width:100%">
+        <option value="js">JavaScript</option>
+        <option value="py">Python</option>
+        <option value="bash">Bash</option>
+        <option value="json">JSON</option>
+        <option value="html">HTML</option>
+      </select>
+    </div>
+    <div style="flex:1;min-width:150px">
+      <label for="cb_theme" style="margin-top:0">主题</label>
+      <select id="cb_theme" style="width:100%">
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+      </select>
+    </div>
+    <div style="flex:1;min-width:130px">
+      <label for="cb_font" style="margin-top:0">字号</label>
+      <input type="number" id="cb_font" value="15" min="10" max="28" style="width:100%">
+    </div>
+  </div>
+  <div class="row">
+    <label for="cb_bg" style="margin:0 8px 0 0">背景</label>
+    <input type="color" id="cb_bg" value="#0A0A0B">
+    <button id="cb_render">渲染</button>
+    <button id="cb_svg" class="ghost">导出 SVG</button>
+    <button id="cb_png" class="ghost">导出 PNG</button>
+  </div>
+  <div class="out" id="cb_prev" style="padding:8px;display:flex;justify-content:center;background:var(--surface)"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 361 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+/* ============ CarbonForge 内核 ============
+   轻量语法高亮 tokenizer + SVG 渲染，全部纯函数、零依赖。 */
+var CarbonForgePure = (function(){
+  var KW = {
+    js:['const','let','var','function','return','if','else','for','while','class','new','await','async','import','export','from','default','try','catch','throw','typeof','of','in','this','null','undefined','true','false','switch','case','break','continue','do','yield','static','extends','super','delete','void','interface','type','enum','implements','public','private','readonly','number','string','boolean','any','as'],
+    py:['def','return','if','elif','else','for','while','import','from','as','class','try','except','finally','with','lambda','None','True','False','and','or','not','in','is','pass','break','continue','raise','yield','global','nonlocal','assert','del','async','await'],
+    bash:['if','then','else','elif','fi','for','while','do','done','case','esac','function','echo','export','local','return','in','select','until','sudo'],
+    json:['true','false','null'],
+    html:['div','span','a','img','html','head','body','script','style','link','meta','input','button','p','ul','li','table','tr','td','h1','h2','h3','title']
+  };
+
+  function tokenize(code, lang){
+    lang = lang || 'js';
+    var kws = KW[lang] || KW.js; var set = {}; kws.forEach(function(k){ set[k]=1; });
+    var re, m, toks=[], i;
+    if(lang==='json'){
+      re = /("(?:\\.|[^"\\])*")|(-?\d+\.?\d*(?:[eE][+-]?\d+)?)|\b(true|false|null)\b|([{}\[\],:])|(\s+)/g;
+      while((m=re.exec(code))){
+        if(m[1]!=null) toks.push({t:'string', v:m[1]});
+        else if(m[2]!=null) toks.push({t:'number', v:m[2]});
+        else if(m[3]!=null) toks.push({t:'keyword', v:m[3]});
+        else if(m[4]!=null) toks.push({t:'punct', v:m[4]});
+        else toks.push({t:'ws', v:m[5]});
+      }
+    } else {
+      re = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|\b(0x[0-9a-fA-F]+|\d+\.?\d*(?:[eE][+-]?\d+)?)\b|([A-Za-z_$][\w$]*)|(\s+)|([^\sA-Za-z0-9_$])/g;
+      while((m=re.exec(code))){
+        if(m[1]!=null) toks.push({t:'comment', v:m[1]});
+        else if(m[2]!=null) toks.push({t:'string', v:m[2]});
+        else if(m[3]!=null) toks.push({t:'number', v:m[3]});
+        else if(m[4]!=null) toks.push({t:(set[m[4]]?'keyword':'ident'), v:m[4]});
+        else if(m[5]!=null) toks.push({t:'ws', v:m[5]});
+        else toks.push({t:'punct', v:m[6]});
+      }
+    }
+    // JSON key 识别：字符串后紧跟冒号
+    if(lang==='json'){
+      for(i=0;i<toks.length;i++){
+        if(toks[i].t==='string'){
+          var j=i+1; while(j<toks.length && toks[j].t==='ws') j++;
+          if(j<toks.length && toks[j].t==='punct' && toks[j].v===':') toks[i].t='key';
+        }
+      }
+    }
+    return toks;
+  }
+
+  var THEMES = {
+    dark:{bg:'#0A0A0B', fg:'#F8F8F2', comment:'#6272A4', string:'#50FA7B', number:'#BD93F9', keyword:'#FF79C6', key:'#8BE9FD', ident:'#F8F8F2', punct:'#FF79C6'},
+    light:{bg:'#FFFFFF', fg:'#383A42', comment:'#A0A1A7', string:'#50A14E', number:'#986801', keyword:'#A626A4', key:'#4078F2', ident:'#383A42', punct:'#383A42'}
+  };
+
+  function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }); }
+
+  function renderSvg(code, lang, opts){
+    opts = opts || {};
+    var theme = THEMES[opts.theme] || THEMES.dark;
+    var bg = opts.bg || theme.bg;
+    var font = opts.font || 15;
+    var pad = opts.pad || 40;
+    var lh = Math.round(font*1.6);
+    var chromH = 44;
+    var lines = String(code).split('\n');
+    var cw = font*0.6;
+    var maxLen = 1;
+    lines.forEach(function(l){ if(l.length>maxLen) maxLen=l.length; });
+    var W = Math.ceil(pad*2 + maxLen*cw + 16);
+    var H = chromH + pad + lines.length*lh + pad - (lh-font);
+    var parts = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'];
+    parts.push('<rect width="'+W+'" height="'+H+'" rx="12" fill="'+bg+'"/>');
+    parts.push('<circle cx="'+(pad)+'" cy="'+(chromH/2)+'" r="6" fill="#ff5f56"/>');
+    parts.push('<circle cx="'+(pad+22)+'" cy="'+(chromH/2)+'" r="6" fill="#ffbd2e"/>');
+    parts.push('<circle cx="'+(pad+44)+'" cy="'+(chromH/2)+'" r="6" fill="#27c93f"/>');
+    parts.push('<text x="'+pad+'" y="'+(chromH+pad-6)+'" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="'+font+'" xml:space="preserve">');
+    var y = chromH + pad - 6;
+    lines.forEach(function(line, li){
+      var toks = tokenize(line, lang);
+      var inner = toks.map(function(tk){
+        if(tk.t==='ws') return esc(tk.v);
+        var col = theme[tk.t] || theme.fg;
+        return '<tspan fill="'+col+'">'+esc(tk.v)+'</tspan>';
+      }).join('');
+      parts.push('<tspan x="'+pad+'" dy="'+(li===0?0:lh)+'">'+inner+'</tspan>');
+    });
+    parts.push('</text></svg>');
+    return parts.join('');
+  }
+
+  return { tokenize:tokenize, renderSvg:renderSvg, THEMES:THEMES };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = CarbonForgePure;
+if (typeof window !== 'undefined') window.CarbonForgePure = CarbonForgePure;
+
+</script>
+<script>
+
+(function(){
+  var P = window.CarbonForgePure;
+  var $ = function(id){ return document.getElementById(id); };
+  var lastSvg = '';
+  function opts(){
+    return { theme:$('cb_theme').value, bg:$('cb_bg').value, font:+$('cb_font').value, pad:40 };
+  }
+  function render(){
+    lastSvg = P.renderSvg($('cb_code').value, $('cb_lang').value, opts());
+    $('cb_prev').innerHTML = lastSvg;
+  }
+  function download(name, blob){
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+    document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); document.body.removeChild(a); },0);
+  }
+  $('cb_render').addEventListener('click', render);
+  ['cb_code','cb_lang','cb_theme','cb_font','cb_bg'].forEach(function(id){
+    $(id).addEventListener('input', render); $(id).addEventListener('change', render);
+  });
+  $('cb_svg').addEventListener('click', function(){
+    download('code.svg', new Blob([lastSvg], {type:'image/svg+xml'}));
+  });
+  $('cb_png').addEventListener('click', function(){
+    var img=new Image();
+    img.onload=function(){
+      var svg=lastSvg; var W=null,H=null;
+      var mv=/width="(\d+)"/.exec(svg); if(mv) W=+mv[1];
+      var mh=/height="(\d+)"/.exec(svg); if(mh) H=+mh[1];
+      var c=document.createElement('canvas'); c.width=W||800; c.height=H||400;
+      c.getContext('2d').drawImage(img,0,0);
+      c.toBlob(function(b){ download('code.png', b); }, 'image/png');
+    };
+    img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(lastSvg);
+  });
+  render();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

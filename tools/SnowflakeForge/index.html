@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SnowflakeForge — 离线雪花 ID 解析器：64 位分布式 ID 解码为时间/机器/序列，支持自定义纪元</title>
+<meta property="og:title" content="SnowflakeForge">
+<meta property="og:description" content="离线雪花 ID 解析器：64 位分布式 ID 解码为时间/机器/序列，支持自定义纪元">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线雪花 ID 解析器：64 位分布式 ID 解码为时间/机器/序列，支持自定义纪元 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:140px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.flag-ok{color:var(--ok)} .flag-bad{color:var(--warn)} .flag-info{color:var(--info)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SnowflakeForge</h1>
+  <p class="sub">离线雪花 ID 解析器：64 位分布式 ID 解码为时间/机器/序列，支持自定义纪元 · 单文件 · 零依赖 · 本地优先</p>
+
+<label for="sid">Snowflake ID（十进制整数）</label>
+<input id="sid" type="text" value="136838093572534272" placeholder="如 136838093572534272">
+<label for="sepoch">纪元时间戳(ms)，留空=Twitter 默认 1288834974657</label>
+<input id="sepoch" type="number" value="1288834974657" placeholder="1288834974657">
+<div class="row">
+  <button id="run">解析 ID</button>
+  <button id="copy" class="ghost">复制结果</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<label>编码（可选）：用给定时间戳+机器位合成 ID</label>
+<div class="row">
+  <input id="sts" type="text" placeholder="时间戳ms" style="max-width:170px">
+  <input id="sdc" type="number" placeholder="数据中心" style="max-width:90px">
+  <input id="swk" type="number" placeholder="节点" style="max-width:90px">
+  <input id="sseq" type="number" placeholder="序列" style="max-width:90px">
+  <button id="gen" class="ghost">生成</button>
+</div>
+<div class="err" id="err"></div>
+<label>输出</label>
+<div class="out" id="out" aria-live="polite">解析结果会显示在这里</div>
+<script>
+function sfParse(idStr, opts){
+  opts = opts || {};
+  var epoch = (opts.epoch !== undefined) ? Number(opts.epoch) : 1288834974657;
+  if(typeof idStr !== 'string') idStr = String(idStr);
+  idStr = idStr.trim();
+  if(!/^[0-9]+$/.test(idStr)) return {error:'ID 必须为非负整数'};
+  var bi;
+  try { bi = BigInt(idStr); } catch(e){ return {error:'ID 解析失败'}; }
+  var SEQ_BITS=12n, MACHINE_BITS=10n, TS_BITS=41n;
+  var seqMask=(1n<<SEQ_BITS)-1n;
+  var machineMask=(1n<<MACHINE_BITS)-1n;
+  var sequence=Number(bi & seqMask);
+  var machine=Number((bi >> SEQ_BITS) & machineMask);
+  var dcBits = (opts.datacenterBits !== undefined) ? Number(opts.datacenterBits) : 5;
+  var workerBits = 10 - dcBits;
+  var datacenterId = (machine >> workerBits) & ((1 << dcBits) - 1);
+  var workerId = machine & ((1 << workerBits) - 1);
+  var ts = Number((bi >> (SEQ_BITS + MACHINE_BITS)) & ((1n<<TS_BITS)-1n));
+  var ms = ts + epoch;
+  var date = new Date(ms);
+  return { id:idStr, timestamp:ms, date:isNaN(date.getTime())?null:date.toISOString(),
+           machineId:machine, datacenterId:datacenterId, workerId:workerId,
+           sequence:sequence, epoch:epoch, error:null };
+}
+function sfCompose(o){
+  o = o || {};
+  var epoch = (o.epoch !== undefined) ? Number(o.epoch) : 1288834974657;
+  var offset = Math.floor(Number(o.timestamp)) - epoch;
+  if(offset < 0) return {error:'timestamp 早于 epoch'};
+  var dcBits = (o.datacenterBits !== undefined) ? Number(o.datacenterBits) : 5;
+  var workerBits = 10 - dcBits;
+  var machine = (BigInt(o.datacenterId||0) << BigInt(workerBits)) | BigInt(o.workerId||0);
+  var id = (BigInt(offset) << 22n) | (machine << 12n) | BigInt(o.sequence||0);
+  return { id:id.toString(), error:null };
+}
+function sfIsValid(idStr){ return typeof idStr==='string' && /^[0-9]+$/.test(idStr.trim()) && idStr.trim().length>0; }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { parse:sfParse, compose:sfCompose, isValid:sfIsValid, epochDefault:1288834974657 };
+}
+if (typeof window !== 'undefined') {
+  window.SnowflakeForgePure = { parse:sfParse, compose:sfCompose, isValid:sfIsValid };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.SnowflakeForgePure;
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function run(){
+      $('err').textContent='';
+      try {
+        var epoch = $('sepoch').value.trim()==='' ? 1288834974657 : Number($('sepoch').value);
+        var r = P.parse($('sid').value.trim(), {epoch:epoch});
+        if(r.error){ $('out').textContent='错误：'+r.error; return; }
+        var lines=[];
+        lines.push('ID:        ' + r.id);
+        lines.push('时间(ms):  ' + r.timestamp);
+        lines.push('日期:      ' + r.date);
+        lines.push('机器ID:    ' + r.machineId + '  (数据中心 ' + r.datacenterId + ' / 节点 ' + r.workerId + ')');
+        lines.push('序列号:    ' + r.sequence);
+        lines.push('纪元:      ' + r.epoch);
+        $('out').textContent = lines.join('\n');
+      } catch(e){ $('err').textContent=e.message; }
+    }
+    function gen(){
+      $('err').textContent='';
+      try {
+        var epoch = $('sepoch').value.trim()==='' ? 1288834974657 : Number($('sepoch').value);
+        var r = P.compose({timestamp:Number($('sts').value), datacenterId:Number($('sdc').value||0),
+                           workerId:Number($('swk').value||0), sequence:Number($('sseq').value||0), epoch:epoch});
+        if(r.error){ $('out').textContent='错误：'+r.error; return; }
+        $('sid').value = r.id;
+        $('out').textContent = '生成 ID: ' + r.id;
+      } catch(e){ $('err').textContent=e.message; }
+    }
+    $('run').addEventListener('click', run);
+    $('gen').addEventListener('click', gen);
+    $('copy').addEventListener('click', function(){ copyText($('out').textContent); });
+    $('clear').addEventListener('click', function(){ $('sid').value=''; $('out').textContent='解析结果会显示在这里'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

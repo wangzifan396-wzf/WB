@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<link rel="icon" href="favicon.svg">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVGForge · SVG 优化器</title>
+<meta name="description" content="离线优先的 SVG 压缩优化器：去注释/元数据、精简小数、实时预览、转 Data URI 与 CSS background，数据不上传。">
+<meta property="og:title" content="SVGForge · SVG 优化器">
+<meta property="og:description" content="SVG 压缩优化 + 实时预览 + 转 Data URI / CSS background。零依赖单文件。">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://wangzifan396-wzf.github.io/WB/tools/SVGForge/og.svg">
+<style>
+:root{
+  --bg:#0A0A0B; --surface:#141417; --surface-2:#1A1B1E;
+  --text:#FFFFFF; --text-2:#A1A1AA; --text-3:#71717A;
+  --border:rgba(255,255,255,0.08); --border-strong:rgba(255,255,255,0.14);
+  --accent:#5e6ad2; --accent-hover:#6E7AE2; --accent-soft:rgba(94,106,210,0.14);
+  --success:#10B981; --warning:#F5A623; --error:#FF4D4F;
+  --radius-sm:6px; --radius:10px; --radius-lg:14px;
+  --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 8px 24px rgba(0,0,0,.4);
+  --ease:cubic-bezier(.22,.61,.36,1); --wrap:1180px;
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-theme="light"]{--bg:#FFFFFF;--surface:#F7F7F8;--surface-2:#FFFFFF;--text:#0A0A0B;--text-2:#52525B;--text-3:#71717A;--border:rgba(0,0,0,.08);--border-strong:rgba(0,0,0,.14);--shadow:0 8px 24px rgba(0,0,0,.08)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-sans);-webkit-font-smoothing:antialiased;line-height:1.5}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 20px}
+header.bar{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.bar-in{display:flex;align-items:center;gap:14px;height:60px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;text-decoration:none;color:var(--text);font-size:15px}
+.brand svg{width:22px;height:22px;color:var(--accent)}
+.bar .spacer{flex:1}
+.icon-btn{width:36px;height:36px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;cursor:pointer}
+.icon-btn svg{width:18px;height:18px}.icon-btn:hover{color:var(--accent);border-color:var(--border-strong)}
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:var(--radius);font-size:13.5px;font-weight:600;border:1px solid var(--border);color:var(--text);background:var(--surface-2);text-decoration:none;cursor:pointer;transition:all .2s var(--ease)}
+.btn:hover{border-color:var(--border-strong)}
+.btn.primary{background:var(--accent);border-color:transparent;color:#fff}.btn.primary:hover{background:var(--accent-hover)}
+main{padding:22px 0 60px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+@media(max-width:860px){.cols{grid-template-columns:1fr}}
+.pane label.h{display:block;font-size:12.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px}
+textarea{width:100%;min-height:300px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--font-mono);font-size:12.5px;line-height:1.55;resize:vertical;outline:none}
+textarea:focus{border-color:var(--accent)}
+.opts{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:14px 0;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.opts label{font-size:13px;color:var(--text-2);font-weight:600;display:flex;align-items:center;gap:6px}
+.opts input[type=range]{accent-color:var(--accent);width:120px}
+.opts .v{color:var(--accent);font-family:var(--font-mono)}
+.preview{min-height:170px;border:1px solid var(--border);border-radius:var(--radius);display:grid;place-items:center;padding:16px;margin-bottom:12px;background:
+  linear-gradient(45deg,rgba(128,128,128,.08) 25%,transparent 25%,transparent 75%,rgba(128,128,128,.08) 75%),
+  linear-gradient(45deg,rgba(128,128,128,.08) 25%,transparent 25%,transparent 75%,rgba(128,128,128,.08) 75%);
+  background-size:24px 24px;background-position:0 0,12px 12px}
+.preview svg{max-width:100%;max-height:200px}
+.stats{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;min-width:110px}
+.stat .n{font-size:20px;font-weight:700}
+.stat .l{font-size:12px;color:var(--text-3)}
+.stat.save .n{color:var(--success)}
+.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+select{font-family:inherit;font-size:13.5px;color:var(--text);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);outline:none;height:36px;padding:0 10px}
+.hint{color:var(--text-3);font-size:12px}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+
+  <meta name="theme-color" content="#0A0A0B">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SVGForge · SVG 优化器">
+<meta name="twitter:description" content="离线优先的 SVG 压缩优化器：去注释/元数据、精简小数、实时预览、转 Data URI 与 CSS background，数据不上传。">
+<meta name="twitter:image" content="og.svg">
+<style id="nano-a11y">
+:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">SVGForge · SVG 优化器</h1>
+<header class="bar"><div class="wrap bar-in">
+  <a class="brand" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12l3 3 5-6"/></svg><span>SVGForge</span></a>
+  <span style="color:var(--text-3);font-size:13px">SVG 优化器</span>
+  <span class="spacer"></span>
+  <button class="icon-btn" id="themeToggle" aria-label="切换主题"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+  <a class="btn" style="background:transparent" href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/SVGForge" target="_blank" rel="noopener">源码</a>
+</div></header>
+
+<main class="wrap">
+  <div class="opts">
+    <label>小数精度 <input type="range" id="prec" min="0" max="4" step="1" value="2"><span class="v" id="precV">2</span></label>
+    <label><input type="checkbox" id="stripMeta" checked style="width:auto"> 去除 metadata/title/desc</label>
+    <span class="spacer" style="flex:1"></span>
+    <button class="btn" id="sample">载入示例</button>
+  </div>
+  <div class="cols">
+    <div class="pane">
+      <label class="h">输入 SVG</label>
+      <textarea id="src" spellcheck="false" placeholder="粘贴 SVG 源码…"></textarea>
+    </div>
+    <div class="pane">
+      <label class="h">预览</label>
+      <div class="preview" id="preview"></div>
+      <div class="stats" id="stats"></div>
+      <div class="tools">
+        <select id="fmt"><option value="svg">优化后 SVG</option><option value="datauri">Data URI</option><option value="css">CSS background</option></select>
+        <button class="btn primary" id="copy">复制</button>
+        <button class="btn" id="download">下载 .svg</button>
+        <span class="hint">本地处理，不上传</span>
+      </div>
+      <textarea id="out" spellcheck="false" readonly style="min-height:150px"></textarea>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===================== 纯函数 ===================== */
+function stripComments(s){ return s.replace(/<!--[\s\S]*?-->/g,''); }
+function stripMetaTags(s){
+  return s.replace(/<metadata[\s\S]*?<\/metadata>/gi,'')
+          .replace(/<title[\s\S]*?<\/title>/gi,'')
+          .replace(/<desc[\s\S]*?<\/desc>/gi,'');
+}
+function roundNumbers(s, prec){
+  if(prec<0) return s;
+  return s.replace(/-?\d*\.\d+(?:e-?\d+)?/gi, function(m){
+    var n = parseFloat(m);
+    if(!isFinite(n)) return m;
+    return String(parseFloat(n.toFixed(prec)));
+  });
+}
+function collapse(s){
+  return s.replace(/>\s+</g,'><').replace(/\s{2,}/g,' ').replace(/\s+\/>/g,'/>').trim();
+}
+function optimizeSvg(src, opts){
+  opts = opts || {};
+  var prec = opts.precision==null ? 2 : opts.precision;
+  var s = String(src);
+  s = stripComments(s);
+  s = s.replace(/<\?xml[\s\S]*?\?>/gi, '');
+  s = s.replace(/<!DOCTYPE[^>]*>/gi, '');
+  if(opts.stripMeta !== false) s = stripMetaTags(s);
+  s = roundNumbers(s, prec);
+  s = collapse(s);
+  return s;
+}
+function byteLen(s){
+  var n=0;
+  for(var i=0;i<s.length;i++){
+    var c=s.charCodeAt(i);
+    if(c<0x80) n+=1;
+    else if(c<0x800) n+=2;
+    else if(c>=0xD800 && c<=0xDBFF){ n+=4; i++; }
+    else n+=3;
+  }
+  return n;
+}
+function savedPct(before, after){
+  if(before<=0) return 0;
+  return Math.round((1 - after/before) * 1000) / 10;
+}
+function toDataUri(svg){
+  var s = String(svg).replace(/[\r\n]+/g,'');
+  var enc = encodeURIComponent(s)
+    .replace(/%20/g,' ')
+    .replace(/%3D/g,'=')
+    .replace(/%3A/g,':')
+    .replace(/%2F/g,'/')
+    .replace(/%22/g,"'");
+  return 'data:image/svg+xml,' + enc;
+}
+function toCssBg(svg){ return 'background-image: url("' + toDataUri(svg) + '");'; }
+if (typeof module !== 'undefined' && module.exports){
+  module.exports = { stripComments, stripMetaTags, roundNumbers, collapse, optimizeSvg, byteLen, savedPct, toDataUri, toCssBg };
+}
+if (typeof window !== 'undefined') {
+
+/* ===================== 浏览器 UI ===================== */
+var $=function(s){return document.querySelector(s);};
+var root=document.documentElement, th=null; try{ th=localStorage.getItem('theme'); }catch(e){}
+if(th) root.dataset.theme=th; else if(matchMedia('(prefers-color-scheme: light)').matches) root.dataset.theme='light';
+$('#themeToggle').onclick=function(){root.dataset.theme=root.dataset.theme==='light'?'dark':'light';try{localStorage.setItem('theme',root.dataset.theme);}catch(e){}};
+
+var SAMPLE = '<?xml version="1.0" encoding="UTF-8"?>\n<!-- Generated by some editor -->\n<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">\n  <title>circle</title>\n  <desc>a demo circle</desc>\n  <metadata>xxx</metadata>\n  <circle cx="60.00000" cy="60.00000" r="48.123456" fill="#5E6AD2"/>\n  <path d="M30.500000 60.250000 L 60.000000 90.750000 L 89.500000 60.250000" stroke="#10B981" stroke-width="6" fill="none"/>\n</svg>';
+
+function run(){
+  var src=$('#src').value;
+  var prec=parseInt($('#prec').value,10);
+  var opts={precision:prec, stripMeta:$('#stripMeta').checked};
+  var opt = src.trim() ? optimizeSvg(src, opts) : '';
+  // preview（渲染优化后 SVG）
+  $('#preview').innerHTML = opt;
+  // stats
+  var b=byteLen(src), a=byteLen(opt);
+  $('#stats').innerHTML =
+    '<div class="stat"><div class="n">'+b+'</div><div class="l">原始 (B)</div></div>'+
+    '<div class="stat"><div class="n">'+a+'</div><div class="l">优化后 (B)</div></div>'+
+    '<div class="stat save"><div class="n">'+savedPct(b,a)+'%</div><div class="l">节省</div></div>';
+  // output
+  var fmt=$('#fmt').value;
+  $('#out').value = !opt ? '' : (fmt==='datauri' ? toDataUri(opt) : fmt==='css' ? toCssBg(opt) : opt);
+}
+$('#src').addEventListener('input', function(){ clearTimeout(window.__t); window.__t=setTimeout(run,200); });
+$('#prec').oninput=function(){ $('#precV').textContent=$('#prec').value; run(); };
+$('#stripMeta').onchange=run;
+$('#fmt').onchange=run;
+$('#sample').onclick=function(){ $('#src').value=SAMPLE; run(); };
+$('#copy').onclick=function(){ if(navigator.clipboard) navigator.clipboard.writeText($('#out').value); };
+$('#download').onclick=function(){
+  var blob=new Blob([optimizeSvg($('#src').value,{precision:parseInt($('#prec').value,10),stripMeta:$('#stripMeta').checked})],{type:'image/svg+xml'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='optimized.svg'; a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+};
+$('#src').value=SAMPLE; run();
+
+}
+</script>
+
+<footer id="nt-foot">
+<style>
+  .nt-foot{position:relative;z-index:2;margin-top:56px;border-top:1px solid rgba(255,255,255,.08);background:#0A0A0B;color:#71717A;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6}
+  .nt-foot *{box-sizing:border-box}
+  .nt-foot a{text-decoration:none}
+  .nt-in{max-width:1080px;margin:0 auto;padding:34px 24px 30px}
+  .nt-row{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .nt-id{min-width:0}
+  .nt-brand{display:flex;align-items:center;gap:10px;font-weight:700;color:#fff;font-size:15px;letter-spacing:-.02em}
+  .nt-brand .mk{width:26px;height:26px;border-radius:7px;background:#5E6AD2;display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px}
+  .nt-tag{margin-top:4px;color:#71717A;font-size:12.5px}
+  .nt-cta{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;border-radius:9px;background:#5E6AD2;color:#fff;font-weight:600;font-size:13.5px;border:1px solid #5E6AD2;transition:transform .18s ease,background .2s ease,box-shadow .2s ease}
+  .nt-cta:hover{transform:translateY(-1px);background:#7C84E8;box-shadow:0 6px 20px rgba(94,106,210,.3)}
+  .nt-sep{height:1px;background:rgba(255,255,255,.08);margin:22px 0 16px}
+  .nt-rel{display:flex;flex-wrap:wrap;gap:8px}
+  .nt-rel a{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:#141417;border:1px solid rgba(255,255,255,.08);color:#A1A1AA;font-size:12.5px;font-weight:600;transition:all .18s ease}
+  .nt-rel a:hover{border-color:#5E6AD2;color:#fff}
+  .nt-cur{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(94,106,210,.12);border:1px solid #5E6AD2;color:#fff;font-size:12.5px;font-weight:700}
+  .nt-meta{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#71717A;font-size:12px}
+  .nt-meta a{color:#A1A1AA;border-bottom:1px dashed rgba(255,255,255,.08)}
+  .nt-meta a:hover{color:#5E6AD2}
+  @media(max-width:560px){.nt-row{flex-direction:column;align-items:flex-start}.nt-cta{width:100%;justify-content:center}}
+</style>
+<div class="nt-in">
+  <div class="nt-row">
+    <div class="nt-id">
+      <div class="nt-brand"><span class="mk">n</span> nano-tools</div>
+      <div class="nt-tag">单文件 · 零依赖 · 本地优先的开发者工具集</div>
+    </div>
+    <a class="nt-cta" href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">浏览全部 328 款工具 &rarr;</a>
+  </div>
+  <div class="nt-sep"></div>
+  <div class="nt-rel">
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BaseForge/" target="_blank" rel="noopener">BaseForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/BoxKit/" target="_blank" rel="noopener">BoxKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CSSKit/" target="_blank" rel="noopener">CSSKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Chartify/" target="_blank" rel="noopener">Chartify</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ColorForge/" target="_blank" rel="noopener">ColorForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/ContextLens/" target="_blank" rel="noopener">ContextLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronForge/" target="_blank" rel="noopener">CronForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/CronText/" target="_blank" rel="noopener">CronText</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DataForge/" target="_blank" rel="noopener">DataForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/DiffLens/" target="_blank" rel="noopener">DiffLens</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Graphite/" target="_blank" rel="noopener">Graphite</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/HashKit/" target="_blank" rel="noopener">HashKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/IconForge/" target="_blank" rel="noopener">IconForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/Inkwell/" target="_blank" rel="noopener">Inkwell</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/JsonForge/" target="_blank" rel="noopener">JsonForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MarkForge/" target="_blank" rel="noopener">MarkForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/MockForge/" target="_blank" rel="noopener">MockForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PalettePro/" target="_blank" rel="noopener">PalettePro</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/PassForge/" target="_blank" rel="noopener">PassForge</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RESTKit/" target="_blank" rel="noopener">RESTKit</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/RegexLab/" target="_blank" rel="noopener">RegexLab</a>
+      <span class="nt-cur">SVGForge &middot; 当前</span>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/SnapCompress/" target="_blank" rel="noopener">SnapCompress</a>
+      <a href="https://wangzifan396-wzf.github.io/WB/tools/UniConvert/" target="_blank" rel="noopener">UniConvert</a>
+  </div>
+  <div class="nt-meta">
+    <span>&copy; <span id="nt-yr"></span> nano-tools &middot; 由 HTML5 + 原生 JS 构建 &middot; 零依赖</span>
+    <span><a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> &middot; <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/SVGForge" target="_blank" rel="noopener">本工具源码</a></span>
+  </div>
+</div>
+<script>
+(function(){var y=document.getElementById('nt-yr');if(y)y.textContent=new Date().getFullYear();})();
+</script>
+</footer>
+
+
+
+
+
+<!-- nano-i18n:start -->
+<script>
+window.NANO_I18N_EXTRA = {
+  "SVGForge · SVG 优化器":"SVGForge · SVG Optimizer"
+};
+/* NANO_I18N_RUNTIME */
+(function(){
+  // nano-tools 通用双语运行时：翻译可见 UI 文本（按钮/标签/标题/hero），不入脚本/样式/输入区。
+  var COMMON = {
+    "复制":"Copy","复制结果":"Copy result","复制链接":"Copy link","复制代码":"Copy code",
+    "清空":"Clear","清除":"Clear","清除全部":"Clear all","清空全部":"Clear all",
+    "粘贴":"Paste","生成":"Generate","运行":"Run","执行":"Run","停止":"Stop","暂停":"Pause",
+    "继续":"Resume","重试":"Retry","格式化":"Format","压缩":"Minify","美化":"Beautify","压缩美化":"Minify",
+    "导出":"Export","导入":"Import","保存":"Save","删除":"Delete","移除":"Remove","添加":"Add",
+    "重置":"Reset","还原":"Reset","搜索":"Search","提交":"Submit","取消":"Cancel","确定":"OK",
+    "确认":"Confirm","关闭":"Close","输入":"Input","输出":"Output","结果":"Result","预览":"Preview",
+    "设置":"Settings","主题":"Theme","语言":"Language","名称":"Name","值":"Value","类型":"Type",
+    "大小":"Size","数量":"Count","颜色":"Color","文本":"Text","内容":"Content","编码":"Encode",
+    "解码":"Decode","加密":"Encrypt","解密":"Decrypt","校验":"Verify","计算":"Calculate",
+    "转换":"Convert","上传":"Upload","下载":"Download","全选":"Select all","折叠":"Collapse",
+    "展开":"Expand","开始":"Start","帮助":"Help","关于":"About","更多":"More","更少":"Less",
+    "示例":"Example","随机":"Random","全部":"All","中文":"中文","English":"English","浅色":"Light",
+    "深色":"Dark","亮色":"Light","暗色":"Dark","复制成功":"Copied","已复制":"Copied",
+    "加载中":"Loading…","暂无数据":"No data","请输入":"Please enter","或":"or","拖拽":"Drag",
+    "拖到此处":"Drop here","选择文件":"Choose file","字数":"Words","字符":"Characters",
+    "行数":"Lines","用时":"Time","耗时":"Elapsed","共":"Total","项":"items","条":"items",
+    "历史":"History","清空历史":"Clear history","复制结果":"Copy result","复制":"Copy",
+    "新建":"New","编辑":"Edit","筛选":"Filter","排序":"Sort","刷新":"Refresh","应用":"Apply",
+    "不区分大小写":"Case-insensitive","忽略空白":"Ignore whitespace","换行":"Line break",
+    "正则表达式":"Regex","模式":"Mode","选项":"Options","高级":"Advanced","基础":"Basic",
+    "开启":"On","关闭":"Off","启用":"Enable","禁用":"Disable","显示":"Show","隐藏":"Hide",
+    "复制 SVG":"Copy SVG","下载 SVG":"Download SVG","复制 PNG":"Copy PNG","下载 PNG":"Download PNG",
+    "复制 CSS":"Copy CSS","复制 URL":"Copy URL","复制到剪贴板":"Copy to clipboard",
+    "已保存到本地":"Saved locally","解析中":"Parsing…","分析中":"Analyzing…","生成中":"Generating…",
+    "请选择":"Please select","请先":"Please first","不支持":"Not supported","错误":"Error",
+    "成功":"Success","失败":"Failed","完成":"Done","下一步":"Next","上一步":"Previous",
+    "当前":"Current","总计":"Total","平均":"Average","最大":"Max","最小":"Min",
+    "字符数":"Chars","词数":"Words","句数":"Sentences","段落":"Paragraphs",
+    "浅色模式":"Light mode","深色模式":"Dark mode","切换主题":"Toggle theme","切换语言":"Switch language",
+    "打开文件":"Open file","保存文件":"Save file","导出文件":"Export file","导入文件":"Import file",
+    "复制全部":"Copy all","清除结果":"Clear result","清空结果":"Clear result",
+    "全屏":"Fullscreen","退出全屏":"Exit fullscreen","适应屏幕":"Fit screen","缩放":"Zoom",
+    "放大":"Zoom in","缩小":"Zoom out","重置视图":"Reset view","居中":"Center",
+    "添加节点":"Add node","删除节点":"Delete node","添加连线":"Add edge","删除连线":"Delete edge",
+    "自动布局":"Auto layout","适应视图":"Fit view","导出 JSON":"Export JSON","导出 Markdown":"Export Markdown",
+    "开始分析":"Start analysis","停止分析":"Stop analysis","分析文件夹":"Analyze folder",
+    "拖拽文件夹到此处":"Drop a folder here","或点击选择":"or click to choose","粘贴文本":"Paste text",
+    "复制结果":"Copy result","复制代码":"Copy code"
+  };
+  function full(){ return Object.assign({}, COMMON, (window.NANO_I18N_EXTRA||{})); }
+  function skip(node){
+    var p = node.parentElement;
+    while(p){
+      var t = p.tagName;
+      if(t==='SCRIPT'||t==='STYLE'||t==='TEXTAREA'||t==='INPUT'||t==='NOSCRIPT'||t==='TEMPLATE') return true;
+      p = p.parentElement;
+    }
+    return false;
+  }
+  var current = 'zh';
+  function applyLang(lang){
+    var d = full();
+    var root = document.documentElement;
+    current = lang;
+    // 翻译 <title>（浏览器标签 / 分享卡片）
+    var rawTitle = document.title;
+    if(lang==='en'){
+      if(d[rawTitle]) document.title = d[rawTitle];
+    } else {
+      var ex = window.NANO_I18N_EXTRA || {};
+      for(var _k in ex){ if(ex[_k] === rawTitle){ document.title = _k; break; } }
+    }
+    if(lang==='en'){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){
+          if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          if(skip(n)) return NodeFilter.FILTER_REJECT;
+          return (d[n.nodeValue.trim()] && n.__zh===undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      var n;
+      while(n = w.nextNode()){ n.__zh = n.nodeValue; n.nodeValue = d[n.nodeValue.trim()]; }
+      // 整元素翻译（hero 含子结构，如彩色词 <span>）
+      var els = root.querySelectorAll('[data-i18n-html]');
+      for(var ei=0; ei<els.length; ei++){ var el=els[ei]; if(el.__zhtml===undefined){ el.__zhtml = el.innerHTML; } el.innerHTML = el.getAttribute('data-i18n-html'); }
+    } else {
+      var w2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: function(n){ return (n.__zh!==undefined) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT; }
+      });
+      var m;
+      while(m = w2.nextNode()){ m.nodeValue = m.__zh; m.__zh = undefined; }
+      // 还原整元素翻译
+      var els2 = root.querySelectorAll('[data-i18n-html]');
+      for(var ej=0; ej<els2.length; ej++){ var el2=els2[ej]; if(el2.__zhtml!==undefined){ el2.innerHTML = el2.__zhtml; el2.__zhtml = undefined; } }
+    }
+    root.setAttribute('lang', lang==='en'?'en':'zh-CN');
+    root.setAttribute('data-lang', lang);
+    try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+  }
+  function toggle(){
+    applyLang(current==='en' ? 'zh' : 'en');
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (current==='en'?'中':'EN');
+  }
+  function mountBtn(){
+    if(document.getElementById('nano-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'nano-bar';
+    bar.setAttribute('style','position:fixed;right:14px;bottom:14px;z-index:99999;display:flex;align-items:center;gap:8px;font:600 13px system-ui,-apple-system,sans-serif');
+    var brand = document.createElement('a');
+    brand.id = 'nano-brand';
+    brand.href = 'https://wangzifan396-wzf.github.io/WB/';
+    brand.target = '_blank';
+    brand.rel = 'noopener';
+    brand.textContent = 'nano·tools';
+    brand.title = 'nano-tools · 全部工具';
+    brand.setAttribute('style','text-decoration:none;padding:0 13px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#e6e6e6);display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .12s ease,border-color .12s ease,color .12s ease');
+    brand.onmouseenter = function(){ brand.style.transform='translateY(-2px)'; brand.style.borderColor='var(--accent,#5E6AD2)'; brand.style.color='var(--accent,#5E6AD2)'; };
+    brand.onmouseleave = function(){ brand.style.transform='none'; brand.style.color='var(--text,#e6e6e6)'; };
+    var b = document.createElement('button');
+    b.id = 'nano-lang-btn';
+    b.title = 'Switch language / 切换语言';
+    b.textContent = 'EN';
+    b.setAttribute('style','width:42px;height:42px;border-radius:11px;border:1px solid var(--border,#222);background:var(--surface,#16181b);color:var(--text,#fff);cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4);display:grid;place-items:center;transition:transform .12s ease,border-color .12s ease');
+    b.onmouseenter = function(){ b.style.transform='translateY(-2px)'; b.style.borderColor='var(--accent,#5E6AD2)'; };
+    b.onmouseleave = function(){ b.style.transform='none'; };
+    b.onclick = toggle;
+    bar.appendChild(brand);
+    bar.appendChild(b);
+    document.body.appendChild(bar);
+  }
+  function init(){
+    var saved; try{ saved = localStorage.getItem('nano-lang'); }catch(e){}
+    if(!saved){ saved = ((navigator.language||'zh').slice(0,2).toLowerCase()==='en') ? 'en' : 'zh'; }
+    applyLang(saved);
+    mountBtn();
+    var b = document.getElementById('nano-lang-btn');
+    if(b) b.textContent = (saved==='en'?'中':'EN');
+    // 捕获渲染后注入的静态文本（动态节点）
+    [200,600,1200].forEach(function(ms){ setTimeout(function(){ applyLang(current); if(b) b.textContent=(current==='en'?'中':'EN'); }, ms); });
+  }
+  if(document.readyState!=='loading') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+
+</script>
+<!-- nano-i18n:end -->
+</body>
+</html>

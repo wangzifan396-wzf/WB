@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MathForge — 离线数学表达式求值：安全无 eval，支持函数与常量</title>
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:110px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.preview{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;justify-content:center;align-items:center;min-height:90px}
+.preview svg{max-width:100%}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.big{font:40px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
+.kv{color:var(--muted);font-size:13px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线数学表达式求值：安全无 eval，支持 + - * / ^ % 括号、函数与常量。">
+</head>
+<body>
+<div class="app">
+  <h1>MathForge</h1>
+  <p class="sub">离线数学表达式求值：安全无 eval，支持函数与常量 · 单文件 · 零依赖 · 本地优先</p>
+
+<label for="expr">数学表达式</label>
+<input id="expr" type="text" value="2 + 3 * 4^2" placeholder="支持 + - * / ^ % 括号 与 sqrt sin cos log pi e 等">
+<div class="row">
+  <button id="run">求值</button>
+  <button id="copy" class="ghost">复制结果</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>结果</label>
+<div class="big" id="out">—</div>
+<script>
+var MATH_FUNCS={ sin:Math.sin, cos:Math.cos, tan:Math.tan, asin:Math.asin, acos:Math.acos, atan:Math.atan,
+  sinh:Math.sinh, cosh:Math.cosh, tanh:Math.tanh, sqrt:Math.sqrt, cbrt:Math.cbrt,
+  abs:Math.abs, floor:Math.floor, ceil:Math.ceil, round:Math.round, trunc:Math.trunc,
+  exp:Math.exp, log:Math.log, ln:Math.log, log10:Math.log10, log2:Math.log2,
+  sign:Math.sign, pow:Math.pow, min:Math.min, max:Math.max };
+var MATH_CONSTS={ pi:Math.PI, e:Math.E, tau:2*Math.PI, phi:(1+Math.sqrt(5))/2 };
+var MATH_PREC={ '+':1, '-':1, '*':2, '/':2, '%':2, '^':3, 'u':4 };
+var MATH_RIGHT={ '^':true, 'u':true };
+
+function tokenize(expr){
+  var s=String(expr).toLowerCase().replace(/\s+/g,'');
+  var tokens=[], i=0;
+  while(i<s.length){
+    var c=s[i];
+    if(/[0-9.]/.test(c)){
+      var num=''; while(i<s.length && /[0-9.]/.test(s[i])){ num+=s[i]; i++; }
+      tokens.push({t:'num', v:parseFloat(num)});
+    } else if(/[a-z]/.test(c)){
+      var name=''; while(i<s.length && /[a-z]/.test(s[i])){ name+=s[i]; i++; }
+      tokens.push({t:'name', v:name});
+    } else if('+-*/^()%'.indexOf(c)>=0){
+      tokens.push({t:'op', v:c}); i++;
+    } else { throw new Error('非法字符: '+c); }
+  }
+  return tokens;
+}
+function toRPN(tokens){
+  var prev='start', proc=[];
+  for(var i=0;i<tokens.length;i++){
+    var tk=tokens[i];
+    if(tk.t==='op' && tk.v==='-'){
+      if(prev==='start'||prev==='op'||prev==='('){ proc.push({t:'op', v:'u'}); prev='op'; continue; }
+      proc.push(tk); prev='op'; continue;
+    }
+    if(tk.t==='op' && tk.v==='+'){
+      if(prev==='start'||prev==='op'||prev==='('){ prev=(prev==='(')?'(': 'op'; continue; }
+      proc.push(tk); prev='op'; continue;
+    }
+    proc.push(tk);
+    if(tk.t==='op') prev='op';
+    else if(tk.t==='num') prev='num';
+    else if(tk.t==='name') prev='name';
+  }
+  var out=[], ops=[];
+  for(var j=0;j<proc.length;j++){
+    var t=proc[j];
+    if(t.t==='num') out.push(t);
+    else if(t.t==='name'){
+      if(MATH_CONSTS[t.v]!==undefined) out.push({t:'num', v:MATH_CONSTS[t.v]});
+      else ops.push({t:'func', v:t.v});
+    }
+    else if(t.t==='op' && t.v==='(') ops.push(t);
+    else if(t.t==='op' && t.v===')'){
+      while(ops.length && ops[ops.length-1].v!=='(') out.push(ops.pop());
+      if(ops.length && ops[ops.length-1].v==='(') ops.pop();
+      if(ops.length && ops[ops.length-1].t==='func') out.push(ops.pop());
+    }
+    else if(t.t==='op'){
+      var o1=t.v;
+      while(ops.length){
+        var top=ops[ops.length-1];
+        if(top.t==='op' && top.v!=='(' && ( (MATH_PREC[o1]<MATH_PREC[top.v]) || (MATH_PREC[o1]===MATH_PREC[top.v] && !MATH_RIGHT[o1]) )) out.push(ops.pop());
+        else break;
+      }
+      ops.push({t:'op', v:o1});
+    }
+  }
+  while(ops.length) out.push(ops.pop());
+  return out;
+}
+function evalRPN(rpn){
+  var st=[];
+  for(var i=0;i<rpn.length;i++){
+    var tk=rpn[i];
+    if(tk.t==='num') st.push(tk.v);
+    else if(tk.t==='func'){
+      if(st.length<1) throw new Error('函数 '+tk.v+' 缺少参数');
+      var a=st.pop();
+      if(MATH_FUNCS[tk.v]===undefined) throw new Error('未知函数 '+tk.v);
+      st.push(MATH_FUNCS[tk.v](a));
+    }
+    else if(tk.t==='op'){
+      if(tk.v==='u'){ if(!st.length) throw new Error('缺少操作数'); st.push(-st.pop()); continue; }
+      if(st.length<2) throw new Error('缺少操作数');
+      var b=st.pop(), x=st.pop();
+      if(tk.v==='+') st.push(x+b);
+      else if(tk.v==='-') st.push(x-b);
+      else if(tk.v==='*') st.push(x*b);
+      else if(tk.v==='/'){ if(b===0) throw new Error('除以零'); st.push(x/b); }
+      else if(tk.v==='%'){ if(b===0) throw new Error('模零'); st.push(x%b); }
+      else if(tk.v==='^') st.push(Math.pow(x,b));
+    }
+  }
+  if(st.length!==1) throw new Error('表达式无效');
+  return st[0];
+}
+function evaluate(expr){ return evalRPN(toRPN(tokenize(expr))); }
+function fmt(n){
+  if(!isFinite(n)) return String(n);
+  if(Math.abs(n-Math.round(n))<1e-10) return String(Math.round(n));
+  return String(Math.round(n*1e10)/1e10);
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { tokenize:tokenize, toRPN:toRPN, evalRPN:evalRPN, evaluate:evaluate, fmt:fmt };
+}
+if (typeof window !== 'undefined') {
+  window.MathForgePure = { tokenize:tokenize, toRPN:toRPN, evalRPN:evalRPN, evaluate:evaluate, fmt:fmt };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.MathForgePure;
+    function copyText(t){
+      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
+      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
+             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    }
+    function run(){
+      $('err').textContent='';
+      try {
+        var v=P.evaluate($('expr').value);
+        $('out').textContent=P.fmt(v);
+      } catch(e){ $('err').textContent=e.message; $('out').textContent='—'; }
+    }
+    $('run').addEventListener('click', run);
+    $('expr').addEventListener('keydown', function(e){ if(e.key==='Enter') run(); });
+    $('copy').addEventListener('click', function(){ copyText($('out').textContent); });
+    $('clear').addEventListener('click', function(){ $('expr').value=''; $('out').textContent='—'; });
+    run();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

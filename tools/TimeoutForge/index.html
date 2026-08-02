@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>TimeoutForge — 超时预算规划器：逐层核对调用链超时是否倒挂，计算重试放大倍数与最坏耗时，并按 P99 反推合理超时值，离线可用。</title>
+<meta property="og:title" content="TimeoutForge">
+<meta property="og:description" content="超时预算规划器：按行录入调用链每一跳的超时、P99 延迟、重试次数与退避间隔，逐层核对是否存在下游超时大于上游的倒挂，计算最坏耗时与重试放大倍数，自顶向下分配超时预算，并按 P99 反推推荐超时值，同时给出 Google SRE 重试预算与对冲请求建议。治理级联超时、防重试风暴，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="超时预算规划器：按行录入调用链每一跳的超时、P99 延迟、重试次数与退避间隔，逐层核对是否存在下游超时大于上游的倒挂，计算最坏耗时与重试放大倍数，自顶向下分配超时预算，并按 P99 反推推荐超时值，同时给出 Google SRE 重试预算与对冲请求建议。治理级联超时、防重试风暴，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>TimeoutForge</h1>
+  <p class="sub">超时 · 重试 · 调用链</p>
+
+<div><label for="t-chain">调用链，每行「名称 超时ms [P99ms] [尝试次数] [退避ms]」</label><textarea id="t-chain" rows="6">gateway 3000 900 1 0
+bff 2400 500 2 100
+user-svc 900 220 2 50
+user-db 300 60 1 0</textarea></div>
+<div class="grid">
+  <div><label for="t-p50">P50 延迟（ms）</label><input type="text" id="t-p50" value="60"></div>
+  <div><label for="t-p99">P99 延迟（ms）</label><input type="text" id="t-p99" value="220"></div>
+  <div><label for="t-rps">正常 RPS</label><input type="text" id="t-rps" value="2000"></div>
+  <div><label for="t-hedge">对冲触发分位数</label><input type="text" id="t-hedge" value="0.95"></div>
+</div>
+<div class="row">
+  <button id="t-go">分析</button>
+  <button class="ghost" id="t-a">倒挂反例</button>
+  <button class="ghost" id="t-b">重试风暴反例</button>
+  <button class="ghost" id="t-c">健康示例</button>
+</div>
+<div class="err" id="t-err"></div>
+<div class="out" id="t-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 381 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function TimeoutForgePure(){
+
+  function num(v){ var n = Number(v); return isFinite(n) ? n : null; }
+
+  // 每行：名称 超时ms [P99ms] [尝试次数] [退避ms]
+  function parseChain(text){
+    var lines = String(text == null ? '' : text).split(/\r?\n/), rows = [], errors = [];
+    for (var i = 0; i < lines.length; i++){
+      var raw = lines[i].replace(/#.*$/, '').trim();
+      if (raw === '') continue;
+      var f = raw.split(/[\s,]+/);
+      if (f.length < 2){ errors.push('第 ' + (i + 1) + ' 行至少要有「名称 超时」两列：' + raw); continue; }
+      var t = num(f[1]);
+      if (t === null || t <= 0){ errors.push('第 ' + (i + 1) + ' 行超时非法：' + f[1]); continue; }
+      var p99 = f.length > 2 ? num(f[2]) : null;
+      var att = f.length > 3 ? num(f[3]) : 1;
+      var back = f.length > 4 ? num(f[4]) : 0;
+      if (att === null || att < 1 || att % 1 !== 0){ errors.push('第 ' + (i + 1) + ' 行尝试次数须为正整数：' + f[3]); continue; }
+      if (back === null || back < 0){ errors.push('第 ' + (i + 1) + ' 行退避非法：' + f[4]); continue; }
+      rows.push({depth:rows.length, name:f[0], timeout:t, p99:p99, attempts:att, backoff:back, line:i + 1});
+    }
+    if (!rows.length) errors.push('没有解析到任何一层，格式为「名称 超时ms [P99ms] [尝试次数] [退避ms]」');
+    return {value:rows, errors:errors, ok:errors.length === 0};
+  }
+
+  // 一层在最坏情况下真正会占用多久：所有尝试都跑满超时，中间还要退避
+  function worstCase(layer){
+    var t = Number(layer.timeout), a = Number(layer.attempts) || 1, b = Number(layer.backoff) || 0;
+    return a * t + (a - 1) * b;
+  }
+
+  function amplification(rows){
+    var prod = 1, out = [];
+    for (var i = 0; i < rows.length; i++){
+      prod *= rows[i].attempts;
+      out.push({name:rows[i].name, attempts:rows[i].attempts, cumulative:prod});
+    }
+    return {value:out, factor:prod};
+  }
+
+  // 超时倒挂：下游最坏耗时不该超过上游给的窗口
+  function audit(rows){
+    var issues = [], i;
+    function err(name, msg){ issues.push({level:'error', layer:name, msg:msg}); }
+    function warn(name, msg){ issues.push({level:'warn', layer:name, msg:msg}); }
+    function ok(name, msg){ issues.push({level:'ok', layer:name, msg:msg}); }
+
+    for (i = 0; i < rows.length; i++){
+      var L = rows[i], w = worstCase(L);
+      L.worst = w;
+      if (L.p99 !== null){
+        if (L.timeout < L.p99)
+          err(L.name, '超时 ' + L.timeout + 'ms 低于自身 P99 ' + L.p99 + 'ms，会稳定砍掉本来能成功的长尾请求');
+        else if (L.timeout < L.p99 * 1.3)
+          warn(L.name, '超时 ' + L.timeout + 'ms 仅为 P99 的 ' + (L.timeout / L.p99).toFixed(2) + ' 倍，抖动一下就集体超时');
+        else if (L.timeout > L.p99 * 10)
+          warn(L.name, '超时 ' + L.timeout + 'ms 是 P99 的 ' + (L.timeout / L.p99).toFixed(0) + ' 倍，故障时连接和线程会被长时间占死');
+        else
+          ok(L.name, '超时相对 P99 留了 ' + (L.timeout / L.p99).toFixed(1) + ' 倍余量，合理');
+      }
+      if (i > 0){
+        var up = rows[i - 1];
+        if (L.timeout >= up.timeout)
+          err(L.name, '超时 ' + L.timeout + 'ms 不小于上游 ' + up.name + ' 的 ' + up.timeout + 'ms，上游会先放弃，本层的等待纯属浪费');
+        if (w > up.timeout)
+          err(L.name, '含重试的最坏耗时 ' + w + 'ms 超过上游窗口 ' + up.timeout + 'ms，重试永远跑不完就被上游掐断');
+        else if (w > up.timeout * 0.9)
+          warn(L.name, '最坏耗时 ' + w + 'ms 已吃掉上游窗口的 ' + (w / up.timeout * 100).toFixed(0) + '%，几乎没给上游留处理时间');
+      }
+    }
+    var errors = 0, warns = 0;
+    for (i = 0; i < issues.length; i++){
+      if (issues[i].level === 'error') errors++;
+      else if (issues[i].level === 'warn') warns++;
+    }
+    return {issues:issues, errors:errors, warnings:warns, ok:errors === 0,
+            grade:errors ? '存在倒挂' : (warns ? '偏紧或偏松' : '预算自洽')};
+  }
+
+  // 自顶向下按比例切预算：每层留一份自留时间给自己的处理与网络
+  function allocate(totalMs, layers, reservePct){
+    var t = Number(totalMs), n = Number(layers);
+    var pct = reservePct === undefined ? 0.15 : Number(reservePct);
+    if (!isFinite(t) || t <= 0) return {error:'总预算必须为正'};
+    if (!isFinite(n) || n < 1 || n % 1 !== 0) return {error:'层数必须是正整数'};
+    if (!isFinite(pct) || pct <= 0 || pct >= 1) return {error:'自留比例需在 0 到 1 之间'};
+    var rows = [], remain = t;
+    for (var i = 0; i < n; i++){
+      var reserve = remain * pct, give = remain - reserve;
+      rows.push({depth:i + 1, budget:remain, reserve:reserve, downstream:give,
+                 suggestTimeout:Math.floor(give)});
+      remain = give;
+    }
+    return {value:rows, tail:remain, shrink:1 - remain / t};
+  }
+
+  // 由观测分位数反推一个合适的超时
+  function recommend(p50, p99, p999){
+    var a = num(p50), b = num(p99), c = num(p999);
+    if (a === null || b === null) return {error:'至少要给出 P50 与 P99'};
+    if (a <= 0 || b <= 0) return {error:'分位数必须为正'};
+    if (b < a) return {error:'P99 不应小于 P50'};
+    if (c !== null && c < b) return {error:'P999 不应小于 P99'};
+    var tail = b / a;
+    var factor = tail > 10 ? 1.5 : tail > 4 ? 2 : 3;   // 长尾越重，越不该按倍数外推
+    var base = c !== null ? Math.max(b * factor, c * 1.2) : b * factor;
+    return {value:Math.ceil(base), factor:factor, tailRatio:tail,
+            basis:c !== null ? 'max(P99 × ' + factor + ', P999 × 1.2)' : 'P99 × ' + factor,
+            note:tail > 10 ? '尾部离散度很高，比起放大超时更该先治理长尾' : '尾部形态正常，按分位数外推即可'};
+  }
+
+  // Google SRE 的重试预算：重试量占正常量的比例设上限
+  function retryBudget(rps, attempts, ratio){
+    var r = num(rps), a = num(attempts), q = ratio === undefined ? 0.1 : num(ratio);
+    if (r === null || r <= 0) return {error:'RPS 必须为正'};
+    if (a === null || a < 1 || a % 1 !== 0) return {error:'尝试次数必须是正整数'};
+    if (q === null || q <= 0 || q >= 1) return {error:'预算比例需在 0 到 1 之间'};
+    var worstExtra = r * (a - 1);
+    var allowed = r * q;
+    var maxFailRate = a > 1 ? q / (a - 1) : 1;
+    return {value:{
+      normalRps:r, worstExtraRps:worstExtra, allowedExtraRps:allowed,
+      exceeded:worstExtra > allowed,
+      maxFailRate:maxFailRate,
+      verdict:worstExtra > allowed
+        ? '全量失败时重试会额外打出 ' + worstExtra.toFixed(0) + ' RPS，是 ' + (q * 100).toFixed(0) +
+          '% 预算（' + allowed.toFixed(0) + ' RPS）的 ' + (worstExtra / allowed).toFixed(1) + ' 倍，必须上重试预算或熔断'
+        : '最坏额外 ' + worstExtra.toFixed(0) + ' RPS 仍在预算内',
+      guidance:'失败率超过 ' + (maxFailRate * 100).toFixed(1) + '% 时就应停止重试，把容量留给还能成功的请求'
+    }};
+  }
+
+  // 对冲请求：等到某分位数还没回来就再发一份
+  function hedge(p50, p99, atPercentile){
+    var a = num(p50), b = num(p99), q = num(atPercentile);
+    if (a === null || b === null) return {error:'需要 P50 与 P99'};
+    if (q === null || q <= 0 || q >= 1) return {error:'对冲触发分位数需在 0 到 1 之间'};
+    if (b < a) return {error:'P99 不应小于 P50'};
+    // 用对数插值近似触发点的延迟
+    var lo = Math.log(a), hi = Math.log(b);
+    var frac = (Math.log(1 - 0.5) - Math.log(1 - q)) / (Math.log(1 - 0.5) - Math.log(1 - 0.99));
+    var trigger = Math.exp(lo + (hi - lo) * Math.max(0, Math.min(1, frac)));
+    var extraLoad = 1 - q;
+    var hedgedTail = trigger + a;                       // 触发后再等一个典型响应
+    return {value:{
+      triggerAtMs:trigger, extraLoadPct:extraLoad * 100,
+      tailBefore:b, tailAfter:Math.min(b, hedgedTail),
+      improvement:b > 0 ? (1 - Math.min(b, hedgedTail) / b) * 100 : 0,
+      safe:extraLoad <= 0.05 + 1e-9,
+      note:extraLoad > 0.05 + 1e-9
+        ? '触发分位数太低，会带来 ' + (extraLoad * 100).toFixed(0) + '% 的额外流量，通常应在 P95 之后再对冲'
+        : '额外流量 ' + (extraLoad * 100).toFixed(1) + '%，属于可接受的尾延迟换吞吐'
+    }};
+  }
+
+  function analyze(text){
+    var pc = parseChain(text);
+    if (!pc.ok) return {error:pc.errors[0], errors:pc.errors};
+    var rows = pc.value;
+    var au = audit(rows);
+    var am = amplification(rows);
+    var head = rows[0];
+    return {value:{
+      layers:rows, audit:au, amplification:am,
+      endToEndWorst:worstCase(head),
+      deepestWorst:worstCase(rows[rows.length - 1]),
+      budgetLeft:head.timeout - rows.slice(1).reduce(function(s, r){ return s + worstCase(r); }, 0)
+    }, ok:au.ok, grade:au.grade};
+  }
+
+  var api = {parseChain:parseChain, worstCase:worstCase, amplification:amplification, audit:audit,
+             allocate:allocate, recommend:recommend, retryBudget:retryBudget, hedge:hedge, analyze:analyze};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {TimeoutForgePure:TimeoutForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = TimeoutForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function tag(level){
+    var c = level === 'error' ? '#EF4444' : level === 'warn' ? 'var(--warn)' : 'var(--ok)';
+    var t = level === 'error' ? '倒挂' : level === 'warn' ? '注意' : '合理';
+    return '<span style="color:' + c + ';font-weight:700">' + t + '</span>';
+  }
+  function bar(v, max, color){
+    var w = max > 0 ? Math.min(100, v / max * 100) : 0;
+    return '<span style="display:inline-block;width:120px;height:8px;background:var(--surface);border-radius:4px;vertical-align:middle;overflow:hidden">' +
+           '<span style="display:block;height:8px;width:' + w.toFixed(1) + '%;background:' + color + '"></span></span>';
+  }
+  function run(){
+    var text = document.getElementById('t-chain').value,
+        p50 = document.getElementById('t-p50').value,
+        p99 = document.getElementById('t-p99').value,
+        rps = document.getElementById('t-rps').value,
+        hp = document.getElementById('t-hedge').value;
+    var $e = document.getElementById('t-err'), $o = document.getElementById('t-out'), h = '';
+    var A = P.analyze(text);
+    if (A.error){ $e.textContent = A.error; $o.innerHTML = ''; return; }
+    $e.textContent = '';
+    var rows = A.value.layers, top = rows[0].timeout;
+
+    h += '<div class="kv"><b>整体结论</b><span style="font-weight:700;color:' +
+         (A.value.audit.errors ? '#EF4444' : A.value.audit.warnings ? 'var(--warn)' : 'var(--ok)') + '">' +
+         A.grade + '，' + A.value.audit.errors + ' 处必须修，' + A.value.audit.warnings + ' 处需留意</span></div>';
+    h += '<div class="kv"><b>端到端最坏耗时</b><span>' + A.value.endToEndWorst + ' ms</span></div>';
+    h += '<div class="kv"><b>重试放大系数</b><span style="color:' + (A.value.amplification.factor >= 8 ? '#EF4444' : 'var(--ok)') +
+         ';font-weight:700">' + A.value.amplification.factor + ' 倍</span></div>';
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">各层预算占用</div>';
+    for (var i = 0; i < rows.length; i++){
+      var L = rows[i], w = P.worstCase(L);
+      var color = w > top ? '#EF4444' : w > top * 0.9 ? 'var(--warn)' : 'var(--accent)';
+      h += '<div class="kv"><b>' + esc(L.name) + '</b><span>' + bar(w, top, color) + ' &nbsp;超时 ' + L.timeout +
+           ' ms · 尝试 ' + L.attempts + ' 次 · 最坏 ' + w + ' ms' +
+           (L.p99 !== null ? ' · P99 ' + L.p99 + ' ms' : '') + '</span></div>';
+    }
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">逐条体检</div>';
+    for (var j = 0; j < A.value.audit.issues.length; j++){
+      var it = A.value.audit.issues[j];
+      h += '<div class="kv"><b>' + tag(it.level) + ' ' + esc(it.layer) + '</b><span>' + esc(it.msg) + '</span></div>';
+    }
+
+    var rec = P.recommend(p50, p99);
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">由分位数反推超时</div>';
+    if (rec.error) h += '<div class="kv"><b>无法推荐</b><span style="color:#EF4444">' + esc(rec.error) + '</span></div>';
+    else {
+      h += '<div class="kv"><b>建议超时</b><span style="color:var(--ok);font-weight:700">' + rec.value + ' ms</span></div>';
+      h += '<div class="kv"><b>依据</b><span>' + esc(rec.basis) + '，尾部比 P99/P50 = ' + rec.tailRatio.toFixed(1) + '</span></div>';
+      h += '<div class="kv"><b>提示</b><span>' + esc(rec.note) + '</span></div>';
+    }
+
+    var att = rows.length ? rows[rows.length - 1].attempts : 1;
+    var rb = P.retryBudget(rps, Math.max(2, att));
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">重试预算</div>';
+    if (rb.error) h += '<div class="kv"><b>无法计算</b><span style="color:#EF4444">' + esc(rb.error) + '</span></div>';
+    else {
+      h += '<div class="kv"><b>结论</b><span style="color:' + (rb.value.exceeded ? '#EF4444' : 'var(--ok)') + '">' +
+           esc(rb.value.verdict) + '</span></div>';
+      h += '<div class="kv"><b>停手阈值</b><span>' + esc(rb.value.guidance) + '</span></div>';
+    }
+
+    var hg = P.hedge(p50, p99, hp);
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">对冲请求</div>';
+    if (hg.error) h += '<div class="kv"><b>无法估算</b><span style="color:#EF4444">' + esc(hg.error) + '</span></div>';
+    else {
+      h += '<div class="kv"><b>触发时机</b><span>等待超过 ' + hg.value.triggerAtMs.toFixed(0) + ' ms 后补发一份</span></div>';
+      h += '<div class="kv"><b>额外流量</b><span style="color:' + (hg.value.safe ? 'var(--ok)' : 'var(--warn)') + '">' +
+           hg.value.extraLoadPct.toFixed(1) + '%</span></div>';
+      h += '<div class="kv"><b>尾延迟</b><span>' + hg.value.tailBefore.toFixed(0) + ' ms 降到约 ' +
+           hg.value.tailAfter.toFixed(0) + ' ms，改善 ' + hg.value.improvement.toFixed(0) + '%</span></div>';
+      h += '<div class="kv"><b>提示</b><span>' + esc(hg.value.note) + '</span></div>';
+    }
+
+    var al = P.allocate(top, rows.length);
+    if (al.value){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">若从头分配预算（每层自留 15%）</div>';
+      for (var k = 0; k < al.value.length; k++)
+        h += '<div class="kv"><b>第 ' + al.value[k].depth + ' 层</b><span>拿到 ' + al.value[k].budget.toFixed(0) +
+             ' ms，建议下游超时 ' + al.value[k].suggestTimeout + ' ms</span></div>';
+    }
+    $o.innerHTML = h;
+  }
+  function set(t){ document.getElementById('t-chain').value = t; run(); }
+  document.getElementById('t-go').addEventListener('click', run);
+  document.getElementById('t-a').addEventListener('click', function(){
+    set('gateway 1000 300 1 0\nbff 1200 400 1 0\nuser-svc 900 220 1 0');
+  });
+  document.getElementById('t-b').addEventListener('click', function(){
+    set('gateway 3000 900 1 0\nbff 2400 500 3 200\nuser-svc 700 220 3 100\nuser-db 200 60 3 50');
+  });
+  document.getElementById('t-c').addEventListener('click', function(){
+    set('gateway 3000 900 1 0\nbff 2400 500 2 100\nuser-svc 900 220 2 50\nuser-db 300 60 1 0');
+  });
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

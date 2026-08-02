@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>ReactionForge — 反应扩散（Gray-Scott）：两种化学物质扩散与反应，自发涌现出斑点、条纹、迷宫等图灵斑图，可调参数探索，离线可用。</title>
+<meta property="og:title" content="ReactionForge">
+<meta property="og:description" content="反应扩散（Gray-Scott）：两种化学物质扩散与反应，自发涌现出斑点、条纹、迷宫等图灵斑图，可调参数探索，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="反应扩散（Gray-Scott）：两种化学物质扩散与反应，自发涌现出斑点、条纹、迷宫等图灵斑图，可调参数探索，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>ReactionForge</h1>
+  <p class="sub">反应扩散（Gray-Scott）：两种化学物质扩散与反应，自发涌现出斑点、条纹、迷宫等图灵斑图，可调参数探索，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="row">
+  <button id="play">暂停/继续</button>
+  <button id="seed" class="ghost">随机播种</button>
+  <label style="flex:1;">投料 f <input id="f" type="number" value="0.055" step="0.001" min="0.01" max="0.1"></label>
+  <label style="flex:1;">消耗 k <input id="k" type="number" value="0.062" step="0.001" min="0.03" max="0.07"></label>
+</div>
+<canvas id="cv" width="480" height="320" style="width:100%;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0A0A0B;cursor:crosshair;"></canvas>
+<script>
+function rdInit(w,h){ var A=new Float64Array(w*h).fill(1), B=new Float64Array(w*h); var cx=(w/2)|0, cy=(h/2)|0; for(var dy=-5;dy<=5;dy++) for(var dx=-5;dx<=5;dx++){ var x=cx+dx,y=cy+dy; if(x>=0&&x<w&&y>=0&&y<h) B[y*w+x]=1; } return {w:w,h:h,A:A,B:B}; }
+function rdSumB(s){ var t=0; for(var i=0;i<s.B.length;i++) t+=s.B[i]; return t; }
+function rdStep(s,f,k,Da,Db,dt){
+  var w=s.w,h=s.h,A=s.A,B=s.B,nA=new Float64Array(w*h),nB=new Float64Array(w*h);
+  function lap(arr,x,y){ var c=arr[y*w+x]; var l=x>0?arr[y*w+x-1]:c, r=x<w-1?arr[y*w+x+1]:c, u=y>0?arr[(y-1)*w+x]:c, d=y<h-1?arr[(y+1)*w+x]:c; return (l+r+u+d-4*c); }
+  for(var y=0;y<h;y++){ for(var x=0;x<w;x++){ var i=y*w+x; var a=A[i], b=B[i]; var na=a+(Da*lap(A,x,y)-a*b*b+f*(1-a))*dt; var nb=b+(Db*lap(B,x,y)+a*b*b-(k+f)*b)*dt; nA[i]=na<0?0:(na>1?1:na); nB[i]=nb<0?0:(nb>1?1:nb); } }
+  return {w:w,h:h,A:nA,B:nB};
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { rdInit:rdInit, rdSumB:rdSumB, rdStep:rdStep };
+}
+if (typeof window !== 'undefined') {
+  window.ReactionForgePure = { rdInit:rdInit, rdSumB:rdSumB, rdStep:rdStep };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.ReactionForgePure;
+    var GW=120, GH=80, W=480, H=320, state=P.rdInit(GW,GH), playing=true;
+    function draw(){
+      var cv=$('cv'); var ctx=cv.getContext('2d'); if(!ctx) return;
+      var sx=W/GW, sy=H/GH; ctx.fillStyle='#0A0A0B'; ctx.fillRect(0,0,W,H);
+      for(var y=0;y<GH;y++){ for(var x=0;x<GW;x++){ var v=state.B[y*GW+x]; if(v<=0.02) continue; var c=Math.min(1,v*1.6); var r=Math.round(20+c*60), g=Math.round(120+c*120), b=Math.round(160+c*80); ctx.fillStyle='rgb('+r+','+g+','+b+')'; ctx.fillRect(x*sx,y*sy,sx+1,sy+1); } }
+    }
+    function frame(){ if(playing){ state=P.rdStep(state, Number($('f').value)||0.055, Number($('k').value)||0.062, 1.0, 0.5, 1.0); draw(); } if(typeof requestAnimationFrame==='function') requestAnimationFrame(frame); }
+    $('play').addEventListener('click', function(){ playing=!playing; });
+    $('seed').addEventListener('click', function(){ state=P.rdInit(GW,GH); draw(); });
+    $('cv').addEventListener('click', function(e){ var r=$('cv').getBoundingClientRect(); var x=Math.floor((e.clientX-r.left)/r.width*GW), y=Math.floor((e.clientY-r.top)/r.height*GH); for(var dy=-3;dy<=3;dy++) for(var dx=-3;dx<=3;dx++){ var nx=x+dx,ny=y+dy; if(nx>=0&&nx<GW&&ny>=0&&ny<GH) state.B[ny*GW+nx]=1; } });
+    draw(); frame();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

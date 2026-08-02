@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>EvalForge — LLM 输出评测：BLEU / ROUGE-L / F1 / 编辑距离与 pass@k 一站式打分。</title>
+<meta property="og:title" content="EvalForge">
+<meta property="og:description" content="LLM 输出质量评测：BLEU/ROUGE/F1 与 pass@k，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="LLM 输出质量评测：BLEU/ROUGE/F1 与 pass@k，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>EvalForge</h1>
+  <p class="sub">模型评测：候选与参考文本逐项打分（BLEU-4、ROUGE-L/N、token F1、精确匹配、编辑相似度），支持批量成对评测与 pass@k 估算 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="grid2">
+  <section class="panel">
+    <h2>候选输出</h2>
+    <textarea id="cand" rows="6">The quick brown fox jumps over the lazy dog.</textarea>
+    <h2 style="margin-top:12px">参考答案</h2>
+    <textarea id="ref" rows="6">A quick brown fox jumped over a lazy dog.</textarea>
+    <div class="row" style="margin-top:10px">
+      <button id="run" class="primary">计算指标</button>
+      <button id="swap">交换</button>
+    </div>
+  </section>
+  <section class="panel">
+    <h2>评测结果</h2>
+    <div id="metrics"></div>
+    <h2 style="margin-top:14px">pass@k 估算</h2>
+    <div class="row">
+      <label>样本 n <input id="pn" type="number" value="10" min="1" style="width:70px"></label>
+      <label>通过 c <input id="pc" type="number" value="3" min="0" style="width:70px"></label>
+      <label>k <input id="pk" type="number" value="1" min="1" style="width:70px"></label>
+    </div>
+    <div id="passk" class="note" style="margin-top:8px"></div>
+  </section>
+</div>
+<section class="panel" style="margin-top:14px">
+  <h2>批量评测（每行：候选 | 参考）</h2>
+  <textarea id="batch" rows="5">hello world | hello world
+the cat sat on the mat | a cat sits on the mat
+machine learning is fun | deep learning is fun</textarea>
+  <div class="row" style="margin-top:8px"><button id="runBatch">批量计算</button></div>
+  <div id="batchOut" style="margin-top:10px"></div>
+</section>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function normText(s, opts){
+  opts = opts || {};
+  var t = String(s == null ? '' : s);
+  if (opts.lower !== false) t = t.toLowerCase();
+  if (opts.punct !== false) t = t.replace(/[.,!?;:'"()\[\]{}<>\/\\|`~@#$%^&*_+=\u3002\uff0c\uff01\uff1f\uff1b\uff1a\u201c\u201d\u2018\u2019\uff08\uff09\u3010\u3011]/g, ' ');
+  if (opts.articles) t = t.replace(/\b(a|an|the)\b/g, ' ');
+  return t.replace(/\s+/g, ' ').trim();
+}
+
+function tokenize(s, mode){
+  var t = String(s == null ? '' : s);
+  if (mode === 'char') return t.replace(/\s+/g, '').split('');
+  var out = [], buf = '';
+  for (var i = 0; i < t.length; i++){
+    var c = t.charAt(i), code = t.charCodeAt(i);
+    var cjk = (code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3040 && code <= 0x30ff);
+    if (cjk){ if (buf){ out.push(buf); buf = ''; } out.push(c); }
+    else if (/\s/.test(c)){ if (buf){ out.push(buf); buf = ''; } }
+    else buf += c;
+  }
+  if (buf) out.push(buf);
+  return out;
+}
+
+function ngrams(tokens, n){
+  var out = [];
+  for (var i = 0; i + n <= tokens.length; i++) out.push(tokens.slice(i, i + n).join('\u0001'));
+  return out;
+}
+
+function counter(arr){
+  var m = {};
+  for (var i = 0; i < arr.length; i++) m[arr[i]] = (m[arr[i]] || 0) + 1;
+  return m;
+}
+
+function clippedOverlap(cand, ref){
+  var a = counter(cand), b = counter(ref), hit = 0;
+  for (var k in a) if (Object.prototype.hasOwnProperty.call(a, k)){
+    var r = b[k] || 0;
+    hit += a[k] < r ? a[k] : r;
+  }
+  return hit;
+}
+
+function bleu(candidate, reference, maxN){
+  maxN = maxN || 4;
+  var c = tokenize(normText(candidate)), r = tokenize(normText(reference));
+  if (!c.length || !r.length) return { score: 0, precisions: [], bp: 0, candLen: c.length, refLen: r.length };
+  var logSum = 0, precisions = [], usable = 0;
+  for (var n = 1; n <= maxN; n++){
+    var cg = ngrams(c, n), rg = ngrams(r, n);
+    if (!cg.length){ precisions.push(0); continue; }
+    var hit = clippedOverlap(cg, rg);
+    // smoothing (add-1 on zero hits) so short outputs do not collapse to 0
+    var p = hit > 0 ? hit / cg.length : 1 / (2 * cg.length);
+    precisions.push(round4(hit / cg.length));
+    logSum += Math.log(p); usable++;
+  }
+  if (!usable) return { score: 0, precisions: precisions, bp: 0, candLen: c.length, refLen: r.length };
+  var bp = c.length > r.length ? 1 : Math.exp(1 - r.length / c.length);
+  var score = bp * Math.exp(logSum / usable);
+  return { score: round4(score), precisions: precisions, bp: round4(bp), candLen: c.length, refLen: r.length };
+}
+
+function lcsLength(a, b){
+  var m = a.length, n = b.length;
+  if (!m || !n) return 0;
+  var prev = new Array(n + 1), cur = new Array(n + 1), i, j;
+  for (j = 0; j <= n; j++) prev[j] = 0;
+  for (i = 1; i <= m; i++){
+    cur[0] = 0;
+    for (j = 1; j <= n; j++){
+      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : (cur[j - 1] > prev[j] ? cur[j - 1] : prev[j]);
+    }
+    for (j = 0; j <= n; j++) prev[j] = cur[j];
+  }
+  return prev[n];
+}
+
+function rougeL(candidate, reference, beta){
+  beta = beta == null ? 1.2 : beta;
+  var c = tokenize(normText(candidate)), r = tokenize(normText(reference));
+  if (!c.length || !r.length) return { precision: 0, recall: 0, f: 0, lcs: 0 };
+  var l = lcsLength(c, r);
+  var p = l / c.length, rc = l / r.length;
+  var f = (p + rc) === 0 ? 0 : ((1 + beta * beta) * p * rc) / (rc + beta * beta * p);
+  return { precision: round4(p), recall: round4(rc), f: round4(f), lcs: l };
+}
+
+function rougeN(candidate, reference, n){
+  n = n || 1;
+  var cg = ngrams(tokenize(normText(candidate)), n), rg = ngrams(tokenize(normText(reference)), n);
+  if (!cg.length || !rg.length) return { precision: 0, recall: 0, f: 0 };
+  var hit = clippedOverlap(cg, rg);
+  var p = hit / cg.length, r = hit / rg.length;
+  var f = (p + r) === 0 ? 0 : 2 * p * r / (p + r);
+  return { precision: round4(p), recall: round4(r), f: round4(f) };
+}
+
+function exactMatch(candidate, reference){
+  return normText(candidate, { articles: true }) === normText(reference, { articles: true });
+}
+
+function tokenF1(candidate, reference){
+  var c = tokenize(normText(candidate, { articles: true }));
+  var r = tokenize(normText(reference, { articles: true }));
+  if (!c.length || !r.length) return { precision: 0, recall: 0, f1: 0, common: 0 };
+  var hit = clippedOverlap(c, r);
+  if (!hit) return { precision: 0, recall: 0, f1: 0, common: 0 };
+  var p = hit / c.length, rc = hit / r.length;
+  return { precision: round4(p), recall: round4(rc), f1: round4(2 * p * rc / (p + rc)), common: hit };
+}
+
+function editDistance(a, b){
+  a = String(a == null ? '' : a); b = String(b == null ? '' : b);
+  var m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  var prev = new Array(n + 1), i, j;
+  for (j = 0; j <= n; j++) prev[j] = j;
+  for (i = 1; i <= m; i++){
+    var cur = [i];
+    for (j = 1; j <= n; j++){
+      var cost = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;
+      var v = prev[j] + 1;
+      if (cur[j - 1] + 1 < v) v = cur[j - 1] + 1;
+      if (prev[j - 1] + cost < v) v = prev[j - 1] + cost;
+      cur[j] = v;
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+function similarity(a, b){
+  var la = String(a == null ? '' : a).length, lb = String(b == null ? '' : b).length;
+  var max = la > lb ? la : lb;
+  if (!max) return 1;
+  return round4(1 - editDistance(a, b) / max);
+}
+
+function passAtK(n, c, k){
+  n = Math.floor(n); c = Math.floor(c); k = Math.floor(k);
+  if (!(n > 0) || k <= 0) return { value: 0, error: 'n and k must be positive' };
+  if (c < 0 || c > n) return { value: 0, error: 'c must be within 0..n' };
+  if (n - c < k) return { value: 1, error: null };
+  var prod = 1;
+  for (var i = 0; i < k; i++) prod *= (n - c - i) / (n - i);
+  return { value: round4(1 - prod), error: null };
+}
+
+function round4(x){ return Math.round(x * 10000) / 10000; }
+
+function evaluate(candidate, reference){
+  var b = bleu(candidate, reference, 4);
+  var rl = rougeL(candidate, reference);
+  var r1 = rougeN(candidate, reference, 1);
+  var r2 = rougeN(candidate, reference, 2);
+  var f1 = tokenF1(candidate, reference);
+  return {
+    bleu: b.score, bleuDetail: b,
+    rouge1: r1.f, rouge2: r2.f, rougeL: rl.f, rougeLDetail: rl,
+    exactMatch: exactMatch(candidate, reference),
+    f1: f1.f1, f1Detail: f1,
+    editDistance: editDistance(candidate, reference),
+    similarity: similarity(candidate, reference)
+  };
+}
+
+function evaluateBatch(pairs){
+  var rows = [], sum = { bleu: 0, rougeL: 0, f1: 0, em: 0, sim: 0 };
+  for (var i = 0; i < pairs.length; i++){
+    var r = evaluate(pairs[i].candidate, pairs[i].reference);
+    rows.push({ index: i, bleu: r.bleu, rougeL: r.rougeL, f1: r.f1, exactMatch: r.exactMatch, similarity: r.similarity });
+    sum.bleu += r.bleu; sum.rougeL += r.rougeL; sum.f1 += r.f1;
+    sum.em += r.exactMatch ? 1 : 0; sum.sim += r.similarity;
+  }
+  var n = pairs.length || 1;
+  return {
+    rows: rows, count: pairs.length,
+    avg: { bleu: round4(sum.bleu / n), rougeL: round4(sum.rougeL / n), f1: round4(sum.f1 / n),
+           exactMatch: round4(sum.em / n), similarity: round4(sum.sim / n) }
+  };
+}
+
+function parsePairs(text){
+  var lines = String(text || '').split(/\r?\n/), out = [], errors = [];
+  for (var i = 0; i < lines.length; i++){
+    var ln = lines[i].trim();
+    if (!ln) continue;
+    var parts = ln.split('|');
+    if (parts.length < 2){ errors.push('line ' + (i + 1) + ': expected "candidate | reference"'); continue; }
+    out.push({ candidate: parts[0].trim(), reference: parts.slice(1).join('|').trim() });
+  }
+  return { pairs: out, errors: errors };
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { normText:normText, tokenize:tokenize, ngrams:ngrams, counter:counter, clippedOverlap:clippedOverlap, bleu:bleu, lcsLength:lcsLength, rougeL:rougeL, rougeN:rougeN, exactMatch:exactMatch, tokenF1:tokenF1, editDistance:editDistance, similarity:similarity, passAtK:passAtK, round4:round4, evaluate:evaluate, evaluateBatch:evaluateBatch, parsePairs:parsePairs }; }
+if (typeof window !== 'undefined') { window.EvalForgePure = { normText:normText, tokenize:tokenize, ngrams:ngrams, counter:counter, clippedOverlap:clippedOverlap, bleu:bleu, lcsLength:lcsLength, rougeL:rougeL, rougeN:rougeN, exactMatch:exactMatch, tokenF1:tokenF1, editDistance:editDistance, similarity:similarity, passAtK:passAtK, round4:round4, evaluate:evaluate, evaluateBatch:evaluateBatch, parsePairs:parsePairs }; }
+
+</script>
+<script>
+
+(function(){
+  function $(i){ return document.getElementById(i); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+  function bar(v){
+    var p = Math.max(0, Math.min(1, v)) * 100;
+    var col = p >= 70 ? 'var(--ok)' : (p >= 40 ? 'var(--warn)' : 'var(--bad)');
+    return '<div style="height:6px;background:var(--surface);border-radius:3px;overflow:hidden;margin-top:4px">'
+      + '<div style="height:100%;width:' + p.toFixed(1) + '%;background:' + col + '"></div></div>';
+  }
+  function metric(label, val, hint){
+    return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between">'
+      + '<span>' + esc(label) + '</span><b>' + esc(val) + '</b></div>'
+      + (typeof hint === 'number' ? bar(hint) : '')
+      + '</div>';
+  }
+  function run(){
+    var r = evaluate($('cand').value, $('ref').value);
+    var h = '';
+    h += metric('BLEU-4', r.bleu.toFixed(4), r.bleu);
+    h += metric('ROUGE-1 F', r.rouge1.toFixed(4), r.rouge1);
+    h += metric('ROUGE-2 F', r.rouge2.toFixed(4), r.rouge2);
+    h += metric('ROUGE-L F', r.rougeL.toFixed(4), r.rougeL);
+    h += metric('Token F1', r.f1.toFixed(4), r.f1);
+    h += metric('字符相似度', r.similarity.toFixed(4), r.similarity);
+    h += metric('编辑距离', String(r.editDistance));
+    h += metric('完全匹配', r.exactMatch ? '是' : '否');
+    h += '<div class="note" style="margin-top:8px">BP=' + r.bleuDetail.bp
+      + ' · 候选 ' + r.bleuDetail.candLen + ' tok · 参考 ' + r.bleuDetail.refLen + ' tok'
+      + ' · LCS=' + r.rougeLDetail.lcs + '</div>';
+    $('metrics').innerHTML = h;
+  }
+  function runPass(){
+    var r = passAtK(+$('pn').value, +$('pc').value, +$('pk').value);
+    $('passk').innerHTML = r.error
+      ? '<span style="color:var(--bad)">' + esc(r.error) + '</span>'
+      : 'pass@' + $('pk').value + ' = <b>' + r.value.toFixed(4) + '</b>（' + (r.value * 100).toFixed(2) + '%）';
+  }
+  function runBatch(){
+    var p = parsePairs($('batch').value);
+    if (!p.pairs.length){ $('batchOut').innerHTML = '<span class="note">无有效行</span>'; return; }
+    var r = evaluateBatch(p.pairs);
+    var h = '<table><thead><tr><th>#</th><th>BLEU</th><th>ROUGE-L</th><th>F1</th><th>EM</th><th>相似度</th></tr></thead><tbody>';
+    for (var i = 0; i < r.rows.length; i++){
+      var x = r.rows[i];
+      h += '<tr><td>' + (x.index + 1) + '</td><td>' + x.bleu.toFixed(3) + '</td><td>' + x.rougeL.toFixed(3)
+        + '</td><td>' + x.f1.toFixed(3) + '</td><td>' + (x.exactMatch ? '✓' : '') + '</td><td>' + x.similarity.toFixed(3) + '</td></tr>';
+    }
+    h += '</tbody><tfoot><tr><th>均值</th><th>' + r.avg.bleu.toFixed(3) + '</th><th>' + r.avg.rougeL.toFixed(3)
+      + '</th><th>' + r.avg.f1.toFixed(3) + '</th><th>' + (r.avg.exactMatch * 100).toFixed(0) + '%</th><th>'
+      + r.avg.similarity.toFixed(3) + '</th></tr></tfoot></table>';
+    if (p.errors.length) h += '<div class="note" style="color:var(--warn);margin-top:6px">' + esc(p.errors.join(' · ')) + '</div>';
+    $('batchOut').innerHTML = h;
+  }
+  $('run').addEventListener('click', run);
+  $('swap').addEventListener('click', function(){
+    var a = $('cand').value; $('cand').value = $('ref').value; $('ref').value = a; run();
+  });
+  $('runBatch').addEventListener('click', runBatch);
+  ['pn','pc','pk'].forEach(function(id){ $(id).addEventListener('input', runPass); });
+  run(); runPass(); runBatch();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

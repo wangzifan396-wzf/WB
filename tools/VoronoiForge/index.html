@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>VoronoiForge — Voronoi 图生成器：放置站点，实时计算平面每点的最近邻站点并着色，生成细胞状图案，可点击增点，离线可用。</title>
+<meta property="og:title" content="VoronoiForge">
+<meta property="og:description" content="Voronoi 图生成器：放置站点，实时计算平面每点的最近邻站点并着色，生成细胞状图案，可点击增点，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Voronoi 图生成器：放置站点，实时计算平面每点的最近邻站点并着色，生成细胞状图案，可点击增点，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>VoronoiForge</h1>
+  <p class="sub">Voronoi 图生成器：放置站点，实时计算平面每点的最近邻站点并着色，生成细胞状图案，可点击增点，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>站点数</label>
+<input id="n" type="number" value="9" min="2" max="40">
+<div class="row">
+  <button id="gen">随机生成</button>
+  <button id="clear" class="ghost">清空</button>
+  <span class="sub" style="margin:0">点击画布添加站点</span>
+</div>
+<canvas id="cv" width="480" height="320" style="width:100%;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#0A0A0B;cursor:crosshair;"></canvas>
+<script>
+function vNearest(sites, x, y){ var bi=-1, bd=Infinity; for(var i=0;i<sites.length;i++){ var dx=sites[i].x-x, dy=sites[i].y-y, d=dx*dx+dy*dy; if(d<bd){bd=d;bi=i;} } return bi; }
+function vGrid(sites, w, h, step){ var g=[]; for(var y=0;y<h;y+=step){ var row=[]; for(var x=0;x<w;x+=step){ row.push(vNearest(sites,x,y)); } g.push(row); } return g; }
+function vColors(n){ var cs=[]; for(var i=0;i<n;i++){ var h=Math.round(i*360/Math.max(1,n)); cs.push('hsl('+h+',72%,62%)'); } return cs; }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { vNearest:vNearest, vGrid:vGrid, vColors:vColors };
+}
+if (typeof window !== 'undefined') {
+  window.VoronoiForgePure = { vNearest:vNearest, vGrid:vGrid, vColors:vColors };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.VoronoiForgePure;
+    var W=480, H=320, sites=[];
+    function hslToRgb(hsl){ var m=/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/.exec(hsl); if(!m) return [10,10,11]; var h=+m[1]/360, s=+m[2]/100, l=+m[3]/100; var r,g,b; if(s===0){r=g=b=l;} else { var hue=function(p,q,t){ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; }; var q=l<0.5?l*(1+s):l+s-l*s; var p=2*l-q; r=hue(p,q,h+1/3); g=hue(p,q,h); b=hue(p,q,h-1/3); } return [Math.round(r*255),Math.round(g*255),Math.round(b*255)]; }
+    function render(){
+      var cv=$('cv'); var ctx=cv.getContext('2d'); if(!ctx) return;
+      if(!sites.length){ ctx.fillStyle='#0A0A0B'; ctx.fillRect(0,0,W,H); return; }
+      var colors=P.vColors(sites.length);
+      var img=ctx.createImageData(W,H); var data=img.data;
+      for(var y=0;y<H;y++){ for(var x=0;x<W;x++){ var idx=P.vNearest(sites,x,y); var c = idx>=0 ? hslToRgb(colors[idx]) : [10,10,11]; var o=(y*W+x)*4; data[o]=c[0]; data[o+1]=c[1]; data[o+2]=c[2]; data[o+3]=255; } }
+      ctx.putImageData(img,0,0);
+      for(var i=0;i<sites.length;i++){ ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(sites[i].x,sites[i].y,3,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=1; ctx.stroke(); }
+    }
+    function regen(){ var n=Math.max(2,Math.min(40,Number($('n').value)||9)); sites=[]; for(var i=0;i<n;i++){ sites.push({x:Math.random()*W, y:Math.random()*H}); } render(); }
+    $('gen').addEventListener('click', regen);
+    $('clear').addEventListener('click', function(){ sites=[]; render(); });
+    $('cv').addEventListener('click', function(e){ var r=$('cv').getBoundingClientRect(); var x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H; sites.push({x:x,y:y}); render(); });
+    regen();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

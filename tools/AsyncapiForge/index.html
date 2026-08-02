@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>AsyncapiForge — AsyncAPI 校验器：解析 3.0/2.x 文档，校验 channels、operations 与 $ref 引用，绘制发布订阅拓扑并给出迁移提示，离线可用。</title>
+<meta property="og:title" content="AsyncapiForge">
+<meta property="og:description" content="AsyncAPI 校验器：粘贴 YAML 或 JSON 文档，自动识别 3.0 与 2.x 代际，校验 info/servers/channels/operations 必填项、地址风格与重复、send|receive 语义、消息载荷与 $ref 断引用，绘制服务与频道的发布订阅拓扑，并给出 2.x 升级 3.0 的逐项改写提示。评审事件驱动契约、排查消息通道配置，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="AsyncAPI 校验器：粘贴 YAML 或 JSON 文档，自动识别 3.0 与 2.x 代际，校验 info/servers/channels/operations 必填项、地址风格与重复、send|receive 语义、消息载荷与 $ref 断引用，绘制服务与频道的发布订阅拓扑，并给出 2.x 升级 3.0 的逐项改写提示。评审事件驱动契约、排查消息通道配置，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>AsyncapiForge</h1>
+  <p class="sub">AsyncAPI · 事件驱动 · 契约</p>
+
+<div><label for="ac-src">AsyncAPI 文档（YAML 或 JSON）</label><textarea id="ac-src" rows="18">asyncapi: 3.0.0
+info:
+  title: 订单事件
+  version: 1.0.0
+  description: 订单域对外发布的领域事件
+defaultContentType: application/json
+servers:
+  production:
+    host: kafka.example.com:9092
+    protocol: kafka-secure
+    description: 生产集群
+channels:
+  orderCreated:
+    address: order.created
+    messages:
+      OrderCreated:
+        $ref: '#/components/messages/OrderCreated'
+  orderShipped:
+    address: order.shipped
+    messages:
+      OrderShipped:
+        $ref: '#/components/messages/OrderShipped'
+operations:
+  publishOrderCreated:
+    action: send
+    summary: 订单创建后发布事件
+    channel:
+      $ref: '#/channels/orderCreated'
+  consumeOrderShipped:
+    action: receive
+    summary: 物流侧消费发货事件
+    channel:
+      $ref: '#/channels/orderShipped'
+components:
+  securitySchemes:
+    saslScram:
+      type: scramSha512
+  messages:
+    OrderCreated:
+      name: OrderCreated
+      contentType: application/json
+      examples:
+        - payload:
+            orderId: "A1001"
+      payload:
+        type: object
+        properties:
+          orderId:
+            type: string
+          amount:
+            type: number
+    OrderShipped:
+      name: OrderShipped
+      contentType: application/json
+      examples:
+        - payload:
+            orderId: "A1001"
+      payload:
+        type: object
+        properties:
+          orderId:
+            type: string
+          carrier:
+            type: string</textarea></div>
+<div class="row">
+  <button id="ac-go">校验</button>
+  <button class="ghost" id="ac-a">2.x 迁移示例</button>
+  <button class="ghost" id="ac-b">断引用反例</button>
+  <button class="ghost" id="ac-c">清空</button>
+</div>
+<div class="err" id="ac-err"></div>
+<div class="out" id="ac-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 381 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function AsyncapiForgePure(){
+  function rep(n){ var s = ''; for (var i = 0; i < n; i++) s += ' '; return s; }
+
+  function stripComment(t){
+    var q = null, out = '';
+    for (var i = 0; i < t.length; i++){
+      var c = t[i];
+      if (q){ if (c === q) q = null; out += c; continue; }
+      if (c === '"' || c === "'"){ q = c; out += c; continue; }
+      if (c === '#' && (i === 0 || t[i-1] === ' ')) break;
+      out += c;
+    }
+    return out.replace(/\s+$/, '');
+  }
+
+  function tokenize(src){
+    var raw = String(src == null ? '' : src).replace(/\r\n/g, '\n').replace(/\t/g, '  ').split('\n');
+    var out = [];
+    for (var i = 0; i < raw.length; i++){
+      var ln = raw[i].replace(/\s+$/, '');
+      var ind = 0; while (ind < ln.length && ln[ind] === ' ') ind++;
+      var body = ln.slice(ind);
+      out.push({no:i+1, indent:ind, text:body, blank:(body === '')});
+    }
+    return out;
+  }
+
+  function findKeyColon(t){
+    var q = null, depth = 0;
+    for (var i = 0; i < t.length; i++){
+      var c = t[i];
+      if (q){ if (c === q) q = null; continue; }
+      if (c === '"' || c === "'"){ q = c; continue; }
+      if (c === '[' || c === '{') depth++;
+      else if (c === ']' || c === '}') depth--;
+      else if (c === ':' && depth === 0){
+        if (i + 1 >= t.length || t[i+1] === ' ') return i;
+      }
+    }
+    return -1;
+  }
+
+  function splitFlow(s){
+    var parts = [], depth = 0, q = null, cur = '';
+    for (var i = 0; i < s.length; i++){
+      var c = s[i];
+      if (q){ cur += c; if (c === q) q = null; continue; }
+      if (c === '"' || c === "'"){ q = c; cur += c; continue; }
+      if (c === '[' || c === '{'){ depth++; cur += c; continue; }
+      if (c === ']' || c === '}'){ depth--; cur += c; continue; }
+      if (c === ',' && depth === 0){ parts.push(cur.trim()); cur = ''; continue; }
+      cur += c;
+    }
+    if (cur.trim() !== '') parts.push(cur.trim());
+    return parts;
+  }
+
+  function unquote(s){
+    s = s.trim();
+    if (s.length >= 2){
+      if (s[0] === '"' && s[s.length-1] === '"'){
+        return s.slice(1, -1).replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      }
+      if (s[0] === "'" && s[s.length-1] === "'") return s.slice(1, -1).replace(/''/g, "'");
+    }
+    return s;
+  }
+
+  function scalar(s){
+    s = s.trim();
+    if (s === '') return '';
+    if (s[0] === '"' || s[0] === "'") return unquote(s);
+    if (s[0] === '[' && s[s.length-1] === ']'){
+      var b = s.slice(1, -1).trim();
+      if (b === '') return [];
+      var ps = splitFlow(b), arr = [];
+      for (var i = 0; i < ps.length; i++) arr.push(scalar(ps[i]));
+      return arr;
+    }
+    if (s[0] === '{' && s[s.length-1] === '}'){
+      var b2 = s.slice(1, -1).trim(), o = {};
+      if (b2 === '') return o;
+      var ps2 = splitFlow(b2);
+      for (var j = 0; j < ps2.length; j++){
+        var ci = findKeyColon(ps2[j]);
+        if (ci < 0){ o[unquote(ps2[j])] = null; continue; }
+        o[unquote(ps2[j].slice(0, ci))] = scalar(ps2[j].slice(ci+1));
+      }
+      return o;
+    }
+    if (/^(true|yes)$/i.test(s)) return true;
+    if (/^(false|no)$/i.test(s)) return false;
+    if (/^(null|~)$/i.test(s)) return null;
+    if (/^-?\d+$/.test(s)) return parseInt(s, 10);
+    if (/^-?\d*\.\d+$/.test(s)) return parseFloat(s);
+    return s;
+  }
+
+  function nextReal(lines, i){
+    while (i < lines.length){
+      if (lines[i].blank){ i++; continue; }
+      if (stripComment(lines[i].text) === ''){ i++; continue; }
+      return i;
+    }
+    return -1;
+  }
+
+  function readBlockScalar(lines, st, indent, marker){
+    var folded = marker.charAt(0) === '>';
+    var chomp = /-/.test(marker) ? '-' : (/\+/.test(marker) ? '+' : '');
+    var buf = [], base = -1;
+    while (st.i < lines.length){
+      var L = lines[st.i];
+      if (L.blank){ buf.push(''); st.i++; continue; }
+      if (L.indent <= indent) break;
+      if (base < 0) base = L.indent;
+      buf.push(rep(Math.max(0, L.indent - base)) + L.text);
+      st.i++;
+    }
+    while (buf.length && buf[buf.length-1] === '') buf.pop();
+    var s = folded ? buf.join(' ') : buf.join('\n');
+    if (chomp !== '-' && s !== '') s += '\n';
+    return s;
+  }
+
+  function collectChild(lines, st, indent, ctx){
+    var k = nextReal(lines, st.i);
+    if (k < 0) return null;
+    var L = lines[k];
+    if (L.indent > indent){ st.i = k; return parseNode(lines, st, L.indent, ctx); }
+    if (L.indent === indent){
+      var t = stripComment(L.text);
+      if (t.charAt(0) === '-' && (t.length === 1 || t.charAt(1) === ' ')){ st.i = k; return parseSeq(lines, st, indent, ctx); }
+    }
+    return null;
+  }
+
+  function parseNode(lines, st, indent, ctx){
+    var k = nextReal(lines, st.i);
+    if (k < 0) return null;
+    st.i = k;
+    var t = stripComment(lines[k].text);
+    if (t.charAt(0) === '-' && (t.length === 1 || t.charAt(1) === ' ')) return parseSeq(lines, st, indent, ctx);
+    return parseMap(lines, st, indent, ctx);
+  }
+
+  function parseMap(lines, st, indent, ctx){
+    var obj = {}; ctx.meta.push(obj);
+    // 行号元数据设为不可枚举，避免 Object.keys / for-in / JSON.stringify 把它当成文档里的真实字段
+    Object.defineProperty(obj, '__lines', {value:{}, enumerable:false, writable:true, configurable:true});
+    while (st.i < lines.length){
+      var L = lines[st.i];
+      if (L.blank){ st.i++; continue; }
+      var t = stripComment(L.text);
+      if (t === ''){ st.i++; continue; }
+      if (L.indent < indent) break;
+      if (L.indent > indent){ ctx.errors.push('第 ' + L.no + ' 行缩进异常（多出 ' + (L.indent - indent) + ' 空格）'); st.i++; continue; }
+      if (t.charAt(0) === '-') break;
+      var ci = findKeyColon(t);
+      if (ci < 0){ ctx.errors.push('第 ' + L.no + ' 行不是合法键值对：' + t); st.i++; continue; }
+      var key = unquote(t.slice(0, ci));
+      var rest = t.slice(ci+1).trim();
+      obj.__lines[key] = L.no;
+      st.i++;
+      if (rest === ''){
+        obj[key] = collectChild(lines, st, indent, ctx);
+      } else if (/^[|>][-+]?\d*$/.test(rest)){
+        obj[key] = readBlockScalar(lines, st, indent, rest);
+      } else {
+        obj[key] = scalar(rest);
+      }
+    }
+    return obj;
+  }
+
+  function parseSeq(lines, st, indent, ctx){
+    var arr = [];
+    while (st.i < lines.length){
+      var L = lines[st.i];
+      if (L.blank){ st.i++; continue; }
+      var t = stripComment(L.text);
+      if (t === ''){ st.i++; continue; }
+      if (L.indent !== indent) break;
+      if (!(t.charAt(0) === '-' && (t.length === 1 || t.charAt(1) === ' '))) break;
+      var after = t.slice(1);
+      var lead = after.length - after.replace(/^ +/, '').length;
+      var rest = after.slice(lead);
+      if (rest === ''){
+        st.i++;
+        arr.push(collectChild(lines, st, indent, ctx));
+      } else {
+        var ni = indent + 1 + lead;
+        lines[st.i] = {no:L.no, indent:ni, text:rest, blank:false};
+        if (findKeyColon(rest) >= 0) arr.push(parseMap(lines, st, ni, ctx));
+        else if (rest.charAt(0) === '-') arr.push(parseSeq(lines, st, ni, ctx));
+        else { arr.push(scalar(rest)); st.i++; }
+      }
+    }
+    return arr;
+  }
+
+  function parseYaml(src){
+    if (String(src == null ? '' : src).trim() === '') return {error:'请输入 AsyncAPI 文档'};
+    var lines = tokenize(src);
+    var ctx = {errors:[], meta:[]};
+    var st = {i:0};
+    var doc = parseNode(lines, st, 0, ctx);
+    if (doc === null) return {error:'未解析出任何内容（是否全为注释？）'};
+    if (Object.prototype.toString.call(doc) !== '[object Object]') return {error:'AsyncAPI 文档顶层必须是映射（key: value），当前是序列'};
+    return {value:doc, errors:ctx.errors};
+  }
+
+
+  // ---------------- 通用工具 ----------------
+  function isMap(v){ return Object.prototype.toString.call(v) === '[object Object]'; }
+  function keys(v){ return isMap(v) ? Object.keys(v) : []; }
+
+  function parseDoc(src){
+    var s = String(src == null ? '' : src).trim();
+    if (s === '') return {error:'请输入 AsyncAPI 文档（YAML 或 JSON）'};
+    if (s.charAt(0) === '{'){
+      try { return {value:JSON.parse(s), errors:[], format:'json'}; }
+      catch (e){ return {error:'JSON 解析失败：' + e.message}; }
+    }
+    var r = parseYaml(s);
+    if (r.error) return r;
+    r.format = 'yaml';
+    return r;
+  }
+
+  // ---------------- 版本识别 ----------------
+  function detectVersion(doc){
+    if (!isMap(doc)) return {error:'文档顶层必须是映射'};
+    var v = doc['asyncapi'];
+    if (v === undefined){
+      if (doc['openapi'] !== undefined) return {error:'这是 OpenAPI 文档而不是 AsyncAPI，顶层键应为 asyncapi'};
+      if (doc['swagger'] !== undefined) return {error:'这是 Swagger 2.0 文档而不是 AsyncAPI'};
+      return {error:'缺少顶层 asyncapi 版本字段'};
+    }
+    var s = String(v);
+    var m = /^(\d+)\.(\d+)(?:\.(\d+))?$/.exec(s);
+    if (!m) return {error:'asyncapi 版本格式非法：' + s};
+    var major = parseInt(m[1], 10);
+    return {value:{raw:s, major:major, minor:parseInt(m[2], 10),
+                   generation:major >= 3 ? 'v3' : (major === 2 ? 'v2' : 'legacy')}};
+  }
+
+  // ---------------- 协议常识 ----------------
+  var PROTOCOLS = {
+    kafka:      {defaultPort:9092,  bindingKey:'kafka',  note:'分区键决定顺序性，消费组决定并发上限'},
+    'kafka-secure':{defaultPort:9093, bindingKey:'kafka', note:'走 TLS 的 Kafka，务必核对 SASL 机制'},
+    amqp:       {defaultPort:5672,  bindingKey:'amqp',   note:'交换机与路由键语义要写进 bindings，否则实现方只能猜'},
+    mqtt:       {defaultPort:1883,  bindingKey:'mqtt',   note:'主题层级用斜杠，通配符 + 与 # 只在订阅侧有效'},
+    ws:         {defaultPort:80,    bindingKey:'ws',     note:'WebSocket 建议叠加心跳与重连退避'},
+    wss:        {defaultPort:443,   bindingKey:'ws',     note:'生产环境应始终使用 wss'},
+    nats:       {defaultPort:4222,  bindingKey:'nats',   note:'主题用点号分层，队列组实现负载均衡'},
+    redis:      {defaultPort:6379,  bindingKey:'redis',  note:'发布订阅不持久化，掉线即丢消息'},
+    sqs:        {defaultPort:443,   bindingKey:'sqs',    note:'至少一次投递，消费端必须幂等'},
+    sns:        {defaultPort:443,   bindingKey:'sns',    note:'扇出投递，注意订阅端的重复与乱序'},
+    jms:        {defaultPort:61616, bindingKey:'jms',    note:'队列与主题语义不同，别混用'},
+    stomp:      {defaultPort:61613, bindingKey:'stomp',  note:'确认模式决定重投行为'},
+    http:       {defaultPort:80,    bindingKey:'http',   note:'HTTP 回调式事件要考虑重试与签名校验'},
+    https:      {defaultPort:443,   bindingKey:'http',   note:'Webhook 必须校验来源签名'},
+    googlepubsub:{defaultPort:443,  bindingKey:'googlepubsub', note:'至少一次投递，确认截止时间要大于处理耗时'},
+    pulsar:     {defaultPort:6650,  bindingKey:'pulsar', note:'租户与命名空间是隔离边界'}
+  };
+
+  function protocolInfo(p){
+    var k = String(p == null ? '' : p).toLowerCase();
+    return PROTOCOLS[k] || null;
+  }
+
+  // ---------------- 引用解析 ----------------
+  function resolveRef(doc, ref){
+    var s = String(ref == null ? '' : ref);
+    if (s.indexOf('#/') !== 0) return {error:'只支持文档内引用（以 #/ 开头），收到：' + s};
+    var parts = s.slice(2).split('/'), cur = doc;
+    for (var i = 0; i < parts.length; i++){
+      var seg = parts[i].replace(/~1/g, '/').replace(/~0/g, '~');
+      if (!isMap(cur) || cur[seg] === undefined) return {error:'引用指向不存在的节点：' + s};
+      cur = cur[seg];
+    }
+    return {value:cur, path:s};
+  }
+
+  // ---------------- 通道地址风格 ----------------
+  function addressStyle(addr){
+    var a = String(addr == null ? '' : addr);
+    if (a === '') return {style:'empty'};
+    var slash = (a.match(/\//g) || []).length;
+    var dot = (a.match(/\./g) || []).length;
+    return {style:slash > dot ? 'slash' : (dot > 0 ? 'dot' : 'flat'),
+            segments:slash > dot ? a.split('/').filter(function(x){ return x; }).length : a.split('.').length,
+            hasParam:/\{[^}]+\}/.test(a),
+            wildcard:/[+#*>]/.test(a)};
+  }
+
+  // ---------------- 主体校验 ----------------
+  function lint(doc){
+    var iss = [];
+    function add(level, text){ iss.push({level:level, text:text}); }
+    function err(t){ add('error', t); }
+    function warn(t){ add('warn', t); }
+    function ok(t){ add('ok', t); }
+
+    var ver = detectVersion(doc);
+    if (ver.error) return {issues:[{level:'error', text:ver.error}], errors:1, warnings:0, ok:false, version:null};
+
+    if (ver.value.generation === 'v2'){
+      warn('文档是 AsyncAPI ' + ver.value.raw + '，3.0 已把 publish/subscribe 换成顶层 operations 与 action，建议迁移');
+    } else if (ver.value.generation === 'legacy'){
+      err('AsyncAPI ' + ver.value.raw + ' 过于陈旧，工具链基本不再支持');
+    } else {
+      ok('使用 AsyncAPI ' + ver.value.raw);
+    }
+    var v3 = ver.value.generation === 'v3';
+
+    // info
+    var info = doc['info'];
+    if (!isMap(info)) err('缺少 info 对象');
+    else {
+      if (!info['title']) err('info.title 必填');
+      if (!info['version']) err('info.version 必填');
+      if (!info['description']) warn('建议补充 info.description，消费方需要知道这套事件的业务含义');
+      if (v3 && !info['contact'] && !info['license']) warn('未声明 contact 或 license，出问题时找不到责任人');
+    }
+
+    // servers
+    var servers = doc['servers'];
+    if (!isMap(servers) || !keys(servers).length) warn('未声明任何 server，消费方无从得知接入地址');
+    else {
+      var sk = keys(servers);
+      for (var i = 0; i < sk.length; i++){
+        var sv = servers[sk[i]], label = 'servers.' + sk[i];
+        if (!isMap(sv)){ err(label + ' 必须是映射'); continue; }
+        if (v3){
+          if (!sv['host']) err(label + '.host 必填（3.0 已把 2.x 的 url 拆成 host + pathname）');
+          if (sv['url'] !== undefined) err(label + ' 仍在用 2.x 的 url 字段，3.0 应改为 host');
+        } else if (!sv['url']) err(label + '.url 必填');
+        var proto = sv['protocol'];
+        if (!proto) err(label + '.protocol 必填');
+        else {
+          var pi = protocolInfo(proto);
+          if (!pi) warn(label + ' 使用了不常见的协议 ' + proto + '，工具链可能不认识');
+          else ok(label + ' 协议 ' + proto + '：' + pi.note);
+        }
+        var host = String(sv['host'] || sv['url'] || '');
+        if (/^(ws|http):/i.test(host) || String(proto).toLowerCase() === 'ws' || String(proto).toLowerCase() === 'http')
+          warn(label + ' 使用明文协议，生产环境应换成加密版本');
+      }
+    }
+
+    // channels
+    var channels = doc['channels'];
+    var chanKeys = keys(channels);
+    if (!isMap(channels) || !chanKeys.length) err('缺少 channels，AsyncAPI 文档至少要描述一个通道');
+
+    var addrSeen = {}, styles = {};
+    for (var c = 0; c < chanKeys.length; c++){
+      var name = chanKeys[c], ch = channels[name], lbl = 'channels.' + name;
+      if (!isMap(ch)){ err(lbl + ' 必须是映射'); continue; }
+      if (v3){
+        var addr = ch['address'];
+        if (addr === undefined) warn(lbl + ' 未声明 address，3.0 里通道键只是标识符，真实地址要写在 address');
+        else {
+          if (addrSeen[addr]) err('地址 ' + addr + ' 被 ' + addrSeen[addr] + ' 和 ' + name + ' 重复占用');
+          else addrSeen[addr] = name;
+          var st = addressStyle(addr);
+          styles[st.style] = (styles[st.style] || 0) + 1;
+          if (st.wildcard) warn(lbl + ' 的地址含通配符，通配符只应出现在订阅侧而不是文档定义里');
+          if (st.hasParam && !isMap(ch['parameters']))
+            err(lbl + ' 地址里有 {参数} 占位符，但没有对应的 parameters 定义');
+        }
+        if (!isMap(ch['messages']) || !keys(ch['messages']).length)
+          err(lbl + ' 未声明 messages，通道上跑什么消息是文档的核心信息');
+        if (ch['publish'] !== undefined || ch['subscribe'] !== undefined)
+          err(lbl + ' 仍在用 2.x 的 publish/subscribe，3.0 要改成顶层 operations 加 action');
+      } else {
+        if (ch['publish'] === undefined && ch['subscribe'] === undefined)
+          warn(lbl + ' 既没有 publish 也没有 subscribe');
+      }
+    }
+    if (keys(styles).length > 1)
+      warn('通道地址风格不统一（' + keys(styles).map(function(k){ return k + ' ' + styles[k] + ' 个'; }).join('、') +
+           '），同一套系统应固定用点号或斜杠分层');
+
+    // operations（3.0 才有）
+    var ops = doc['operations'], opKeys = keys(ops);
+    if (v3){
+      if (!isMap(ops) || !opKeys.length) err('3.0 文档缺少顶层 operations');
+      var sendCount = 0, recvCount = 0;
+      for (var o = 0; o < opKeys.length; o++){
+        var oid = opKeys[o], op = ops[oid], ol = 'operations.' + oid;
+        if (!isMap(op)){ err(ol + ' 必须是映射'); continue; }
+        var act = op['action'];
+        if (!act) err(ol + '.action 必填，取值为 send 或 receive');
+        else if (act !== 'send' && act !== 'receive') err(ol + '.action 只能是 send 或 receive，收到 ' + act);
+        else if (act === 'send') sendCount++; else recvCount++;
+        var chRef = op['channel'];
+        if (!isMap(chRef) || !chRef['$ref']) err(ol + '.channel 必须是指向通道的 $ref');
+        else {
+          var rr = resolveRef(doc, chRef['$ref']);
+          if (rr.error) err(ol + '.channel ' + rr.error);
+          else if (chRef['$ref'].indexOf('#/channels/') !== 0)
+            warn(ol + '.channel 的引用不指向 #/channels/，工具链可能无法关联');
+        }
+        if (!op['summary'] && !op['description']) warn(ol + ' 缺少 summary，生成的文档会很难读');
+      }
+      if (opKeys.length && sendCount === 0)
+        warn('所有操作都是 receive，这份文档只描述了消费侧，生产侧契约缺失');
+      if (opKeys.length && recvCount === 0)
+        warn('所有操作都是 send，没有描述任何消费方');
+    }
+
+    // components 与消息载荷
+    var comps = doc['components'];
+    var msgs = isMap(comps) ? comps['messages'] : null;
+    var mk = keys(msgs);
+    for (var mi = 0; mi < mk.length; mi++){
+      var msg = msgs[mk[mi]], ml = 'components.messages.' + mk[mi];
+      if (!isMap(msg)) continue;
+      if (msg['payload'] === undefined) err(ml + ' 缺少 payload，消费方无法生成代码');
+      if (!msg['name'] && !msg['title']) warn(ml + ' 缺少 name 或 title');
+      if (!msg['contentType'] && !doc['defaultContentType'])
+        warn(ml + ' 未声明 contentType，且文档也没有 defaultContentType');
+      if (isMap(msg['payload']) && msg['payload']['type'] === 'object' && !isMap(msg['payload']['properties']))
+        warn(ml + ' 的 payload 声明为 object 却没有 properties，等于没约束');
+      if (!isMap(msg['examples']) && !Array.isArray(msg['examples']))
+        warn(ml + ' 没有示例消息，联调时全靠口口相传');
+    }
+    if (!doc['defaultContentType']) warn('建议在顶层声明 defaultContentType，例如 application/json');
+
+    // 安全
+    var schemes = isMap(comps) ? comps['securitySchemes'] : null;
+    if (!isMap(schemes) || !keys(schemes).length)
+      warn('未定义 securitySchemes，事件通道同样需要鉴权说明');
+
+    var errors = 0, warns = 0;
+    for (var q = 0; q < iss.length; q++){
+      if (iss[q].level === 'error') errors++;
+      else if (iss[q].level === 'warn') warns++;
+    }
+    return {issues:iss, errors:errors, warnings:warns, ok:errors === 0, version:ver.value,
+            grade:errors ? '不合规' : (warns ? '可用但有缺口' : '完整')};
+  }
+
+  // ---------------- 拓扑与统计 ----------------
+  function topology(doc){
+    var ver = detectVersion(doc);
+    if (ver.error) return {error:ver.error};
+    var channels = doc['channels'] || {}, ops = doc['operations'] || {};
+    var nodes = [], edges = [];
+    var ck = keys(channels);
+    for (var i = 0; i < ck.length; i++){
+      var ch = channels[ck[i]] || {};
+      nodes.push({id:ck[i], address:ch['address'] || ck[i],
+                  messages:keys(ch['messages']).length, style:addressStyle(ch['address'] || ck[i]).style});
+    }
+    var ok2 = keys(ops);
+    for (var j = 0; j < ok2.length; j++){
+      var op = ops[ok2[j]] || {};
+      var ref = isMap(op['channel']) ? String(op['channel']['$ref'] || '') : '';
+      var target = ref.indexOf('#/channels/') === 0 ? ref.slice('#/channels/'.length) : null;
+      edges.push({operation:ok2[j], action:op['action'] || null, channel:target, dangling:!target || !channels[target]});
+    }
+    return {value:{nodes:nodes, edges:edges,
+                   channelCount:nodes.length, operationCount:edges.length,
+                   sends:edges.filter(function(e){ return e.action === 'send'; }).length,
+                   receives:edges.filter(function(e){ return e.action === 'receive'; }).length,
+                   dangling:edges.filter(function(e){ return e.dangling; }).length}};
+  }
+
+  // ---------------- 2.x 迁移提示 ----------------
+  function migrationHints(doc){
+    var ver = detectVersion(doc);
+    if (ver.error) return {error:ver.error};
+    if (ver.value.generation !== 'v2') return {value:[], note:'文档已是 3.x，无需迁移'};
+    var hints = [
+      {from:'asyncapi: 2.x', to:'asyncapi: 3.0.0', why:'3.0 是当前主线版本'},
+      {from:'servers.*.url', to:'servers.*.host 加 servers.*.pathname', why:'3.0 把地址拆开以便复用协议绑定'},
+      {from:'channels.<地址>', to:'channels.<标识符>.address', why:'通道键变成标识符，真实地址移到 address 字段'},
+      {from:'channels.*.publish', to:'operations.<id> 的 action: receive', why:'2.x 的 publish 是站在应用视角「别人发给我」'},
+      {from:'channels.*.subscribe', to:'operations.<id> 的 action: send', why:'2.x 的 subscribe 语义长期被误解，3.0 用 send/receive 明确方向'},
+      {from:'channels.*.*.message.oneOf', to:'channels.*.messages 映射', why:'消息集合改为具名映射，便于被 operation 引用'}
+    ];
+    var applied = [];
+    var chans = doc['channels'] || {}, ck = keys(chans);
+    for (var i = 0; i < ck.length; i++){
+      var ch = chans[ck[i]];
+      if (isMap(ch) && ch['publish'] !== undefined) applied.push('channels.' + ck[i] + '.publish 需改写为 action: receive 的 operation');
+      if (isMap(ch) && ch['subscribe'] !== undefined) applied.push('channels.' + ck[i] + '.subscribe 需改写为 action: send 的 operation');
+    }
+    return {value:hints, concrete:applied, note:'2.x 的 publish/subscribe 方向感是最大的迁移陷阱'};
+  }
+
+  function analyze(src){
+    var p = parseDoc(src);
+    if (p.error) return p;
+    var doc = p.value;
+    var lr = lint(doc);
+    var tp = topology(doc);
+    var mg = migrationHints(doc);
+    return {value:{doc:doc, format:p.format, lint:lr,
+                   topology:tp.value || null, migration:mg.value || [], concrete:mg.concrete || []},
+            issues:lr.issues, ok:lr.ok, grade:lr.grade};
+  }
+
+  var api = {parseYaml:parseYaml, parseDoc:parseDoc, detectVersion:detectVersion, protocolInfo:protocolInfo,
+             PROTOCOLS:PROTOCOLS, resolveRef:resolveRef, addressStyle:addressStyle, lint:lint,
+             topology:topology, migrationHints:migrationHints, analyze:analyze};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {AsyncapiForgePure:AsyncapiForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = AsyncapiForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function tag(level){
+    var c = level === 'error' ? '#EF4444' : level === 'warn' ? 'var(--warn)' : 'var(--ok)';
+    var t = level === 'error' ? '错误' : level === 'warn' ? '建议' : '合规';
+    return '<span style="color:' + c + ';font-weight:700">' + t + '</span>';
+  }
+  function run(){
+    var src = document.getElementById('ac-src').value;
+    var $e = document.getElementById('ac-err'), $o = document.getElementById('ac-out'), h = '';
+    var A = P.analyze(src);
+    if (A.error){ $e.textContent = A.error; $o.innerHTML = ''; return; }
+    $e.textContent = '';
+    var L = A.value.lint, T = A.value.topology;
+
+    h += '<div class="kv"><b>版本</b><span>AsyncAPI ' + esc(L.version ? L.version.raw : '未知') +
+         '（' + esc(A.value.format.toUpperCase()) + ' 格式）</span></div>';
+    h += '<div class="kv"><b>结论</b><span style="font-weight:700;color:' +
+         (L.errors ? '#EF4444' : L.warnings ? 'var(--warn)' : 'var(--ok)') + '">' + esc(A.grade) +
+         '，' + L.errors + ' 项错误，' + L.warnings + ' 项建议</span></div>';
+
+    if (T){
+      h += '<div class="kv"><b>规模</b><span>' + T.channelCount + ' 个通道 · ' + T.operationCount +
+           ' 个操作（发送 ' + T.sends + ' / 接收 ' + T.receives + '）</span></div>';
+      if (T.dangling) h += '<div class="kv"><b>断引用</b><span style="color:#EF4444">' + T.dangling + ' 个操作指向不存在的通道</span></div>';
+    }
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">逐条检查</div>';
+    for (var i = 0; i < L.issues.length; i++)
+      h += '<div class="kv"><b>' + tag(L.issues[i].level) + '</b><span>' + esc(L.issues[i].text) + '</span></div>';
+
+    if (T && T.nodes.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">通道拓扑</div>';
+      for (var n = 0; n < T.nodes.length; n++){
+        var nd = T.nodes[n];
+        var rel = T.edges.filter(function(e){ return e.channel === nd.id; });
+        var arrows = rel.map(function(e){
+          var c = e.action === 'send' ? 'var(--ok)' : 'var(--info)';
+          return '<span style="color:' + c + '">' + (e.action === 'send' ? '发送' : '接收') + ' ' + esc(e.operation) + '</span>';
+        }).join('，') || '<span style="color:var(--warn)">无操作引用</span>';
+        h += '<div class="kv"><b><code>' + esc(nd.address) + '</code></b><span>' + nd.messages + ' 种消息 · ' + arrows + '</span></div>';
+      }
+    }
+
+    if (A.value.concrete && A.value.concrete.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">需要迁移的具体位置</div>';
+      for (var c = 0; c < A.value.concrete.length; c++)
+        h += '<div class="kv"><b>改写</b><span>' + esc(A.value.concrete[c]) + '</span></div>';
+    }
+    if (A.value.migration && A.value.migration.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">2.x 到 3.0 对照表</div>';
+      for (var mi = 0; mi < A.value.migration.length; mi++){
+        var mg = A.value.migration[mi];
+        h += '<div class="kv"><b><code>' + esc(mg.from) + '</code></b><span>改为 <code>' + esc(mg.to) + '</code> · ' + esc(mg.why) + '</span></div>';
+      }
+    }
+    $o.innerHTML = h;
+  }
+  function set(t){ document.getElementById('ac-src').value = t; run(); }
+  document.getElementById('ac-go').addEventListener('click', run);
+  document.getElementById('ac-a').addEventListener('click', function(){
+    set('asyncapi: 2.6.0\ninfo:\n  title: 旧版订单事件\n  version: 1.0.0\nservers:\n  prod:\n    url: kafka.example.com:9092\n    protocol: kafka\nchannels:\n  order.created:\n    subscribe:\n      message:\n        payload:\n          type: object\n  order.paid:\n    publish:\n      message:\n        payload:\n          type: object');
+  });
+  document.getElementById('ac-b').addEventListener('click', function(){
+    set('asyncapi: 3.0.0\ninfo:\n  title: 断引用示例\n  version: 1.0.0\nchannels:\n  a:\n    address: topic.a\n    messages:\n      M:\n        payload:\n          type: object\noperations:\n  send1:\n    action: send\n    channel:\n      $ref: \'#/channels/missing\'');
+  });
+  document.getElementById('ac-c').addEventListener('click', function(){ set(''); });
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

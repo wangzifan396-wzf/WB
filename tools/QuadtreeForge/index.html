@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>QuadtreeForge — 四叉树图像近似：按方差阈值递归细分灰度场，块状马赛克风格重建，节点数实时统计，离线可用。</title>
+<meta property="og:title" content="QuadtreeForge">
+<meta property="og:description" content="四叉树图像近似：按方差阈值递归细分灰度场，块状马赛克风格重建，节点数实时统计，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="四叉树图像近似：按方差阈值递归细分灰度场，块状马赛克风格重建，节点数实时统计，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>QuadtreeForge</h1>
+  <p class="sub">四叉树图像近似：按方差阈值递归细分灰度场，块状马赛克风格重建，节点数实时统计，离线可用。 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>误差阈值（越小越精细）</label>
+<input id="thr" type="range" min="1" max="60" step="1" value="12">
+<label>图案</label>
+<select id="pattern">
+  <option value="circles">同心圆</option>
+  <option value="gradient">对角渐变</option>
+  <option value="checker">棋盘</option>
+</select>
+<div class="row">
+  <button id="draw">重建</button>
+</div>
+<div id="stats" style="color:#A1A1AA;font-size:13px;margin-top:8px;"></div>
+<div class="err" id="err"></div>
+<canvas id="cv" width="512" height="512" style="width:100%;max-width:512px;border:1px solid rgba(255,255,255,.08);border-radius:10px;"></canvas>
+<script>
+function qtPattern(kind, size){
+  var g = [];
+  for(var y=0;y<size;y++){
+    var row = [];
+    for(var x=0;x<size;x++){
+      var v;
+      if(kind === 'gradient'){ v = ((x + y) / (2*size - 2)) * 255; }
+      else if(kind === 'checker'){ v = ((Math.floor(x/(size/8)) + Math.floor(y/(size/8))) % 2) ? 220 : 40; }
+      else { var dx = x - size/2, dy = y - size/2; v = (Math.sin(Math.sqrt(dx*dx+dy*dy) * 0.15) + 1) / 2 * 255; }
+      row.push(v);
+    }
+    g.push(row);
+  }
+  return g;
+}
+function qtStats(grid, x, y, s){
+  var sum = 0, sum2 = 0, n = s*s;
+  for(var j=y;j<y+s;j++) for(var i=x;i<x+s;i++){ var v = grid[j][i]; sum += v; sum2 += v*v; }
+  var mean = sum / n;
+  return { mean: mean, std: Math.sqrt(Math.max(0, sum2/n - mean*mean)) };
+}
+function qtBuild(grid, x, y, s, thr, minSize){
+  var st = qtStats(grid, x, y, s);
+  if(s <= (minSize||4) || st.std <= thr){
+    return { x:x, y:y, s:s, v: st.mean, leaf: true };
+  }
+  var h = s/2;
+  return { x:x, y:y, s:s, leaf: false, kids: [
+    qtBuild(grid, x, y, h, thr, minSize),
+    qtBuild(grid, x+h, y, h, thr, minSize),
+    qtBuild(grid, x, y+h, h, thr, minSize),
+    qtBuild(grid, x+h, y+h, h, thr, minSize)
+  ]};
+}
+function qtLeaves(node, out){
+  out = out || [];
+  if(node.leaf) out.push(node);
+  else for(var i=0;i<4;i++) qtLeaves(node.kids[i], out);
+  return out;
+}
+function qtCount(node){
+  if(node.leaf) return { nodes: 1, leaves: 1, depth: 1 };
+  var nodes = 1, leaves = 0, depth = 0;
+  for(var i=0;i<4;i++){
+    var c = qtCount(node.kids[i]);
+    nodes += c.nodes; leaves += c.leaves; depth = Math.max(depth, c.depth);
+  }
+  return { nodes: nodes, leaves: leaves, depth: depth + 1 };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { qtPattern:qtPattern, qtStats:qtStats, qtBuild:qtBuild, qtLeaves:qtLeaves, qtCount:qtCount };
+}
+if (typeof window !== 'undefined') {
+  window.QuadtreeForgePure = { qtPattern:qtPattern, qtStats:qtStats, qtBuild:qtBuild, qtLeaves:qtLeaves, qtCount:qtCount };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.QuadtreeForgePure;
+    var SIZE = 256, SC = 2;
+    function draw(){
+      var grid = P.qtPattern($('pattern').value, SIZE);
+      var thr = Number($('thr').value) || 12;
+      var tree = P.qtBuild(grid, 0, 0, SIZE, thr, 4);
+      var leaves = P.qtLeaves(tree), c = P.qtCount(tree);
+      var cv = $('cv'), ctx = cv.getContext('2d');
+      if(ctx){
+        ctx.fillStyle = '#0A0A0B'; ctx.fillRect(0,0,512,512);
+        for(var i=0;i<leaves.length;i++){
+          var L = leaves[i], g = Math.round(L.v);
+          ctx.fillStyle = 'rgb(' + Math.round(g*0.35) + ',' + Math.round(g*0.75) + ',' + Math.round(g*0.9) + ')';
+          ctx.fillRect(L.x*SC, L.y*SC, L.s*SC, L.s*SC);
+          ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+          ctx.strokeRect(L.x*SC + 0.5, L.y*SC + 0.5, L.s*SC - 1, L.s*SC - 1);
+        }
+      }
+      var full = SIZE*SIZE;
+      $('stats').textContent = '叶子块 ' + c.leaves + ' / 节点 ' + c.nodes + ' / 深度 ' + c.depth
+        + ' — 相当于用 ' + c.leaves + ' 块表示 ' + full + ' 像素（压缩比 ' + (full/c.leaves).toFixed(1) + ':1）';
+    }
+    $('draw').addEventListener('click', draw);
+    $('thr').addEventListener('input', draw);
+    $('pattern').addEventListener('change', draw);
+    draw();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

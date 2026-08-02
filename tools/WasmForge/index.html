@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>WasmForge — WebAssembly 浏览器：解析 .wasm 模块，列出自定义段/类型/函数/导入/导出，反汇编导出函数为 WAT，校验魔数与版本，离线可用。</title>
+<meta property="og:title" content="WasmForge">
+<meta property="og:description" content="WebAssembly 工具：解析 .wasm 二进制模块，列出自定义段、类型/函数/导入/导出/代码段与数据段，反汇编导出函数为可读的 WAT 片段，并校验魔数（\0asm）与版本。调试 Wasm 模块、理解二进制结构，纯 JS 实现、零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="WebAssembly 工具：解析 .wasm 二进制模块，列出自定义段、类型/函数/导入/导出/代码段与数据段，反汇编导出函数为可读的 WAT 片段，并校验魔数（\0asm）与版本。调试 Wasm 模块、理解二进制结构，纯 JS 实现、零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+pre.pcf{white-space:pre-wrap;word-break:break-all;background:var(--surface);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin:6px 0 0}
+
+
+.sec-h{margin-top:14px;color:var(--dim);font-size:12px}
+.pbar{display:inline-block;width:70px;height:6px;background:rgba(255,255,255,.08);
+      border-radius:3px;vertical-align:middle;overflow:hidden;margin-left:6px}
+.pbar>span{display:block;height:100%;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>WasmForge</h1>
+  <p class="sub">WebAssembly · WAT · 字节码</p>
+
+<label for="wf-src">WebAssembly 模块（十六进制字节串或 Base64）</label>
+<textarea id="wf-src" rows="6" placeholder="0061736d0100000001070160027f7f017f..."></textarea>
+<div class="row">
+  <button id="wf-go">解析模块</button>
+  <button class="ghost" id="wf-demo">示例：add 模块</button>
+  <button class="ghost" id="wf-demo2">示例：带导入与内存</button>
+  <button class="ghost" id="wf-clr">清空</button>
+</div>
+<div class="row">
+  <label for="wf-file" style="margin:0">或选择本地 .wasm 文件（全程在本机解析，不上传）</label>
+  <input type="file" id="wf-file" accept=".wasm,application/wasm">
+</div>
+<div class="err" id="wf-err"></div>
+<div class="out" id="wf-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 373 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function WasmForgePure(){
+  var SECTION_NAME = {
+    0:'custom', 1:'type', 2:'import', 3:'function', 4:'table', 5:'memory',
+    6:'global', 7:'export', 8:'start', 9:'element', 10:'code', 11:'data', 12:'data count',
+    13:'tag'
+  };
+  var SECTION_CN = {
+    0:'自定义段', 1:'类型段', 2:'导入段', 3:'函数段', 4:'表段', 5:'内存段',
+    6:'全局段', 7:'导出段', 8:'起始段', 9:'元素段', 10:'代码段', 11:'数据段', 12:'数据计数段',
+    13:'标签段'
+  };
+  var KIND_CN = {0:'函数', 1:'表', 2:'内存', 3:'全局', 4:'标签'};
+
+  function valtype(b){
+    var map = {0x7F:'i32', 0x7E:'i64', 0x7D:'f32', 0x7C:'f64', 0x7B:'v128',
+               0x70:'funcref', 0x6F:'externref', 0x69:'exnref'};
+    return map[b] || ('0x' + b.toString(16));
+  }
+
+  // ==================== 输入解码 ====================
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  function fromBase64(s){
+    var clean = s.replace(/[\s\r\n]/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    clean = clean.replace(/=+$/, '');
+    if (!/^[A-Za-z0-9+\/]*$/.test(clean)) return null;
+    var out = [], acc = 0, bits = 0;
+    for (var i = 0; i < clean.length; i++){
+      var v = B64.indexOf(clean[i]);
+      if (v < 0) return null;
+      acc = (acc << 6) | v; bits += 6;
+      if (bits >= 8){ bits -= 8; out.push((acc >> bits) & 0xFF); }
+    }
+    return out;
+  }
+  function fromHex(s){
+    var clean = s.replace(/0x/gi, '').replace(/\\x/gi, '').replace(/[\s,;\r\n]/g, '');
+    if (clean === '' || !/^[0-9a-fA-F]+$/.test(clean)) return null;
+    if (clean.length % 2 !== 0) return null;
+    var out = [];
+    for (var i = 0; i < clean.length; i += 2) out.push(parseInt(clean.substr(i, 2), 16));
+    return out;
+  }
+  function decodeInput(text){
+    var s = String(text == null ? '' : text).trim();
+    if (s === '') return {error:'请粘贴 WebAssembly 模块的十六进制或 Base64 内容'};
+    var hex = fromHex(s);
+    if (hex && hex.length >= 4 && hex[0] === 0x00 && hex[1] === 0x61 && hex[2] === 0x73 && hex[3] === 0x6D)
+      return {bytes:hex, encoding:'hex'};
+    var b64 = fromBase64(s);
+    if (b64 && b64.length >= 4 && b64[0] === 0x00 && b64[1] === 0x61 && b64[2] === 0x73 && b64[3] === 0x6D)
+      return {bytes:b64, encoding:'base64'};
+    if (hex) return {bytes:hex, encoding:'hex'};
+    if (b64) return {bytes:b64, encoding:'base64'};
+    return {error:'无法识别输入：请提供十六进制字节串（如 0061736d01000000）或 Base64'};
+  }
+
+  // ==================== LEB128 ====================
+  function readU32(b, p){
+    var result = 0, shift = 0, byte, count = 0;
+    do {
+      if (p >= b.length) return {error:'读取 LEB128 时越界'};
+      byte = b[p++]; count++;
+      if (count > 5) return {error:'LEB128 编码过长（超过 5 字节）'};
+      result += (byte & 0x7F) * Math.pow(2, shift);
+      shift += 7;
+    } while (byte & 0x80);
+    return {value:result, next:p};
+  }
+  function readName(b, p){
+    var len = readU32(b, p);
+    if (len.error) return len;
+    var end = len.next + len.value;
+    if (end > b.length) return {error:'名称长度越界'};
+    var s = '';
+    for (var i = len.next; i < end; i++){
+      var c = b[i];
+      if (c < 0x80) s += String.fromCharCode(c);
+      else s += '%' + c.toString(16);
+    }
+    return {value:s, next:end};
+  }
+
+  // ==================== 段解析 ====================
+  function parse(bytes){
+    var b = bytes;
+    if (b.length < 8) return {error:'文件太短：WebAssembly 模块至少需要 8 字节的魔数与版本号'};
+    if (!(b[0] === 0x00 && b[1] === 0x61 && b[2] === 0x73 && b[3] === 0x6D))
+      return {error:'魔数不正确：期望 00 61 73 6D（\\0asm），实际为 ' +
+                    [b[0], b[1], b[2], b[3]].map(function(x){ return ('0' + x.toString(16)).slice(-2); }).join(' ')};
+    var version = b[4] | (b[5] << 8) | (b[6] << 16) | (b[7] << 24);
+
+    var p = 8, sections = [], types = [], imports = [], exports = [], funcTypes = [];
+    var memories = [], tables = [], globals = [], customs = [], start = null;
+    var codeBodies = [], dataSegs = 0, elemSegs = 0, warnings = [];
+
+    while (p < b.length){
+      var id = b[p];
+      var szr = readU32(b, p + 1);
+      if (szr.error) return {error:'第 ' + p + ' 字节处段长度损坏：' + szr.error};
+      var size = szr.value, contentStart = szr.next, contentEnd = contentStart + size;
+      if (contentEnd > b.length)
+        return {error:'段 ' + (SECTION_CN[id] || ('#' + id)) + ' 声明长度 ' + size +
+                      ' 字节，但文件仅剩 ' + (b.length - contentStart) + ' 字节（文件被截断）'};
+      var sec = {id:id, name:SECTION_NAME[id] || ('unknown#' + id), cn:SECTION_CN[id] || ('未知段 #' + id),
+                 size:size, start:p, headerSize:contentStart - p, total:(contentEnd - p), count:null};
+      var q = contentStart;
+
+      if (id === 0){
+        var nm = readName(b, q);
+        if (!nm.error){ sec.custom = nm.value; customs.push({name:nm.value, size:size}); }
+      } else if (id === 1){
+        var c1 = readU32(b, q); if (c1.error) return {error:'类型段：' + c1.error};
+        sec.count = c1.value; q = c1.next;
+        for (var t = 0; t < c1.value && q < contentEnd; t++){
+          var form = b[q++];
+          if (form !== 0x60){ warnings.push('类型 #' + t + ' 的形式字节为 0x' + form.toString(16) + '，非标准 func 类型'); break; }
+          var np = readU32(b, q); if (np.error) break; q = np.next;
+          var params = [];
+          for (var i = 0; i < np.value; i++) params.push(valtype(b[q++]));
+          var nr = readU32(b, q); if (nr.error) break; q = nr.next;
+          var results = [];
+          for (var r = 0; r < nr.value; r++) results.push(valtype(b[q++]));
+          types.push({params:params, results:results});
+        }
+      } else if (id === 2){
+        var c2 = readU32(b, q); if (c2.error) return {error:'导入段：' + c2.error};
+        sec.count = c2.value; q = c2.next;
+        for (var m = 0; m < c2.value && q < contentEnd; m++){
+          var mod = readName(b, q); if (mod.error) break; q = mod.next;
+          var fld = readName(b, q); if (fld.error) break; q = fld.next;
+          var kind = b[q++];
+          var entry = {module:mod.value, field:fld.value, kind:kind, kindCn:(KIND_CN[kind] || '未知')};
+          if (kind === 0){ var ti = readU32(b, q); if (ti.error) break; entry.typeIndex = ti.value; q = ti.next; }
+          else if (kind === 1){ entry.elemType = valtype(b[q++]); var fl = b[q++]; var mn = readU32(b, q); if (mn.error) break; entry.min = mn.value; q = mn.next; if (fl & 1){ var mx = readU32(b, q); if (mx.error) break; entry.max = mx.value; q = mx.next; } }
+          else if (kind === 2){ var fl2 = b[q++]; var mn2 = readU32(b, q); if (mn2.error) break; entry.min = mn2.value; q = mn2.next; if (fl2 & 1){ var mx2 = readU32(b, q); if (mx2.error) break; entry.max = mx2.value; q = mx2.next; } entry.shared = !!(fl2 & 2); }
+          else if (kind === 3){ entry.valtype = valtype(b[q++]); entry.mutable = b[q++] === 1; }
+          imports.push(entry);
+        }
+      } else if (id === 3){
+        var c3 = readU32(b, q); if (c3.error) return {error:'函数段：' + c3.error};
+        sec.count = c3.value; q = c3.next;
+        for (var f = 0; f < c3.value && q < contentEnd; f++){
+          var tv = readU32(b, q); if (tv.error) break; funcTypes.push(tv.value); q = tv.next;
+        }
+      } else if (id === 4){
+        var c4 = readU32(b, q); if (c4.error) return {error:'表段：' + c4.error};
+        sec.count = c4.value; q = c4.next;
+        for (var tb = 0; tb < c4.value && q < contentEnd; tb++){
+          var et = valtype(b[q++]); var flg = b[q++];
+          var tmin = readU32(b, q); if (tmin.error) break; q = tmin.next;
+          var tobj = {elemType:et, min:tmin.value, max:null};
+          if (flg & 1){ var tmax = readU32(b, q); if (tmax.error) break; tobj.max = tmax.value; q = tmax.next; }
+          tables.push(tobj);
+        }
+      } else if (id === 5){
+        var c5 = readU32(b, q); if (c5.error) return {error:'内存段：' + c5.error};
+        sec.count = c5.value; q = c5.next;
+        for (var mi = 0; mi < c5.value && q < contentEnd; mi++){
+          var mflag = b[q++];
+          var mmin = readU32(b, q); if (mmin.error) break; q = mmin.next;
+          var mobj = {min:mmin.value, max:null, shared:!!(mflag & 2)};
+          if (mflag & 1){ var mmax = readU32(b, q); if (mmax.error) break; mobj.max = mmax.value; q = mmax.next; }
+          memories.push(mobj);
+        }
+      } else if (id === 6){
+        var c6 = readU32(b, q); if (c6.error) return {error:'全局段：' + c6.error};
+        sec.count = c6.value;
+        for (var gi = 0; gi < c6.value; gi++) globals.push({});
+      } else if (id === 7){
+        var c7 = readU32(b, q); if (c7.error) return {error:'导出段：' + c7.error};
+        sec.count = c7.value; q = c7.next;
+        for (var e = 0; e < c7.value && q < contentEnd; e++){
+          var en = readName(b, q); if (en.error) break; q = en.next;
+          var ek = b[q++];
+          var ei = readU32(b, q); if (ei.error) break; q = ei.next;
+          exports.push({name:en.value, kind:ek, kindCn:(KIND_CN[ek] || '未知'), index:ei.value});
+        }
+      } else if (id === 8){
+        var sv = readU32(b, q); if (!sv.error) start = sv.value;
+      } else if (id === 9){
+        var c9 = readU32(b, q); if (!c9.error){ sec.count = c9.value; elemSegs = c9.value; }
+      } else if (id === 10){
+        var c10 = readU32(b, q); if (c10.error) return {error:'代码段：' + c10.error};
+        sec.count = c10.value; q = c10.next;
+        for (var cb = 0; cb < c10.value && q < contentEnd; cb++){
+          var bs = readU32(b, q); if (bs.error) break;
+          codeBodies.push(bs.value);
+          q = bs.next + bs.value;
+        }
+      } else if (id === 11){
+        var c11 = readU32(b, q); if (!c11.error){ sec.count = c11.value; dataSegs = c11.value; }
+      }
+      sections.push(sec);
+      p = contentEnd;
+    }
+
+    return {
+      value:{
+        size:b.length, version:version, sections:sections, types:types,
+        imports:imports, exports:exports, funcTypes:funcTypes, memories:memories,
+        tables:tables, globals:globals, customs:customs, start:start,
+        codeBodies:codeBodies, dataSegs:dataSegs, elemSegs:elemSegs, warnings:warnings
+      }
+    };
+  }
+
+  // ==================== 签名格式化 ====================
+  function sigStr(t){
+    if (!t) return '(?) -> ?';
+    var ps = t.params.length ? t.params.join(', ') : '';
+    var rs = t.results.length ? t.results.join(', ') : 'void';
+    return '(' + ps + ') -> ' + rs;
+  }
+  function funcSignature(mod, funcIndex){
+    var importedFuncs = mod.imports.filter(function(x){ return x.kind === 0; });
+    if (funcIndex < importedFuncs.length){
+      var im = importedFuncs[funcIndex];
+      return {imported:true, name:im.module + '.' + im.field, sig:sigStr(mod.types[im.typeIndex])};
+    }
+    var local = funcIndex - importedFuncs.length;
+    var ti = mod.funcTypes[local];
+    return {imported:false, name:'func[' + funcIndex + ']', sig:sigStr(mod.types[ti])};
+  }
+
+  // ==================== 体检 ====================
+  function lint(mod){
+    var iss = [];
+    function add(level, text){ iss.push({level:level, text:text}); }
+
+    if (mod.version !== 1) add('err', '版本号为 ' + mod.version + '，当前规范只定义了版本 1');
+
+    // 段顺序（自定义段可出现在任意位置）
+    var last = 0;
+    for (var i = 0; i < mod.sections.length; i++){
+      var s = mod.sections[i];
+      if (s.id === 0) continue;
+      if (s.id < last) add('err', '段顺序错误：' + s.cn + '（#' + s.id + '）出现在 #' + last + ' 之后，规范要求非自定义段严格按 ID 递增');
+      if (s.id === last) add('err', '重复的' + s.cn + '：同一 ID 的非自定义段只能出现一次');
+      last = s.id;
+    }
+    for (var w = 0; w < mod.warnings.length; w++) add('warn', mod.warnings[w]);
+
+    if (!mod.exports.length && mod.start === null)
+      add('warn', '模块既没有导出段也没有起始段：宿主无法调用其中任何内容');
+
+    if (mod.funcTypes.length !== mod.codeBodies.length)
+      add('err', '函数段声明了 ' + mod.funcTypes.length + ' 个函数，代码段却有 ' + mod.codeBodies.length + ' 个函数体，两者必须一致');
+
+    for (var mi = 0; mi < mod.memories.length; mi++){
+      var m = mod.memories[mi];
+      var mb = m.min * 64 / 1024;
+      if (m.max === null) add('info', '内存 #' + mi + ' 未设置上限：模块可以无限 grow，宿主侧建议显式限制以防内存耗尽');
+      if (m.min > 256) add('warn', '内存 #' + mi + ' 初始就申请 ' + m.min + ' 页（约 ' + mb.toFixed(1) + ' MB）：初始页数越大冷启动越慢，通常应从小页数按需增长');
+      if (m.shared) add('info', '内存 #' + mi + ' 是 shared 共享内存：依赖 threads 提案，宿主需开启 COOP/COEP 跨域隔离头才能使用');
+    }
+
+    var hasSimd = false, hasRef = false;
+    for (var t = 0; t < mod.types.length; t++){
+      var all = mod.types[t].params.concat(mod.types[t].results);
+      for (var a = 0; a < all.length; a++){
+        if (all[a] === 'v128') hasSimd = true;
+        if (all[a] === 'externref' || all[a] === 'funcref') hasRef = true;
+      }
+    }
+    if (hasSimd) add('info', '类型签名中出现 v128：该模块使用了 SIMD 提案，Safari 16.4 之前与部分嵌入式运行时不支持');
+    if (hasRef) add('info', '类型签名中出现引用类型（funcref / externref）：需要运行时支持 reference-types 提案');
+
+    var nameSec = null, prodSec = null, customBytes = 0;
+    for (var c = 0; c < mod.customs.length; c++){
+      customBytes += mod.customs[c].size;
+      if (mod.customs[c].name === 'name') nameSec = mod.customs[c];
+      if (mod.customs[c].name === 'producers') prodSec = mod.customs[c];
+      if (/^\.debug_/.test(mod.customs[c].name))
+        add('warn', '存在 DWARF 调试段 ' + mod.customs[c].name + '（' + mod.customs[c].size + ' 字节）：发布版应用 wasm-strip 去掉');
+    }
+    if (nameSec)
+      add('info', '存在 name 自定义段（' + nameSec.size + ' 字节，占 ' + (nameSec.size * 100 / mod.size).toFixed(1) + '%）：它只用于调试时显示函数名，生产构建可以 strip 掉');
+    if (prodSec)
+      add('info', '存在 producers 自定义段（' + prodSec.size + ' 字节）：记录了工具链信息，属于可移除的元数据');
+
+    var bindgen = mod.exports.filter(function(x){ return /^__wbindgen|^__wbg_/.test(x.name); });
+    if (bindgen.length)
+      add('info', '检测到 ' + bindgen.length + ' 个 wasm-bindgen 运行时导出：Rust 产物建议再过一遍 wasm-opt -Oz，通常能再压掉两到三成');
+
+    var envImports = mod.imports.filter(function(x){ return x.module === 'env'; });
+    if (mod.imports.length > 40)
+      add('info', '共有 ' + mod.imports.length + ' 个导入项：每个导入都要在实例化时由宿主提供，数量过多会拖慢启动');
+    if (envImports.some(function(x){ return /^(emscripten_|_emscripten)/.test(x.field); }))
+      add('info', '检测到 Emscripten 运行时导入：如果只是纯计算模块，可尝试 -sSTANDALONE_WASM 生成不依赖 JS 胶水的版本');
+
+    var wasi = mod.imports.filter(function(x){ return /^wasi_/.test(x.module); });
+    if (wasi.length) add('info', '导入了 ' + wasi.length + ' 个 WASI 接口（' + wasi[0].module + '）：这是一个 WASI 模块，浏览器中需要 polyfill');
+
+    var dup = {};
+    for (var e = 0; e < mod.exports.length; e++){
+      if (dup[mod.exports[e].name]) add('err', '导出名重复：「' + mod.exports[e].name + '」在导出段中出现了多次');
+      dup[mod.exports[e].name] = 1;
+    }
+
+    if (!mod.exports.some(function(x){ return x.kind === 2; }) && mod.memories.length)
+      add('info', '模块定义了内存但没有导出：宿主将无法直接读写它的线性内存');
+
+    return iss;
+  }
+
+  function stats(mod){
+    var rows = [], accounted = 0;
+    for (var i = 0; i < mod.sections.length; i++){
+      var s = mod.sections[i];
+      accounted += s.total;
+      rows.push({name:s.cn + (s.custom ? '（' + s.custom + '）' : ''), bytes:s.total,
+                 pct:(s.total * 100 / mod.size), count:s.count});
+    }
+    rows.sort(function(a, b){ return b.bytes - a.bytes; });
+    return {rows:rows, header:8, accounted:accounted + 8, size:mod.size};
+  }
+
+  function analyze(text){
+    var d = decodeInput(text);
+    if (d.error) return {error:d.error};
+    var p = parse(d.bytes);
+    if (p.error) return {error:p.error};
+    var mod = p.value;
+    var iss = lint(mod);
+    var importedFuncs = mod.imports.filter(function(x){ return x.kind === 0; }).length;
+    var expList = mod.exports.map(function(e){
+      var extra = '';
+      if (e.kind === 0) extra = funcSignature(mod, e.index).sig;
+      else if (e.kind === 2) extra = '线性内存 #' + e.index;
+      else if (e.kind === 1) extra = '表 #' + e.index;
+      else if (e.kind === 3) extra = '全局 #' + e.index;
+      return {name:e.name, kind:e.kindCn, detail:extra};
+    });
+    var impList = mod.imports.map(function(im){
+      var extra = '';
+      if (im.kind === 0) extra = sigStr(mod.types[im.typeIndex]);
+      else if (im.kind === 2) extra = '内存 ' + im.min + ' ~ ' + (im.max == null ? '∞' : im.max) + ' 页';
+      else if (im.kind === 1) extra = '表 ' + im.elemType + ' ×' + im.min;
+      else if (im.kind === 3) extra = (im.mutable ? 'mut ' : '') + im.valtype;
+      return {name:im.module + '.' + im.field, kind:im.kindCn, detail:extra};
+    });
+    return {
+      encoding: d.encoding,
+      size: mod.size,
+      version: mod.version,
+      sections: mod.sections.map(function(s){ return {cn:s.cn, id:s.id, bytes:s.total, count:s.count, custom:s.custom || null}; }),
+      stats: stats(mod),
+      types: mod.types.map(sigStr),
+      imports: impList,
+      exports: expList,
+      localFuncs: mod.funcTypes.length,
+      importedFuncs: importedFuncs,
+      memories: mod.memories,
+      tables: mod.tables,
+      globals: mod.globals.length,
+      dataSegs: mod.dataSegs,
+      elemSegs: mod.elemSegs,
+      start: mod.start,
+      issues: iss,
+      errCount: iss.filter(function(x){ return x.level === 'err'; }).length,
+      warnCount: iss.filter(function(x){ return x.level === 'warn'; }).length
+    };
+  }
+
+  var api = {decodeInput:decodeInput, fromHex:fromHex, fromBase64:fromBase64,
+             readU32:readU32, readName:readName, parse:parse, lint:lint,
+             stats:stats, sigStr:sigStr, funcSignature:funcSignature,
+             valtype:valtype, analyze:analyze};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {WasmForgePure:WasmForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = WasmForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var ADD = '0061736d0100000001070160027f7f017f030201000707010361646400000a09010700200020016a0b';
+  var RICH = '0061736d01000000' + '01070160027f7f017f' + '020b0103656e76036c6f670000' +
+             '03020100' + '0503010001' + '070701036164640001' + '0a09010700200020016a0b' + '0005046e616d65';
+
+  function bar(pct){
+    var w = Math.max(1, Math.round(pct));
+    return '<span style="display:inline-block;height:6px;width:' + w + '%;background:var(--accent);border-radius:3px;vertical-align:middle"></span>';
+  }
+
+  function run(){
+    var r = P.analyze(document.getElementById('wf-src').value);
+    var $e = document.getElementById('wf-err'), $o = document.getElementById('wf-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var h = '';
+    h += '<div class="kv"><b>模块大小</b><span>' + r.size + ' 字节（输入按 ' + r.encoding + ' 解码）</span></div>';
+    h += '<div class="kv"><b>二进制版本</b><span>' + r.version + '</span></div>';
+    h += '<div class="kv"><b>函数</b><span>本地 ' + r.localFuncs + ' 个 / 导入 ' + r.importedFuncs + ' 个</span></div>';
+    h += '<div class="kv"><b>内存 / 表 / 全局</b><span>' + r.memories.length + ' / ' + r.tables.length + ' / ' + r.globals + '</span></div>';
+    h += '<div class="kv"><b>严重 / 警告</b><span><span style="color:' + (r.errCount ? '#EF4444' : 'var(--ok)') + ';font-weight:700">' +
+         r.errCount + '</span> / <span style="color:var(--warn)">' + r.warnCount + '</span></span></div>';
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">段体积分布</div>';
+    for (var i = 0; i < r.stats.rows.length; i++){
+      var s = r.stats.rows[i];
+      h += '<div class="kv"><b>' + esc(s.name) + '</b><span>' + s.bytes + ' B · ' + s.pct.toFixed(1) + '% ' +
+           (s.count != null ? '· ' + s.count + ' 项 ' : '') + bar(s.pct) + '</span></div>';
+    }
+
+    if (r.imports.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">导入（宿主必须提供）</div>';
+      for (var im = 0; im < r.imports.length; im++)
+        h += '<div class="kv"><b>' + esc(r.imports[im].name) + '</b><span>' + esc(r.imports[im].kind) + ' · ' + esc(r.imports[im].detail) + '</span></div>';
+    }
+    if (r.exports.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">导出（宿主可调用）</div>';
+      for (var ex = 0; ex < r.exports.length; ex++)
+        h += '<div class="kv"><b>' + esc(r.exports[ex].name) + '</b><span>' + esc(r.exports[ex].kind) + ' · ' + esc(r.exports[ex].detail) + '</span></div>';
+    }
+
+    if (r.issues.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">模块体检</div>';
+      for (var j = 0; j < r.issues.length; j++){
+        var it = r.issues[j];
+        var col = it.level === 'err' ? '#EF4444' : (it.level === 'warn' ? 'var(--warn)' : 'var(--muted)');
+        var tag = it.level === 'err' ? '严重' : (it.level === 'warn' ? '警告' : '建议');
+        h += '<div class="kv"><b style="color:' + col + '">' + tag + '</b><span>' + esc(it.text) + '</span></div>';
+      }
+    } else {
+      h += '<div class="kv"><b>模块体检</b><span style="color:var(--ok)">未发现问题</span></div>';
+    }
+    $o.innerHTML = h;
+  }
+
+  document.getElementById('wf-go').addEventListener('click', run);
+  document.getElementById('wf-demo').addEventListener('click', function(){
+    document.getElementById('wf-src').value = ADD; run();
+  });
+  document.getElementById('wf-demo2').addEventListener('click', function(){
+    document.getElementById('wf-src').value = RICH; run();
+  });
+  document.getElementById('wf-clr').addEventListener('click', function(){
+    document.getElementById('wf-src').value = '';
+    document.getElementById('wf-out').innerHTML = '';
+    document.getElementById('wf-err').textContent = '';
+  });
+  document.getElementById('wf-file').addEventListener('change', function(ev){
+    var f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function(){
+      var view = new Uint8Array(fr.result), hex = '';
+      for (var i = 0; i < view.length; i++) hex += ('0' + view[i].toString(16)).slice(-2);
+      document.getElementById('wf-src').value = hex;
+      run();
+    };
+    fr.readAsArrayBuffer(f);
+  });
+  document.getElementById('wf-src').value = RICH;
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>LlmCostForge — 大模型调用成本测算：10 款模型比价、缓存节省、上下文窗口预警。</title>
+<meta property="og:title" content="LlmCostForge">
+<meta property="og:description" content="大模型调用成本测算：token 估算、10 款模型比价、缓存节省与窗口预警，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="大模型调用成本测算：token 估算、10 款模型比价、缓存节省与窗口预警，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>LlmCostForge</h1>
+  <p class="sub">LLM 成本：中英混合 token 估算、10 款模型日/月/年比价、缓存命中节省、上下文窗口预警、人民币换算 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>提示词样本（自动估算 token，也可直接填下面的数字）</label>
+<textarea id="sample" rows="4" spellcheck="false"></textarea>
+<div class="row">
+  <label style="margin:0">模型</label><select id="model" style="max-width:190px"></select>
+  <label style="margin:0">输入 token</label><input type="text" id="inp" value="1200" style="max-width:110px">
+  <label style="margin:0">输出 token</label><input type="text" id="out" value="400" style="max-width:110px">
+</div>
+<div class="row">
+  <label style="margin:0">每日调用</label><input type="text" id="calls" value="1000" style="max-width:110px">
+  <label style="margin:0">缓存命中率</label><input type="text" id="hit" value="0.4" style="max-width:90px">
+  <label style="margin:0">汇率 CNY</label><input type="text" id="rate" value="7.2" style="max-width:80px">
+  <button id="run">计算成本</button>
+  <button id="est" class="ghost">按样本估算 token</button>
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="res"></div>
+<div class="out" id="cache"></div>
+<div class="out" id="cmp"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var LC_MODELS = [
+  { id:'gpt-4o',            label:'GPT-4o',              inp:2.50,  out:10.00, ctx:128000 },
+  { id:'gpt-4o-mini',       label:'GPT-4o mini',         inp:0.15,  out:0.60,  ctx:128000 },
+  { id:'o3-mini',           label:'o3-mini',             inp:1.10,  out:4.40,  ctx:200000 },
+  { id:'claude-sonnet',     label:'Claude Sonnet',       inp:3.00,  out:15.00, ctx:200000 },
+  { id:'claude-haiku',      label:'Claude Haiku',        inp:0.80,  out:4.00,  ctx:200000 },
+  { id:'gemini-flash',      label:'Gemini Flash',        inp:0.075, out:0.30,  ctx:1000000 },
+  { id:'gemini-pro',        label:'Gemini Pro',          inp:1.25,  out:5.00,  ctx:2000000 },
+  { id:'deepseek-chat',     label:'DeepSeek Chat',       inp:0.27,  out:1.10,  ctx:64000 },
+  { id:'qwen-max',          label:'Qwen Max',            inp:1.60,  out:6.40,  ctx:32000 },
+  { id:'local-0',           label:'本地部署（自托管）',    inp:0,     out:0,     ctx:32000 }
+];
+function lcFindModel(id){
+  for(var i=0;i<LC_MODELS.length;i++) if(LC_MODELS[i].id===id) return LC_MODELS[i];
+  return null;
+}
+function lcEstimateTokens(text){
+  var s=String(text||'');
+  if(!s) return 0;
+  var cjk=(s.match(/[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/g)||[]).length;
+  var rest=s.length-cjk;
+  return Math.max(1, Math.round(cjk*0.95 + rest/3.8));
+}
+function lcCost(model, inTok, outTok){
+  if(!model) return null;
+  var i=(inTok||0)/1e6*model.inp, o=(outTok||0)/1e6*model.out;
+  return { input:i, output:o, total:i+o };
+}
+function lcRound(v, digits){
+  var d=Math.pow(10, digits===undefined?6:digits);
+  return Math.round(v*d)/d;
+}
+function lcFmtUsd(v){
+  if(v===0) return '$0';
+  if(v<0.01) return '$'+v.toFixed(6);
+  if(v<1) return '$'+v.toFixed(4);
+  return '$'+v.toFixed(2);
+}
+function lcProject(model, inTok, outTok, callsPerDay, cnyRate){
+  var c=lcCost(model, inTok, outTok);
+  if(!c) return null;
+  var rate = cnyRate || 7.2;
+  var per=c.total, day=per*(callsPerDay||0), mon=day*30, yr=day*365;
+  return { per:per, day:day, month:mon, year:yr,
+           monthCny:mon*rate, yearCny:yr*rate };
+}
+function lcCompare(inTok, outTok, callsPerDay){
+  var out=[];
+  for(var i=0;i<LC_MODELS.length;i++){
+    var m=LC_MODELS[i], c=lcCost(m, inTok, outTok);
+    out.push({ id:m.id, label:m.label, per:c.total, month:c.total*(callsPerDay||0)*30,
+               fits:(inTok+outTok)<=m.ctx });
+  }
+  out.sort(function(a,b){ return a.per-b.per || (a.id<b.id?-1:1); });
+  return out;
+}
+function lcCacheSaving(model, inTok, outTok, hitRate, discount){
+  var base=lcCost(model, inTok, outTok);
+  if(!base) return null;
+  var d = discount===undefined ? 0.9 : discount;
+  var h = Math.max(0, Math.min(1, hitRate||0));
+  var saved = base.input * h * d;
+  return { base:base.total, cached:base.total-saved, saved:saved,
+           pct: base.total ? saved/base.total : 0 };
+}
+function lcCtxWarn(model, inTok, outTok){
+  if(!model) return null;
+  var used=(inTok||0)+(outTok||0);
+  var ratio=used/model.ctx;
+  if(ratio>1) return { level:'错误', msg:'超出上下文窗口（'+used+' > '+model.ctx+'）' };
+  if(ratio>0.8) return { level:'警告', msg:'已用 '+(ratio*100).toFixed(1)+'% 上下文窗口，接近上限' };
+  return { level:'正常', msg:'占用 '+(ratio*100).toFixed(1)+'% 上下文窗口' };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { LC_MODELS:LC_MODELS, lcFindModel:lcFindModel, lcEstimateTokens:lcEstimateTokens,
+    lcCost:lcCost, lcRound:lcRound, lcFmtUsd:lcFmtUsd, lcProject:lcProject, lcCompare:lcCompare,
+    lcCacheSaving:lcCacheSaving, lcCtxWarn:lcCtxWarn };
+}
+if (typeof window !== 'undefined') {
+  window.LlmCostForgePure = { LC_MODELS:LC_MODELS, lcFindModel:lcFindModel, lcEstimateTokens:lcEstimateTokens,
+    lcCost:lcCost, lcRound:lcRound, lcFmtUsd:lcFmtUsd, lcProject:lcProject, lcCompare:lcCompare,
+    lcCacheSaving:lcCacheSaving, lcCtxWarn:lcCtxWarn };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.LlmCostForgePure;
+  function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }); }
+  var sel=$('model');
+  P.LC_MODELS.forEach(function(m){ var o=document.createElement('option'); o.value=m.id; o.textContent=m.label; sel.appendChild(o); });
+  function num(id, d){ var v=parseFloat($(id).value); return isNaN(v) ? d : v; }
+  function run(){
+    var m=P.lcFindModel(sel.value), i=num('inp',0), o=num('out',0), calls=num('calls',0);
+    var pr=P.lcProject(m, i, o, calls, num('rate',7.2));
+    var w=P.lcCtxWarn(m, i, o);
+    $('err').textContent = w.level==='正常' ? '' : (w.level+'：'+w.msg);
+    $('res').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>单次调用</b><span>'+P.lcFmtUsd(pr.per)+'</span></div>'+
+      '<div class="kv"><b>每日</b><span>'+P.lcFmtUsd(pr.day)+'</span></div>'+
+      '<div class="kv"><b>每月（30 天）</b><span>'+P.lcFmtUsd(pr.month)+' ≈ ¥'+pr.monthCny.toFixed(2)+'</span></div>'+
+      '<div class="kv"><b>每年</b><span>'+P.lcFmtUsd(pr.year)+' ≈ ¥'+pr.yearCny.toFixed(2)+'</span></div>'+
+      '<div class="kv"><b>输入 / 输出单价</b><span>$'+m.inp+' / $'+m.out+' 每百万 token</span></div>'+
+      '<div class="kv"><b>上下文占用</b><span>'+esc(w.msg)+'</span></div></div>';
+    var cs=P.lcCacheSaving(m, i, o, num('hit',0));
+    $('cache').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>无缓存单价</b><span>'+P.lcFmtUsd(cs.base)+'</span></div>'+
+      '<div class="kv"><b>启用缓存后</b><span>'+P.lcFmtUsd(cs.cached)+'</span></div>'+
+      '<div class="kv"><b>单次节省</b><span>'+P.lcFmtUsd(cs.saved)+'</span></div>'+
+      '<div class="kv"><b>节省比例</b><span>'+(cs.pct*100).toFixed(1)+'%</span></div></div>';
+    var cmp=P.lcCompare(i, o, calls), h='';
+    for(var k=0;k<cmp.length;k++)
+      h+='<div class="kv"><b>'+esc(cmp[k].label)+(cmp[k].fits?'':' ⚠ 超窗')+'</b><span>'+
+         P.lcFmtUsd(cmp[k].per)+' / 次 · 月 '+P.lcFmtUsd(cmp[k].month)+'</span></div>';
+    $('cmp').innerHTML=h;
+  }
+  $('run').addEventListener('click', run);
+  sel.addEventListener('change', run);
+  $('est').addEventListener('click', function(){
+    var t=P.lcEstimateTokens($('sample').value);
+    $('inp').value=t; $('out').value=Math.max(1, Math.round(t*0.35)); run();
+  });
+  $('sample').value='\u4f60\u662f\u4e00\u4e2a\u4ee3\u7801\u5ba1\u67e5\u52a9\u624b\uff0c\u8bf7\u5206\u6790\u4ee5\u4e0b diff \u5e76\u6307\u51fa\u6f5c\u5728\u95ee\u9898\u3002';
+  sel.value='gpt-4o-mini';
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VaultForge</title>
+<meta name="description" content="Local-first zero-knowledge encrypted vault. AES-GCM + PBKDF2. Your data never leaves the device.">
+<meta name="theme-color" content="#0A0A0B">
+<meta name="color-scheme" content="dark light">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="og.svg" type="image/svg+xml">
+<style>
+:root{
+  --canvas:#0A0A0B;
+  --card:#141417;
+  --surface:#1A1B1E;
+  --text:#FFFFFF;
+  --text-2:#A1A1AA;
+  --text-3:#71717A;
+  --border:rgba(255,255,255,0.08);
+  --border-strong:rgba(255,255,255,0.14);
+  --accent:#5E6AD2;
+  --success:#10B981;
+  --warning:#F5A623;
+  --info:#22D3EE;
+  --purple:#A78BFA;
+  --radius-sm:6px;
+  --radius:10px;
+  --radius-lg:14px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+[data-theme="light"]{
+  --canvas:#FFFFFF;
+  --card:#F4F4F5;
+  --surface:#EAEAEC;
+  --text:#18181B;
+  --text-2:#52525B;
+  --text-3:#71717A;
+  --border:rgba(0,0,0,0.08);
+  --border-strong:rgba(0,0,0,0.14);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--canvas);
+  color:var(--text);
+  font-family:var(--font);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.muted{color:var(--text-2)}
+.small{font-size:12px}
+.hidden{display:none !important}
+.err{color:var(--warning);font-size:12px;margin:6px 0 0}
+button{font-family:inherit}
+.btn{
+  background:var(--surface);
+  color:var(--text);
+  border:1px solid var(--border-strong);
+  border-radius:var(--radius-sm);
+  padding:8px 14px;
+  cursor:pointer;
+  font-size:13px;
+  transition:transform .12s ease, background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.btn:hover{background:var(--card); border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn-primary:hover{background:#6b77e0; border-color:#6b77e0}
+.btn.block{width:100%;margin-bottom:12px}
+.btn-ghost{
+  background:transparent;border:1px solid var(--border);color:var(--text-2);
+  border-radius:var(--radius-sm);padding:7px 10px;cursor:pointer;font-size:13px;
+  transition:color .15s ease,border-color .15s ease,background .15s ease;
+}
+.btn-ghost:hover{color:var(--text);border-color:var(--border-strong);background:var(--surface)}
+.btn-ghost.danger:hover{color:#fff;border-color:var(--warning);background:rgba(245,166,35,.12)}
+.input{
+  width:100%;background:var(--surface);color:var(--text);
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:9px 11px;font-size:13px;outline:none;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(94,106,210,.18)}
+.lbl{display:block;font-size:12px;color:var(--text-2);margin:10px 0 5px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg)}
+.icon{display:inline-flex;width:18px;height:18px;color:var(--text-2)}
+.icon svg{width:100%;height:100%}
+
+/* modal */
+.modal-overlay{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(6px);z-index:50;padding:20px;
+}
+.modal{width:100%;max-width:420px;padding:26px;border-radius:var(--radius-lg);
+  animation:pop .22s ease;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.modal-head h2{font-size:17px;margin:0}
+.modal-body{padding:6px 0}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.brand-logo{width:42px;height:42px;color:var(--accent);margin-bottom:12px}
+.modal h1{font-size:22px;margin:0 0 4px;letter-spacing:-.3px}
+.modal form{margin-top:18px}
+
+/* topbar */
+.topbar{display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--border)}
+.brand{font-weight:600;letter-spacing:-.2px;font-size:15px}
+.brand b{color:var(--accent)}
+.spacer{flex:1}
+
+/* layout */
+.layout{display:grid;grid-template-columns:240px 340px 1fr;height:calc(100vh - 57px);min-height:0}
+.sidebar{border-right:1px solid var(--border);padding:16px;overflow:auto}
+.listpane{border-right:1px solid var(--border);overflow:auto}
+.detailpane{overflow:auto;padding:22px}
+.catnav{display:flex;flex-direction:column;gap:2px;margin-top:14px}
+.catnav button{
+  display:flex;align-items:center;gap:9px;background:transparent;border:none;color:var(--text-2);
+  padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;text-align:left;font-size:13px;width:100%;
+  transition:background .12s ease,color .12s ease}
+.catnav button:hover{background:var(--surface);color:var(--text)}
+.catnav button.active{background:var(--surface);color:var(--text);box-shadow:inset 0 0 0 1px var(--border)}
+.catnav .count{margin-left:auto;font-size:11px;color:var(--text-3)}
+
+/* entry list */
+.entry-list{padding:10px}
+.entry{
+  display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:var(--radius);
+  border:1px solid transparent;cursor:pointer;transition:background .12s ease,border-color .12s ease;
+}
+.entry:hover{background:var(--surface)}
+.entry.active{background:var(--surface);border-color:var(--border-strong)}
+.entry .eicon{width:32px;height:32px;border-radius:8px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--accent);flex:none}
+.entry .emeta{min-width:0;flex:1}
+.entry .etitle{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry .esub{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entry .fav{color:var(--warning);flex:none}
+.empty{color:var(--text-3);text-align:center;padding:40px 16px;font-size:13px}
+
+/* detail */
+.detail-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px}
+.detail-head .dicon{width:40px;height:40px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--accent);flex:none}
+.detail-head h2{margin:0;font-size:18px}
+.detail-head .cat{font-size:12px;color:var(--text-3)}
+.detail-actions{display:flex;gap:6px;margin-left:auto}
+.field-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--border)}
+.field-row .fk{width:130px;color:var(--text-2);font-size:12px;flex:none}
+.field-row .fv{flex:1;min-width:0;word-break:break-all;font-size:13px}
+.field-row .fv.mask{letter-spacing:2px;color:var(--text)}
+.field-row .facts{display:flex;gap:4px;flex:none}
+.mini{background:var(--surface);border:1px solid var(--border);color:var(--text-2);border-radius:6px;padding:5px 8px;cursor:pointer;font-size:12px;transition:color .12s, border-color .12s}
+.mini:hover{color:var(--text);border-color:var(--border-strong)}
+.meta-line{font-size:12px;color:var(--text-3);margin-top:14px}
+
+/* strength */
+.strength{height:6px;border-radius:99px;background:var(--surface);overflow:hidden;margin-top:7px}
+.strength > i{display:block;height:100%;width:0;border-radius:99px;transition:width .2s ease,background .2s ease}
+.strength-lbl{font-size:11px;margin-top:4px}
+
+/* generator modal */
+.gen-out{display:flex;gap:8px;margin:6px 0}
+.gen-out .input{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.5px}
+.toggles{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-top:8px}
+.toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);cursor:pointer}
+.toggle input{accent-color:var(--accent)}
+.range-row{display:flex;align-items:center;gap:12px}
+.range-row input[type=range]{flex:1;accent-color:var(--accent)}
+.range-row .rv{min-width:28px;text-align:right;color:var(--text)}
+
+/* brand strip */
+.brand-strip{
+  position:fixed;right:14px;bottom:12px;z-index:40;
+  font-size:11px;color:var(--text-3);letter-spacing:.4px;
+  background:var(--card);border:1px solid var(--border);border-radius:99px;
+  padding:5px 12px;pointer-events:none;user-select:none;
+}
+.brand-strip b{color:var(--accent);font-weight:600}
+
+/* toast */
+.toast{
+  position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);
+  background:var(--surface);border:1px solid var(--border-strong);color:var(--text);
+  padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;pointer-events:none;
+  transition:opacity .2s ease, transform .2s ease;z-index:60;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* reveal */
+.reveal{opacity:0;transform:translateY(8px);transition:opacity .4s ease, transform .4s ease}
+.reveal.in{opacity:1;transform:none}
+
+@media (max-width:860px){
+  .layout{grid-template-columns:1fr;height:auto}
+  .sidebar,.listpane{border-right:none;border-bottom:1px solid var(--border)}
+  .detailpane{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Unlock / Create modal -->
+  <div id="unlockModal" class="modal-overlay" aria-modal="true" role="dialog">
+    <div class="modal card">
+      <div class="brand-logo" id="lockLogo"></div>
+      <h1 id="lockTitle">VaultForge</h1>
+      <p class="muted small" id="lockSub"></p>
+      <form id="lockForm" autocomplete="off">
+        <label class="lbl" id="lockPwLbl"></label>
+        <input id="lockPw" type="password" class="input" autocomplete="off" />
+        <label class="lbl" id="lockPw2Lbl"></label>
+        <input id="lockPw2" type="password" class="input" autocomplete="off" hidden />
+        <p class="err" id="lockErr" hidden></p>
+        <button type="submit" class="btn btn-primary block" id="lockSubmit" style="margin-top:14px"></button>
+      </form>
+      <p class="muted small" id="secureNote"></p>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="main" class="hidden">
+    <header class="topbar">
+      <div class="brand">Vault<b>Forge</b></div>
+      <div class="spacer"></div>
+      <button class="btn-ghost" id="langBtn" title="Language">中文</button>
+      <button class="btn-ghost" id="themeBtn" title="Theme">◐</button>
+      <button class="btn-ghost danger" id="lockBtn">Lock</button>
+    </header>
+    <div class="layout">
+      <aside class="sidebar">
+        <button class="btn btn-primary block" id="addBtn">+ New</button>
+        <input id="search" class="input" placeholder="" />
+        <nav id="catNav" class="catnav"></nav>
+        <div style="margin-top:18px;display:flex;flex-direction:column;gap:6px">
+          <button class="btn-ghost" id="exportBtn">Export (encrypted)</button>
+          <button class="btn-ghost" id="importBtn">Import</button>
+          <input type="file" id="importInput" accept="application/json,.json" hidden />
+        </div>
+      </aside>
+      <section class="listpane">
+        <div id="entryList" class="entry-list"></div>
+      </section>
+      <section class="detailpane" id="detailPane"></section>
+    </div>
+  </div>
+</div>
+<div class="brand-strip">nano·tools · <b>VaultForge</b></div>
+<div class="toast" id="toast"></div>
+
+<script>
+var __LS=(function(){try{var s=(typeof window!=='undefined'&&window.localStorage)?window.localStorage:null;if(!s)throw 0;s.setItem('__lsprobe','1');s.removeItem('__lsprobe');return s;}catch(e){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null;},setItem:function(k,v){m[k]=String(v);},removeItem:function(k){delete m[k];},clear:function(){m={};},key:function(i){return Object.keys(m)[i]||null;}};}})();
+
+/* ======================= PURE LOGIC (Node + Browser) ======================= */
+'use strict';
+
+function arrayBufferToBase64(buf){
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  const chunk = 0x8000;
+  for(let i=0;i<bytes.length;i+=chunk){
+    bin += String.fromCharCode.apply(null, bytes.subarray(i,i+chunk));
+  }
+  return btoa(bin);
+}
+function base64ToArrayBuffer(b64){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+function generateSalt(len){ return crypto.getRandomValues(new Uint8Array(len)); }
+
+async function deriveKey(password, salt, iterations){
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt:salt, iterations:iterations, hash:'SHA-256' },
+    base,
+    { name:'AES-GCM', length:256 },
+    false,
+    ['encrypt','decrypt']
+  );
+}
+async function aesEncrypt(key, str){
+  const enc = new TextEncoder();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv:iv }, key, enc.encode(str));
+  return { iv: arrayBufferToBase64(iv.buffer), ct: arrayBufferToBase64(ct) };
+}
+async function aesDecrypt(key, ivB64, ctB64){
+  const iv = new Uint8Array(base64ToArrayBuffer(ivB64));
+  const ct = base64ToArrayBuffer(ctB64);
+  const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv:iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
+async function encryptObj(key, obj){
+  const r = await aesEncrypt(key, JSON.stringify(obj));
+  return { iv:r.iv, ct:r.ct };
+}
+async function decryptObj(key, blob){
+  const json = await aesDecrypt(key, blob.iv, blob.ct);
+  return JSON.parse(json);
+}
+async function sealVault(password, obj, iter){
+  iter = iter || 200000;
+  const salt = generateSalt(16);
+  const key = await deriveKey(password, salt, iter);
+  const enc = await encryptObj(key, obj);
+  return { v:1, salt: arrayBufferToBase64(salt.buffer), iv: enc.iv, ct: enc.ct, iter: iter };
+}
+async function unsealVault(blob, password){
+  const salt = base64ToArrayBuffer(blob.salt);
+  const key = await deriveKey(password, salt, blob.iter);
+  return decryptObj(key, blob);
+}
+function isSequence(s){
+  if(s.length < 3) return false;
+  let asc = true, desc = true;
+  for(let i=1;i<s.length;i++){ if(s.charCodeAt(i)-s.charCodeAt(i-1)!==1){ asc=false; break; } }
+  for(let i=1;i<s.length;i++){ if(s.charCodeAt(i)-s.charCodeAt(i-1)!==-1){ desc=false; break; } }
+  return asc || desc;
+}
+function estimateStrength(pw){
+  if(!pw || !pw.length) return { score:0, label:'Weak' };
+  let charset = 0;
+  if(/[a-z]/.test(pw)) charset += 26;
+  if(/[A-Z]/.test(pw)) charset += 26;
+  if(/[0-9]/.test(pw)) charset += 10;
+  if(/[^a-zA-Z0-9]/.test(pw)) charset += 33;
+  let entropy = pw.length * Math.log2(charset || 1);
+  if(/(.)\1{2,}/.test(pw)) entropy *= 0.6;     // repeated chars
+  if(isSequence(pw)) entropy *= 0.5;           // sequential chars
+  let score, label;
+  if(entropy < 40){ score = Math.max(0, entropy/40); label='Weak'; }
+  else if(entropy < 60){ score = 0.5; label='Medium'; }
+  else if(entropy < 80){ score = 0.75; label='Strong'; }
+  else { score = 1; label='VeryStrong'; }
+  return { score: Math.round(score*100)/100, label: label };
+}
+function generatePassword(opts){
+  opts = opts || {};
+  const len = opts.length || 16;
+  const upper = opts.upper !== false;
+  const lower = opts.lower !== false;
+  const digit = opts.digit !== false;
+  const symbol = opts.symbol !== false;
+  const excl = opts.excludeAmbiguous || false;
+  const U='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const L='abcdefghijklmnopqrstuvwxyz';
+  const D='0123456789';
+  const S='!@#$%^&*()-_=+[]{};:,.<>?';
+  const filt = (s)=> excl ? s.replace(/[Il1O0o|`]/g,'') : s;
+  let pool = '';
+  if(upper) pool += filt(U);
+  if(lower) pool += filt(L);
+  if(digit) pool += filt(D);
+  if(symbol) pool += S;
+  if(!pool) pool = L;
+  const out = [];
+  const rnd = new Uint32Array(len);
+  crypto.getRandomValues(rnd);
+  for(let i=0;i<len;i++) out.push(pool[rnd[i] % pool.length]);
+  return out.join('');
+}
+function validateEntry(cat, fields){
+  const errors = [];
+  if(!cat) errors.push('category required');
+  fields = fields || {};
+  const title = (fields.title||'').toString().trim();
+  if(!title) errors.push('title required');
+  if(title.length > 200) errors.push('title too long');
+  return { ok: errors.length === 0, errors: errors };
+}
+function genId(){
+  return 'e_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,9);
+}
+function normalizeEntry(e){
+  return {
+    id: e.id || genId(),
+    cat: e.cat,
+    title: (e.title||'').toString(),
+    fields: e.fields || {},
+    fav: !!e.fav,
+    createdAt: e.createdAt || Date.now(),
+    updatedAt: e.updatedAt || Date.now()
+  };
+}
+
+/* Module exports (must precede the window guard) */
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    arrayBufferToBase64, base64ToArrayBuffer, generateSalt,
+    deriveKey, aesEncrypt, aesDecrypt, encryptObj, decryptObj,
+    sealVault, unsealVault, estimateStrength, generatePassword,
+    validateEntry, normalizeEntry, isSequence
+  };
+}
+
+/* ======================= UI (browser only) ======================= */
+if (typeof window !== 'undefined') {
+(function(){
+  'use strict';
+
+  const LS_KEY = 'vaultforge.v1';
+  const $ = (id)=>document.getElementById(id);
+  const hasCrypto = ()=> (typeof crypto !== 'undefined') && crypto.subtle && crypto.getRandomValues;
+
+  const I18N = {
+    zh:{
+      createSub:'设置一个主密码来创建你的加密保险库。',
+      unlockSub:'输入主密码以解锁保险库。',
+      pwLabel:'主密码', pwConfirmLabel:'确认主密码',
+      createBtn:'创建保险库', unlockBtn:'解锁',
+      secureNote:'零知识加密：密码永不离开此设备，也无法被恢复。',
+      secureWarn:'当前环境不支持 Web Crypto（需 HTTPS 或 localhost 安全上下文）。部分功能受限。',
+      lang:'EN', lock:'锁定', newEntry:'新建条目', search:'搜索…',
+      catAll:'全部', catLogin:'登录', catNote:'安全笔记', catCard:'银行卡', catIdentity:'身份',
+      noEntries:'没有匹配的条目。', detailEmpty:'从左侧选择一个条目查看详情。',
+      edit:'编辑', delete:'删除', fav:'收藏', copy:'复制', reveal:'显示', hide:'隐藏',
+      save:'保存', cancel:'取消', exportBtn:'导出（加密）', importBtn:'导入',
+      genTitle:'密码生成器', length:'长度', upper:'大写', lower:'小写', digit:'数字',
+      symbol:'符号', excl:'排除易混淆字符', generate:'生成', useThis:'填入', strength:'强度',
+      confirmDelete:'确定删除该条目？此操作不可撤销。', title:'标题', category:'分类',
+      createdAt:'创建于', updatedAt:'更新于', copied:'已复制', exported:'已导出加密保险库',
+      imported:'已导入；请用主密码解锁', wrongPw:'密码错误，无法解密。', pwMismatch:'两次输入的密码不一致。',
+      pwShort:'主密码至少需要 8 个字符。', genEntry:'+ 新建', invalidFile:'文件格式无效。'
+    },
+    en:{
+      createSub:'Set a master password to create your encrypted vault.',
+      unlockSub:'Enter your master password to unlock the vault.',
+      pwLabel:'Master password', pwConfirmLabel:'Confirm password',
+      createBtn:'Create vault', unlockBtn:'Unlock',
+      secureNote:'Zero-knowledge: your password never leaves this device and cannot be recovered.',
+      secureWarn:'Web Crypto is unavailable in this context (needs HTTPS or localhost). Some features are limited.',
+      lang:'中文', lock:'Lock', newEntry:'New entry', search:'Search…',
+      catAll:'All', catLogin:'Login', catNote:'Secure Note', catCard:'Card', catIdentity:'Identity',
+      noEntries:'No matching entries.', detailEmpty:'Select an entry on the left to view details.',
+      edit:'Edit', delete:'Delete', fav:'Favorite', copy:'Copy', reveal:'Show', hide:'Hide',
+      save:'Save', cancel:'Cancel', exportBtn:'Export (encrypted)', importBtn:'Import',
+      genTitle:'Password generator', length:'Length', upper:'Upper', lower:'Lower', digit:'Digits',
+      symbol:'Symbols', excl:'Exclude ambiguous', generate:'Generate', useThis:'Use', strength:'Strength',
+      confirmDelete:'Delete this entry? This cannot be undone.', title:'Title', category:'Category',
+      createdAt:'Created', updatedAt:'Updated', copied:'Copied', exported:'Encrypted vault exported',
+      imported:'Imported; unlock with your master password', wrongPw:'Wrong password, cannot decrypt.', pwMismatch:'Passwords do not match.',
+      pwShort:'Master password needs at least 8 characters.', genEntry:'+ New', invalidFile:'Invalid file format.'
+    }
+  };
+  const CATS = ['login','note','card','identity'];
+  const SCHEMAS = {
+    login:[
+      {k:'username',l:{zh:'用户名',en:'Username'},type:'text'},
+      {k:'password',l:{zh:'密码',en:'Password'},type:'secret'},
+      {k:'url',l:{zh:'网址',en:'URL'},type:'text'},
+      {k:'notes',l:{zh:'备注',en:'Notes'},type:'textarea'}
+    ],
+    note:[ {k:'text',l:{zh:'内容',en:'Content'},type:'textarea'} ],
+    card:[
+      {k:'number',l:{zh:'卡号',en:'Card number'},type:'text'},
+      {k:'holder',l:{zh:'持卡人',en:'Holder'},type:'text'},
+      {k:'expiry',l:{zh:'有效期',en:'Expiry'},type:'text'},
+      {k:'cvv',l:{zh:'安全码',en:'CVV'},type:'secret'}
+    ],
+    identity:[
+      {k:'name',l:{zh:'姓名',en:'Name'},type:'text'},
+      {k:'email',l:{zh:'邮箱',en:'Email'},type:'text'},
+      {k:'phone',l:{zh:'电话',en:'Phone'},type:'text'},
+      {k:'address',l:{zh:'地址',en:'Address'},type:'textarea'}
+    ]
+  };
+  const ICONS = {
+    vault:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="12" r="3.4"/><path d="M12 8.6V12m0 0 2.3 1.5M12 12l-2.3 1.5"/></svg>',
+    login:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="3.2"/><path d="M3.5 19c.4-3 2.6-4.6 4.5-4.6S15 16 15.3 19"/><path d="M16 11.5V16m0 0 2.2-1.8M16 16l-2.2-1.8M20 9v6"/></svg>',
+    note:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg>',
+    card:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M6 15h4"/></svg>',
+    identity:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.6-3.4 3-5 7-5s6.4 1.6 7 5"/></svg>',
+    copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>',
+    reveal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>',
+    hide:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l18 18M10.5 6.2A9.7 9.7 0 0 1 12 6c6.5 0 10 6 10 6a16 16 0 0 1-3.2 3.6M6.5 8.4A16 16 0 0 0 2 12s3.5 6 10 6a9.5 9.5 0 0 0 3.3-.6"/></svg>',
+    fav:'<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.4"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 17l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>',
+    gen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 16M4 20v-4h4"/></svg>'
+  };
+  const STRENGTH_COLOR = { Weak:'var(--warning)', Medium:'var(--info)', Strong:'var(--success)', VeryStrong:'var(--success)' };
+
+  const state = { key:null, data:null, lang:'zh', filter:'all', search:'', selectedId:null, locked:true, saltB64:null, iter:200000 };
+  let mode = 'unlock';
+
+  function t(k){ return (I18N[state.lang] && I18N[state.lang][k]) || k; }
+  function mk(tag, cls, text){ const n=document.createElement(tag); if(cls) n.className=cls; if(text!=null) n.textContent=text; return n; }
+  function iconSpan(name){ const s=mk('span','icon'); s.innerHTML = ICONS[name] || ICONS.vault; return s; }
+
+  async function copyText(s){
+    try{ if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(s); return true; } }catch(e){}
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = s; ta.style.position='fixed'; ta.style.top='-9999px'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand('copy'); document.body.removeChild(ta); return ok;
+    }catch(e){ return false; }
+  }
+  let toastTimer=null;
+  function toast(msg){
+    const el = $('toast'); el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(()=>el.classList.remove('show'), 1600);
+  }
+
+  /* ---------- crypto glue ---------- */
+  async function createVault(password){
+    const salt = generateSalt(16);
+    const key = await deriveKey(password, salt, state.iter);
+    const data = { entries:[], settings:{} };
+    const enc = await encryptObj(key, data);
+    const blob = { v:1, salt: arrayBufferToBase64(salt.buffer), iv: enc.iv, ct: enc.ct, iter: state.iter };
+    __LS.setItem(LS_KEY, JSON.stringify(blob));
+    state.key = key; state.data = data; state.saltB64 = blob.salt; state.locked = false;
+  }
+  async function unlockVault(password){
+    const raw = __LS.getItem(LS_KEY);
+    const blob = JSON.parse(raw);
+    const salt = base64ToArrayBuffer(blob.salt);
+    const key = await deriveKey(password, salt, blob.iter);
+    const data = await decryptObj(key, blob); // throws on wrong password
+    state.key = key; state.data = data; state.saltB64 = blob.salt; state.iter = blob.iter; state.locked = false;
+  }
+  async function saveVault(){
+    if(!state.key || !state.data) return;
+    const enc = await encryptObj(state.key, state.data);
+    const blob = { v:1, salt: state.saltB64, iv: enc.iv, ct: enc.ct, iter: state.iter };
+    __LS.setItem(LS_KEY, JSON.stringify(blob));
+  }
+
+  /* ---------- rendering ---------- */
+  function catLabel(c){ return t('cat' + c.charAt(0).toUpperCase() + c.slice(1)); }
+
+  function renderCatNav(){
+    const nav = $('catNav'); nav.textContent = '';
+    const mkItem = (key,label)=>{
+      const b = mk('button'); b.appendChild(iconSpan(key==='all'?'vault':key));
+      b.appendChild(mk('span', null, label));
+      const cnt = mk('span','count');
+      const n = key==='all' ? state.data.entries.length : state.data.entries.filter(e=>e.cat===key).length;
+      cnt.textContent = n; b.appendChild(cnt);
+      if(state.filter===key) b.classList.add('active');
+      b.addEventListener('click', ()=>{ state.filter=key; renderCatNav(); renderList(); });
+      return b;
+    };
+    nav.appendChild(mkItem('all', t('catAll')));
+    CATS.forEach(c=> nav.appendChild(mkItem(c, catLabel(c))));
+  }
+
+  function visibleEntries(){
+    let es = state.data.entries.slice();
+    if(state.filter!=='all') es = es.filter(e=>e.cat===state.filter);
+    const q = state.search.trim().toLowerCase();
+    if(q){
+      es = es.filter(e=>{
+        if(e.title.toLowerCase().includes(q)) return true;
+        return Object.values(e.fields).some(v=> v!=null && String(v).toLowerCase().includes(q));
+      });
+    }
+    es.sort((a,b)=> (b.fav?1:0)-(a.fav?1:0) || (b.updatedAt-a.updatedAt));
+    return es;
+  }
+  function fieldSummary(e){
+    const f = e.fields||{};
+    if(e.cat==='login') return f.username || f.url || '';
+    if(e.cat==='card') return f.holder || f.number || '';
+    if(e.cat==='identity') return f.email || f.phone || '';
+    if(e.cat==='note') return (f.text||'').slice(0,40);
+    return '';
+  }
+  function renderList(){
+    const list = $('entryList'); list.textContent = '';
+    const es = visibleEntries();
+    if(!es.length){ list.appendChild(mk('div','empty', state.data.entries.length? t('noEntries') : t('noEntries'))); return; }
+    es.forEach(e=>{
+      const row = mk('div','entry reveal');
+      if(e.id===state.selectedId) row.classList.add('active');
+      const ic = mk('div','eicon'); ic.innerHTML = ICONS[e.cat] || ICONS.vault; row.appendChild(ic);
+      const meta = mk('div','emeta');
+      meta.appendChild(mk('div','etitle', e.title));
+      const sub = fieldSummary(e);
+      meta.appendChild(mk('div','esub', sub));
+      row.appendChild(meta);
+      if(e.fav){ const f=mk('div','fav'); f.innerHTML=ICONS.fav; row.appendChild(f); }
+      row.addEventListener('click', ()=>{ state.selectedId=e.id; renderList(); renderDetail(); });
+      list.appendChild(row);
+    });
+    applyReveal();
+  }
+
+  function renderDetail(){
+    const pane = $('detailPane'); pane.textContent = '';
+    const e = state.data.entries.find(x=>x.id===state.selectedId);
+    if(!e){ pane.appendChild(mk('div','empty', t('detailEmpty'))); return; }
+    const head = mk('div','detail-head');
+    const di = mk('div','dicon'); di.innerHTML = ICONS[e.cat] || ICONS.vault; head.appendChild(di);
+    const ht = mk('div');
+    ht.appendChild(mk('h2', null, e.title));
+    ht.appendChild(mk('div','cat', catLabel(e.cat)));
+    head.appendChild(ht);
+    const acts = mk('div','detail-actions');
+    const editBtn = mk('button','btn-ghost', t('edit')); editBtn.addEventListener('click', ()=>openEntryModal(e));
+    const delBtn = mk('button','btn-ghost danger', t('delete')); delBtn.addEventListener('click', ()=>removeEntry(e.id));
+    acts.appendChild(editBtn); acts.appendChild(delBtn);
+    head.appendChild(acts);
+    pane.appendChild(head);
+
+    const schema = SCHEMAS[e.cat] || [];
+    schema.forEach(field=>{
+      const val = e.fields[field.k];
+      if(val==null || val==='') return;
+      const r = mk('div','field-row');
+      r.appendChild(mk('div','fk', field.l[state.lang]||field.k));
+      const secret = field.type==='secret';
+      const v = mk('div','fv' + (secret?' mask':''), secret ? '•'.repeat(Math.min(String(val).length,18)) : String(val));
+      r.appendChild(v);
+      const facts = mk('div','facts');
+      if(secret){
+        const rev = mk('button','mini'); rev.innerHTML = ICONS.reveal;
+        rev.title = t('reveal');
+        rev.addEventListener('click', ()=>{
+          if(v.classList.contains('mask')){ v.textContent = String(val); v.classList.remove('mask'); rev.innerHTML = ICONS.hide; rev.title=t('hide'); }
+          else { v.textContent = '•'.repeat(Math.min(String(val).length,18)); v.classList.add('mask'); rev.innerHTML = ICONS.reveal; rev.title=t('reveal'); }
+        });
+        facts.appendChild(rev);
+      }
+      const cp = mk('button','mini'); cp.innerHTML = ICONS.copy; cp.title = t('copy');
+      cp.addEventListener('click', async ()=>{ const ok=await copyText(String(val)); toast(ok? t('copied') : 'Clipboard blocked'); });
+      facts.appendChild(cp);
+      r.appendChild(facts);
+      pane.appendChild(r);
+    });
+    const meta = mk('div','meta-line');
+    meta.textContent = t('createdAt') + ': ' + new Date(e.createdAt).toLocaleString() + '  ·  ' + t('updatedAt') + ': ' + new Date(e.updatedAt).toLocaleString();
+    pane.appendChild(meta);
+  }
+
+  function renderAll(){ renderCatNav(); renderList(); renderDetail(); }
+
+  /* ---------- entry modal ---------- */
+  let editingId = null;
+  function openEntryModal(entry){
+    editingId = entry ? entry.id : null;
+    const e = entry || { id:genId(), cat:'login', title:'', fields:{}, fav:false, createdAt:Date.now(), updatedAt:Date.now() };
+    const m = $('entryModal');
+    if(!m){
+      const overlay = mk('div','modal-overlay'); overlay.id='entryModal'; overlay.style.zIndex='55';
+      document.body.appendChild(overlay);
+    }
+    const ov = $('entryModal');
+    const box = mk('div','modal card');
+    const head = mk('div','modal-head');
+    head.appendChild(mk('h2', null, editingId ? t('edit') : t('newEntry')));
+    const x = mk('button','btn-ghost','×'); x.addEventListener('click', closeEntryModal);
+    head.appendChild(x); box.appendChild(head);
+    const body = mk('div','modal-body');
+    const lblT = mk('label','lbl', t('title')); body.appendChild(lblT);
+    const titleIn = mk('input','input'); titleIn.id='emTitle'; titleIn.value = e.title; body.appendChild(titleIn);
+    const lblC = mk('label','lbl', t('category')); body.appendChild(lblC);
+    const sel = mk('select','input'); sel.id='emCat';
+    CATS.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=catLabel(c); sel.appendChild(o); });
+    sel.value = e.cat; body.appendChild(sel);
+    const fieldsWrap = mk('div'); fieldsWrap.id='emFields'; body.appendChild(fieldsWrap);
+    box.appendChild(body);
+    const foot = mk('div','modal-foot');
+    const cancel = mk('button','btn', t('cancel')); cancel.addEventListener('click', closeEntryModal);
+    const save = mk('button','btn btn-primary', t('save')); save.addEventListener('click', ()=>commitEntry(e));
+    foot.appendChild(cancel); foot.appendChild(save);
+    box.appendChild(foot);
+    ov.textContent=''; ov.appendChild(box); ov.classList.add('open');
+    renderEmFields(e, fieldsWrap);
+    sel.addEventListener('change', ()=>renderEmFields({cat:sel.value, fields:{}}, fieldsWrap));
+  }
+  function closeEntryModal(){ const m=$('entryModal'); if(m){ m.classList.remove('open'); m.textContent=''; } }
+  function renderEmFields(e, wrap){
+    wrap.textContent='';
+    const schema = SCHEMAS[e.cat] || [];
+    schema.forEach(field=>{
+      const lbl = mk('label','lbl', field.l[state.lang]||field.k); wrap.appendChild(lbl);
+      const cur = (e.fields && e.fields[field.k]!=null) ? e.fields[field.k] : '';
+      if(field.type==='textarea'){
+        const ta = document.createElement('textarea'); ta.className='input'; ta.id='em_'+field.k; ta.rows=3; ta.value=cur; wrap.appendChild(ta);
+      } else if(field.type==='secret'){
+        const row = mk('div','gen-out');
+        const inp = mk('input','input'); inp.id='em_'+field.k; inp.value=cur; inp.type='text'; row.appendChild(inp);
+        const gb = mk('button','btn-ghost'); gb.innerHTML=ICONS.gen; gb.title=t('generate');
+        gb.addEventListener('click', ()=>{ inp.value = generatePassword({length:20, upper:true,lower:true,digit:true,symbol:true,excludeAmbiguous:true}); updateFieldStrength(inp.value); });
+        row.appendChild(gb); wrap.appendChild(row);
+        const sbar = mk('div','strength'); const si=mk('i'); si.id='em_strength_i'; sbar.appendChild(si); wrap.appendChild(sbar);
+        const sl = mk('div','strength-lbl'); sl.id='em_strength_lbl'; wrap.appendChild(sl);
+        inp.addEventListener('input', ()=>updateFieldStrength(inp.value));
+        if(cur) updateFieldStrength(cur);
+      } else {
+        const inp = mk('input','input'); inp.id='em_'+field.k; inp.value=cur; wrap.appendChild(inp);
+      }
+    });
+  }
+  function updateFieldStrength(pw){
+    const r = estimateStrength(pw);
+    const i = $('em_strength_i'); const l = $('em_strength_lbl');
+    if(i){ i.style.width = Math.round(r.score*100)+'%'; i.style.background = STRENGTH_COLOR[r.label]; }
+    if(l){ l.textContent = t('strength') + ': ' + r.label; l.style.color = STRENGTH_COLOR[r.label]; }
+  }
+  function commitEntry(base){
+    const title = $('emTitle').value.trim();
+    const cat = $('emCat').value;
+    const fields = {};
+    (SCHEMAS[cat]||[]).forEach(f=>{ const el=$('em_'+f.k); if(el) fields[f.k]=el.value; });
+    fields.title = title;
+    const v = validateEntry(cat, fields);
+    if(!v.ok){ toast(v.errors[0]); return; }
+    if(editingId){
+      const e = state.data.entries.find(x=>x.id===editingId);
+      e.title=title; e.cat=cat; e.fields=fields; e.updatedAt=Date.now();
+    } else {
+      state.data.entries.push(normalizeEntry({ id:base.id, cat, title, fields, fav:false, createdAt:Date.now(), updatedAt:Date.now() }));
+    }
+    saveVault(); closeEntryModal(); renderAll();
+  }
+  function removeEntry(id){
+    if(!window.confirm(t('confirmDelete'))) return;
+    state.data.entries = state.data.entries.filter(e=>e.id!==id);
+    if(state.selectedId===id) state.selectedId=null;
+    saveVault(); renderAll();
+  }
+
+  /* ---------- generator modal ---------- */
+  function openGenModal(){
+    const ov = $('genModal');
+    if(!ov){ const o=mk('div','modal-overlay'); o.id='genModal'; o.style.zIndex='56'; document.body.appendChild(o); }
+    const box = mk('div','modal card'); box.style.maxWidth='440px';
+    const head = mk('div','modal-head'); head.appendChild(mk('h2',null,t('genTitle')));
+    const x=mk('button','btn-ghost','×'); x.addEventListener('click',closeGenModal); head.appendChild(x); box.appendChild(head);
+    const body = mk('div','modal-body');
+    const out = mk('div','gen-out');
+    const oi = mk('input','input'); oi.id='genOut'; oi.readOnly=true; out.appendChild(oi);
+    const gb = mk('button','btn btn-primary', t('generate')); gb.addEventListener('click', doGenerate);
+    out.appendChild(gb); body.appendChild(out);
+    const sbar=mk('div','strength'); const si=mk('i'); si.id='gen_strength_i'; sbar.appendChild(si); body.appendChild(sbar);
+    const sl=mk('div','strength-lbl'); sl.id='gen_strength_lbl'; body.appendChild(sl);
+    const lenRow=mk('div','range-row'); lenRow.style.marginTop='14px';
+    lenRow.appendChild(mk('span','small', t('length')));
+    const range=mk('input'); range.type='range'; range.min='8'; range.max='64'; range.value='20'; range.id='genLen';
+    const rv=mk('span','rv'); rv.id='genLenV'; rv.textContent='20';
+    range.addEventListener('input', ()=>{ rv.textContent=range.value; });
+    lenRow.appendChild(range); lenRow.appendChild(rv); body.appendChild(lenRow);
+    const tg=mk('div','toggles');
+    [['genU',t('upper'),'upper',true],['genL',t('lower'),'lower',true],['genD',t('digit'),'digit',true],['genS',t('symbol'),'symbol',true],['genX',t('excl'),'excludeAmbiguous',false]].forEach(([id,lab,opt,def])=>{
+      const l=mk('label','toggle'); const cb=document.createElement('input'); cb.type='checkbox'; cb.id=id; cb.checked=def; cb.dataset.opt=opt;
+      cb.addEventListener('change', doGenerate);
+      l.appendChild(cb); l.appendChild(mk('span',null,lab)); tg.appendChild(l);
+    });
+    body.appendChild(tg);
+    box.appendChild(body);
+    const foot=mk('div','modal-foot');
+    const close=mk('button','btn',t('cancel')); close.addEventListener('click',closeGenModal);
+    const use=mk('button','btn btn-primary',t('useThis')); use.addEventListener('click',()=>{ if(state.selectedId){ /* not wired to a field directly */ } navigator.clipboard && copyText($('genOut').value); toast(t('copied')); });
+    foot.appendChild(close); foot.appendChild(use); box.appendChild(foot);
+    const o=$('genModal'); o.textContent=''; o.appendChild(box); o.classList.add('open');
+    range.addEventListener('input', doGenerate);
+    doGenerate();
+  }
+  function closeGenModal(){ const m=$('genModal'); if(m){ m.classList.remove('open'); m.textContent=''; } }
+  function doGenerate(){
+    const len = parseInt($('genLen').value,10);
+    const opts = { length:len };
+    ['genU','genL','genD','genS','genX'].forEach(id=>{
+      const cb=$(''+id); if(cb) opts[cb.dataset.opt] = cb.checked;
+    });
+    const pw = generatePassword(opts);
+    $('genOut').value = pw;
+    const r = estimateStrength(pw);
+    const i=$('gen_strength_i'); const l=$('gen_strength_lbl');
+    if(i){ i.style.width=Math.round(r.score*100)+'%'; i.style.background=STRENGTH_COLOR[r.label]; }
+    if(l){ l.textContent=t('strength')+': '+r.label; l.style.color=STRENGTH_COLOR[r.label]; }
+  }
+
+  /* ---------- export / import ---------- */
+  function exportVault(){
+    const raw = __LS.getItem(LS_KEY);
+    if(!raw){ toast('No vault'); return; }
+    const blob = new Blob([raw], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='vaultforge.vault.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    toast(t('exported'));
+  }
+  function onImport(e){
+    const file = e.target.files && e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const obj = JSON.parse(reader.result);
+        if(!obj || obj.v!==1 || !obj.salt || !obj.iv || !obj.ct || !obj.iter) throw new Error('bad');
+        __LS.setItem(LS_KEY, JSON.stringify(obj));
+        toast(t('imported'));
+        closeEntryModal(); closeGenModal();
+        showUnlock();
+      }catch(err){ toast(t('invalidFile')); }
+    };
+    reader.readAsText(file);
+    e.target.value='';
+  }
+
+  /* ---------- lock / unlock ---------- */
+  function showCreate(){
+    mode='create';
+    $('lockTitle').textContent='VaultForge';
+    $('lockSub').textContent = t('createSub');
+    $('lockPwLbl').textContent = t('pwLabel');
+    $('lockPw2Lbl').textContent = t('pwConfirmLabel');
+    $('lockPw2').hidden = false;
+    $('lockSubmit').textContent = t('createBtn');
+    $('lockPw').value=''; $('lockPw2').value=''; hideLockErr();
+    $('unlockModal').classList.add('open');
+  }
+  function showUnlock(){
+    mode='unlock';
+    $('lockTitle').textContent='VaultForge';
+    $('lockSub').textContent = t('unlockSub');
+    $('lockPwLbl').textContent = t('pwLabel');
+    $('lockPw2Lbl').textContent = t('pwConfirmLabel');
+    $('lockPw2').hidden = true;
+    $('lockSubmit').textContent = t('unlockBtn');
+    $('lockPw').value=''; hideLockErr();
+    $('unlockModal').classList.add('open');
+  }
+  function showLockErr(msg){ const e=$('lockErr'); e.textContent=msg; e.hidden=false; }
+  function hideLockErr(){ const e=$('lockErr'); e.hidden=true; }
+  async function onLockSubmit(ev){
+    ev.preventDefault();
+    const pw = $('lockPw').value;
+    if(mode==='create'){
+      const pw2 = $('lockPw2').value;
+      if(pw.length<8){ showLockErr(t('pwShort')); return; }
+      if(pw!==pw2){ showLockErr(t('pwMismatch')); return; }
+      if(!hasCrypto()){ showLockErr(t('secureWarn')); return; }
+      await createVault(pw); afterUnlock();
+    } else {
+      if(!hasCrypto()){ showLockErr(t('secureWarn')); return; }
+      try{ await unlockVault(pw); afterUnlock(); }
+      catch(err){ showLockErr(t('wrongPw')); }
+    }
+  }
+  function afterUnlock(){
+    $('unlockModal').classList.remove('open');
+    $('main').classList.remove('hidden');
+    renderAll(); resetLockTimer();
+  }
+  function lockNow(){
+    state.key=null; state.data=null; state.selectedId=null; state.locked=true;
+    $('main').classList.add('hidden');
+    $('entryList').textContent=''; $('detailPane').textContent=''; $('catNav').textContent='';
+    closeEntryModal(); closeGenModal();
+    showUnlock();
+  }
+
+  /* ---------- auto-lock ---------- */
+  let lockTimer=null, hiddenTimer=null;
+  function startLockTimer(){ resetLockTimer(); }
+  function resetLockTimer(){
+    if(lockTimer) clearTimeout(lockTimer);
+    if(state.locked) return;
+    lockTimer = setTimeout(lockNow, 5*60*1000);
+  }
+  function scheduleHiddenLock(){
+    if(hiddenTimer) clearTimeout(hiddenTimer);
+    if(state.locked) return;
+    hiddenTimer = setTimeout(()=>{ if(document.hidden) lockNow(); }, 30*1000);
+  }
+
+  /* ---------- theme / lang ---------- */
+  function applyLang(){
+    const L=I18N[state.lang];
+    $('langBtn').textContent = L.lang;
+    $('lockBtn').textContent = L.lock;
+    $('addBtn').textContent = '+ ' + L.newEntry;
+    $('search').placeholder = L.search;
+    $('exportBtn').textContent = L.exportBtn;
+    $('importBtn').textContent = L.importBtn;
+    document.documentElement.lang = state.lang;
+    if(state.data) renderAll();
+    if(!state.locked){ if(mode==='create') showCreate(); else showUnlock(); }
+  }
+  function toggleLang(){
+    state.lang = (state.lang==='zh')?'en':'zh';
+    __LS.setItem('vaultforge.lang', state.lang);
+    applyLang();
+  }
+  function toggleTheme(){
+    const cur = document.documentElement.getAttribute('data-theme')||'dark';
+    const next = cur==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    __LS.setItem('vaultforge.theme', next);
+  }
+
+  /* ---------- reveal animation ---------- */
+  function applyReveal(){
+    const nodes = document.querySelectorAll('.reveal');
+    if('IntersectionObserver' in window){
+      const io = new IntersectionObserver((ents)=>{
+        ents.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
+      }, { threshold:0.05 });
+      nodes.forEach(n=>io.observe(n));
+    } else {
+      nodes.forEach(n=>n.classList.add('in'));
+    }
+  }
+
+  /* ---------- init ---------- */
+  function init(){
+    $('lockLogo').innerHTML = ICONS.vault;
+    const lang = __LS.getItem('vaultforge.lang');
+    if(lang==='en') state.lang='en';
+    const theme = __LS.getItem('vaultforge.theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    applyLang();
+    if(!hasCrypto()){ $('secureNote').textContent = t('secureWarn'); }
+    else { $('secureNote').textContent = t('secureNote'); }
+
+    $('lockForm').addEventListener('submit', onLockSubmit);
+    $('langBtn').addEventListener('click', toggleLang);
+    $('themeBtn').addEventListener('click', toggleTheme);
+    $('lockBtn').addEventListener('click', lockNow);
+    $('addBtn').addEventListener('click', ()=>openEntryModal(null));
+    $('search').addEventListener('input', (e)=>{ state.search=e.target.value; renderList(); });
+    $('exportBtn').addEventListener('click', exportVault);
+    $('importBtn').addEventListener('click', ()=>$('importInput').click());
+    $('importInput').addEventListener('change', onImport);
+
+    ['click','keydown','mousemove','touchstart'].forEach(ev=>window.addEventListener(ev, resetLockTimer, {passive:true}));
+    document.addEventListener('visibilitychange', ()=>{ if(document.hidden) scheduleHiddenLock(); else resetLockTimer(); });
+    startLockTimer();
+
+    if(__LS.getItem(LS_KEY)) showUnlock(); else showCreate();
+
+    if('serviceWorker' in navigator){
+      window.addEventListener('load', ()=>{ try{ navigator.serviceWorker.register('sw.js').catch(()=>{}); }catch(e){} });
+    }
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+}
+</script>
+<footer style="margin-top:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);color:#71717A;font-size:12px;text-align:center">nano-tools · 单文件 · 零依赖 · 本地优先 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</body>
+</html>

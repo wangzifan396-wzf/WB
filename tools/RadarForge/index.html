@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>RadarForge — 雷达图：多维能力对比，含均衡度、标准差与逐轴优劣分析。</title>
+<meta property="og:title" content="RadarForge">
+<meta property="og:description" content="多维雷达图与能力均衡度分析，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="多维雷达图与能力均衡度分析，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>RadarForge</h1>
+  <p class="sub">雷达图：`轴:` 定义维度 + 多系列数值直出 SVG，自动补齐与裁剪、覆盖面积占比、均衡度与变异系数、逐轴最优最差与极差分析 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="rdin">数据（<code>轴: 维度1, 维度2…</code> 定义轴；其余行为 <code>系列名: 数值…</code>）</label>
+  <textarea id="rdin" rows="7">轴: 性能, 可维护性, 生态, 上手难度, 类型安全, 社区活跃
+方案 A: 88, 72, 90, 65, 80, 92
+方案 B: 74, 90, 68, 85, 95, 70
+方案 C: 60, 65, 55, 92, 50, 58</textarea>
+  <div class="row">
+    <button id="rdrun">绘制雷达图</button>
+    <button id="rdsvg" class="ghost">导出 SVG</button>
+  </div>
+  <div class="err" id="rderr"></div>
+  <div class="out" id="rdchart">雷达图渲染区</div>
+  <div class="out" id="rdinfo"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var RD_PALETTE = ['#5E6AD2','#22D3EE','#F5A623','#10B981','#A78BFA','#EF4444'];
+
+function parseData(text){
+  var lines = String(text == null ? '' : text).split(/\r?\n/);
+  var axes = null, series = [], errors = [];
+  for (var i = 0; i < lines.length; i++){
+    var l = lines[i].trim();
+    if (!l || l.charAt(0) === '#') continue;
+    var idx = l.indexOf(':');
+    if (idx < 0) idx = l.indexOf('：');
+    if (idx < 0){ errors.push({ line:i + 1, text:l, why:'缺少冒号分隔的名称' }); continue; }
+    var key = l.slice(0, idx).trim();
+    var rest = l.slice(idx + 1).trim();
+    var parts = rest.split(/[,，]/).map(function(x){ return x.trim(); }).filter(function(x){ return x !== ''; });
+    if (key === '轴' || key.toLowerCase() === 'axes'){
+      if (!parts.length){ errors.push({ line:i + 1, text:l, why:'轴名列表为空' }); continue; }
+      axes = parts;
+      continue;
+    }
+    if (!parts.length){ errors.push({ line:i + 1, text:l, why:'没有数值' }); continue; }
+    var vals = [], badv = false;
+    for (var j = 0; j < parts.length; j++){
+      var v = parseFloat(parts[j]);
+      if (!isFinite(v)){ badv = true; break; }
+      vals.push(v);
+    }
+    if (badv){ errors.push({ line:i + 1, text:l, why:'包含非数值' }); continue; }
+    series.push({ name:key, values:vals });
+  }
+  var width = 0;
+  for (var s = 0; s < series.length; s++) width = Math.max(width, series[s].values.length);
+  if (!axes){
+    axes = [];
+    for (var a = 0; a < width; a++) axes.push('指标' + (a + 1));
+  }
+  for (var k = 0; k < series.length; k++){
+    while (series[k].values.length < axes.length) series[k].values.push(0);
+    if (series[k].values.length > axes.length){
+      errors.push({ line:0, text:series[k].name, why:'数值个数超过轴数，多余部分已截断' });
+      series[k].values = series[k].values.slice(0, axes.length);
+    }
+  }
+  return { axes:axes, series:series, errors:errors };
+}
+
+function maxValue(series, floor){
+  var mx = floor || 0;
+  for (var i = 0; i < series.length; i++)
+    for (var j = 0; j < series[i].values.length; j++) mx = Math.max(mx, series[i].values[j]);
+  return mx > 0 ? mx : 1;
+}
+
+function axisAngle(index, count){
+  return -Math.PI / 2 + (Math.PI * 2 * index) / (count || 1);
+}
+
+function polarPoint(cx, cy, r, angle){
+  return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+}
+
+function polygonPoints(values, opt){
+  opt = opt || {};
+  var cx = opt.cx || 0, cy = opt.cy || 0, R = opt.r || 100, mx = opt.max || 1;
+  var pts = [];
+  for (var i = 0; i < values.length; i++){
+    var ratio = Math.max(0, Math.min(1, values[i] / mx));
+    var p = polarPoint(cx, cy, R * ratio, axisAngle(i, values.length));
+    pts.push({ x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, value: values[i] });
+  }
+  return pts;
+}
+
+function polygonArea(pts){
+  if (pts.length < 3) return 0;
+  var s = 0;
+  for (var i = 0; i < pts.length; i++){
+    var a = pts[i], b = pts[(i + 1) % pts.length];
+    s += a.x * b.y - b.x * a.y;
+  }
+  return Math.round(Math.abs(s) / 2 * 100) / 100;
+}
+
+function seriesStats(s, axes){
+  var v = s.values, n = v.length;
+  if (!n) return { name:s.name, mean:0, min:0, max:0, cv:0, balance:0, strongest:'', weakest:'', sum:0 };
+  var sum = 0, mn = Infinity, mx = -Infinity, mnI = 0, mxI = 0;
+  for (var i = 0; i < n; i++){
+    sum += v[i];
+    if (v[i] < mn){ mn = v[i]; mnI = i; }
+    if (v[i] > mx){ mx = v[i]; mxI = i; }
+  }
+  var mean = sum / n, varsum = 0;
+  for (var j = 0; j < n; j++) varsum += (v[j] - mean) * (v[j] - mean);
+  var sd = Math.sqrt(varsum / n);
+  var cv = mean !== 0 ? sd / mean : 0;
+  return {
+    name: s.name, sum: round2(sum), mean: round2(mean), min: mn, max: mx, sd: round2(sd),
+    cv: round2(cv), balance: Math.max(0, Math.round((1 - cv) * 1000) / 10),
+    strongest: axes[mxI] || '', weakest: axes[mnI] || ''
+  };
+}
+
+function round2(n){ return Math.round(n * 100) / 100; }
+
+function compare(data){
+  var out = [];
+  for (var a = 0; a < data.axes.length; a++){
+    var row = { axis: data.axes[a], values: [], best: '', worst: '', spread: 0 };
+    var best = -Infinity, worst = Infinity;
+    for (var s = 0; s < data.series.length; s++){
+      var v = data.series[s].values[a];
+      row.values.push({ name: data.series[s].name, value: v });
+      if (v > best){ best = v; row.best = data.series[s].name; }
+      if (v < worst){ worst = v; row.worst = data.series[s].name; }
+    }
+    row.spread = data.series.length > 1 ? round2(best - worst) : 0;
+    out.push(row);
+  }
+  return out;
+}
+
+function layout(data, opt){
+  opt = opt || {};
+  var size = opt.size || 340, pad = opt.pad || 52;
+  var cx = size / 2, cy = size / 2, R = size / 2 - pad;
+  if (!data.axes.length || !data.series.length) return { empty:true, size:size, cx:cx, cy:cy, r:R, rings:[], axes:[], shapes:[] };
+  var mx = opt.max || maxValue(data.series, 0);
+  var ringCount = opt.rings || 4, rings = [];
+  for (var i = 1; i <= ringCount; i++) rings.push({ r: R * i / ringCount, value: round2(mx * i / ringCount) });
+  var axes = [];
+  for (var a = 0; a < data.axes.length; a++){
+    var ang = axisAngle(a, data.axes.length);
+    var end = polarPoint(cx, cy, R, ang);
+    var lab = polarPoint(cx, cy, R + 18, ang);
+    axes.push({ name: data.axes[a], x: round2(end.x), y: round2(end.y), lx: round2(lab.x), ly: round2(lab.y),
+                anchor: Math.abs(Math.cos(ang)) < 0.2 ? 'middle' : (Math.cos(ang) > 0 ? 'start' : 'end') });
+  }
+  var shapes = [];
+  for (var s = 0; s < data.series.length; s++){
+    var pts = polygonPoints(data.series[s].values, { cx:cx, cy:cy, r:R, max:mx });
+    shapes.push({ name: data.series[s].name, points: pts, color: RD_PALETTE[s % RD_PALETTE.length],
+                  area: polygonArea(pts), coverage: Math.round(polygonArea(pts) / polygonArea(polygonPoints(data.axes.map(function(){ return mx; }), { cx:cx, cy:cy, r:R, max:mx })) * 1000) / 10 });
+  }
+  return { empty:false, size:size, cx:cx, cy:cy, r:R, max:mx, rings:rings, axes:axes, shapes:shapes };
+}
+
+function escXml(s){
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toSvg(lay){
+  var size = (lay && lay.size) || 340;
+  if (!lay || lay.empty) return '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '"></svg>';
+  var out = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + ' ' + size + '" width="100%" height="' + size + '" role="img" aria-label="雷达图">'];
+  out.push('<rect width="' + size + '" height="' + size + '" fill="#0A0A0B"/>');
+  for (var i = 0; i < lay.rings.length; i++){
+    var pts = polygonPoints(lay.axes.map(function(){ return 1; }), { cx:lay.cx, cy:lay.cy, r:lay.rings[i].r, max:1 });
+    out.push('<polygon points="' + pts.map(function(p){ return p.x + ',' + p.y; }).join(' ') + '" fill="none" stroke="rgba(255,255,255,.10)"/>');
+  }
+  for (var a = 0; a < lay.axes.length; a++){
+    var ax = lay.axes[a];
+    out.push('<line x1="' + lay.cx + '" y1="' + lay.cy + '" x2="' + ax.x + '" y2="' + ax.y + '" stroke="rgba(255,255,255,.14)"/>');
+    out.push('<text x="' + ax.lx + '" y="' + (ax.ly + 4) + '" fill="#A1A1AA" font-size="11" text-anchor="' + ax.anchor + '" font-family="system-ui,sans-serif">' + escXml(ax.name) + '</text>');
+  }
+  for (var s = 0; s < lay.shapes.length; s++){
+    var sh = lay.shapes[s];
+    out.push('<polygon points="' + sh.points.map(function(p){ return p.x + ',' + p.y; }).join(' ') + '" fill="' + sh.color + '" fill-opacity="0.18" stroke="' + sh.color + '" stroke-width="1.6"><title>' + escXml(sh.name) + '</title></polygon>');
+    for (var q = 0; q < sh.points.length; q++){
+      out.push('<circle cx="' + sh.points[q].x + '" cy="' + sh.points[q].y + '" r="2.6" fill="' + sh.color + '"/>');
+    }
+  }
+  out.push('</svg>');
+  return out.join('');
+}
+
+var RadarForgePure = {
+  parseData: parseData, maxValue: maxValue, axisAngle: axisAngle, polarPoint: polarPoint,
+  polygonPoints: polygonPoints, polygonArea: polygonArea, seriesStats: seriesStats,
+  compare: compare, layout: layout, toSvg: toSvg, PALETTE: RD_PALETTE
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = RadarForgePure;
+if (typeof window !== 'undefined') window.RadarForgePure = RadarForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.RadarForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function run(){
+    var d = P.parseData($('rdin').value);
+    $('rderr').textContent = d.errors.length ? (d.errors[0].why + '（' + (d.errors[0].line ? '第 ' + d.errors[0].line + ' 行' : d.errors[0].text) + '）') : '';
+    if (!d.series.length){ $('rdchart').textContent = '雷达图渲染区（暂无有效数据）'; $('rdinfo').innerHTML = ''; return; }
+    var lay = P.layout(d, { size:340 });
+    $('rdchart').innerHTML = P.toSvg(lay);
+    var html = '<div class="kv"><b>轴数 / 系列数</b><span>' + d.axes.length + ' / ' + d.series.length + '</span></div>' +
+      '<div class="kv"><b>刻度上限</b><span>' + lay.max + '</span></div>';
+    for (var i = 0; i < d.series.length; i++){
+      var st = P.seriesStats(d.series[i], d.axes), sh = lay.shapes[i];
+      html += '<div style="margin-top:10px;border-top:1px dashed var(--line);padding-top:8px">' +
+        '<div style="font-size:14px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + sh.color + ';margin-right:6px"></span>' + esc(st.name) + '</div>' +
+        '<div style="font-size:13px;color:var(--muted);margin-top:4px">均值 ' + st.mean + ' · 覆盖面积 ' + sh.coverage + '% · 均衡度 ' + st.balance + '</div>' +
+        '<div style="font-size:13px;color:var(--muted)">最强 ' + esc(st.strongest) + '（' + st.max + '） · 最弱 ' + esc(st.weakest) + '（' + st.min + '）</div>' +
+        '</div>';
+    }
+    var cmp = P.compare(d);
+    if (d.series.length > 1){
+      html += '<div style="margin-top:12px;color:var(--muted);font-size:13px">逐维最优：</div>';
+      for (var a = 0; a < cmp.length; a++){
+        html += '<div style="font-size:13px;margin-top:4px">· ' + esc(cmp[a].axis) + ' → <b>' + esc(cmp[a].best) + '</b> <span style="color:var(--dim)">（差距 ' + cmp[a].spread + '）</span></div>';
+      }
+    }
+    $('rdinfo').innerHTML = html;
+  }
+
+  function download(){
+    var d = P.parseData($('rdin').value);
+    if (!d.series.length) return;
+    var svg = P.toSvg(P.layout(d, { size:340 }));
+    var blob = new Blob([svg], { type:'image/svg+xml' });
+    var a = D.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'radar.svg';
+    D.body.appendChild(a); a.click(); D.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  $('rdrun').addEventListener('click', run);
+  $('rdsvg').addEventListener('click', download);
+  $('rdin').addEventListener('input', run);
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SriForge — 子资源完整性：本地 SHA-256 摘要计算、integrity 校验与标签体检。</title>
+<meta property="og:title" content="SriForge">
+<meta property="og:description" content="子资源完整性 SRI 摘要生成与标签体检，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="子资源完整性 SRI 摘要生成与标签体检，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>SriForge</h1>
+  <p class="sub">SRI 工具：纯前端 SHA-256 摘要（base64/hex）、integrity 属性解析与长度校验、script/link 标签生成与跨域配置体检 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="grid">
+  <section class="panel">
+    <h2>生成 integrity</h2>
+    <div class="row"><label>资源 URL</label><input id="url" value="https://cdn.example.com/lib.min.js"></div>
+    <textarea id="content" rows="6" placeholder="粘贴资源内容（本地计算 sha256，不出本机）">console.log('hello');</textarea>
+    <div class="row">
+      <label>算法</label>
+      <select id="algo"><option value="sha256">sha256（本地计算）</option><option value="sha384">sha384（给命令）</option><option value="sha512">sha512（给命令）</option></select>
+      <label><input type="checkbox" id="defer" checked> defer</label>
+    </div>
+    <pre id="digest" class="out"></pre>
+    <pre id="tag" class="out"></pre>
+    <div class="row"><button id="copy" class="btn">复制标签</button></div>
+    <pre id="cmd" class="out"></pre>
+  </section>
+  <section class="panel">
+    <h2>校验与体检</h2>
+    <div class="row"><label>integrity</label><input id="intg" placeholder="sha384-..."></div>
+    <div id="verify" class="out"></div>
+    <h2 style="margin-top:18px">标签体检</h2>
+    <textarea id="audit" rows="3">&lt;script src="https://cdn.x/a.js" integrity="sha256-abc"&gt;&lt;/script&gt;</textarea>
+    <div id="auditOut" class="list"></div>
+  </section>
+</div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var SRI_ALGOS = {'sha256':{bytes:32, b64:44, strength:1}, 'sha384':{bytes:48, b64:64, strength:2}, 'sha512':{bytes:64, b64:88, strength:3}};
+function utf8Bytes(str){
+  var out=[], s=String(str===undefined?'':str);
+  for(var i=0;i<s.length;i++){
+    var c=s.charCodeAt(i);
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xc0|(c>>6), 0x80|(c&63)); }
+    else if(c>=0xd800 && c<=0xdbff && i+1<s.length){
+      var c2=s.charCodeAt(i+1);
+      var cp=0x10000+((c-0xd800)<<10)+(c2-0xdc00); i++;
+      out.push(0xf0|(cp>>18), 0x80|((cp>>12)&63), 0x80|((cp>>6)&63), 0x80|(cp&63));
+    } else { out.push(0xe0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }
+  }
+  return out;
+}
+function rotr32(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }
+var SHA256_K=[
+0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256Bytes(bytes){
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var msg=bytes.slice(), bitLen=msg.length*8;
+  msg.push(0x80);
+  while(msg.length%64!==56) msg.push(0);
+  var hi=Math.floor(bitLen/4294967296)>>>0, lo=(bitLen>>>0);
+  msg.push((hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255);
+  msg.push((lo>>>24)&255,(lo>>>16)&255,(lo>>>8)&255,lo&255);
+  var w=new Array(64);
+  for(var i=0;i<msg.length;i+=64){
+    for(var t=0;t<16;t++) w[t]=((msg[i+t*4]<<24)|(msg[i+t*4+1]<<16)|(msg[i+t*4+2]<<8)|msg[i+t*4+3])>>>0;
+    for(t=16;t<64;t++){
+      var s0=(rotr32(w[t-15],7)^rotr32(w[t-15],18)^(w[t-15]>>>3))>>>0;
+      var s1=(rotr32(w[t-2],17)^rotr32(w[t-2],19)^(w[t-2]>>>10))>>>0;
+      w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(t=0;t<64;t++){
+      var S1=(rotr32(e,6)^rotr32(e,11)^rotr32(e,25))>>>0;
+      var ch=((e&f)^((~e)&g))>>>0;
+      var t1=(h+S1+ch+SHA256_K[t]+w[t])>>>0;
+      var S0=(rotr32(a,2)^rotr32(a,13)^rotr32(a,22))>>>0;
+      var maj=((a&b)^(a&c)^(b&c))>>>0;
+      var t2=(S0+maj)>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+  }
+  var out=[];
+  for(var j=0;j<8;j++) out.push((H[j]>>>24)&255,(H[j]>>>16)&255,(H[j]>>>8)&255,H[j]&255);
+  return out;
+}
+function bytesToHex(bytes){
+  var s='';
+  for(var i=0;i<bytes.length;i++) s += ('0'+(bytes[i]&255).toString(16)).slice(-2);
+  return s;
+}
+function bytesToB64(bytes){
+  var A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', out='';
+  for(var i=0;i<bytes.length;i+=3){
+    var b0=bytes[i]&255, has1=i+1<bytes.length, has2=i+2<bytes.length;
+    var b1=has1?bytes[i+1]&255:0, b2=has2?bytes[i+2]&255:0;
+    out += A.charAt(b0>>2);
+    out += A.charAt(((b0&3)<<4)|(b1>>4));
+    out += has1 ? A.charAt(((b1&15)<<2)|(b2>>6)) : '=';
+    out += has2 ? A.charAt(b2&63) : '=';
+  }
+  return out;
+}
+function sha256Hex(text){ return bytesToHex(sha256Bytes(utf8Bytes(text))); }
+function sha256B64(text){ return bytesToB64(sha256Bytes(utf8Bytes(text))); }
+function buildIntegrity(text, algo){
+  var a=String(algo||'sha256').toLowerCase();
+  if(a!=='sha256') return {value:'', algo:a, error:'本地内核仅支持 sha256；'+a+' 请用 openssl 命令生成', command:opensslCommand('FILE', a)};
+  return {value:'sha256-'+sha256B64(text), algo:'sha256', error:null, command:opensslCommand('FILE','sha256')};
+}
+function opensslCommand(file, algo){
+  var a=String(algo||'sha384').toLowerCase();
+  var d = a==='sha256'?'sha256': a==='sha512'?'sha512':'sha384';
+  return 'openssl dgst -'+d+' -binary '+file+' | openssl base64 -A';
+}
+function parseIntegrity(attr){
+  var toks=String(attr||'').trim().split(/\s+/), out=[];
+  for(var i=0;i<toks.length;i++){
+    var t=toks[i];
+    if(!t) continue;
+    var dash=t.indexOf('-');
+    if(dash<0){ out.push({raw:t, algo:null, digest:null, valid:false, error:'缺少算法前缀'}); continue; }
+    var algo=t.slice(0,dash).toLowerCase();
+    var rest=t.slice(dash+1);
+    var opt=null, q=rest.indexOf('?');
+    if(q>-1){ opt=rest.slice(q+1); rest=rest.slice(0,q); }
+    var spec=SRI_ALGOS[algo];
+    if(!spec){ out.push({raw:t, algo:algo, digest:rest, valid:false, error:'不支持的算法: '+algo}); continue; }
+    if(!/^[A-Za-z0-9+/]+={0,2}$/.test(rest)){ out.push({raw:t, algo:algo, digest:rest, valid:false, error:'摘要不是合法 base64'}); continue; }
+    if(rest.length!==spec.b64){ out.push({raw:t, algo:algo, digest:rest, valid:false, error:algo+' 摘要应为 '+spec.b64+' 字符，实际 '+rest.length}); continue; }
+    out.push({raw:t, algo:algo, digest:rest, options:opt, valid:true, error:null, strength:spec.strength});
+  }
+  return out;
+}
+function strongest(list){
+  var best=null;
+  for(var i=0;i<list.length;i++){
+    if(!list[i].valid) continue;
+    if(!best || list[i].strength > best.strength) best=list[i];
+  }
+  return best;
+}
+function verifyIntegrity(text, attr){
+  var list=parseIntegrity(attr);
+  if(!list.length) return {ok:false, reason:'integrity 为空', matched:null};
+  var usable=[];
+  for(var i=0;i<list.length;i++) if(list[i].valid) usable.push(list[i]);
+  if(!usable.length) return {ok:false, reason:'没有可用的合法摘要', matched:null};
+  var maxS=0;
+  for(var j=0;j<usable.length;j++) if(usable[j].strength>maxS) maxS=usable[j].strength;
+  var actual256 = sha256B64(text);
+  for(var k=0;k<usable.length;k++){
+    if(usable[k].strength!==maxS) continue;
+    if(usable[k].algo!=='sha256') return {ok:null, reason:'最强算法为 '+usable[k].algo+'，本地内核无法验证，请用 openssl 比对', matched:null, expected:usable[k].digest};
+    if(usable[k].digest===actual256) return {ok:true, reason:'摘要匹配', matched:usable[k].raw, actual:actual256};
+  }
+  return {ok:false, reason:'摘要不匹配', matched:null, actual:actual256};
+}
+function buildTag(opt){
+  opt=opt||{};
+  var url=String(opt.url||''), integrity=String(opt.integrity||'');
+  var kind = opt.kind || (/\.css(\?|$)/i.test(url) ? 'style' : 'script');
+  var co = opt.crossorigin || 'anonymous';
+  var attrs = [];
+  if(kind==='style'){
+    attrs.push('rel="stylesheet"','href="'+url+'"');
+  } else {
+    attrs.push('src="'+url+'"');
+    if(opt.defer) attrs.push('defer');
+    if(opt.async) attrs.push('async');
+  }
+  if(integrity) attrs.push('integrity="'+integrity+'"');
+  attrs.push('crossorigin="'+co+'"');
+  if(opt.referrerPolicy) attrs.push('referrerpolicy="'+opt.referrerPolicy+'"');
+  var tag = kind==='style' ? '<link '+attrs.join(' ')+'>' : '<script '+attrs.join(' ')+'><\/script>';
+  return {tag:tag, kind:kind, attrs:attrs};
+}
+function auditTag(html){
+  var s=String(html||''), issues=[];
+  function add(l,m){ issues.push({level:l, msg:m}); }
+  var isScript=/<script\b/i.test(s), isLink=/<link\b/i.test(s);
+  if(!isScript && !isLink) return {issues:[{level:'error', msg:'未识别到 script 或 link 标签'}], errors:1, warnings:0, ok:false};
+  var srcM = s.match(/(?:src|href)\s*=\s*["']([^"']+)["']/i);
+  var url = srcM ? srcM[1] : '';
+  var intM = s.match(/integrity\s*=\s*["']([^"']+)["']/i);
+  var coM = s.match(/crossorigin(?:\s*=\s*["']([^"']*)["'])?/i);
+  var external = /^https?:\/\//i.test(url) || /^\/\//.test(url);
+  if(!url) add('error','缺少 src/href');
+  if(/^http:\/\//i.test(url)) add('error','使用明文 http 加载外部资源，SRI 无法阻止降级风险');
+  if(!intM){
+    if(external) add('error','跨域资源缺少 integrity 属性');
+    else add('info','同源资源可不设 integrity，但版本锁定时仍建议加');
+  } else {
+    var list=parseIntegrity(intM[1]);
+    for(var i=0;i<list.length;i++) if(!list[i].valid) add('error','integrity 无效: '+list[i].error);
+    var best=strongest(list);
+    if(best && best.algo==='sha256') add('warn','建议使用 sha384 或 sha512，安全边际更高');
+    if(list.length>1) add('info','提供了 '+list.length+' 个摘要，浏览器只校验最强算法');
+  }
+  if(intM && external && !coM) add('error','带 integrity 的跨域资源必须设置 crossorigin，否则会被静默拒绝');
+  if(coM && coM[1] && ['anonymous','use-credentials',''].indexOf(coM[1])===-1) add('error','crossorigin 取值非法: '+coM[1]);
+  var errors=0, warnings=0;
+  for(var j=0;j<issues.length;j++){ if(issues[j].level==='error') errors++; else if(issues[j].level==='warn') warnings++; }
+  return {url:url, external:external, integrity: intM?intM[1]:null, issues:issues, errors:errors, warnings:warnings, ok: errors===0};
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { SRI_ALGOS:SRI_ALGOS, utf8Bytes:utf8Bytes, sha256Bytes:sha256Bytes, bytesToHex:bytesToHex, bytesToB64:bytesToB64, sha256Hex:sha256Hex, sha256B64:sha256B64, buildIntegrity:buildIntegrity, opensslCommand:opensslCommand, parseIntegrity:parseIntegrity, strongest:strongest, verifyIntegrity:verifyIntegrity, buildTag:buildTag, auditTag:auditTag }; }
+if (typeof window !== 'undefined') { window.SriForgePure = { SRI_ALGOS:SRI_ALGOS, utf8Bytes:utf8Bytes, sha256Bytes:sha256Bytes, bytesToHex:bytesToHex, bytesToB64:bytesToB64, sha256Hex:sha256Hex, sha256B64:sha256B64, buildIntegrity:buildIntegrity, opensslCommand:opensslCommand, parseIntegrity:parseIntegrity, strongest:strongest, verifyIntegrity:verifyIntegrity, buildTag:buildTag, auditTag:auditTag }; }
+
+</script>
+<script>
+
+(function(){
+  if(typeof window==='undefined' || !window.document) return;
+  var $=function(id){return document.getElementById(id);};
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  function render(){
+    var algo=$('algo').value, txt=$('content').value;
+    var r=buildIntegrity(txt, algo);
+    if(r.error){
+      $('digest').textContent = r.error + '\nsha256 参考: sha256-' + sha256B64(txt);
+    } else {
+      $('digest').textContent = r.value + '\nhex: ' + sha256Hex(txt) + '\n字节数: ' + utf8Bytes(txt).length;
+    }
+    var iv = r.error ? '' : r.value;
+    var t=buildTag({url:$('url').value, integrity:iv, defer:$('defer').checked});
+    $('tag').textContent = t.tag;
+    $('cmd').textContent = opensslCommand('lib.min.js', algo);
+    if(!$('intg').value) $('intg').placeholder = iv || 'sha384-...';
+    verify();
+  }
+  function verify(){
+    var attr=$('intg').value.trim();
+    if(!attr){ $('verify').textContent='输入 integrity 后比对'; return; }
+    var v=verifyIntegrity($('content').value, attr);
+    var mark = v.ok===true ? '[匹配] ' : v.ok===null ? '[无法本地验证] ' : '[不匹配] ';
+    $('verify').textContent = mark + v.reason + (v.actual? ('\n本地 sha256: '+v.actual) : '');
+  }
+  function audit(){
+    var a=auditTag($('audit').value);
+    $('auditOut').innerHTML = a.issues.length
+      ? a.issues.map(function(i){
+          var c=i.level==='error'?'e':i.level==='warn'?'w':'i';
+          return '<div class="item"><span class="tag '+c+'">'+i.level.toUpperCase()+'</span> '+esc(i.msg)+'</div>';
+        }).join('')
+      : '<div class="okmsg">标签配置正确</div>';
+  }
+  ['url','content','algo','defer'].forEach(function(id){
+    var el=$(id); if(el){ el.addEventListener('input', render); el.addEventListener('change', render); }
+  });
+  $('intg').addEventListener('input', verify);
+  $('audit').addEventListener('input', audit);
+  $('copy').addEventListener('click', function(){ if(navigator.clipboard) navigator.clipboard.writeText($('tag').textContent||''); });
+  render(); audit();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

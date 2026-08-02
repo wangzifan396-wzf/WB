@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BeautifyForge — 代码美化 / 压缩（JS · CSS · HTML · JSON）</title>
+<meta name="description" content="离线代码美化与压缩工具：JavaScript / CSS / HTML / JSON 格式化与 minify，字符串·注释·正则感知，零依赖单文件，数据不出本机。">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<script>
+/* ============================================================
+ * BeautifyForge kernel — pure functions, zero dependencies
+ * ============================================================ */
+var BF = (function () {
+  'use strict';
+
+  /* ---------------- JS tokenizer ---------------- */
+  var RE_NUM = /0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|[0-9][0-9_]*\.?[0-9_]*(?:[eE][+-]?[0-9]+)?|\.[0-9][0-9_]*(?:[eE][+-]?[0-9]+)?/y;
+  var RE_ID = /[A-Za-z_$][A-Za-z0-9_$]*/y;
+  var OPS = ['>>>=', '...', '===', '!==', '**=', '<<=', '>>=', '>>>', '&&=', '||=', '??=',
+    '=>', '==', '!=', '<=', '>=', '&&', '||', '??', '?.', '++', '--', '+=', '-=', '*=',
+    '/=', '%=', '&=', '|=', '^=', '**', '<<', '>>'];
+  var PUNC = '{}()[];,';
+  var KW_REGEX_OK = /^(return|typeof|instanceof|in|of|new|delete|void|do|else|case|yield|await|throw)$/;
+  var KW_CTRL = /^(if|for|while|switch|catch|return|do|else|try|finally|new|typeof|delete|void|in|of|instanceof|var|let|const|function|class|throw|yield|await|case|default|async|export|import|extends)$/;
+
+  function tokenizeJS(src) {
+    var toks = [], i = 0, n = src.length;
+    function lastSig() {
+      for (var k = toks.length - 1; k >= 0; k--) {
+        var t = toks[k];
+        if (t.t !== 'ws' && t.t !== 'nl' && t.t !== 'com' && t.t !== 'lcom') return t;
+      }
+      return null;
+    }
+    while (i < n) {
+      var c = src[i], j;
+      if (c === '\n') { toks.push({ t: 'nl', v: '\n' }); i++; continue; }
+      if (c === ' ' || c === '\t' || c === '\r') {
+        j = i; while (j < n && (src[j] === ' ' || src[j] === '\t' || src[j] === '\r')) j++;
+        toks.push({ t: 'ws', v: src.slice(i, j) }); i = j; continue;
+      }
+      if (c === '/' && src[i + 1] === '/') {
+        j = i; while (j < n && src[j] !== '\n') j++;
+        toks.push({ t: 'lcom', v: src.slice(i, j) }); i = j; continue;
+      }
+      if (c === '/' && src[i + 1] === '*') {
+        j = src.indexOf('*/', i + 2); j = j < 0 ? n : j + 2;
+        toks.push({ t: 'com', v: src.slice(i, j) }); i = j; continue;
+      }
+      if (c === '"' || c === "'") {
+        j = i + 1;
+        while (j < n) {
+          if (src[j] === '\\') j += 2;
+          else if (src[j] === c) { j++; break; }
+          else if (src[j] === '\n') break;
+          else j++;
+        }
+        toks.push({ t: 'str', v: src.slice(i, j) }); i = j; continue;
+      }
+      if (c === '`') {
+        j = i + 1; var depth = 0;
+        while (j < n) {
+          if (src[j] === '\\') j += 2;
+          else if (src[j] === '$' && src[j + 1] === '{') { depth++; j += 2; }
+          else if (src[j] === '}' && depth > 0) { depth--; j++; }
+          else if (src[j] === '`' && depth === 0) { j++; break; }
+          else j++;
+        }
+        toks.push({ t: 'str', v: src.slice(i, j) }); i = j; continue;
+      }
+      if (c === '/') {
+        var p = lastSig(), regexOk = false;
+        if (!p) regexOk = true;
+        else if (p.t === 'punc') regexOk = !(p.v === ')' || p.v === ']' || p.v === '}');
+        else if (p.t === 'id') regexOk = KW_REGEX_OK.test(p.v);
+        else if (p.t === 'op') regexOk = true;
+        else regexOk = false;
+        if (regexOk) {
+          j = i + 1; var incls = false, valid = false;
+          while (j < n) {
+            var d = src[j];
+            if (d === '\\') { j += 2; continue; }
+            if (d === '[') incls = true;
+            else if (d === ']') incls = false;
+            else if (d === '/' && !incls) { j++; valid = true; break; }
+            else if (d === '\n') break;
+            j++;
+          }
+          if (valid) {
+            while (j < n && /[a-z]/i.test(src[j])) j++;
+            toks.push({ t: 're', v: src.slice(i, j) }); i = j; continue;
+          }
+        }
+      }
+      RE_NUM.lastIndex = i;
+      var m = RE_NUM.exec(src);
+      if (m && m.index === i && m[0].length) {
+        toks.push({ t: 'num', v: m[0] }); i += m[0].length; continue;
+      }
+      RE_ID.lastIndex = i;
+      m = RE_ID.exec(src);
+      if (m && m.index === i) {
+        toks.push({ t: 'id', v: m[0] }); i += m[0].length; continue;
+      }
+      var matched = null;
+      for (var oi = 0; oi < OPS.length; oi++) {
+        if (src.startsWith(OPS[oi], i)) { matched = OPS[oi]; break; }
+      }
+      if (matched) { toks.push({ t: 'op', v: matched }); i += matched.length; continue; }
+      if (PUNC.indexOf(c) >= 0) { toks.push({ t: 'punc', v: c }); i++; continue; }
+      toks.push({ t: 'op', v: c }); i++;
+    }
+    return toks;
+  }
+
+  /* ---------------- JS formatter ---------------- */
+  var NOSPACE_AFTER = { '.': 1, '!': 1, '~': 1, '...': 1, '?.': 1, '++': 1, '--': 1 };
+  var NOSPACE_BEFORE = { '.': 1, '?.': 1, '++': 1, '--': 1, ':': 1 };
+
+  function isWordish(t) { return t && (t.t === 'id' || t.t === 'num' || t.t === 'str' || t.t === 're'); }
+
+  function jsNeedSpace(a, b) {
+    if (!a) return false;
+    if (isWordish(a) && isWordish(b)) return true;
+    if (a.t === 'op' && NOSPACE_AFTER[a.v]) return false;
+    if (b.t === 'op' && NOSPACE_BEFORE[b.v]) return false;
+    if (b.t === 'punc') {
+      if (b.v === '(') {
+        if (a.t === 'id' && KW_CTRL.test(a.v)) return true;
+        return false;
+      }
+      if (b.v === '[' || b.v === ')' || b.v === ']' || b.v === ';' || b.v === ',') return false;
+      if (b.v === '{') return true;
+    }
+    if (a.t === 'punc') {
+      if (a.v === '(' || a.v === '[') return false;
+      if (a.v === ')' || a.v === ']') {
+        if (b.t === 'op' && (b.v === '.' || b.v === '?.')) return false;
+        if (b.t === 'punc' && (b.v === '(' || b.v === '[')) return false;
+        return true;
+      }
+      if (a.v === ',') return true;
+      if (a.v === ';') return true;
+      if (a.v === '}') {
+        if (b.t === 'punc' && (b.v === ';' || b.v === ',' || b.v === ')' || b.v === ']')) return false;
+        if (b.t === 'op' && (b.v === '.' || b.v === '?.')) return false;
+        return true;
+      }
+    }
+    if (a.t === 'op') {
+      if (a.v === ':') return true;
+      return true;
+    }
+    if (b.t === 'op') {
+      if (b.v === ':') return false;
+      return true;
+    }
+    if (isWordish(a) && b.t === 'punc' && b.v === '{') return true;
+    return false;
+  }
+
+  function formatJS(src, indentStr) {
+    indentStr = indentStr || '  ';
+    var toks = tokenizeJS(src).filter(function (t) { return t.t !== 'ws' && t.t !== 'nl'; });
+    var out = [], line = '', level = 0, paren = 0;
+
+    function flush() {
+      if (line.trim() !== '') out.push(rep(indentStr, level) + line.trim());
+      line = '';
+    }
+    function rep(s, k) { var r = ''; while (k-- > 0) r += s; return r; }
+    function push(txt, prevTok, curTok) {
+      if (line !== '' && jsNeedSpace(prevTok, curTok)) line += ' ';
+      line += txt;
+    }
+
+    var prev = null;
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i], nx = toks[i + 1] || null;
+      if (t.t === 'lcom' || t.t === 'com') {
+        if (line.trim() !== '') { line += ' ' + t.v; flush(); }
+        else { flush(); out.push(rep(indentStr, level) + t.v); }
+        prev = null; continue;
+      }
+      if (t.t === 'punc') {
+        if (t.v === '{') {
+          push('{', prev, t);
+          if (nx && nx.t === 'punc' && nx.v === '}') { line += '}'; i++; prev = nx; continue; }
+          flush(); level++; prev = null; continue;
+        }
+        if (t.v === '}') {
+          flush(); level = Math.max(0, level - 1);
+          line = '}';
+          if (nx && ((nx.t === 'id' && /^(else|catch|finally|while)$/.test(nx.v)) ||
+              (nx.t === 'punc' && (nx.v === ')' || nx.v === ',' || nx.v === ';')) ||
+              (nx.t === 'op'))) {
+            prev = t; continue;
+          }
+          flush(); prev = null; continue;
+        }
+        if (t.v === ';') {
+          line += ';';
+          if (paren > 0) { prev = t; continue; }
+          flush(); prev = null; continue;
+        }
+        if (t.v === '(' || t.v === '[') { paren++; push(t.v, prev, t); prev = t; continue; }
+        if (t.v === ')' || t.v === ']') { paren = Math.max(0, paren - 1); push(t.v, prev, t); prev = t; continue; }
+        if (t.v === ',') { line += ','; prev = t; continue; }
+      }
+      push(t.v, prev, t);
+      prev = t;
+    }
+    flush();
+    return out.join('\n');
+  }
+
+  /* ---------------- JS minifier ---------------- */
+  function minifyJS(src) {
+    var toks = tokenizeJS(src).filter(function (t) {
+      return t.t !== 'ws' && t.t !== 'nl' && t.t !== 'com' && t.t !== 'lcom';
+    });
+    var out = '', prev = null;
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+      if (prev) {
+        var a = prev.v[prev.v.length - 1], b = t.v[0];
+        var need = false;
+        if (isWordish(prev) && isWordish(t)) need = true;
+        else if ((a === '+' && b === '+') || (a === '-' && b === '-')) need = true;
+        else if (a === '/' && (b === '/' || b === '*')) need = true;
+        if (need) out += ' ';
+      }
+      out += t.v;
+      prev = t;
+    }
+    return out;
+  }
+
+  /* ---------------- CSS ---------------- */
+  function cssScan(src, onTok) {
+    /* emits {t:'com'|'str'|'ch', v} */
+    var i = 0, n = src.length;
+    while (i < n) {
+      var c = src[i];
+      if (c === '/' && src[i + 1] === '*') {
+        var j = src.indexOf('*/', i + 2); j = j < 0 ? n : j + 2;
+        onTok({ t: 'com', v: src.slice(i, j) }); i = j; continue;
+      }
+      if (c === '"' || c === "'") {
+        var j2 = i + 1;
+        while (j2 < n) {
+          if (src[j2] === '\\') j2 += 2;
+          else if (src[j2] === c) { j2++; break; }
+          else j2++;
+        }
+        onTok({ t: 'str', v: src.slice(i, j2) }); i = j2; continue;
+      }
+      onTok({ t: 'ch', v: c }); i++;
+    }
+  }
+
+  function formatCSS(src, indentStr) {
+    indentStr = indentStr || '  ';
+    var out = [], line = '', level = 0, paren = 0, pendingBlank = false;
+    function rep(k) { var r = ''; while (k-- > 0) r += indentStr; return r; }
+    function flush() {
+      var s = line.trim();
+      if (s !== '') {
+        if (pendingBlank && out.length) { out.push(''); }
+        pendingBlank = false;
+        out.push(rep(level) + s);
+      }
+      line = '';
+    }
+    function appendWS() {
+      if (line !== '' && line[line.length - 1] !== ' ') line += ' ';
+    }
+    cssScan(src, function (tk) {
+      if (tk.t === 'com') { flush(); if (pendingBlank && out.length) { out.push(''); pendingBlank = false; } out.push(rep(level) + tk.v); return; }
+      if (tk.t === 'str') { line += tk.v; return; }
+      var c = tk.v;
+      if (c === '\n' || c === '\t' || c === '\r' || c === ' ') { appendWS(); return; }
+      if (c === '(') { paren++; line += c; return; }
+      if (c === ')') { paren = Math.max(0, paren - 1); line += c; return; }
+      if (paren > 0) { line += c; return; }
+      if (c === '{') {
+        line = line.replace(/\s+$/, '') + ' {';
+        flush(); level++; return;
+      }
+      if (c === '}') {
+        flush(); level = Math.max(0, level - 1);
+        line = '}'; flush(); pendingBlank = (level === 0); return;
+      }
+      if (c === ';') { line = line.replace(/\s+$/, '') + ';'; flush(); return; }
+      if (c === ':' && level > 0) { line = line.replace(/\s+$/, '') + ': '; return; }
+      if (c === ',') {
+        if (level === 0) { line = line.replace(/\s+$/, '') + ','; flush(); return; }
+        line = line.replace(/\s+$/, '') + ', '; return;
+      }
+      if (line === '' || /\s$/.test(line)) { line += c; return; }
+      line += c;
+    });
+    flush();
+    return out.join('\n');
+  }
+
+  function minifyCSS(src) {
+    var parts = [];
+    cssScan(src, function (tk) {
+      if (tk.t === 'com') return;
+      parts.push(tk);
+    });
+    var out = '', paren = 0;
+    for (var i = 0; i < parts.length; i++) {
+      var tk = parts[i];
+      if (tk.t === 'str') { out += tk.v; continue; }
+      var c = tk.v;
+      if (/\s/.test(c)) {
+        /* keep single space only when meaningful */
+        var prevCh = out[out.length - 1] || '';
+        var nextIdx = i + 1;
+        while (nextIdx < parts.length && parts[nextIdx].t === 'ch' && /\s/.test(parts[nextIdx].v)) nextIdx++;
+        var nxt = parts[nextIdx];
+        var nextCh = nxt ? (nxt.t === 'str' ? nxt.v[0] : nxt.v) : '';
+        if (prevCh === '' || '{}:;,>~('.indexOf(prevCh) >= 0) continue;
+        if (nextCh === '' || '{}:;,>~)'.indexOf(nextCh) >= 0) continue;
+        if (prevCh === '+' && paren === 0) continue;
+        if (nextCh === '+' && paren === 0) continue;
+        out += ' ';
+        continue;
+      }
+      if (c === '(') paren++;
+      if (c === ')') paren = Math.max(0, paren - 1);
+      if (c === '}') {
+        out = out.replace(/;$/, '');
+        out += '}'; continue;
+      }
+      if ('{:;,>~'.indexOf(c) >= 0 && paren === 0) {
+        out = out.replace(/ $/, '');
+        out += c; continue;
+      }
+      out += c;
+    }
+    return out.replace(/;\}/g, '}').trim();
+  }
+
+  /* ---------------- HTML ---------------- */
+  var VOID_TAGS = { area: 1, base: 1, br: 1, col: 1, embed: 1, hr: 1, img: 1, input: 1, link: 1, meta: 1, param: 1, source: 1, track: 1, wbr: 1 };
+
+  function tokenizeHTML(src) {
+    var toks = [], i = 0, n = src.length;
+    while (i < n) {
+      if (src.startsWith('<!--', i)) {
+        var j = src.indexOf('-->', i + 4); j = j < 0 ? n : j + 3;
+        toks.push({ t: 'comment', v: src.slice(i, j) }); i = j; continue;
+      }
+      if (src[i] === '<' && src[i + 1] === '!') {
+        var j2 = src.indexOf('>', i); j2 = j2 < 0 ? n : j2 + 1;
+        toks.push({ t: 'doctype', v: src.slice(i, j2) }); i = j2; continue;
+      }
+      if (src[i] === '<') {
+        var close = src[i + 1] === '/';
+        var k = i + (close ? 2 : 1), name = '';
+        while (k < n && /[a-zA-Z0-9-]/.test(src[k])) { name += src[k]; k++; }
+        /* find tag end, string-aware */
+        var j3 = k, q = null;
+        while (j3 < n) {
+          var ch = src[j3];
+          if (q) { if (ch === q) q = null; }
+          else if (ch === '"' || ch === "'") q = ch;
+          else if (ch === '>') { j3++; break; }
+          j3++;
+        }
+        var raw = src.slice(i, j3);
+        var lname = name.toLowerCase();
+        if (!close && (lname === 'script' || lname === 'style')) {
+          var endTag = '</' + lname;
+          var e = src.toLowerCase().indexOf(endTag, j3);
+          var content = e < 0 ? src.slice(j3) : src.slice(j3, e);
+          var e2 = e < 0 ? n : src.indexOf('>', e) + 1;
+          if (e2 === 0) e2 = n;
+          toks.push({ t: 'raw', v: raw, name: lname, content: content, closeTag: e < 0 ? '' : src.slice(e, e2) });
+          i = e2; continue;
+        }
+        toks.push({ t: close ? 'close' : 'open', v: raw, name: lname,
+          selfClose: /\/>$/.test(raw) || !!VOID_TAGS[lname] });
+        i = j3; continue;
+      }
+      var j4 = src.indexOf('<', i); j4 = j4 < 0 ? n : j4;
+      toks.push({ t: 'text', v: src.slice(i, j4) }); i = j4; continue;
+    }
+    return toks;
+  }
+
+  function cleanTag(raw) {
+    /* collapse whitespace inside tag, outside quotes */
+    var out = '', q = null;
+    for (var i = 0; i < raw.length; i++) {
+      var c = raw[i];
+      if (q) { out += c; if (c === q) q = null; continue; }
+      if (c === '"' || c === "'") { q = c; out += c; continue; }
+      if (/\s/.test(c)) {
+        if (out !== '' && !/\s$/.test(out)) out += ' ';
+        continue;
+      }
+      out += c;
+    }
+    return out.replace(/ >$/, '>').replace(/ \/>$/, ' />');
+  }
+
+  function formatHTML(src, indentStr) {
+    indentStr = indentStr || '  ';
+    var toks = tokenizeHTML(src);
+    var out = [], level = 0;
+    function rep(k) { var r = ''; while (k-- > 0) r += indentStr; return r; }
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+      if (t.t === 'text') {
+        var txt = t.v.replace(/\s+/g, ' ').trim();
+        if (txt) out.push(rep(level) + txt);
+        continue;
+      }
+      if (t.t === 'comment' || t.t === 'doctype') { out.push(rep(level) + t.v.trim()); continue; }
+      if (t.t === 'raw') {
+        out.push(rep(level) + cleanTag(t.v));
+        var lines = t.content.split('\n').map(function (l) { return l.trim(); }).filter(function (l) { return l !== ''; });
+        for (var li = 0; li < lines.length; li++) out.push(rep(level + 1) + lines[li]);
+        if (t.closeTag) out.push(rep(level) + t.closeTag);
+        continue;
+      }
+      if (t.t === 'close') {
+        level = Math.max(0, level - 1);
+        out.push(rep(level) + cleanTag(t.v));
+        continue;
+      }
+      /* open */
+      out.push(rep(level) + cleanTag(t.v));
+      if (!t.selfClose) level++;
+    }
+    return out.join('\n');
+  }
+
+  function minifyHTML(src) {
+    var toks = tokenizeHTML(src);
+    var out = '';
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+      if (t.t === 'comment') continue;
+      if (t.t === 'text') {
+        var txt = t.v.replace(/\s+/g, ' ');
+        if (txt.trim() === '') continue;
+        out += txt.trim();
+        continue;
+      }
+      if (t.t === 'raw') {
+        out += cleanTag(t.v) + t.content.trim() + t.closeTag;
+        continue;
+      }
+      out += cleanTag(t.v);
+    }
+    return out;
+  }
+
+  /* ---------------- JSON ---------------- */
+  function formatJSON(src, indent) {
+    return JSON.stringify(JSON.parse(src), null, indent == null ? 2 : indent);
+  }
+  function minifyJSON(src) {
+    return JSON.stringify(JSON.parse(src));
+  }
+
+  /* ---------------- detect / process / stats ---------------- */
+  function detect(code) {
+    var s = String(code || '').trim();
+    if (s === '') return 'js';
+    if (s[0] === '{' || s[0] === '[') {
+      try { JSON.parse(s); return 'json'; } catch (e) { /* not json */ }
+    }
+    if (/^<!doctype/i.test(s) || /^</.test(s) || /<\/[a-zA-Z]/.test(s)) return 'html';
+    if (/(^|\})\s*[^{}]*\{[^{}]*:[^{}]*(;|\})/.test(s) &&
+        !/\b(function|var|let|const|return)\b|=>/.test(s)) return 'css';
+    return 'js';
+  }
+
+  function process(code, lang, mode) {
+    lang = lang === 'auto' || !lang ? detect(code) : lang;
+    var fn;
+    if (lang === 'js') fn = mode === 'minify' ? minifyJS : formatJS;
+    else if (lang === 'css') fn = mode === 'minify' ? minifyCSS : formatCSS;
+    else if (lang === 'html') fn = mode === 'minify' ? minifyHTML : formatHTML;
+    else if (lang === 'json') fn = mode === 'minify' ? minifyJSON : formatJSON;
+    else throw new Error('unknown lang: ' + lang);
+    return { lang: lang, output: fn(code) };
+  }
+
+  function stats(before, after) {
+    var b = String(before).length, a = String(after).length;
+    return { before: b, after: a, saved: b - a, ratio: b === 0 ? 0 : Math.round((a / b) * 1000) / 10 };
+  }
+
+  return {
+    tokenizeJS: tokenizeJS, formatJS: formatJS, minifyJS: minifyJS,
+    formatCSS: formatCSS, minifyCSS: minifyCSS,
+    tokenizeHTML: tokenizeHTML, formatHTML: formatHTML, minifyHTML: minifyHTML,
+    formatJSON: formatJSON, minifyJSON: minifyJSON,
+    detect: detect, process: process, stats: stats
+  };
+})();
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = BF; }
+</script>
+<style>
+:root {
+  --bg: #0A0A0B; --card: #141417; --panel: #1A1B1E;
+  --text: #FFFFFF; --text2: #A1A1AA; --text3: #71717A;
+  --border: rgba(255,255,255,.08); --border-strong: rgba(255,255,255,.14);
+  --accent: #5E6AD2; --ok: #10B981; --warn: #F5A623; --info: #22D3EE; --purple: #A78BFA;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px; display: flex; flex-direction: column; min-height: 100vh;
+}
+header {
+  display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+  border-bottom: 1px solid var(--border); background: var(--card);
+}
+.logo { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #5E6AD2, #A78BFA); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+h1 { font-size: 16px; font-weight: 600; }
+h1 span { color: var(--text3); font-weight: 400; font-size: 13px; margin-left: 8px; }
+.spacer { flex: 1; }
+.btn {
+  background: var(--panel); color: var(--text2); border: 1px solid var(--border);
+  border-radius: 7px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+  transition: all .15s ease; font-family: inherit;
+}
+.btn:hover { border-color: var(--border-strong); color: var(--text); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.12); }
+.btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+select {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: 7px; padding: 7px 10px; font-size: 13px; font-family: inherit; cursor: pointer;
+}
+main { flex: 1; display: flex; flex-direction: column; padding: 16px 20px; gap: 12px; max-width: 1400px; width: 100%; margin: 0 auto; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.toolbar .group { display: flex; gap: 6px; align-items: center; }
+.toolbar label { color: var(--text3); font-size: 12px; }
+.panes { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-height: 420px; }
+.pane { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.pane-head { display: flex; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text3); gap: 8px; }
+.pane textarea {
+  flex: 1; background: transparent; color: var(--text); border: none; outline: none;
+  padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
+  font-size: 13px; line-height: 1.55; resize: none; tab-size: 2;
+}
+.badge { padding: 2px 8px; border-radius: 5px; font-size: 11px; border: 1px solid var(--border-strong); color: var(--text2); }
+.badge.ok { color: var(--ok); border-color: rgba(16,185,129,.35); }
+.badge.err { color: #F87171; border-color: rgba(248,113,113,.35); }
+.stats { color: var(--text3); font-size: 12px; margin-left: auto; }
+.stats b { color: var(--info); font-weight: 600; }
+footer { padding: 12px 20px; border-top: 1px solid var(--border); color: var(--text3); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; }
+footer a { color: var(--text2); text-decoration: none; }
+footer a:hover { color: var(--text); }
+@media (max-width: 860px) { .panes { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">BF</div>
+  <h1>BeautifyForge<span id="subtitle">代码美化 / 压缩 · 零依赖 · 离线</span></h1>
+  <div class="spacer"></div>
+  <button class="btn" id="langToggle">EN</button>
+</header>
+<main>
+  <div class="toolbar">
+    <div class="group">
+      <label id="lbLang">语言</label>
+      <select id="selLang">
+        <option value="auto">Auto 自动</option>
+        <option value="js">JavaScript</option>
+        <option value="css">CSS</option>
+        <option value="html">HTML</option>
+        <option value="json">JSON</option>
+      </select>
+    </div>
+    <div class="group">
+      <button class="btn primary" id="btnFormat">美化 Format</button>
+      <button class="btn" id="btnMinify">压缩 Minify</button>
+    </div>
+    <div class="group">
+      <button class="btn" id="btnSample">示例</button>
+      <button class="btn" id="btnCopy">复制结果</button>
+      <button class="btn" id="btnClear">清空</button>
+    </div>
+    <div class="stats" id="statLine"></div>
+  </div>
+  <div class="panes">
+    <div class="pane">
+      <div class="pane-head"><span id="lbInput">输入</span><span class="badge" id="badgeLang">auto</span></div>
+      <textarea id="txtIn" spellcheck="false" placeholder="粘贴 JS / CSS / HTML / JSON 代码…"></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-head"><span id="lbOutput">输出</span><span class="badge" id="badgeStatus"></span></div>
+      <textarea id="txtOut" spellcheck="false" readonly placeholder="结果将显示在这里"></textarea>
+    </div>
+  </div>
+</main>
+<footer>
+  <span>BeautifyForge · 单文件 · 零依赖 · 数据不出本机</span>
+  <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/BeautifyForge" target="_blank" rel="noopener">GitHub</a>
+  <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">nano-tools</a>
+</footer>
+<script>
+if (typeof window !== 'undefined' && window.document) {
+  (function () {
+    'use strict';
+    var $ = function (id) { return document.getElementById(id); };
+    var txtIn = $('txtIn'), txtOut = $('txtOut'), selLang = $('selLang');
+    var badgeLang = $('badgeLang'), badgeStatus = $('badgeStatus'), statLine = $('statLine');
+    var LS_KEY = 'beautifyforge:v1';
+    var lang = 'zh';
+
+    var I18N = {
+      zh: { subtitle: '代码美化 / 压缩 · 零依赖 · 离线', lbLang: '语言', format: '美化 Format', minify: '压缩 Minify',
+        sample: '示例', copy: '复制结果', copied: '已复制 ✓', clear: '清空', input: '输入', output: '输出',
+        ok: '完成', err: '出错', placeholderIn: '粘贴 JS / CSS / HTML / JSON 代码…', placeholderOut: '结果将显示在这里',
+        stat: function (s) { return '输入 <b>' + s.before + '</b> 字符 → 输出 <b>' + s.after + '</b> 字符（' + s.ratio + '%）'; } },
+      en: { subtitle: 'Code beautifier / minifier · zero-dep · offline', lbLang: 'Language', format: 'Format', minify: 'Minify',
+        sample: 'Sample', copy: 'Copy', copied: 'Copied ✓', clear: 'Clear', input: 'Input', output: 'Output',
+        ok: 'Done', err: 'Error', placeholderIn: 'Paste JS / CSS / HTML / JSON code…', placeholderOut: 'Result appears here',
+        stat: function (s) { return 'In <b>' + s.before + '</b> chars → out <b>' + s.after + '</b> chars (' + s.ratio + '%)'; } }
+    };
+
+    function applyLang() {
+      var d = I18N[lang];
+      $('subtitle').textContent = d.subtitle;
+      $('lbLang').textContent = d.lbLang;
+      $('btnFormat').textContent = d.format;
+      $('btnMinify').textContent = d.minify;
+      $('btnSample').textContent = d.sample;
+      $('btnCopy').textContent = d.copy;
+      $('btnClear').textContent = d.clear;
+      $('lbInput').textContent = d.input;
+      $('lbOutput').textContent = d.output;
+      txtIn.placeholder = d.placeholderIn;
+      txtOut.placeholder = d.placeholderOut;
+      $('langToggle').textContent = lang === 'zh' ? 'EN' : '中';
+    }
+
+    var SAMPLES = {
+      js: "function fib(n){if(n<2)return n;let a=0,b=1;for(let i=2;i<=n;i++){const t=a+b;a=b;b=t}return b}\n// quick demo\nconst out=[1,2,3].map(x=>x*2).filter(x=>x>2);console.log(fib(10),out);",
+      css: "/* demo */.card{color:#fff;background:linear-gradient(135deg,#5E6AD2,#A78BFA);padding:12px 16px;border-radius:8px}.card:hover{opacity:.9}@media(max-width:600px){.card{padding:8px}}",
+      html: "<!DOCTYPE html><html><head><title>Demo</title></head><body><!-- hero --><div class=\"hero\"><h1>Hello</h1><p>World</p><img src=\"a.png\"></div></body></html>",
+      json: "{\"name\":\"BeautifyForge\",\"tags\":[\"js\",\"css\",\"html\",\"json\"],\"offline\":true,\"deps\":0}"
+    };
+
+    function run(mode) {
+      var code = txtIn.value;
+      if (code.trim() === '') { txtOut.value = ''; badgeStatus.textContent = ''; statLine.innerHTML = ''; return; }
+      try {
+        var r = BF.process(code, selLang.value, mode);
+        txtOut.value = r.output;
+        badgeLang.textContent = selLang.value === 'auto' ? 'auto → ' + r.lang : r.lang;
+        badgeStatus.textContent = I18N[lang].ok;
+        badgeStatus.className = 'badge ok';
+        var s = BF.stats(code, r.output);
+        statLine.innerHTML = I18N[lang].stat(s);
+        save();
+      } catch (e) {
+        txtOut.value = String(e && e.message || e);
+        badgeStatus.textContent = I18N[lang].err;
+        badgeStatus.className = 'badge err';
+        statLine.innerHTML = '';
+      }
+    }
+
+    function save() {
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify({ code: txtIn.value.slice(0, 200000), lang: selLang.value, ui: lang }));
+      } catch (e) { /* ignore */ }
+    }
+    function load() {
+      try {
+        var d = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+        if (d) { txtIn.value = d.code || ''; selLang.value = d.lang || 'auto'; lang = d.ui === 'en' ? 'en' : 'zh'; }
+      } catch (e) { /* ignore */ }
+    }
+
+    $('btnFormat').addEventListener('click', function () { run('format'); });
+    $('btnMinify').addEventListener('click', function () { run('minify'); });
+    $('btnSample').addEventListener('click', function () {
+      var l = selLang.value === 'auto' ? 'js' : selLang.value;
+      txtIn.value = SAMPLES[l] || SAMPLES.js;
+      run('format');
+    });
+    $('btnCopy').addEventListener('click', function () {
+      if (!txtOut.value) return;
+      var done = function () {
+        $('btnCopy').textContent = I18N[lang].copied;
+        setTimeout(function () { $('btnCopy').textContent = I18N[lang].copy; }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txtOut.value).then(done, done);
+      } else {
+        txtOut.select(); try { document.execCommand('copy'); } catch (e) { /* noop */ } done();
+      }
+    });
+    $('btnClear').addEventListener('click', function () {
+      txtIn.value = ''; txtOut.value = ''; badgeStatus.textContent = ''; statLine.innerHTML = ''; save();
+    });
+    $('langToggle').addEventListener('click', function () {
+      lang = lang === 'zh' ? 'en' : 'zh'; applyLang(); save();
+    });
+    selLang.addEventListener('change', function () {
+      badgeLang.textContent = selLang.value; save();
+    });
+    txtIn.addEventListener('input', function () { save(); });
+
+    load(); applyLang();
+    if (selLang.value !== 'auto') badgeLang.textContent = selLang.value;
+
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* offline optional */ });
+    }
+
+    window.__BEAUTIFYFORGE__ = { BF: BF, run: run, els: { txtIn: txtIn, txtOut: txtOut, selLang: selLang } };
+  })();
+}
+</script>
+</body>
+</html>

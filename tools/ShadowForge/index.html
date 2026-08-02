@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>ShadowForge — 多层平滑阴影工坊：指数曲线生成 1–10 层协调阴影，Material 0–5 高程阶梯，支持 box/text/drop 反解与累计透明度、CSS 变量、Tailwind 输出，附光源方向与硬度体检。</title>
+<meta property="og:title" content="ShadowForge">
+<meta property="og:description" content="多层阴影工坊：以指数曲线生成 1–10 层协调阴影，内置 Material 0–5 高程阶梯，支持 box/text/drop 类型反解粘贴与累计透明度、CSS 变量、Tailwind 输出，附光源方向与硬度体检，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="多层阴影工坊：以指数曲线生成 1–10 层协调阴影，内置 Material 0–5 高程阶梯，支持 box/text/drop 类型反解粘贴与累计透明度、CSS 变量、Tailwind 输出，附光源方向与硬度体检，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>ShadowForge</h1>
+  <p class="sub">多层阴影工坊 · 平滑高程曲线</p>
+  <div class="grid">
+    <div>
+      <label for="shtype">阴影类型</label>
+      <select id="shtype"><option value="box">box-shadow</option><option value="text">text-shadow</option><option value="drop">filter: drop-shadow</option></select>
+    </div>
+    <div>
+      <label for="shcolor">阴影颜色</label>
+      <input type="text" id="shcolor" value="#000000">
+    </div>
+  </div>
+  <label>柔和阴影生成器（多层叠加，越靠外越淡）</label>
+  <div class="grid">
+    <div><label for="shn">层数 <b id="shnv">6</b></label><input type="range" id="shn" min="1" max="10" value="6" style="width:100%"></div>
+    <div><label for="shy">垂直距离 <b id="shyv">24</b>px</label><input type="range" id="shy" min="-40" max="80" value="24" style="width:100%"></div>
+    <div><label for="shb">模糊总量 <b id="shbv">48</b>px</label><input type="range" id="shb" min="0" max="160" value="48" style="width:100%"></div>
+    <div><label for="shs">扩散 <b id="shsv">0</b>px</label><input type="range" id="shs" min="-40" max="40" value="0" style="width:100%"></div>
+    <div><label for="sha">总不透明度 <b id="shav">0.16</b></label><input type="range" id="sha" min="0" max="80" value="16" style="width:100%"></div>
+    <div><label for="shc">缓动曲线 <b id="shcv">2</b></label><input type="range" id="shc" min="10" max="40" value="20" style="width:100%"></div>
+  </div>
+  <div class="row">
+    <button id="shgen">生成柔和阴影</button>
+    <select id="shelev"><option value="">Material 高度阶梯…</option><option value="1">elevation 1</option><option value="2">elevation 2</option><option value="3">elevation 3</option><option value="4">elevation 4</option><option value="5">elevation 5</option></select>
+    <button class="ghost" id="shinv">上下翻转</button>
+    <button class="ghost" id="shcopy">复制 CSS</button>
+  </div>
+  <label for="shpaste">粘贴已有阴影反解（支持 box-shadow / text-shadow / drop-shadow）</label>
+  <input type="text" id="shpaste" value="0 1px 2px 0 rgba(0,0,0,.08), 0 8px 24px -4px rgba(0,0,0,.12)">
+  <div class="row"><button class="ghost" id="shparse">反解为图层</button></div>
+  <div class="err" id="sherr"></div>
+  <label>预览</label>
+  <div class="out" id="shprev" style="background:#F4F4F5;padding:44px;display:flex;justify-content:center">
+    <div id="shcard" style="width:200px;height:110px;border-radius:12px;background:#FFFFFF;color:#18181B;display:flex;align-items:center;justify-content:center;font-size:14px">ShadowForge</div>
+  </div>
+  <div class="row">
+    <button class="ghost" id="shbg">切换预览底色</button>
+  </div>
+  <label>图层</label>
+  <div class="out" id="shlayers"></div>
+  <label>生成的 CSS</label>
+  <div class="out"><pre id="shcss" style="margin:0;font-size:12px;white-space:pre-wrap">.card {
+  box-shadow: none;
+}</pre></div>
+  <label>其他格式</label>
+  <div class="out"><pre id="shalt" style="margin:0;font-size:12px;white-space:pre-wrap"></pre></div>
+  <label>阴影体检</label>
+  <div class="out" id="shlint"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 349 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var NAMED = {black:[0,0,0], white:[255,255,255], red:[255,0,0], gray:[128,128,128], grey:[128,128,128]};
+
+function round2(v){ return Math.round(v*100)/100; }
+function round3(v){ return Math.round(v*1000)/1000; }
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function fmt(v){
+  var n=round2(Number(v)||0);
+  return (n===Math.floor(n)) ? String(Math.floor(n)) : String(n);
+}
+
+function hexToRgb(hex){
+  if(hex==null) return {r:0,g:0,b:0,a:1};
+  var s=String(hex).trim().toLowerCase();
+  if(NAMED[s]) return {r:NAMED[s][0], g:NAMED[s][1], b:NAMED[s][2], a:1};
+  if(s === 'transparent') return {r:0,g:0,b:0,a:0};
+  s=s.replace(/^#/,'');
+  if(s.length===3||s.length===4){
+    var p=s.split('');
+    var o={r:parseInt(p[0]+p[0],16), g:parseInt(p[1]+p[1],16), b:parseInt(p[2]+p[2],16), a:1};
+    if(s.length===4) o.a=round3(parseInt(p[3]+p[3],16)/255);
+    return o;
+  }
+  if(s.length===6||s.length===8){
+    var o2={r:parseInt(s.slice(0,2),16), g:parseInt(s.slice(2,4),16), b:parseInt(s.slice(4,6),16), a:1};
+    if(s.length===8) o2.a=round3(parseInt(s.slice(6,8),16)/255);
+    return o2;
+  }
+  return {r:0,g:0,b:0,a:1};
+}
+
+function rgbToHex(c){
+  function h(v){ var s=clamp(Math.round(v),0,255).toString(16); return s.length<2?'0'+s:s; }
+  return '#'+h(c.r)+h(c.g)+h(c.b);
+}
+
+function rgbaStr(color, alpha){
+  var c=hexToRgb(color);
+  var a=alpha==null?c.a:alpha;
+  return 'rgba('+Math.round(c.r)+', '+Math.round(c.g)+', '+Math.round(c.b)+', '+round3(clamp(a,0,1))+')';
+}
+
+function normLayer(l){
+  l=l||{};
+  return {x:Number(l.x)||0, y:Number(l.y)||0, blur:Number(l.blur)||0, spread:Number(l.spread)||0,
+          color:l.color||'#000000', alpha:l.alpha==null?0.15:clamp(Number(l.alpha),0,1),
+          inset:!!l.inset};
+}
+
+function layerCss(l, type){
+  var n=normLayer(l);
+  var col=rgbaStr(n.color, n.alpha);
+  if(type==='text') return fmt(n.x)+'px '+fmt(n.y)+'px '+fmt(n.blur)+'px '+col;
+  if(type==='drop') return 'drop-shadow('+fmt(n.x)+'px '+fmt(n.y)+'px '+fmt(n.blur)+'px '+col+')';
+  return (n.inset?'inset ':'')+fmt(n.x)+'px '+fmt(n.y)+'px '+fmt(n.blur)+'px '+fmt(n.spread)+'px '+col;
+}
+
+function shadowCss(layers, type, multiline){
+  layers=layers||[];
+  if(!layers.length) return 'none';
+  var t=type||'box';
+  var parts=layers.map(function(l){ return layerCss(l,t); });
+  if(t==='drop') return parts.join(' ');
+  return parts.join(multiline ? ',\n    ' : ', ');
+}
+
+function propertyName(type){
+  if(type==='text') return 'text-shadow';
+  if(type==='drop') return 'filter';
+  return 'box-shadow';
+}
+
+function cssRule(sel, layers, type, multiline){
+  return (sel||'.card')+' {\n  '+propertyName(type)+': '+shadowCss(layers,type,multiline)+';\n}';
+}
+
+function splitTop(s){
+  var out=[], depth=0, cur='';
+  for(var i=0;i<s.length;i++){
+    var c=s[i];
+    if(c==='(') depth++;
+    if(c===')') depth--;
+    if(c===',' && depth===0){ out.push(cur); cur=''; continue; }
+    cur+=c;
+  }
+  if(cur.trim()) out.push(cur);
+  return out.map(function(x){ return x.trim(); }).filter(function(x){ return x.length; });
+}
+
+function parseColorToken(part){
+  var m=/rgba?\(([^)]*)\)/i.exec(part);
+  if(m){
+    var n=m[1].split(',').map(function(x){ return parseFloat(x.trim()); });
+    return {color:rgbToHex({r:n[0]||0,g:n[1]||0,b:n[2]||0}), alpha: n.length>3 ? round3(n[3]) : 1,
+            raw:m[0]};
+  }
+  var h=/#[0-9a-fA-F]{3,8}\b/.exec(part);
+  if(h){ var c=hexToRgb(h[0]); return {color:rgbToHex(c), alpha:c.a, raw:h[0]}; }
+  var keys=Object.keys(NAMED);
+  for(var i=0;i<keys.length;i++){
+    var re=new RegExp('\\b'+keys[i]+'\\b','i');
+    if(re.test(part)){ var k=NAMED[keys[i]]; return {color:rgbToHex({r:k[0],g:k[1],b:k[2]}), alpha:1, raw:keys[i]}; }
+  }
+  return {color:'#000000', alpha:1, raw:null};
+}
+
+function parseShadow(str){
+  if(str==null) return [];
+  var s=String(str).replace(/^\s*(box-shadow|text-shadow|filter)\s*:\s*/i,'').replace(/;\s*$/,'').trim();
+  if(!s || s==='none') return [];
+  if(/drop-shadow\s*\(/i.test(s)){
+    var res=[], re=/drop-shadow\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)/gi, mm;
+    while((mm=re.exec(s))!==null){ res.push(parseOne(mm[1], false)); }
+    return res;
+  }
+  return splitTop(s).map(function(p){
+    var inset=/\binset\b/i.test(p);
+    return parseOne(p.replace(/\binset\b/ig,''), inset);
+  });
+}
+
+function parseOne(part, inset){
+  var col=parseColorToken(part);
+  var rest = col.raw ? part.replace(col.raw,' ') : part;
+  var nums=(rest.match(/-?\d*\.?\d+/g)||[]).map(parseFloat);
+  return {x:nums[0]||0, y:nums[1]||0, blur:nums[2]||0, spread:nums[3]||0,
+          color:col.color, alpha:col.alpha, inset:!!inset};
+}
+
+function smoothRamp(o){
+  o=o||{};
+  var n=Math.max(1, Math.round(o.layers==null?5:o.layers));
+  var Y=o.y==null?24:o.y, B=o.blur==null?48:o.blur, S=o.spread==null?0:o.spread;
+  var A=o.alpha==null?0.16:o.alpha, color=o.color||'#000000';
+  var exp=o.curve==null?2:o.curve, X=o.x==null?0:o.x;
+  var out=[];
+  for(var i=1;i<=n;i++){
+    var f=Math.pow(i/n, exp);
+    out.push({x:round2(X*f), y:round2(Y*f), blur:round2(B*f), spread:round2(S*f),
+              color:color, alpha:round3(A/n), inset:false});
+  }
+  return out;
+}
+
+var ELEVATIONS = {
+  0: [],
+  1: [{x:0,y:1,blur:2,spread:0,alpha:0.08},{x:0,y:1,blur:3,spread:0,alpha:0.06}],
+  2: [{x:0,y:2,blur:4,spread:-1,alpha:0.10},{x:0,y:4,blur:6,spread:-1,alpha:0.07}],
+  3: [{x:0,y:4,blur:8,spread:-2,alpha:0.12},{x:0,y:8,blur:16,spread:-4,alpha:0.08}],
+  4: [{x:0,y:8,blur:16,spread:-4,alpha:0.14},{x:0,y:16,blur:32,spread:-8,alpha:0.10}],
+  5: [{x:0,y:16,blur:32,spread:-8,alpha:0.16},{x:0,y:32,blur:64,spread:-16,alpha:0.12}]
+};
+
+function elevation(level, color){
+  var lv=clamp(Math.round(Number(level)||0),0,5);
+  return (ELEVATIONS[lv]||[]).map(function(l){
+    return {x:l.x,y:l.y,blur:l.blur,spread:l.spread,color:color||'#000000',alpha:l.alpha,inset:false};
+  });
+}
+
+function totalAlpha(layers){
+  var t=0;
+  (layers||[]).forEach(function(l){ t += normLayer(l).alpha; });
+  return round3(t);
+}
+
+function invert(layers){
+  return (layers||[]).map(function(l){
+    var n=normLayer(l); n.y=-n.y; n.x=-n.x; return n;
+  });
+}
+
+function toCssVar(name, layers, type){
+  return '--'+(name||'shadow')+': '+shadowCss(layers,type)+';';
+}
+
+function toTailwind(layers, type){
+  var s=shadowCss(layers,type).replace(/,\s+/g,',').replace(/\s+/g,'_');
+  return (type==='text'?'[text-shadow:':'shadow-[')+s+']';
+}
+
+function lint(layers, type){
+  layers=layers||[];
+  var w=[];
+  if(!layers.length){ return [{level:'info', msg:'当前没有任何阴影层，输出为 none'}]; }
+  var ta=totalAlpha(layers);
+  if(ta>0.6) w.push({level:'warn', msg:'累计不透明度 '+ta+' 偏高，暗色界面上容易糊成一团，建议 ≤ 0.4'});
+  if(layers.length>8) w.push({level:'warn', msg:layers.length+' 层阴影会显著增加合成绘制成本，移动端建议 ≤ 6 层'});
+  layers.forEach(function(l,i){
+    var n=normLayer(l);
+    if(n.blur===0 && n.spread===0 && (n.x!==0||n.y!==0))
+      w.push({level:'info', msg:'第 '+(i+1)+' 层 blur 与 spread 均为 0，会是硬边偏移（Neo-brutalism 常用，若想要柔和请加 blur）'});
+    if(n.blur>0 && n.blur < Math.abs(n.y))
+      w.push({level:'info', msg:'第 '+(i+1)+' 层 blur('+n.blur+') 远小于 y 偏移('+n.y+')，投影会显得生硬'});
+    if(n.y<0 && n.blur>16)
+      w.push({level:'info', msg:'第 '+(i+1)+' 层 y 为负且模糊很大，等于光源来自下方，与常见自上而下光照不符'});
+    if(n.alpha>=0.5)
+      w.push({level:'warn', msg:'第 '+(i+1)+' 层 alpha='+n.alpha+' 过重，单层建议 ≤ 0.25 并用多层叠加'});
+    if(type==='text' && (n.spread!==0))
+      w.push({level:'error', msg:'第 '+(i+1)+' 层设置了 spread，但 text-shadow 不支持 spread，导出时会被丢弃'});
+    if(type==='text' && n.inset)
+      w.push({level:'error', msg:'第 '+(i+1)+' 层是 inset，但 text-shadow 不支持 inset'});
+    if(type==='drop' && n.inset)
+      w.push({level:'error', msg:'第 '+(i+1)+' 层是 inset，但 filter: drop-shadow() 不支持 inset'});
+    if(type==='drop' && n.spread!==0)
+      w.push({level:'warn', msg:'第 '+(i+1)+' 层的 spread 在 drop-shadow() 中无效，将被忽略'});
+  });
+  var insets=layers.filter(function(l){ return normLayer(l).inset; }).length;
+  if(insets && insets<layers.length && type!=='text' && type!=='drop')
+    w.push({level:'info', msg:'同时存在 inset 与外阴影 '+insets+'/'+layers.length+'，注意 inset 会绘制在内容之下'});
+  return w;
+}
+
+var ShadowForgePure = {
+  hexToRgb:hexToRgb, rgbToHex:rgbToHex, rgbaStr:rgbaStr, normLayer:normLayer,
+  layerCss:layerCss, shadowCss:shadowCss, propertyName:propertyName, cssRule:cssRule,
+  splitTop:splitTop, parseShadow:parseShadow, smoothRamp:smoothRamp, elevation:elevation,
+  totalAlpha:totalAlpha, invert:invert, toCssVar:toCssVar, toTailwind:toTailwind, lint:lint, fmt:fmt
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = ShadowForgePure;
+if (typeof window !== 'undefined') window.ShadowForgePure = ShadowForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.ShadowForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var layers=[];
+  var BGS=[['#F4F4F5','#18181B'],['#FFFFFF','#18181B'],['#0A0A0B','#FFFFFF'],['#5E6AD2','#FFFFFF']];
+  var bgi=0;
+
+  function readRamp(){
+    return {layers:parseInt($('shn').value,10), y:parseFloat($('shy').value),
+            blur:parseFloat($('shb').value), spread:parseFloat($('shs').value),
+            alpha:parseFloat($('sha').value)/100, curve:parseFloat($('shc').value)/10,
+            color:$('shcolor').value};
+  }
+  function syncLabels(){
+    var r=readRamp();
+    $('shnv').textContent=r.layers; $('shyv').textContent=r.y; $('shbv').textContent=r.blur;
+    $('shsv').textContent=r.spread; $('shav').textContent=r.alpha.toFixed(2); $('shcv').textContent=r.curve;
+  }
+  function gen(){ layers=P.smoothRamp(readRamp()); render(); }
+
+  function render(){
+    var type=$('shtype').value;
+    var css=P.shadowCss(layers, type, layers.length>2);
+    $('shcss').textContent=P.cssRule('.card', layers, type, layers.length>2);
+    var card=$('shcard');
+    card.style.boxShadow=''; card.style.textShadow=''; card.style.filter='';
+    if(type==='box') card.style.boxShadow=P.shadowCss(layers,'box');
+    else if(type==='text') card.style.textShadow=P.shadowCss(layers,'text');
+    else card.style.filter=P.shadowCss(layers,'drop');
+    $('shalt').textContent = P.toCssVar('shadow-card', layers, type) + '\n' + P.toTailwind(layers, type)
+      + '\n/* 累计不透明度 ' + P.totalAlpha(layers) + ' · ' + layers.length + ' 层 */';
+    $('shlayers').innerHTML = layers.length ? layers.map(function(l,i){
+      return '<div class="kv"><b>#'+(i+1)+(l.inset?' inset':'')+'</b><span>'+esc(P.layerCss(l,type))+'</span></div>';
+    }).join('') : '<div style="font-size:12px;color:var(--muted)">暂无图层</div>';
+    var ws=P.lint(layers, type);
+    var col={error:'var(--warn)', warn:'var(--warn)', info:'var(--muted)'};
+    $('shlint').innerHTML = ws.length
+      ? ws.map(function(x){ return '<div style="font-size:12px;color:'+col[x.level]+';padding:3px 0">['+x.level+'] '+esc(x.msg)+'</div>'; }).join('')
+      : '<div style="font-size:12px;color:var(--ok)">阴影参数健康</div>';
+  }
+
+  ['shn','shy','shb','shs','sha','shc'].forEach(function(id){
+    $(id).addEventListener('input', function(){ syncLabels(); gen(); });
+  });
+  $('shcolor').addEventListener('input', function(){
+    layers=layers.map(function(l){ l.color=$('shcolor').value; return l; }); render();
+  });
+  $('shtype').addEventListener('change', render);
+  $('shgen').addEventListener('click', gen);
+  $('shinv').addEventListener('click', function(){ layers=P.invert(layers); render(); });
+  $('shelev').addEventListener('change', function(){
+    var v=$('shelev').value; if(!v) return;
+    layers=P.elevation(parseInt(v,10), $('shcolor').value); render();
+  });
+  $('shparse').addEventListener('click', function(){
+    try {
+      var got=P.parseShadow($('shpaste').value);
+      if(!got.length){ $('sherr').textContent='未解析到任何阴影图层'; return; }
+      layers=got; $('sherr').textContent=''; render();
+    } catch(e){ $('sherr').textContent='解析失败: '+e.message; }
+  });
+  $('shbg').addEventListener('click', function(){
+    bgi=(bgi+1)%BGS.length;
+    $('shprev').style.background=BGS[bgi][0];
+    $('shcard').style.background=(bgi===2?'#1A1B1E':'#FFFFFF');
+    $('shcard').style.color=(bgi===2?'#FFFFFF':'#18181B');
+  });
+  $('shcopy').addEventListener('click', function(){
+    var t=$('shcss').textContent;
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t);
+    $('shcopy').textContent='已复制'; setTimeout(function(){ $('shcopy').textContent='复制 CSS'; },1200);
+  });
+  syncLabels(); gen();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

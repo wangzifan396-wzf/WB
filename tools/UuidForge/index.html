@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UuidForge · 离线 UUID / nanoid 生成器</title>
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --panel:#1A1B1E; --text:#FFFFFF;
+    --muted:#A1A1AA; --dim:#71717A; --border:rgba(255,255,255,0.08); --border2:rgba(255,255,255,0.14);
+    --accent:#5E6AD2; --good:#10B981; --info:#22D3EE;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:820px;margin:0 auto;padding:28px 18px 64px;}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .logo{width:38px;height:38px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#7C8AF0);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+  h1{font-size:20px;margin:0;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .seg{display:inline-flex;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:3px;gap:2px}
+  .seg button{background:transparent;border:0;color:var(--muted);padding:7px 13px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600}
+  .seg button.active{background:var(--accent);color:#fff}
+  label{font-size:12px;color:var(--dim);display:block;margin-bottom:5px}
+  input,select{background:var(--panel);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px;outline:none;width:100%}
+  input:focus,select:focus{border-color:var(--accent)}
+  .field{width:160px}
+  .field.grow{flex:1;min-width:200px}
+  .btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer;font-size:13px}
+  .btn.ghost{background:var(--panel);border:1px solid var(--border2);color:var(--text)}
+  .btn:active{transform:translateY(1px)}
+  .out{margin-top:12px;border:1px solid var(--border);border-radius:9px;background:var(--bg);max-height:340px;overflow:auto}
+  .item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+  .item:last-child{border-bottom:0}
+  .item .val{flex:1;word-break:break-all;color:var(--text)}
+  .copy{background:var(--panel);border:1px solid var(--border2);color:var(--muted);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px}
+  .copy:hover{color:#fff}
+  .hint{color:var(--dim);font-size:12px;margin-top:8px}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--panel);border:1px solid var(--border2);color:var(--muted);margin-left:6px}
+  .ok{color:var(--good)} .bad{color:#F87171}
+  .meta{color:var(--dim);font-size:12px;margin-top:8px}
+  .v5only,.nanoonly{display:none}
+  .v5only.show,.nanoonly.show{display:block}
+  footer{color:var(--dim);font-size:12px;text-align:center;margin-top:22px}
+  a{color:var(--info);text-decoration:none}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线 UUID / nanoid 生成器：v4 随机、v7 时间有序、v5 命名空间哈希（可复现）、批量生成与校验，数据永不离机。">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">U</div>
+    <div>
+      <h1>UuidForge <span class="pill">离线 · 零依赖</span></h1>
+    </div>
+  </header>
+  <div class="sub">UUID v4 / v7 / v5 与 nanoid 生成器。所有随机性来自浏览器原生 Web Crypto，数据永不离机。</div>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <div class="seg" id="mode">
+        <button data-m="v4" class="active">UUID v4</button>
+        <button data-m="v7">UUID v7</button>
+        <button data-m="v5">UUID v5</button>
+        <button data-m="nano">nanoid</button>
+      </div>
+      <div class="field">
+        <label>数量</label>
+        <input id="count" type="number" min="1" max="500" value="5">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="v5only" id="v5box">
+        <div class="field grow">
+          <label>命名空间 (UUID)</label>
+          <input id="ns" value="6ba7b810-9dad-11d1-80b4-00c04fd430c8" spellcheck="false">
+        </div>
+        <div class="field grow">
+          <label>名称 (name)</label>
+          <input id="nm" value="example.com" spellcheck="false">
+        </div>
+      </div>
+      <div class="nanoonly" id="nanobox">
+        <div class="field">
+          <label>长度</label>
+          <input id="nsize" type="number" min="8" max="64" value="21">
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="gen">生成</button>
+      <button class="btn ghost" id="copyAll">复制全部</button>
+      <button class="btn ghost" id="dl">下载 .txt</button>
+      <span class="meta" id="stat"></span>
+    </div>
+
+    <div class="out" id="out"></div>
+    <div class="hint">v4 随机、v7 按时间有序（48-bit 毫秒时间戳）、v5 基于 SHA-1 命名空间哈希（可复现）、nanoid 为 URL 安全随机串。</div>
+  </div>
+
+  <div class="card">
+    <label>校验 UUID</label>
+    <div class="row">
+      <div class="field grow">
+        <input id="check" placeholder="粘贴一个 UUID 进行校验" spellcheck="false">
+      </div>
+      <button class="btn ghost" id="chk">校验</button>
+    </div>
+    <div class="meta" id="chkres"></div>
+  </div>
+
+  <footer>属于 <a href="https://github.com/wangzifan396-wzf/WB" target="_blank" rel="noopener">nano-tools</a> 单文件工具矩阵 · 本地优先 · 无追踪 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+
+<script>
+/* ============ 纯函数层（可测，无副作用） ============ */
+function getCrypto(){
+  if (typeof globalThis!=='undefined' && globalThis.crypto && globalThis.crypto.getRandomValues) return globalThis.crypto;
+  if (typeof window!=='undefined' && window.crypto && window.crypto.getRandomValues) return window.crypto;
+  return null;
+}
+function utf8Bytes(str){
+  if (typeof TextEncoder!=='undefined') return new TextEncoder().encode(str);
+  var out=[], i=0;
+  for(; i<str.length; i++){
+    var c=str.charCodeAt(i);
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xC0|(c>>6),0x80|(c&0x3F)); }
+    else if(c>=0xD800&&c<=0xDBFF){ var c2=str.charCodeAt(++i); var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF); out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F)); }
+    else { out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F)); }
+  }
+  return new Uint8Array(out);
+}
+function bytesToHex(b){
+  var s="", h="0123456789abcdef";
+  for(var i=0;i<b.length;i++){ s+=h[b[i]>>4]+h[b[i]&15]; }
+  return s;
+}
+function randBytes(n){
+  var c=getCrypto();
+  var b=new Uint8Array(n);
+  if(c){ c.getRandomValues(b); }
+  else { for(var i=0;i<n;i++) b[i]=(Math.random()*256)|0; }
+  return b;
+}
+function parseUuid(s){
+  var hex=s.replace(/-/g,"");
+  if(hex.length!==32 || /[^0-9a-fA-F]/.test(hex)) return null;
+  var out=new Uint8Array(16);
+  for(var i=0;i<16;i++) out[i]=parseInt(hex.substr(i*2,2),16);
+  return out;
+}
+function fmtUuid(b){
+  var h=bytesToHex(b);
+  return h.substr(0,8)+"-"+h.substr(8,4)+"-"+h.substr(12,4)+"-"+h.substr(16,4)+"-"+h.substr(20,12);
+}
+function uuidV4(){
+  var b=randBytes(16);
+  b[6]=(b[6]&0x0F)|0x40;
+  b[8]=(b[8]&0x3F)|0x80;
+  return fmtUuid(b);
+}
+function uuidV7(nowMs){
+  var ts=(typeof nowMs==='number')?nowMs:Date.now();
+  var b=randBytes(16);
+  // 48-bit timestamp big-endian into bytes 0..5
+  b[0]=(ts/0x10000000000)&0xFF; b[1]=(ts/0x100000000)&0xFF; b[2]=(ts/0x1000000)&0xFF;
+  b[3]=(ts/0x10000)&0xFF; b[4]=(ts/0x100)&0xFF; b[5]=ts&0xFF;
+  b[6]=(b[6]&0x0F)|0x70;
+  b[8]=(b[8]&0x3F)|0x80;
+  return fmtUuid(b);
+}
+function tsOfV7(s){
+  var b=parseUuid(s); if(!b) return null;
+  return (b[0]*0x10000000000)+(b[1]*0x100000000)+(b[2]*0x1000000)+(b[3]*0x10000)+(b[4]*0x100)+b[5];
+}
+function sha1Sync(msg){
+  var bytes=utf8Bytes(msg);
+  function rotl(x,n){ return (x<<n)|(x>>>(32-n)); }
+  var h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476,h4=0xC3D2E1F0;
+  var ml=bytes.length*8;
+  var withOne=bytes.length+1;
+  var pad=((56-(withOne%64))+64)%64;
+  var total=withOne+pad+8;
+  var buf=new Uint8Array(total);
+  buf.set(bytes);
+  buf[bytes.length]=0x80;
+  var dv=new DataView(buf.buffer);
+  dv.setUint32(total-4, ml>>>0, false);
+  dv.setUint32(total-8, Math.floor(ml/0x100000000), false);
+  for(var i=0;i<total;i+=64){
+    var w=new Array(80);
+    for(var j=0;j<16;j++) w[j]=dv.getUint32(i+j*4,false);
+    for(var j=16;j<80;j++) w[j]=rotl(w[j-3]^w[j-8]^w[j-14]^w[j-16],1);
+    var a=h0,b=h1,c=h2,d=h3,e=h4;
+    for(var j=0;j<80;j++){
+      var f,k;
+      if(j<20){f=(b&c)|(~b&d);k=0x5A827999;}
+      else if(j<40){f=b^c^d;k=0x6ED9EBA1;}
+      else if(j<60){f=(b&c)|(b&d)|(c&d);k=0x8F1BBCDC;}
+      else{f=b^c^d;k=0xCA62C1D6;}
+      var tmp=(rotl(a,5)+f+e+k+(w[j]>>>0))>>>0;
+      e=d; d=c; c=rotl(b,30); b=a; a=tmp;
+    }
+    h0=(h0+a)>>>0;h1=(h1+b)>>>0;h2=(h2+c)>>>0;h3=(h3+d)>>>0;h4=(h4+e)>>>0;
+  }
+  var out=new Uint8Array(20);
+  var odv=new DataView(out.buffer);
+  odv.setUint32(0,h0,false);odv.setUint32(4,h1,false);odv.setUint32(8,h2,false);odv.setUint32(12,h3,false);odv.setUint32(16,h4,false);
+  return out;
+}
+function uuidV5(namespace, name){
+  var ns=(typeof namespace==='string')?parseUuid(namespace):namespace;
+  if(!ns || ns.length!==16) throw new Error("invalid namespace");
+  var nameBytes=utf8Bytes(String(name));
+  var buf=new Uint8Array(16+nameBytes.length);
+  buf.set(ns,0); buf.set(nameBytes,16);
+  var hash=sha1Bytes(buf);
+  var out=hash.slice(0,16);
+  out[6]=(out[6]&0x0F)|0x50;
+  out[8]=(out[8]&0x3F)|0x80;
+  return fmtUuid(out);
+}
+function sha1Bytes(buf){
+  function rotl(x,n){ return (x<<n)|(x>>>(32-n)); }
+  var h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476,h4=0xC3D2E1F0;
+  var ml=buf.length*8;
+  var withOne=buf.length+1;
+  var pad=((56-(withOne%64))+64)%64;
+  var total=withOne+pad+8;
+  var full=new Uint8Array(total);
+  full.set(buf);
+  full[buf.length]=0x80;
+  var dv=new DataView(full.buffer);
+  dv.setUint32(total-4, ml>>>0, false);
+  dv.setUint32(total-8, Math.floor(ml/0x100000000), false);
+  for(var i=0;i<total;i+=64){
+    var w=new Array(80);
+    for(var j=0;j<16;j++) w[j]=dv.getUint32(i+j*4,false);
+    for(var j=16;j<80;j++) w[j]=rotl(w[j-3]^w[j-8]^w[j-14]^w[j-16],1);
+    var a=h0,b=h1,c=h2,d=h3,e=h4;
+    for(var j=0;j<80;j++){
+      var f,k;
+      if(j<20){f=(b&c)|(~b&d);k=0x5A827999;}
+      else if(j<40){f=b^c^d;k=0x6ED9EBA1;}
+      else if(j<60){f=(b&c)|(b&d)|(c&d);k=0x8F1BBCDC;}
+      else{f=b^c^d;k=0xCA62C1D6;}
+      var tmp=(rotl(a,5)+f+e+k+(w[j]>>>0))>>>0;
+      e=d; d=c; c=rotl(b,30); b=a; a=tmp;
+    }
+    h0=(h0+a)>>>0;h1=(h1+b)>>>0;h2=(h2+c)>>>0;h3=(h3+d)>>>0;h4=(h4+e)>>>0;
+  }
+  var out=new Uint8Array(20);
+  var odv=new DataView(out.buffer);
+  odv.setUint32(0,h0,false);odv.setUint32(4,h1,false);odv.setUint32(8,h2,false);odv.setUint32(12,h3,false);odv.setUint32(16,h4,false);
+  return out;
+}
+var NANOID_ALPHABET="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+function nanoid(size, alphabet){
+  size=(typeof size==='number')?size:21;
+  alphabet=alphabet||NANOID_ALPHABET;
+  var b=randBytes(size);
+  var s="";
+  for(var i=0;i<size;i++) s+=alphabet[b[i]%alphabet.length];
+  return s;
+}
+function isValidUuid(s){
+  return typeof s==='string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(s);
+}
+function versionOf(s){
+  var b=parseUuid(s); if(!b) return -1;
+  return (b[6]>>4)&0xF;
+}
+function batch(n, fn){
+  n=Math.max(1, Math.min(500, n|0));
+  var a=[];
+  for(var i=0;i<n;i++) a.push(fn());
+  return a;
+}
+
+/* 导出（Node 测试用） */
+if (typeof module!=='undefined' && module.exports){
+  module.exports = {getCrypto:getCrypto, utf8Bytes:utf8Bytes, bytesToHex:bytesToHex, randBytes:randBytes, parseUuid:parseUuid, fmtUuid:fmtUuid, uuidV4:uuidV4, uuidV7:uuidV7, tsOfV7:tsOfV7, sha1Bytes:sha1Bytes, uuidV5:uuidV5, nanoid:nanoid, isValidUuid:isValidUuid, versionOf:versionOf, batch:batch, NANOID_ALPHABET:NANOID_ALPHABET};
+}
+
+/* ============ UI 层（仅浏览器） ============ */
+if (typeof window!=='undefined' && window.document){
+  (function(){
+    var mode="v4";
+    var outEl=document.getElementById("out");
+    var statEl=document.getElementById("stat");
+    var last=[];
+    function gen(){
+      var n=Math.max(1, Math.min(500, parseInt(document.getElementById("count").value,10)||1));
+      var res=[];
+      if(mode==="v4") res=batch(n, uuidV4);
+      else if(mode==="v7") res=batch(n, uuidV7);
+      else if(mode==="v5"){
+        var ns=document.getElementById("ns").value.trim();
+        var nm=document.getElementById("nm").value;
+        try{ res=[uuidV5(ns,nm)]; }catch(e){ res=["错误: "+e.message]; }
+      } else if(mode==="nano"){
+        var sz=Math.max(8, Math.min(64, parseInt(document.getElementById("nsize").value,10)||21));
+        res=batch(n, function(){ return nanoid(sz); });
+      }
+      last=res.filter(function(x){ return x.indexOf("错误")<0; });
+      outEl.innerHTML="";
+      res.forEach(function(v){
+        var it=document.createElement("div"); it.className="item";
+        var val=document.createElement("div"); val.className="val"; val.textContent=v;
+        var cp=document.createElement("button"); cp.className="copy"; cp.textContent="复制";
+        cp.onclick=function(){ copyText(v); };
+        it.appendChild(val); it.appendChild(cp); outEl.appendChild(it);
+      });
+      statEl.textContent="已生成 "+last.length+" 个"+(mode==="v5"?"":"");
+    }
+    function copyText(t){
+      if(navigator.clipboard) navigator.clipboard.writeText(t).catch(function(){});
+      else { var ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");}catch(e){} ta.remove(); }
+    }
+    function copyAll(){
+      if(!last.length) return;
+      copyText(last.join("\n"));
+      statEl.textContent="已复制 "+last.length+" 个到剪贴板";
+    }
+    function download(){
+      if(!last.length) return;
+      var blob=new Blob([last.join("\n")],{type:"text/plain"});
+      var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="uuids.txt"; a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    }
+    document.getElementById("mode").addEventListener("click", function(e){
+      var b=e.target.closest("button"); if(!b) return;
+      mode=b.getAttribute("data-m");
+      [].forEach.call(this.querySelectorAll("button"), function(x){ x.classList.remove("active"); });
+      b.classList.add("active");
+      document.getElementById("v5box").classList.toggle("show", mode==="v5");
+      document.getElementById("nanobox").classList.toggle("show", mode==="nano");
+    });
+    document.getElementById("gen").onclick=gen;
+    document.getElementById("copyAll").onclick=copyAll;
+    document.getElementById("dl").onclick=download;
+    document.getElementById("chk").onclick=function(){
+      var v=document.getElementById("check").value.trim();
+      var r=document.getElementById("chkres");
+      if(!v){ r.textContent=""; return; }
+      if(isValidUuid(v)){ r.innerHTML='<span class="ok">✓ 合法 UUID</span> · 版本 v'+versionOf(v); }
+      else { r.innerHTML='<span class="bad">✗ 不是合法 UUID 格式</span>'; }
+    };
+    gen();
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

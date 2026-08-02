@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PemForge — PEM / X.509 检查器：内置 ASN.1 DER 编解码器，解析证书、CSR、RSA/EC 私钥，展示 ASN.1 结构树与字节偏移、规范化重编码，并做 SHA-1/弱 RSA/有效期/398 天/SAN 等体检。</title>
+<meta property="og:title" content="PemForge">
+<meta property="og:description" content="PEM / X.509 检查器：内置 ASN.1 DER 编解码器，解析证书、CSR 与 RSA/EC 私钥，展示 ASN.1 结构树与字节偏移并规范化重编码，附 SHA-1/弱 RSA/有效期/398 天/SAN/v1 等体检，数据不出本机。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="PEM / X.509 检查器：内置 ASN.1 DER 编解码器，解析证书、CSR 与 RSA/EC 私钥，展示 ASN.1 结构树与字节偏移并规范化重编码，附 SHA-1/弱 RSA/有效期/398 天/SAN/v1 等体检，数据不出本机。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>PemForge</h1>
+  <p class="sub">PEM / X.509 证书与私钥检查器</p>
+  <label for="pmin">粘贴 PEM / Base64 / HEX（证书、CSR、公钥、私钥，可一次多块）</label>
+  <textarea id="pmin" rows="8" spellcheck="false"></textarea>
+  <div class="row">
+    <button id="pmrun">解析</button>
+    <button class="ghost" id="pmdemo">载入示例证书</button>
+    <button class="ghost" id="pmclear">清空</button>
+    <label style="display:inline-flex;align-items:center;gap:6px;margin:0;color:var(--muted);font-size:13px">
+      <input type="checkbox" id="pmnow" checked style="width:auto"> 结合当前时间做有效期检查
+    </label>
+  </div>
+  <div class="err" id="pmerr"></div>
+  <label>摘要</label>
+  <div class="out" id="pmsum"><div class="kv"><b>状态</b><span>等待输入</span></div></div>
+  <label>安全体检</label>
+  <div class="out" id="pmlint"></div>
+  <label>ASN.1 结构树（SEQUENCE / INTEGER / OID 逐层展开，带字节偏移）</label>
+  <div class="out"><pre id="pmtree" style="margin:0;font-size:12px;white-space:pre;overflow-x:auto">SEQUENCE</pre></div>
+  <label>规范化重编码（DER 往返校验）</label>
+  <div class="out"><pre id="pmpem" style="margin:0;font-size:11px;white-space:pre-wrap;word-break:break-all"></pre></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 349 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var B64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+function b64encode(bytes){
+  var out='', i;
+  for(i=0;i+2<bytes.length;i+=3){
+    var n=(bytes[i]<<16)|(bytes[i+1]<<8)|bytes[i+2];
+    out+=B64[(n>>18)&63]+B64[(n>>12)&63]+B64[(n>>6)&63]+B64[n&63];
+  }
+  var rem=bytes.length-i;
+  if(rem===1){ var a=bytes[i]<<16; out+=B64[(a>>18)&63]+B64[(a>>12)&63]+'=='; }
+  else if(rem===2){ var b=(bytes[i]<<16)|(bytes[i+1]<<8); out+=B64[(b>>18)&63]+B64[(b>>12)&63]+B64[(b>>6)&63]+'='; }
+  return out;
+}
+
+function b64decode(str){
+  var s=String(str).replace(/[\s\r\n]/g,'');
+  s=s.replace(/-/g,'+').replace(/_/g,'/');
+  var pad=0;
+  while(s.length && s[s.length-1]==='='){ s=s.slice(0,-1); pad++; }
+  if(/[^A-Za-z0-9+/]/.test(s)) throw new Error('Base64 含非法字符');
+  var out=[], buf=0, bits=0;
+  for(var i=0;i<s.length;i++){
+    var v=B64.indexOf(s[i]);
+    buf=(buf<<6)|v; bits+=6;
+    if(bits>=8){ bits-=8; out.push((buf>>bits)&0xff); }
+  }
+  return out;
+}
+
+function bytesToHex(bytes, sep){
+  var s=[];
+  for(var i=0;i<bytes.length;i++){ var h=bytes[i].toString(16); s.push(h.length<2?'0'+h:h); }
+  return s.join(sep==null?'':sep);
+}
+function hexToBytes(hex){
+  var s=String(hex).replace(/[^0-9a-fA-F]/g,'');
+  if(s.length%2) s='0'+s;
+  var out=[];
+  for(var i=0;i<s.length;i+=2) out.push(parseInt(s.substr(i,2),16));
+  return out;
+}
+
+function pemEncode(label, bytes){
+  var b=b64encode(bytes), lines=[];
+  for(var i=0;i<b.length;i+=64) lines.push(b.slice(i,i+64));
+  return '-----BEGIN '+label+'-----\n'+lines.join('\n')+'\n-----END '+label+'-----';
+}
+
+function pemDecode(text){
+  var s=String(text||'');
+  var re=/-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----/g, m, out=[];
+  while((m=re.exec(s))!==null){ out.push({label:m[1].trim(), bytes:b64decode(m[2])}); }
+  if(!out.length){
+    var t=s.trim();
+    if(/^[0-9a-fA-F\s:]+$/.test(t) && t.replace(/[^0-9a-fA-F]/g,'').length>=4)
+      return [{label:'RAW HEX', bytes:hexToBytes(t)}];
+    if(t.length && /^[A-Za-z0-9+/=\s_-]+$/.test(t))
+      return [{label:'RAW BASE64', bytes:b64decode(t)}];
+    throw new Error('未找到 PEM 块，也不是合法的 Base64 / HEX');
+  }
+  return out;
+}
+
+var TAGS={1:'BOOLEAN',2:'INTEGER',3:'BIT STRING',4:'OCTET STRING',5:'NULL',6:'OBJECT IDENTIFIER',
+  10:'ENUMERATED',12:'UTF8String',16:'SEQUENCE',17:'SET',19:'PrintableString',20:'T61String',
+  22:'IA5String',23:'UTCTime',24:'GeneralizedTime',26:'VisibleString',27:'GeneralString',30:'BMPString'};
+
+function tagName(tag){
+  var cls=(tag>>6)&3, num=tag&0x1f;
+  if(cls===2) return '['+num+']';
+  if(cls===1) return 'APPLICATION '+num;
+  if(cls===3) return 'PRIVATE '+num;
+  return TAGS[num] || ('UNIVERSAL '+num);
+}
+
+function oidToString(b){
+  if(!b || !b.length) return '';
+  var first=b[0], out;
+  if(first>=80) out=[2, first-80]; else out=[Math.floor(first/40), first%40];
+  var v=0;
+  for(var i=1;i<b.length;i++){
+    v=v*128+(b[i]&0x7f);
+    if(!(b[i]&0x80)){ out.push(v); v=0; }
+  }
+  return out.join('.');
+}
+
+function oidEncode(s){
+  var p=String(s).split('.').map(Number);
+  if(p.length<2) throw new Error('OID 至少需要两段');
+  var out=[p[0]*40+p[1]];
+  for(var i=2;i<p.length;i++){
+    var v=p[i], stack=[v%128];
+    v=Math.floor(v/128);
+    while(v>0){ stack.unshift((v%128)|0x80); v=Math.floor(v/128); }
+    out=out.concat(stack);
+  }
+  return out;
+}
+
+var OIDS={
+  '1.2.840.113549.1.1.1':'rsaEncryption','1.2.840.113549.1.1.5':'sha1WithRSAEncryption',
+  '1.2.840.113549.1.1.11':'sha256WithRSAEncryption','1.2.840.113549.1.1.12':'sha384WithRSAEncryption',
+  '1.2.840.113549.1.1.13':'sha512WithRSAEncryption','1.2.840.113549.1.1.10':'rsassaPss',
+  '1.2.840.113549.1.1.4':'md5WithRSAEncryption',
+  '1.2.840.10045.2.1':'id-ecPublicKey','1.2.840.10045.4.3.2':'ecdsa-with-SHA256',
+  '1.2.840.10045.4.3.3':'ecdsa-with-SHA384','1.2.840.10045.4.3.1':'ecdsa-with-SHA1',
+  '1.2.840.10045.3.1.7':'prime256v1 (P-256)','1.3.132.0.34':'secp384r1 (P-384)','1.3.132.0.35':'secp521r1 (P-521)',
+  '1.3.101.112':'Ed25519','1.3.101.110':'X25519',
+  '2.5.4.3':'CN','2.5.4.6':'C','2.5.4.7':'L','2.5.4.8':'ST','2.5.4.10':'O','2.5.4.11':'OU',
+  '2.5.4.4':'SN','2.5.4.42':'GN','2.5.4.5':'serialNumber','1.2.840.113549.1.9.1':'emailAddress',
+  '2.5.29.14':'subjectKeyIdentifier','2.5.29.15':'keyUsage','2.5.29.17':'subjectAltName',
+  '2.5.29.19':'basicConstraints','2.5.29.31':'cRLDistributionPoints','2.5.29.32':'certificatePolicies',
+  '2.5.29.35':'authorityKeyIdentifier','2.5.29.37':'extKeyUsage',
+  '1.3.6.1.5.5.7.1.1':'authorityInfoAccess','1.3.6.1.4.1.11129.2.4.2':'SCT list'
+};
+function oidName(o){ return OIDS[o] || o; }
+
+function decodeInt(b){
+  if(!b.length) return 0;
+  if(b.length>6) return '0x'+bytesToHex(b);
+  var neg=(b[0]&0x80)!==0, v=0;
+  for(var i=0;i<b.length;i++) v=v*256+b[i];
+  if(neg) v=v-Math.pow(2,8*b.length);
+  return v;
+}
+function encodeInt(n){
+  if(n===0) return [0];
+  var neg=n<0, v=Math.abs(n), bytes=[];
+  while(v>0){ bytes.unshift(v%256); v=Math.floor(v/256); }
+  if(!neg){ if(bytes[0]&0x80) bytes.unshift(0); return bytes; }
+  var inv=bytes.map(function(x){ return (~x)&0xff; });
+  var i=inv.length-1;
+  while(i>=0){ inv[i]=(inv[i]+1)&0xff; if(inv[i]!==0) break; i--; }
+  if(!(inv[0]&0x80)) inv.unshift(0xff);
+  return inv;
+}
+
+function decodeString(b){
+  var s='';
+  for(var i=0;i<b.length;i++){
+    var c=b[i];
+    if(c<0x80){ s+=String.fromCharCode(c); }
+    else if(c>=0xc0 && c<0xe0 && i+1<b.length){ s+=String.fromCharCode(((c&0x1f)<<6)|(b[++i]&0x3f)); }
+    else if(c>=0xe0 && i+2<b.length){ var a=(c&0x0f)<<12; a|=(b[++i]&0x3f)<<6; a|=(b[++i]&0x3f); s+=String.fromCharCode(a); }
+    else s+=String.fromCharCode(c);
+  }
+  return s;
+}
+function encodeString(s){
+  var out=[];
+  for(var i=0;i<s.length;i++){
+    var c=s.charCodeAt(i);
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xc0|(c>>6), 0x80|(c&0x3f)); }
+    else { out.push(0xe0|(c>>12), 0x80|((c>>6)&0x3f), 0x80|(c&0x3f)); }
+  }
+  return out;
+}
+
+function parseTime(tag, b){
+  var s=decodeString(b).replace(/Z$/,'');
+  var y, rest;
+  if(tag===23){ var yy=parseInt(s.slice(0,2),10); y=yy<50?2000+yy:1900+yy; rest=s.slice(2); }
+  else { y=parseInt(s.slice(0,4),10); rest=s.slice(4); }
+  function n(i){ return parseInt(rest.substr(i,2),10)||0; }
+  var iso=pad4(y)+'-'+pad2(n(0))+'-'+pad2(n(2))+'T'+pad2(n(4))+':'+pad2(n(6))+':'+pad2(n(8))+'Z';
+  return iso;
+}
+function pad2(v){ return (v<10?'0':'')+v; }
+function pad4(v){ var s=String(v); while(s.length<4) s='0'+s; return s; }
+
+function decodePrimitive(tag, b){
+  var num=tag&0x1f, cls=(tag>>6)&3;
+  if(cls!==0) return '0x'+bytesToHex(b).slice(0,80);
+  if(num===1) return b.length ? b[0]!==0 : false;
+  if(num===2 || num===10) return decodeInt(b);
+  if(num===5) return null;
+  if(num===6) return oidName(oidToString(b));
+  if(num===3) return {unusedBits:b[0]||0, hex:bytesToHex(b.slice(1)).slice(0,120)};
+  if(num===4) return '0x'+bytesToHex(b).slice(0,120);
+  if(num===23 || num===24) return parseTime(num, b);
+  if([12,19,20,22,26,27,30].indexOf(num)>=0) return decodeString(b);
+  return '0x'+bytesToHex(b).slice(0,80);
+}
+
+function derParse(bytes, off, depth){
+  off=off||0; depth=depth||0;
+  if(depth>40) throw new Error('ASN.1 嵌套超过 40 层，疑似结构损坏');
+  if(off>=bytes.length) throw new Error('偏移 '+off+' 越界');
+  var tag=bytes[off], p=off+1;
+  if((tag&0x1f)===0x1f) throw new Error('暂不支持高位标签（long-form tag）');
+  if(p>=bytes.length) throw new Error('缺少长度字节');
+  var l=bytes[p++], len;
+  if(l<0x80) len=l;
+  else {
+    var n=l&0x7f;
+    if(n===0) throw new Error('DER 不允许不定长编码（indefinite length）');
+    if(n>4) throw new Error('长度字段 '+n+' 字节过长');
+    if(p+n>bytes.length) throw new Error('长度字段截断');
+    len=0; for(var i=0;i<n;i++) len=len*256+bytes[p++];
+  }
+  var cs=p, ce=p+len;
+  if(ce>bytes.length) throw new Error('内容越界：声明 '+len+' 字节，实际剩余 '+(bytes.length-cs));
+  var node={tag:tag, tagName:tagName(tag), cls:['universal','application','context','private'][(tag>>6)&3],
+            constructed:!!(tag&0x20), start:off, headerLen:cs-off, length:len, end:ce, depth:depth};
+  if(node.constructed){
+    node.children=[]; var q=cs;
+    while(q<ce){ var ch=derParse(bytes,q,depth+1); node.children.push(ch); q=ch.end; }
+  } else {
+    node.bytes=bytes.slice(cs,ce);
+    node.value=decodePrimitive(tag, node.bytes);
+  }
+  return node;
+}
+
+function encodeLength(n){
+  if(n<0x80) return [n];
+  var b=[], v=n;
+  while(v>0){ b.unshift(v%256); v=Math.floor(v/256); }
+  return [0x80|b.length].concat(b);
+}
+
+function derEncode(node){
+  var content;
+  if(node.children){
+    content=[];
+    for(var i=0;i<node.children.length;i++) content=content.concat(derEncode(node.children[i]));
+  } else content=(node.bytes||[]).slice();
+  return [node.tag].concat(encodeLength(content.length), content);
+}
+
+var B={
+  seq:function(ch){ return {tag:0x30, children:ch}; },
+  set:function(ch){ return {tag:0x31, children:ch}; },
+  ctx:function(n, ch){ return {tag:0xa0|n, children:ch}; },
+  int:function(v){ return {tag:0x02, bytes:encodeInt(v)}; },
+  bigint:function(hex){ var b=hexToBytes(hex); if(b[0]&0x80) b=[0].concat(b); return {tag:0x02, bytes:b}; },
+  oid:function(s){ return {tag:0x06, bytes:oidEncode(s)}; },
+  utf8:function(s){ return {tag:0x0c, bytes:encodeString(s)}; },
+  printable:function(s){ return {tag:0x13, bytes:encodeString(s)}; },
+  nul:function(){ return {tag:0x05, bytes:[]}; },
+  bool:function(v){ return {tag:0x01, bytes:[v?0xff:0x00]}; },
+  octet:function(b){ return {tag:0x04, bytes:b}; },
+  bits:function(b, unused){ return {tag:0x03, bytes:[unused||0].concat(b)}; },
+  utc:function(s){ return {tag:0x17, bytes:encodeString(s)}; },
+  rdn:function(oid, val){ return B.set([B.seq([B.oid(oid), B.printable(val)])]); }
+};
+
+function nameToString(node){
+  if(!node || !node.children) return '';
+  var parts=[];
+  node.children.forEach(function(rdnSet){
+    (rdnSet.children||[]).forEach(function(atv){
+      var kids=atv.children||[];
+      if(kids.length<2) return;
+      var key=kids[0].value, val=kids[1].value;
+      parts.push(key+'='+val);
+    });
+  });
+  return parts.join(', ');
+}
+
+function rsaKeyBits(intNode){
+  if(!intNode || !intNode.bytes) return 0;
+  var b=intNode.bytes.slice();
+  while(b.length && b[0]===0) b=b.slice(1);
+  if(!b.length) return 0;
+  var top=b[0], lead=0;
+  while(lead<8 && !((top>>(7-lead))&1)) lead++;
+  return b.length*8-lead;
+}
+
+function readSpki(spki){
+  var out={algorithm:'', keyBits:0, curve:null, exponent:null};
+  if(!spki || !spki.children || spki.children.length<2) return out;
+  var alg=spki.children[0], bits=spki.children[1];
+  if(alg.children && alg.children[0]) out.algorithm=alg.children[0].value;
+  if(alg.children && alg.children[1] && alg.children[1].tag===0x06) out.curve=alg.children[1].value;
+  if(bits.bytes && bits.bytes.length>1){
+    if(String(out.algorithm).indexOf('rsa')>=0){
+      try {
+        var inner=derParse(bits.bytes.slice(1));
+        out.keyBits=rsaKeyBits(inner.children[0]);
+        out.exponent=inner.children[1] ? inner.children[1].value : null;
+      } catch(e){ out.keyBits=0; }
+    } else {
+      out.keyBits=(bits.bytes.length-2)*4;
+    }
+  }
+  return out;
+}
+
+function findExtensions(tbs){
+  var out=[];
+  (tbs.children||[]).forEach(function(c){
+    if(c.cls==='context' && (c.tag&0x1f)===3 && c.children && c.children[0]){
+      (c.children[0].children||[]).forEach(function(ext){
+        var k=ext.children||[];
+        if(!k.length) return;
+        var critical = k.length>1 && k[1].tag===0x01 ? !!k[1].value : false;
+        out.push({oid:k[0].value, critical:critical});
+      });
+    }
+  });
+  return out;
+}
+
+function parseCertificate(bytes){
+  var root=derParse(bytes);
+  if(!root.children || root.children.length<2) throw new Error('不是合法的 Certificate 结构');
+  var tbs=root.children[0];
+  var kids=tbs.children||[];
+  var i=0, version=1;
+  if(kids[0] && kids[0].cls==='context' && (kids[0].tag&0x1f)===0){
+    version=(kids[0].children&&kids[0].children[0]?kids[0].children[0].value:0)+1; i=1;
+  }
+  var serialNode=kids[i];
+  var sigAlgNode=kids[i+1];
+  var issuer=kids[i+2], validity=kids[i+3], subject=kids[i+4], spki=kids[i+5];
+  var nb=validity&&validity.children?validity.children[0].value:null;
+  var na=validity&&validity.children?validity.children[1].value:null;
+  var key=readSpki(spki);
+  var issuerStr=nameToString(issuer), subjectStr=nameToString(subject);
+  return {
+    kind:'certificate', version:version,
+    serial: serialNode ? (typeof serialNode.value==='number' ? String(serialNode.value) : String(serialNode.value)) : '',
+    serialHex: serialNode && serialNode.bytes ? bytesToHex(serialNode.bytes,':') : '',
+    signatureAlgorithm: sigAlgNode && sigAlgNode.children ? sigAlgNode.children[0].value : '',
+    issuer: issuerStr, subject: subjectStr,
+    notBefore: nb, notAfter: na,
+    publicKeyAlgorithm: key.algorithm, keyBits: key.keyBits, curve: key.curve, exponent: key.exponent,
+    selfSigned: !!issuerStr && issuerStr===subjectStr,
+    extensions: findExtensions(tbs),
+    totalBytes: bytes.length
+  };
+}
+
+function parseCsr(bytes){
+  var root=derParse(bytes);
+  var info=root.children[0];
+  var kids=info.children||[];
+  var subject=kids[1], spki=kids[2];
+  var key=readSpki(spki);
+  return {kind:'csr', version:(kids[0]?kids[0].value:0)+1, subject:nameToString(subject),
+          publicKeyAlgorithm:key.algorithm, keyBits:key.keyBits, curve:key.curve,
+          signatureAlgorithm: root.children[1] && root.children[1].children ? root.children[1].children[0].value : '',
+          totalBytes: bytes.length};
+}
+
+function parseKey(label, bytes){
+  var root=derParse(bytes);
+  var kids=root.children||[];
+  if(label.indexOf('PUBLIC')>=0 && label.indexOf('RSA')<0){
+    var k=readSpki(root);
+    return {kind:'public-key', publicKeyAlgorithm:k.algorithm, keyBits:k.keyBits, curve:k.curve,
+            exponent:k.exponent, totalBytes:bytes.length};
+  }
+  if(label.indexOf('RSA PUBLIC')>=0){
+    return {kind:'public-key', publicKeyAlgorithm:'rsaEncryption', keyBits:rsaKeyBits(kids[0]),
+            exponent:kids[1]?kids[1].value:null, totalBytes:bytes.length};
+  }
+  if(label.indexOf('RSA PRIVATE')>=0){
+    return {kind:'private-key', publicKeyAlgorithm:'rsaEncryption', keyBits:rsaKeyBits(kids[1]),
+            exponent:kids[2]?kids[2].value:null, encrypted:false, totalBytes:bytes.length};
+  }
+  if(label.indexOf('EC PRIVATE')>=0){
+    var curve=null;
+    kids.forEach(function(c){ if(c.cls==='context' && c.children && c.children[0] && c.children[0].tag===0x06) curve=c.children[0].value; });
+    return {kind:'private-key', publicKeyAlgorithm:'id-ecPublicKey', curve:curve,
+            keyBits: kids[1] && kids[1].bytes ? kids[1].bytes.length*8 : 0, encrypted:false, totalBytes:bytes.length};
+  }
+  if(label.indexOf('ENCRYPTED')>=0){
+    return {kind:'private-key', publicKeyAlgorithm:'unknown', encrypted:true, keyBits:0, totalBytes:bytes.length};
+  }
+  var alg=kids[1] && kids[1].children ? kids[1].children[0].value : 'unknown';
+  var bitsOut=0, crv=null;
+  if(kids[1] && kids[1].children && kids[1].children[1] && kids[1].children[1].tag===0x06) crv=kids[1].children[1].value;
+  if(String(alg).indexOf('rsa')>=0 && kids[2] && kids[2].bytes){
+    try { var inner=derParse(kids[2].bytes); bitsOut=rsaKeyBits(inner.children[1]); } catch(e){}
+  }
+  return {kind:'private-key', publicKeyAlgorithm:alg, keyBits:bitsOut, curve:crv, encrypted:false, totalBytes:bytes.length};
+}
+
+function inspect(text, nowMs){
+  var blocks=pemDecode(text);
+  return blocks.map(function(blk){
+    var info, err=null;
+    try {
+      if(blk.label.indexOf('CERTIFICATE REQUEST')>=0) info=parseCsr(blk.bytes);
+      else if(blk.label==='CERTIFICATE' || blk.label==='TRUSTED CERTIFICATE') info=parseCertificate(blk.bytes);
+      else if(blk.label.indexOf('KEY')>=0) info=parseKey(blk.label, blk.bytes);
+      else info={kind:'raw', totalBytes:blk.bytes.length};
+    } catch(e){ err=e.message; info={kind:'raw', totalBytes:blk.bytes.length}; }
+    var tree=null, terr=null;
+    try { tree=derParse(blk.bytes); } catch(e2){ terr=e2.message; }
+    return {label:blk.label, info:info, tree:tree, error:err||terr,
+            warnings:lint(info, nowMs), pem:pemEncode(blk.label, blk.bytes)};
+  });
+}
+
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+
+function lint(info, nowMs){
+  var w=[];
+  if(!info) return w;
+  var now = nowMs==null ? null : nowMs;
+  var alg=String(info.signatureAlgorithm||'').toLowerCase();
+  if(alg.indexOf('sha1')>=0 || alg.indexOf('md5')>=0)
+    w.push({level:'error', msg:'签名算法 '+info.signatureAlgorithm+' 已被主流浏览器和 CA/B 论坛淘汰，请改用 SHA-256 及以上'});
+  if(info.keyBits && String(info.publicKeyAlgorithm||'').indexOf('rsa')>=0){
+    if(info.keyBits<2048) w.push({level:'error', msg:'RSA 密钥仅 '+info.keyBits+' 位，低于 2048 位最低要求'});
+    else if(info.keyBits<3072) w.push({level:'info', msg:'RSA '+info.keyBits+' 位满足当前要求，长期证书建议 3072 位或改用 ECDSA P-256'});
+  }
+  if(info.exponent!=null && info.exponent!==65537 && String(info.publicKeyAlgorithm||'').indexOf('rsa')>=0)
+    w.push({level:'warn', msg:'RSA 公钥指数为 '+info.exponent+'，非标准值 65537，部分实现会拒绝'});
+  if(info.notBefore && info.notAfter){
+    var nb=Date.parse(info.notBefore), na=Date.parse(info.notAfter);
+    if(isFinite(nb) && isFinite(na)){
+      var days=daysBetween(nb,na);
+      if(days>398) w.push({level:'warn', msg:'有效期 '+days+' 天超过 398 天上限，公共 CA 已不再签发这么长的证书'});
+      if(days<=0) w.push({level:'error', msg:'notAfter 早于或等于 notBefore，有效期非法'});
+      if(now!=null){
+        if(now<nb) w.push({level:'error', msg:'证书尚未生效（notBefore '+info.notBefore+'）'});
+        else if(now>na) w.push({level:'error', msg:'证书已过期（notAfter '+info.notAfter+'）'});
+        else {
+          var left=daysBetween(now,na);
+          if(left<30) w.push({level:'warn', msg:'距离过期仅剩 '+left+' 天，请尽快续期'});
+        }
+      }
+    }
+  }
+  if(info.selfSigned) w.push({level:'info', msg:'issuer 与 subject 相同，这是一张自签名证书'});
+  if(info.kind==='certificate' && info.version!==3)
+    w.push({level:'warn', msg:'证书版本为 v'+info.version+'，现代证书应为 v3 才能携带扩展'});
+  if(info.kind==='certificate' && (!info.extensions || !info.extensions.length))
+    w.push({level:'warn', msg:'没有解析到任何 X.509 扩展，缺少 subjectAltName 的证书会被浏览器直接拒绝'});
+  else if(info.extensions && !info.extensions.some(function(e){ return e.oid==='subjectAltName'; }))
+    w.push({level:'warn', msg:'扩展中缺少 subjectAltName，仅靠 CN 匹配域名早已不被支持'});
+  if(info.encrypted) w.push({level:'info', msg:'这是加密的私钥（ENCRYPTED PRIVATE KEY），需要口令才能读取内部结构'});
+  if(info.kind==='private-key' && !info.encrypted)
+    w.push({level:'warn', msg:'这是未加密的私钥，切勿提交进仓库或粘贴到在线网站（本工具全程在本机解析）'});
+  return w;
+}
+
+function treeLines(node, out, indent){
+  out=out||[]; indent=indent||0;
+  var head=new Array(indent+1).join('  ')+node.tagName+' ('+node.length+')';
+  if(!node.constructed){
+    var v=node.value;
+    if(v && typeof v==='object' && v.hex!=null) v='BIT STRING unused='+v.unusedBits+' '+v.hex;
+    head += '  ' + (v===null?'NULL':String(v)).slice(0,100);
+  }
+  out.push({indent:indent, text:head, offset:node.start});
+  (node.children||[]).forEach(function(c){ treeLines(c, out, indent+1); });
+  return out;
+}
+
+function demoCertificate(){
+  var modHex='C7A1B9'+new Array(60).join('F3');
+  var tbs=B.seq([
+    B.ctx(0,[B.int(2)]),
+    B.int(305419896),
+    B.seq([B.oid('1.2.840.113549.1.1.11'), B.nul()]),
+    B.seq([B.rdn('2.5.4.6','CN'), B.rdn('2.5.4.10','nano-tools'), B.rdn('2.5.4.3','nano-tools Demo CA')]),
+    B.seq([B.utc('260101000000Z'), B.utc('270101000000Z')]),
+    B.seq([B.rdn('2.5.4.6','CN'), B.rdn('2.5.4.10','nano-tools'), B.rdn('2.5.4.3','pemforge.local')]),
+    B.seq([B.seq([B.oid('1.2.840.113549.1.1.1'), B.nul()]),
+           B.bits(derEncode(B.seq([B.bigint(modHex), B.int(65537)])), 0)]),
+    B.ctx(3,[B.seq([
+      B.seq([B.oid('2.5.29.19'), B.bool(true), B.octet(derEncode(B.seq([])))]),
+      B.seq([B.oid('2.5.29.17'), B.octet(derEncode(B.seq([{tag:0x82, bytes:encodeString('pemforge.local')}])))]),
+      B.seq([B.oid('2.5.29.15'), B.bool(true), B.octet(derEncode(B.bits([0xa0],5)))])
+    ])])
+  ]);
+  var cert=B.seq([tbs, B.seq([B.oid('1.2.840.113549.1.1.11'), B.nul()]), B.bits([0xde,0xad,0xbe,0xef],0)]);
+  return derEncode(cert);
+}
+function demoPem(){ return pemEncode('CERTIFICATE', demoCertificate()); }
+
+var PemForgePure = {
+  b64encode:b64encode, b64decode:b64decode, bytesToHex:bytesToHex, hexToBytes:hexToBytes,
+  pemEncode:pemEncode, pemDecode:pemDecode, tagName:tagName, oidToString:oidToString, oidEncode:oidEncode,
+  oidName:oidName, decodeInt:decodeInt, encodeInt:encodeInt, decodeString:decodeString, encodeString:encodeString,
+  parseTime:parseTime, derParse:derParse, derEncode:derEncode, encodeLength:encodeLength, B:B,
+  nameToString:nameToString, rsaKeyBits:rsaKeyBits, readSpki:readSpki, parseCertificate:parseCertificate,
+  parseCsr:parseCsr, parseKey:parseKey, inspect:inspect, lint:lint, treeLines:treeLines,
+  demoCertificate:demoCertificate, demoPem:demoPem
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = PemForgePure;
+if (typeof window !== 'undefined') window.PemForgePure = PemForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P=window.PemForgePure, D=document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function kv(k,v){ return '<div class="kv"><b>'+esc(k)+'</b><span>'+esc(v)+'</span></div>'; }
+
+  function summarize(r){
+    var i=r.info, out='';
+    out+=kv('PEM 标签', r.label);
+    out+=kv('结构类型', i.kind);
+    if(i.kind==='certificate'){
+      out+=kv('版本','v'+i.version);
+      out+=kv('序列号', i.serialHex||i.serial);
+      out+=kv('主题', i.subject||'(空)');
+      out+=kv('签发者', i.issuer||'(空)');
+      out+=kv('生效时间', i.notBefore||'-');
+      out+=kv('过期时间', i.notAfter||'-');
+      out+=kv('签名算法', i.signatureAlgorithm||'-');
+      out+=kv('公钥算法', i.publicKeyAlgorithm+(i.curve?(' / '+i.curve):''));
+      if(i.keyBits) out+=kv('密钥长度', i.keyBits+' bit');
+      if(i.exponent!=null) out+=kv('公钥指数', String(i.exponent));
+      out+=kv('自签名', i.selfSigned?'是':'否');
+      out+=kv('扩展数量', String((i.extensions||[]).length));
+      (i.extensions||[]).forEach(function(e){ out+=kv('  扩展', e.oid+(e.critical?' (critical)':'')); });
+    } else if(i.kind==='csr'){
+      out+=kv('版本','v'+i.version);
+      out+=kv('主题', i.subject||'(空)');
+      out+=kv('公钥算法', i.publicKeyAlgorithm+(i.curve?(' / '+i.curve):''));
+      if(i.keyBits) out+=kv('密钥长度', i.keyBits+' bit');
+      out+=kv('签名算法', i.signatureAlgorithm||'-');
+    } else if(i.kind==='public-key'||i.kind==='private-key'){
+      out+=kv('算法', i.publicKeyAlgorithm+(i.curve?(' / '+i.curve):''));
+      if(i.keyBits) out+=kv('密钥长度', i.keyBits+' bit');
+      if(i.exponent!=null) out+=kv('公钥指数', String(i.exponent));
+      out+=kv('是否加密', i.encrypted?'是':'否');
+    }
+    out+=kv('DER 字节数', String(i.totalBytes));
+    if(r.error) out+=kv('解析告警', r.error);
+    return out;
+  }
+
+  function run(){
+    var txt=$('pmin').value.trim();
+    if(!txt){ $('pmerr').textContent='请输入 PEM 内容'; return; }
+    var res;
+    try { res=P.inspect(txt, $('pmnow').checked ? Date.now() : null); }
+    catch(e){ $('pmerr').textContent='解析失败: '+e.message; return; }
+    $('pmerr').textContent='';
+    $('pmsum').innerHTML = res.map(function(r,idx){
+      return (res.length>1?'<div style="color:var(--accent);font-size:12px;padding:6px 0">块 #'+(idx+1)+'</div>':'')+summarize(r);
+    }).join('');
+    var col={error:'var(--warn)', warn:'var(--warn)', info:'var(--muted)'};
+    var allW=[]; res.forEach(function(r){ allW=allW.concat(r.warnings||[]); });
+    $('pmlint').innerHTML = allW.length
+      ? allW.map(function(x){ return '<div style="font-size:12px;color:'+col[x.level]+';padding:3px 0">['+x.level+'] '+esc(x.msg)+'</div>'; }).join('')
+      : '<div style="font-size:12px;color:var(--ok)">没有发现问题</div>';
+    var tree='';
+    res.forEach(function(r,idx){
+      if(res.length>1) tree += '# 块 '+(idx+1)+' · '+r.label+'\n';
+      if(r.tree) P.treeLines(r.tree).forEach(function(l){
+        tree += ('     '+l.offset).slice(-6)+'  '+l.text+'\n';
+      });
+      else tree += '  (无法展开: '+(r.error||'未知错误')+')\n';
+    });
+    $('pmtree').textContent=tree||'SEQUENCE';
+    $('pmpem').textContent=res.map(function(r){
+      if(!r.tree) return '(跳过：结构不可解析)';
+      try { return P.pemEncode(r.label, P.derEncode(r.tree)); } catch(e){ return '(重编码失败: '+e.message+')'; }
+    }).join('\n\n');
+  }
+  $('pmrun').addEventListener('click', run);
+  $('pmnow').addEventListener('change', run);
+  $('pmdemo').addEventListener('click', function(){ $('pmin').value=P.demoPem(); run(); });
+  $('pmclear').addEventListener('click', function(){ $('pmin').value=''; $('pmerr').textContent=''; });
+  $('pmin').value=P.demoPem();
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

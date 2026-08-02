@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>CircuitForge — 熔断器工作台：模拟 Closed/Open/HalfOpen 状态机，按错误率与慢调用阈值推演跳闸时刻与恢复过程，离线可用。</title>
+<meta property="og:title" content="CircuitForge">
+<meta property="og:description" content="熔断器工作台：配置滑动窗口、错误率与慢调用阈值、最小调用数与半开探测量，逐条回放请求序列，推演 Closed/Open/HalfOpen 状态机的跳闸时刻与恢复过程，并给出参数体检与整改建议。设计 Resilience4j/Sentinel/Hystrix 风格熔断策略、复盘雪崩事故的利器，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="熔断器工作台：配置滑动窗口、错误率与慢调用阈值、最小调用数与半开探测量，逐条回放请求序列，推演 Closed/Open/HalfOpen 状态机的跳闸时刻与恢复过程，并给出参数体检与整改建议。设计 Resilience4j/Sentinel/Hystrix 风格熔断策略、复盘雪崩事故的利器，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>CircuitForge</h1>
+  <p class="sub">熔断器 · 状态机 · 韧性</p>
+
+<label for="cb-cfg">熔断器配置（key=value，每行一条）</label>
+<textarea id="cb-cfg" rows="7"></textarea>
+<label for="cb-ev">调用事件序列（S 成功 / F 失败 / T 超时 / S:1500 带耗时；x10 表示重复）</label>
+<textarea id="cb-ev" rows="3" placeholder="F x10 S x13"></textarea>
+<div class="row">
+  <button id="cb-go">模拟</button>
+  <button class="ghost" id="cb-p1">Resilience4j 默认</button>
+  <button class="ghost" id="cb-p2">Hystrix 默认</button>
+  <button class="ghost" id="cb-p3">Sentinel 慢调用</button>
+  <button class="ghost" id="cb-bad">反面教材配置</button>
+</div>
+<div class="err" id="cb-err"></div>
+<div class="out" id="cb-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 381 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function CircuitForgePure(){
+  var DEFAULTS = {
+    slidingWindowType: 'COUNT_BASED',
+    slidingWindowSize: 10,
+    minimumNumberOfCalls: 10,
+    failureRateThreshold: 50,
+    slowCallRateThreshold: 100,
+    slowCallDurationThresholdMs: 1000,
+    waitDurationInOpenStateMs: 1000,
+    permittedNumberOfCallsInHalfOpenState: 4,
+    callIntervalMs: 100,
+    automaticTransitionFromOpenToHalfOpen: true
+  };
+
+  var NUM_KEYS = ['slidingWindowSize','minimumNumberOfCalls','failureRateThreshold',
+                  'slowCallRateThreshold','slowCallDurationThresholdMs','waitDurationInOpenStateMs',
+                  'permittedNumberOfCallsInHalfOpenState','callIntervalMs'];
+
+  // 主流框架默认值对照（用于 UI 提示，不参与计算）
+  var PRESETS = {
+    resilience4j: {label:'Resilience4j 默认', slidingWindowType:'COUNT_BASED', slidingWindowSize:100,
+      minimumNumberOfCalls:100, failureRateThreshold:50, slowCallRateThreshold:100,
+      slowCallDurationThresholdMs:60000, waitDurationInOpenStateMs:60000,
+      permittedNumberOfCallsInHalfOpenState:10},
+    hystrix: {label:'Hystrix 默认', slidingWindowType:'TIME_BASED', slidingWindowSize:10,
+      minimumNumberOfCalls:20, failureRateThreshold:50, slowCallRateThreshold:100,
+      slowCallDurationThresholdMs:1000, waitDurationInOpenStateMs:5000,
+      permittedNumberOfCallsInHalfOpenState:1},
+    polly: {label:'Polly v8 默认', slidingWindowType:'TIME_BASED', slidingWindowSize:30,
+      minimumNumberOfCalls:100, failureRateThreshold:10, slowCallRateThreshold:100,
+      slowCallDurationThresholdMs:30000, waitDurationInOpenStateMs:5000,
+      permittedNumberOfCallsInHalfOpenState:1},
+    sentinel: {label:'Sentinel 慢调用比例', slidingWindowType:'TIME_BASED', slidingWindowSize:10,
+      minimumNumberOfCalls:5, failureRateThreshold:100, slowCallRateThreshold:50,
+      slowCallDurationThresholdMs:500, waitDurationInOpenStateMs:10000,
+      permittedNumberOfCallsInHalfOpenState:1}
+  };
+
+  function clone(o){ var r = {}, k; for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) r[k] = o[k]; return r; }
+
+  function parseConfig(text){
+    var cfg = clone(DEFAULTS), unknown = [], bad = [];
+    var lines = String(text == null ? '' : text).replace(/\r\n/g, '\n').split('\n');
+    for (var i = 0; i < lines.length; i++){
+      var ln = lines[i];
+      var hash = ln.indexOf('#'); if (hash >= 0) ln = ln.slice(0, hash);
+      ln = ln.trim();
+      if (ln === '') continue;
+      var sep = ln.indexOf('='); if (sep < 0) sep = ln.indexOf(':');
+      if (sep < 0){ bad.push('第 ' + (i+1) + ' 行不是 key=value：' + ln); continue; }
+      var k = ln.slice(0, sep).trim(), v = ln.slice(sep+1).trim();
+      if (!Object.prototype.hasOwnProperty.call(DEFAULTS, k)){ unknown.push(k); continue; }
+      if (k === 'slidingWindowType'){
+        var up = v.toUpperCase();
+        if (up !== 'COUNT_BASED' && up !== 'TIME_BASED'){ bad.push('slidingWindowType 只能是 COUNT_BASED / TIME_BASED'); continue; }
+        cfg[k] = up; continue;
+      }
+      if (k === 'automaticTransitionFromOpenToHalfOpen'){ cfg[k] = /^(true|yes|1|on)$/i.test(v); continue; }
+      var n = Number(v);
+      if (!isFinite(n)){ bad.push(k + ' 不是合法数字：' + v); continue; }
+      cfg[k] = n;
+    }
+    return {error:null, cfg:cfg, unknown:unknown, bad:bad};
+  }
+
+  function lintConfig(cfg){
+    var out = [];
+    function add(level, text){ out.push({level:level, text:text}); }
+    if (cfg.failureRateThreshold <= 0 || cfg.failureRateThreshold > 100)
+      add('err', 'failureRateThreshold 必须落在 (0, 100]，当前 ' + cfg.failureRateThreshold);
+    if (cfg.slowCallRateThreshold <= 0 || cfg.slowCallRateThreshold > 100)
+      add('err', 'slowCallRateThreshold 必须落在 (0, 100]，当前 ' + cfg.slowCallRateThreshold);
+    if (cfg.slidingWindowType === 'COUNT_BASED' && cfg.minimumNumberOfCalls > cfg.slidingWindowSize)
+      add('err', 'minimumNumberOfCalls(' + cfg.minimumNumberOfCalls + ') 大于 COUNT_BASED 窗口容量(' +
+                 cfg.slidingWindowSize + ')，样本数永远凑不齐，熔断器不会触发');
+    if (cfg.permittedNumberOfCallsInHalfOpenState <= 0)
+      add('err', '半开放行数必须大于 0，否则熔断后永远无法恢复');
+    if (cfg.minimumNumberOfCalls < 5)
+      add('warn', 'minimumNumberOfCalls 仅 ' + cfg.minimumNumberOfCalls + '，样本过小，单次抖动即可触发误熔断');
+    if (cfg.waitDurationInOpenStateMs < 1000)
+      add('warn', 'waitDurationInOpenStateMs 仅 ' + cfg.waitDurationInOpenStateMs + 'ms，恢复过快会反复冲击尚未恢复的下游');
+    if (cfg.failureRateThreshold >= 100)
+      add('warn', 'failureRateThreshold = 100，只有窗口内全部失败才熔断，几乎等于关闭保护');
+    if (cfg.permittedNumberOfCallsInHalfOpenState > cfg.slidingWindowSize)
+      add('warn', '半开放行数大于窗口容量，半开判定样本会超过正常窗口规模');
+    if (!cfg.automaticTransitionFromOpenToHalfOpen)
+      add('info', '未开启自动转半开：必须有新请求到达才会尝试探活，低流量场景可能长期停在 OPEN');
+    if (cfg.slowCallRateThreshold < 100 && cfg.slowCallDurationThresholdMs <= 0)
+      add('err', '启用了慢调用熔断，但 slowCallDurationThresholdMs <= 0');
+    if (out.length === 0) add('ok', '配置体检通过，未发现明显问题');
+    return out;
+  }
+
+  // 事件语法：S / F / S:120 / F:1500 / T（超时=失败且慢）；支持 xN 或 *N 重复
+  function parseEvents(text){
+    var s = String(text == null ? '' : text).trim();
+    if (s === '') return {error:'请输入调用事件序列，例如：F x10 S x5'};
+    var toks = s.split(/[\s,]+/).filter(function(x){ return x !== ''; });
+    var out = [], i;
+    for (i = 0; i < toks.length; i++){
+      var t = toks[i];
+      var rep = 1;
+      var mrep = /^[xX*](\d+)$/.exec(t);
+      if (mrep){
+        if (!out.length) return {error:'重复标记 ' + t + ' 前面没有事件'};
+        var last = out[out.length - 1], n = parseInt(mrep[1], 10);
+        if (n < 1 || n > 5000) return {error:'重复次数需在 1..5000：' + t};
+        for (var r = 1; r < n; r++) out.push({ok:last.ok, durationMs:last.durationMs});
+        continue;
+      }
+      var m = /^([SsFfTt])(?::(\d+))?(?:[xX*](\d+))?$/.exec(t);
+      if (!m) return {error:'无法识别的事件：' + t + '（应为 S / F / T / S:120 / F x10）'};
+      var kind = m[1].toUpperCase();
+      var dur = m[2] === undefined ? 0 : parseInt(m[2], 10);
+      if (m[3] !== undefined) rep = parseInt(m[3], 10);
+      if (rep < 1 || rep > 5000) return {error:'重复次数需在 1..5000：' + t};
+      for (var j = 0; j < rep; j++){
+        if (kind === 'T') out.push({ok:false, durationMs:Math.max(dur, 1e9)});
+        else out.push({ok:(kind === 'S'), durationMs:dur});
+      }
+    }
+    if (out.length > 20000) return {error:'事件数量过多（上限 20000）'};
+    return {error:null, events:out};
+  }
+
+  function rate(list, pick){
+    if (!list.length) return 0;
+    var n = 0;
+    for (var i = 0; i < list.length; i++) if (pick(list[i])) n++;
+    return n * 100 / list.length;
+  }
+
+  function simulate(cfg, events){
+    if (!events || !events.length) return {error:'事件序列为空'};
+    var state = 'CLOSED', win = [], half = [], openedAt = -1;
+    var timeline = [], transitions = [];
+    var permitted = 0, rejected = 0, failures = 0, slowTotal = 0;
+
+    function trip(t, from, reason){
+      state = 'OPEN'; openedAt = t; win = []; half = [];
+      transitions.push({at:t, from:from, to:'OPEN', reason:reason});
+    }
+
+    for (var i = 0; i < events.length; i++){
+      var ev = events[i], t = i * cfg.callIntervalMs;
+
+      if (state === 'OPEN'){
+        if (t - openedAt >= cfg.waitDurationInOpenStateMs){
+          state = 'HALF_OPEN'; half = [];
+          transitions.push({at:t, from:'OPEN', to:'HALF_OPEN', reason:'熔断等待期结束，开始探活'});
+        } else {
+          rejected++;
+          timeline.push({i:i, at:t, state:'OPEN', outcome:'NOT_PERMITTED', failureRate:100, slowRate:0});
+          continue;
+        }
+      }
+
+      var slow = cfg.slowCallRateThreshold < 100 && ev.durationMs >= cfg.slowCallDurationThresholdMs;
+      var call = {ok:ev.ok, slow:slow, t:t};
+      permitted++;
+      if (!ev.ok) failures++;
+      if (slow) slowTotal++;
+
+      if (state === 'HALF_OPEN'){
+        half.push(call);
+        var hf = rate(half, function(c){ return !c.ok; });
+        var hs = rate(half, function(c){ return c.slow; });
+        timeline.push({i:i, at:t, state:'HALF_OPEN', outcome:(ev.ok ? 'SUCCESS' : 'FAILURE'),
+                       failureRate:hf, slowRate:hs});
+        if (half.length >= cfg.permittedNumberOfCallsInHalfOpenState){
+          if (hf >= cfg.failureRateThreshold) trip(t, 'HALF_OPEN', '探活失败率 ' + hf.toFixed(1) + '% ≥ 阈值');
+          else if (hs >= cfg.slowCallRateThreshold) trip(t, 'HALF_OPEN', '探活慢调用率 ' + hs.toFixed(1) + '% ≥ 阈值');
+          else {
+            state = 'CLOSED'; win = []; half = [];
+            transitions.push({at:t, from:'HALF_OPEN', to:'CLOSED', reason:'探活通过，恢复正常'});
+          }
+        }
+        continue;
+      }
+
+      win.push(call);
+      if (cfg.slidingWindowType === 'COUNT_BASED'){
+        while (win.length > cfg.slidingWindowSize) win.shift();
+      } else {
+        var cut = t - cfg.slidingWindowSize * 1000;
+        while (win.length && win[0].t < cut) win.shift();
+      }
+      var fr = rate(win, function(c){ return !c.ok; });
+      var sr = rate(win, function(c){ return c.slow; });
+      timeline.push({i:i, at:t, state:'CLOSED', outcome:(ev.ok ? 'SUCCESS' : 'FAILURE'),
+                     failureRate:fr, slowRate:sr});
+      if (win.length >= cfg.minimumNumberOfCalls){
+        if (fr >= cfg.failureRateThreshold) trip(t, 'CLOSED', '失败率 ' + fr.toFixed(1) + '% ≥ 阈值 ' + cfg.failureRateThreshold + '%');
+        else if (sr >= cfg.slowCallRateThreshold) trip(t, 'CLOSED', '慢调用率 ' + sr.toFixed(1) + '% ≥ 阈值 ' + cfg.slowCallRateThreshold + '%');
+      }
+    }
+
+    var opens = 0;
+    for (var k = 0; k < transitions.length; k++) if (transitions[k].to === 'OPEN') opens++;
+    return {
+      error:null, timeline:timeline, transitions:transitions,
+      summary:{
+        total:events.length, permitted:permitted, rejected:rejected,
+        failures:failures, slowCalls:slowTotal, openCount:opens,
+        finalState:state,
+        shedRate: events.length ? (rejected * 100 / events.length) : 0,
+        observedFailureRate: permitted ? (failures * 100 / permitted) : 0
+      }
+    };
+  }
+
+  function recovery(cfg){
+    var permittedCalls = cfg.permittedNumberOfCallsInHalfOpenState;
+    var allowedFailures = Math.ceil(permittedCalls * cfg.failureRateThreshold / 100) - 1;
+    if (allowedFailures < 0) allowedFailures = 0;
+    var minSuccesses = permittedCalls - allowedFailures;
+    if (minSuccesses < 0) minSuccesses = 0;
+    return {
+      waitMs: cfg.waitDurationInOpenStateMs,
+      probeCalls: permittedCalls,
+      allowedFailuresInProbe: allowedFailures,
+      minSuccessesToClose: minSuccesses,
+      fastestRecoveryMs: cfg.waitDurationInOpenStateMs + permittedCalls * cfg.callIntervalMs,
+      callsToTrip: Math.max(cfg.minimumNumberOfCalls,
+                            Math.ceil(cfg.minimumNumberOfCalls * cfg.failureRateThreshold / 100))
+    };
+  }
+
+  function analyze(cfgText, eventText){
+    var pc = parseConfig(cfgText);
+    if (pc.error) return {error:pc.error};
+    var pe = parseEvents(eventText);
+    if (pe.error) return {error:pe.error};
+    var sim = simulate(pc.cfg, pe.events);
+    if (sim.error) return {error:sim.error};
+    return {
+      error:null, cfg:pc.cfg, unknown:pc.unknown, bad:pc.bad,
+      lint:lintConfig(pc.cfg), recovery:recovery(pc.cfg),
+      timeline:sim.timeline, transitions:sim.transitions, summary:sim.summary
+    };
+  }
+
+  var api = {DEFAULTS:DEFAULTS, PRESETS:PRESETS, parseConfig:parseConfig, lintConfig:lintConfig,
+             parseEvents:parseEvents, simulate:simulate, recovery:recovery, analyze:analyze};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {CircuitForgePure:CircuitForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = CircuitForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function col(st){ return st==='CLOSED' ? 'var(--ok)' : (st==='OPEN' ? '#EF4444' : 'var(--warn)'); }
+  function lvColor(l){ return l==='err' ? '#EF4444' : (l==='warn' ? 'var(--warn)' : (l==='ok' ? 'var(--ok)' : 'var(--muted)')); }
+
+  function cfgText(o){
+    var keys = ['slidingWindowType','slidingWindowSize','minimumNumberOfCalls','failureRateThreshold',
+                'slowCallRateThreshold','slowCallDurationThresholdMs','waitDurationInOpenStateMs',
+                'permittedNumberOfCallsInHalfOpenState','callIntervalMs'];
+    var out = [];
+    for (var i = 0; i < keys.length; i++){
+      if (o[keys[i]] !== undefined) out.push(keys[i] + ' = ' + o[keys[i]]);
+    }
+    return out.join('\n');
+  }
+
+  function run(){
+    var r = P.analyze(document.getElementById('cb-cfg').value, document.getElementById('cb-ev').value);
+    var $e = document.getElementById('cb-err'), $o = document.getElementById('cb-out');
+    $e.textContent = r.error || '';
+    if (r.error){ $o.innerHTML = ''; return; }
+    var s = r.summary, h = '';
+    h += '<div class="kv"><b>最终状态</b><span style="color:' + col(s.finalState) + ';font-weight:700">' + s.finalState + '</span></div>';
+    h += '<div class="kv"><b>总调用 / 放行 / 熔断拒绝</b><span>' + s.total + ' / ' + s.permitted + ' / ' + s.rejected + '</span></div>';
+    h += '<div class="kv"><b>熔断触发次数</b><span>' + s.openCount + ' 次</span></div>';
+    h += '<div class="kv"><b>被熔断挡掉的比例</b><span>' + s.shedRate.toFixed(1) + '%</span></div>';
+    h += '<div class="kv"><b>放行调用实际失败率</b><span>' + s.observedFailureRate.toFixed(1) + '%</span></div>';
+
+    if (r.transitions.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">状态迁移</div>';
+      for (var i = 0; i < r.transitions.length; i++){
+        var tr = r.transitions[i];
+        h += '<div class="kv"><b>t=' + tr.at + 'ms</b><span><span style="color:' + col(tr.from) + '">' + tr.from +
+             '</span> → <span style="color:' + col(tr.to) + '">' + tr.to + '</span> · ' + esc(tr.reason) + '</span></div>';
+      }
+    } else {
+      h += '<div class="kv"><b>状态迁移</b><span style="color:var(--muted)">全程保持 CLOSED，未触发熔断</span></div>';
+    }
+
+    var rc = r.recovery;
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">恢复规划</div>';
+    h += '<div class="kv"><b>熔断静默期</b><span>' + rc.waitMs + ' ms</span></div>';
+    h += '<div class="kv"><b>半开探活次数</b><span>' + rc.probeCalls + ' 次（最多容忍 ' + rc.allowedFailuresInProbe + ' 次失败）</span></div>';
+    h += '<div class="kv"><b>关闭所需最少成功</b><span>' + rc.minSuccessesToClose + ' 次</span></div>';
+    h += '<div class="kv"><b>最快恢复耗时</b><span>' + rc.fastestRecoveryMs + ' ms</span></div>';
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">配置体检</div>';
+    for (var j = 0; j < r.lint.length; j++){
+      var it = r.lint[j];
+      h += '<div class="kv"><b>' + (it.level === 'err' ? '错误' : it.level === 'warn' ? '风险' : it.level === 'ok' ? '通过' : '提示') +
+           '</b><span style="color:' + lvColor(it.level) + '">' + esc(it.text) + '</span></div>';
+    }
+    if (r.unknown.length) h += '<div class="kv"><b>未知配置项</b><span style="color:var(--warn)">' + esc(r.unknown.join(', ')) + '</span></div>';
+    for (var b = 0; b < r.bad.length; b++) h += '<div class="kv"><b>解析问题</b><span style="color:#EF4444">' + esc(r.bad[b]) + '</span></div>';
+
+    var tl = r.timeline, step = Math.max(1, Math.ceil(tl.length / 60));
+    var bar = '';
+    for (var k = 0; k < tl.length; k += step){
+      var c = tl[k].outcome === 'NOT_PERMITTED' ? '#EF4444' : (tl[k].outcome === 'SUCCESS' ? '#10B981' : '#F5A623');
+      bar += '<span style="display:inline-block;width:8px;height:16px;margin-right:2px;border-radius:2px;background:' + c + '"></span>';
+    }
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">调用时间线（绿=成功 橙=失败 红=被熔断拒绝）</div>';
+    h += '<div style="margin-top:6px;line-height:1">' + bar + '</div>';
+    $o.innerHTML = h;
+  }
+
+  function preset(name, ev){
+    var p = P.PRESETS[name];
+    document.getElementById('cb-cfg').value = cfgText(p) + '\ncallIntervalMs = 100';
+    document.getElementById('cb-ev').value = ev;
+    run();
+  }
+  document.getElementById('cb-go').addEventListener('click', run);
+  document.getElementById('cb-p1').addEventListener('click', function(){ preset('resilience4j', 'S x60 F x100 S x600 S x20'); });
+  document.getElementById('cb-p2').addEventListener('click', function(){ preset('hystrix', 'F x20 S x60 S x10'); });
+  document.getElementById('cb-p3').addEventListener('click', function(){ preset('sentinel', 'S:800 x10 S x120 S x10'); });
+  document.getElementById('cb-bad').addEventListener('click', function(){
+    document.getElementById('cb-cfg').value =
+      'slidingWindowType = COUNT_BASED\nslidingWindowSize = 20\nminimumNumberOfCalls = 100\n' +
+      'failureRateThreshold = 100\nwaitDurationInOpenStateMs = 200\npermittedNumberOfCallsInHalfOpenState = 30\ncallIntervalMs = 100';
+    document.getElementById('cb-ev').value = 'F x50';
+    run();
+  });
+  document.getElementById('cb-cfg').value =
+    'slidingWindowType = COUNT_BASED\nslidingWindowSize = 10\nminimumNumberOfCalls = 10\n' +
+    'failureRateThreshold = 50\nwaitDurationInOpenStateMs = 1000\n' +
+    'permittedNumberOfCallsInHalfOpenState = 4\ncallIntervalMs = 100';
+  document.getElementById('cb-ev').value = 'S x4 F x10 S x9 S x4 S x6';
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

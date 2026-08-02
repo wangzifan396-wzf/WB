@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>OauthForge — OAuth 2.1 体检台：校验授权请求与回调地址、真算 PKCE S256 校验值、解析令牌响应与 JWT 载荷并提示安全风险，离线可用。</title>
+<meta property="og:title" content="OauthForge">
+<meta property="og:description" content="OAuth 2.1 体检台：粘贴授权请求 URL，逐项校验 response_type、redirect_uri、state 与 scope，用内置纯 JS SHA-256 真实计算并验证 PKCE 的 code_challenge（S256），解析令牌响应与 JWT 载荷（不验签）检查 alg=none 与过期，并按客户端类型推荐合规流程。排查登录集成、评审授权安全，零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="OAuth 2.1 体检台：粘贴授权请求 URL，逐项校验 response_type、redirect_uri、state 与 scope，用内置纯 JS SHA-256 真实计算并验证 PKCE 的 code_challenge（S256），解析令牌响应与 JWT 载荷（不验签）检查 alg=none 与过期，并按客户端类型推荐合规流程。排查登录集成、评审授权安全，零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>OauthForge</h1>
+  <p class="sub">OAuth 2.1 · PKCE · 安全</p>
+
+<div><label for="o-url">授权请求 URL</label><input type="text" id="o-url" value="https://auth.example.com/authorize?response_type=code&client_id=web-app&redirect_uri=https://app.example.com/cb&scope=openid%20profile&state=Xk7Qp2Lm9RtV&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256&nonce=n-0S6"></div>
+<div class="grid">
+  <div><label for="o-ver">code_verifier</label><input type="text" id="o-ver" value="dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"></div>
+  <div><label for="o-kind">客户端类型</label><input type="text" id="o-kind" value="spa"></div>
+</div>
+<div><label for="o-jwt">访问令牌（JWT，仅解析不验签）</label><input type="text" id="o-jwt" value=""></div>
+<div class="row">
+  <button id="o-go">体检</button>
+  <button class="ghost" id="o-a">隐式流反例</button>
+  <button class="ghost" id="o-b">缺 PKCE 反例</button>
+  <button class="ghost" id="o-c">明文回调反例</button>
+</div>
+<div class="err" id="o-err"></div>
+<div class="out" id="o-out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 381 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function OauthForgePure(){
+  // ---------------- 字节与编码 ----------------
+  function utf8Bytes(str){
+    var s = String(str == null ? '' : str), out = [];
+    for (var i = 0; i < s.length; i++){
+      var c = s.charCodeAt(i);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800){ out.push(0xc0 | (c >> 6), 0x80 | (c & 63)); }
+      else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length){
+        var c2 = s.charCodeAt(i + 1), cp = 0x10000 + ((c - 0xd800) << 10) + (c2 - 0xdc00);
+        out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+        i++;
+      } else { out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+    }
+    return out;
+  }
+
+  function bytesUtf8(by){
+    var out = '', i = 0;
+    while (i < by.length){
+      var c = by[i];
+      if (c < 0x80){ out += String.fromCharCode(c); i += 1; }
+      else if (c >= 0xc0 && c < 0xe0){ out += String.fromCharCode(((c & 31) << 6) | (by[i+1] & 63)); i += 2; }
+      else if (c >= 0xe0 && c < 0xf0){ out += String.fromCharCode(((c & 15) << 12) | ((by[i+1] & 63) << 6) | (by[i+2] & 63)); i += 3; }
+      else {
+        var cp = ((c & 7) << 18) | ((by[i+1] & 63) << 12) | ((by[i+2] & 63) << 6) | (by[i+3] & 63);
+        cp -= 0x10000;
+        out += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 1023));
+        i += 4;
+      }
+    }
+    return out;
+  }
+
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  var B64URL = B64 + '-_';
+  var B64STD = B64 + '+/';
+
+  function b64urlEncode(by){
+    var out = '';
+    for (var i = 0; i < by.length; i += 3){
+      var b0 = by[i], b1 = by[i+1], b2 = by[i+2];
+      out += B64URL[b0 >> 2];
+      out += B64URL[((b0 & 3) << 4) | (b1 === undefined ? 0 : b1 >> 4)];
+      if (b1 !== undefined) out += B64URL[((b1 & 15) << 2) | (b2 === undefined ? 0 : b2 >> 6)];
+      if (b2 !== undefined) out += B64URL[b2 & 63];
+    }
+    return out;
+  }
+
+  function b64urlDecode(s){
+    var t = String(s == null ? '' : s).replace(/[\r\n\s]/g, '');
+    if (/[+/]/.test(t)) return {error:'这是标准 Base64 而不是 base64url，OAuth 与 JWT 必须用 - 和 _'};
+    if (/=/.test(t)) return {error:'base64url 不允许填充等号'};
+    if (t !== '' && !/^[A-Za-z0-9_-]+$/.test(t)) return {error:'含非 base64url 字符'};
+    if (t.length % 4 === 1) return {error:'base64url 长度非法'};
+    var out = [], acc = 0, bits = 0;
+    for (var i = 0; i < t.length; i++){
+      acc = (acc << 6) | B64URL.indexOf(t[i]);
+      bits += 6;
+      if (bits >= 8){ bits -= 8; out.push((acc >> bits) & 255); }
+    }
+    return {value:out};
+  }
+
+  // ---------------- 纯 JS SHA-256 ----------------
+  var K256 = [
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+
+  function rotr(x, n){ return ((x >>> n) | (x << (32 - n))) >>> 0; }
+
+  function sha256(bytes){
+    var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    var l = bytes.length, padLen = ((l + 9 + 63) & ~63) - l, m = bytes.slice();
+    m.push(0x80);
+    for (var p = 1; p < padLen - 8; p++) m.push(0);
+    var bits = l * 8;
+    var hi = Math.floor(bits / 4294967296), lo = bits >>> 0;
+    m.push((hi >>> 24) & 255, (hi >>> 16) & 255, (hi >>> 8) & 255, hi & 255);
+    m.push((lo >>> 24) & 255, (lo >>> 16) & 255, (lo >>> 8) & 255, lo & 255);
+
+    var w = new Array(64);
+    for (var off = 0; off < m.length; off += 64){
+      for (var t = 0; t < 16; t++){
+        w[t] = ((m[off+t*4] << 24) | (m[off+t*4+1] << 16) | (m[off+t*4+2] << 8) | m[off+t*4+3]) >>> 0;
+      }
+      for (t = 16; t < 64; t++){
+        var s0 = (rotr(w[t-15],7) ^ rotr(w[t-15],18) ^ (w[t-15] >>> 3)) >>> 0;
+        var s1 = (rotr(w[t-2],17) ^ rotr(w[t-2],19) ^ (w[t-2] >>> 10)) >>> 0;
+        w[t] = (w[t-16] + s0 + w[t-7] + s1) >>> 0;
+      }
+      var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+      for (t = 0; t < 64; t++){
+        var S1 = (rotr(e,6) ^ rotr(e,11) ^ rotr(e,25)) >>> 0;
+        var ch = ((e & f) ^ (~e & g)) >>> 0;
+        var t1 = (h + S1 + ch + K256[t] + w[t]) >>> 0;
+        var S0 = (rotr(a,2) ^ rotr(a,13) ^ rotr(a,22)) >>> 0;
+        var mj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0;
+        var t2 = (S0 + mj) >>> 0;
+        h=g; g=f; f=e; e=(d + t1) >>> 0; d=c; c=b; b=a; a=(t1 + t2) >>> 0;
+      }
+      H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+      H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+    }
+    var out = [];
+    for (var i = 0; i < 8; i++) out.push((H[i]>>>24)&255, (H[i]>>>16)&255, (H[i]>>>8)&255, H[i]&255);
+    return out;
+  }
+
+  function sha256Hex(str){
+    return sha256(utf8Bytes(str)).map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+  }
+
+  // ---------------- PKCE ----------------
+  var VERIFIER_RE = /^[A-Za-z0-9\-._~]+$/;   // RFC 7636 的 unreserved 字符集
+
+  function checkVerifier(v){
+    var s = String(v == null ? '' : v);
+    if (s.length < 43) return {error:'code_verifier 至少 43 个字符，当前 ' + s.length};
+    if (s.length > 128) return {error:'code_verifier 至多 128 个字符，当前 ' + s.length};
+    if (!VERIFIER_RE.test(s)) return {error:'code_verifier 只能含 A-Z a-z 0-9 与 - . _ ~'};
+    return {value:s, length:s.length, entropyBits:Math.floor(s.length * Math.log(66) / Math.log(2))};
+  }
+
+  function challengeOf(verifier, method){
+    var chk = checkVerifier(verifier);
+    if (chk.error) return chk;
+    var m = String(method || 'S256').toUpperCase();
+    if (m === 'PLAIN') return {value:chk.value, method:'plain',
+      warning:'plain 方法等于没做 PKCE，OAuth 2.1 要求公共客户端必须用 S256'};
+    if (m !== 'S256') return {error:'code_challenge_method 只允许 S256 或 plain，收到 ' + method};
+    return {value:b64urlEncode(sha256(utf8Bytes(chk.value))), method:'S256'};
+  }
+
+  function verifyPkce(verifier, challenge, method){
+    var c = challengeOf(verifier, method);
+    if (c.error) return c;
+    var same = c.value === String(challenge == null ? '' : challenge);
+    return {value:same, expected:c.value, method:c.method,
+            reason:same ? '校验通过' : 'code_verifier 与 code_challenge 不匹配，授权码不得兑换'};
+  }
+
+  // ---------------- URL 与查询串 ----------------
+  function parseUrl(u){
+    var s = String(u == null ? '' : u).trim();
+    if (s === '') return {error:'请输入授权请求 URL'};
+    var m = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/.exec(s);
+    if (!m) return {error:'不是合法的绝对 URL：' + s};
+    var params = {}, order = [], dup = [];
+    if (m[4]){
+      var parts = m[4].split('&');
+      for (var i = 0; i < parts.length; i++){
+        if (parts[i] === '') continue;
+        var eq = parts[i].indexOf('=');
+        var k = eq < 0 ? parts[i] : parts[i].slice(0, eq);
+        var v = eq < 0 ? '' : parts[i].slice(eq + 1);
+        try { k = decodeURIComponent(k.replace(/\+/g, ' ')); v = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) {}
+        if (Object.prototype.hasOwnProperty.call(params, k)) dup.push(k); else order.push(k);
+        params[k] = v;
+      }
+    }
+    return {value:{scheme:m[1].toLowerCase(), host:m[2], path:m[3] || '', query:m[4] || '',
+                   fragment:m[5] || '', params:params, order:order, duplicates:dup}};
+  }
+
+  // ---------------- 重定向地址 ----------------
+  function checkRedirect(uri){
+    var issues = [], u = String(uri == null ? '' : uri).trim();
+    if (u === '') return {error:'redirect_uri 不能为空，OAuth 2.1 要求显式登记并精确匹配'};
+    if (/[*]/.test(u)) issues.push({level:'error', msg:'redirect_uri 不允许通配符，授权服务器必须做精确字符串匹配'});
+    if (u.indexOf('#') >= 0) issues.push({level:'error', msg:'redirect_uri 不允许带片段标识符'});
+    var p = parseUrl(u);
+    if (p.error){
+      if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) return {value:{scheme:'custom', loopback:false},
+        issues:issues.concat([{level:'warn', msg:'私有 scheme 回调只适合原生应用，且必须配合 PKCE'}])};
+      return {error:p.error};
+    }
+    var host = p.value.host.replace(/:\d+$/, '');
+    var loopback = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    if (p.value.scheme === 'http' && !loopback)
+      issues.push({level:'error', msg:'明文 http 回调会泄露授权码，除环回地址外必须用 https'});
+    if (loopback && /:\d+$/.test(p.value.host))
+      issues.push({level:'warn', msg:'环回回调应允许任意端口，把端口写死会让原生应用无法启动本地监听'});
+    if (/^https?:\/\/[^/]*[^/]$/.test(u) && p.value.path === '')
+      issues.push({level:'warn', msg:'建议带上明确路径，纯域名回调更容易和其它应用撞车'});
+    var errs = issues.filter(function(x){ return x.level === 'error'; });
+    return {value:{scheme:p.value.scheme, host:p.value.host, path:p.value.path, loopback:loopback},
+            issues:issues, ok:errs.length === 0};
+  }
+
+  // ---------------- 授权请求体检 ----------------
+  var REMOVED = {
+    'token':'隐式流在 OAuth 2.1 中已被移除，令牌走 URL 片段极易泄露，请改用授权码 + PKCE',
+    'id_token token':'隐式流已被移除，请改用授权码流',
+    'code token':'混合流会把令牌暴露在前端信道，除非 OIDC 明确需要否则不要用'
+  };
+
+  function auditAuthorize(url){
+    var p = parseUrl(url);
+    if (p.error) return p;
+    var q = p.value.params, issues = [];
+    function err(m){ issues.push({level:'error', msg:m}); }
+    function warn(m){ issues.push({level:'warn', msg:m}); }
+    function ok(m){ issues.push({level:'ok', msg:m}); }
+
+    if (p.value.scheme !== 'https') err('授权端点必须走 https，当前是 ' + p.value.scheme);
+    else ok('授权端点使用 https');
+    if (p.value.duplicates.length) err('查询参数重复出现：' + p.value.duplicates.join('、') + '，不同服务器取值策略不同，易被利用');
+
+    var rt = q['response_type'];
+    if (!rt) err('缺少 response_type');
+    else if (REMOVED[rt]) err(REMOVED[rt]);
+    else if (rt === 'code') ok('使用授权码流，符合 OAuth 2.1');
+    else warn('不常见的 response_type：' + rt);
+
+    if (!q['client_id']) err('缺少 client_id');
+    var ru = q['redirect_uri'];
+    if (!ru) warn('未显式传 redirect_uri，只有在服务端仅登记一个回调时才安全');
+    else {
+      var rc = checkRedirect(ru);
+      if (rc.error) err('redirect_uri 非法：' + rc.error);
+      else for (var i = 0; i < rc.issues.length; i++) issues.push({level:rc.issues[i].level, msg:'redirect_uri：' + rc.issues[i].msg});
+    }
+
+    var st = q['state'];
+    var cc = q['code_challenge'], cm = q['code_challenge_method'];
+    if (!cc) err('缺少 code_challenge，OAuth 2.1 要求所有客户端都用 PKCE');
+    else {
+      if (!cm) warn('缺少 code_challenge_method，多数服务器会默认按 plain 处理');
+      else if (String(cm).toUpperCase() !== 'S256') err('code_challenge_method 必须是 S256，当前 ' + cm);
+      else ok('PKCE 使用 S256');
+      if (cc.length !== 43 && String(cm).toUpperCase() === 'S256')
+        warn('S256 的 code_challenge 应为 43 个字符，当前 ' + cc.length);
+    }
+    if (!st){
+      if (cc) warn('缺少 state：PKCE 能防授权码注入，但 state 仍是防跨站请求伪造与承载会话上下文的手段');
+      else err('既没有 state 也没有 PKCE，授权码流完全暴露在 CSRF 之下');
+    } else if (st.length < 8) warn('state 只有 ' + st.length + ' 个字符，熵不足以防猜测');
+    else ok('携带了足够长的 state');
+
+    var scope = q['scope'] || '';
+    var scopes = scope.split(/[\s+]+/).filter(function(s){ return s; });
+    if (!scopes.length) warn('未申请任何 scope，服务端可能回退到默认权限');
+    if (scopes.indexOf('openid') >= 0 && !q['nonce'])
+      warn('OIDC 请求包含 openid 但缺少 nonce，无法防 ID 令牌重放');
+    var broad = scopes.filter(function(s){ return /(^|[:.])(\*|all|admin|write:all|full_access)$/i.test(s) || s === '*'; });
+    if (broad.length) warn('申请了过宽的权限：' + broad.join('、') + '，违反最小权限原则');
+
+    var errors = issues.filter(function(x){ return x.level === 'error'; }).length;
+    var warns = issues.filter(function(x){ return x.level === 'warn'; }).length;
+    return {value:{endpoint:p.value.scheme + '://' + p.value.host + p.value.path, params:q, scopes:scopes},
+            issues:issues, errors:errors, warnings:warns, ok:errors === 0,
+            grade:errors ? '不合格' : (warns ? '有隐患' : '合格')};
+  }
+
+  // ---------------- 令牌响应 ----------------
+  function auditTokenResponse(obj){
+    var o = obj || {}, issues = [];
+    function err(m){ issues.push({level:'error', msg:m}); }
+    function warn(m){ issues.push({level:'warn', msg:m}); }
+    function ok(m){ issues.push({level:'ok', msg:m}); }
+    if (!o.access_token) err('缺少 access_token');
+    if (!o.token_type) err('缺少 token_type');
+    else if (String(o.token_type).toLowerCase() !== 'bearer' && String(o.token_type).toLowerCase() !== 'dpop')
+      warn('少见的 token_type：' + o.token_type);
+    else ok('token_type 为 ' + o.token_type);
+    var ex = Number(o.expires_in);
+    if (o.expires_in === undefined) warn('缺少 expires_in，客户端只能靠 401 才知道令牌过期');
+    else if (!isFinite(ex) || ex <= 0) err('expires_in 必须是正整数秒');
+    else if (ex > 86400) warn('访问令牌有效期 ' + ex + ' 秒偏长，泄露后的窗口太大');
+    else ok('访问令牌有效期 ' + ex + ' 秒');
+    if (o.refresh_token){
+      ok('返回了刷新令牌');
+      if (o.refresh_token_expires_in === undefined)
+        warn('刷新令牌未声明有效期，公共客户端应配合轮换与重放检测');
+    }
+    var errors = issues.filter(function(x){ return x.level === 'error'; }).length;
+    return {issues:issues, ok:errors === 0, errors:errors,
+            warnings:issues.filter(function(x){ return x.level === 'warn'; }).length};
+  }
+
+  // ---------------- JWT 声明浏览（不验签） ----------------
+  function decodeJwt(token, nowSec){
+    var t = String(token == null ? '' : token).trim();
+    var parts = t.split('.');
+    if (parts.length !== 3 && parts.length !== 5) return {error:'JWT 应有 3 段（JWS）或 5 段（JWE），当前 ' + parts.length + ' 段'};
+    if (parts.length === 5) return {error:'这是加密的 JWE，本工具只解析未加密的 JWS 结构'};
+    var hb = b64urlDecode(parts[0]); if (hb.error) return {error:'头部：' + hb.error};
+    var pb = b64urlDecode(parts[1]); if (pb.error) return {error:'载荷：' + pb.error};
+    var header, payload;
+    try { header = JSON.parse(bytesUtf8(hb.value)); } catch (e){ return {error:'头部不是合法 JSON'}; }
+    try { payload = JSON.parse(bytesUtf8(pb.value)); } catch (e){ return {error:'载荷不是合法 JSON'}; }
+    var now = (nowSec === undefined) ? Math.floor(Date.now() / 1000) : Number(nowSec);
+    var issues = [];
+    if (!header.alg) issues.push({level:'error', msg:'头部缺少 alg'});
+    else if (String(header.alg).toLowerCase() === 'none')
+      issues.push({level:'error', msg:'alg 为 none，这是经典的签名绕过攻击，必须拒绝'});
+    if (payload.exp === undefined) issues.push({level:'warn', msg:'缺少 exp，令牌永不过期'});
+    else if (Number(payload.exp) <= now)
+      issues.push({level:'error', msg:'令牌已于 ' + (now - Number(payload.exp)) + ' 秒前过期'});
+    if (payload.nbf !== undefined && Number(payload.nbf) > now)
+      issues.push({level:'error', msg:'尚未生效，还有 ' + (Number(payload.nbf) - now) + ' 秒'});
+    if (payload.iat !== undefined && Number(payload.iat) > now + 60)
+      issues.push({level:'warn', msg:'签发时间在未来，检查两端时钟'});
+    if (payload.aud === undefined) issues.push({level:'warn', msg:'缺少 aud，资源服务器无法判断令牌是不是发给自己的'});
+    if (payload.iss === undefined) issues.push({level:'warn', msg:'缺少 iss'});
+    var ttl = payload.exp !== undefined && payload.iat !== undefined ? Number(payload.exp) - Number(payload.iat) : null;
+    if (ttl !== null && ttl > 86400) issues.push({level:'warn', msg:'令牌有效期 ' + ttl + ' 秒，作为访问令牌过长'});
+    return {value:{header:header, payload:payload, ttl:ttl, signaturePresent:parts[2].length > 0},
+            issues:issues, ok:issues.filter(function(x){ return x.level === 'error'; }).length === 0};
+  }
+
+  // ---------------- 流程选型 ----------------
+  var FLOWS = [
+    {id:'spa',     name:'浏览器单页应用', flow:'授权码 + PKCE', secret:false,
+     note:'不能保存密钥，必须 PKCE；令牌只放内存，刷新令牌要轮换'},
+    {id:'native',  name:'移动端或桌面原生应用', flow:'授权码 + PKCE', secret:false,
+     note:'用系统浏览器而不是内嵌 WebView，回调用环回地址或私有 scheme'},
+    {id:'server',  name:'常规服务端 Web 应用', flow:'授权码 + PKCE', secret:true,
+     note:'即使有客户端密钥，2.1 仍建议叠加 PKCE 以防授权码注入'},
+    {id:'machine', name:'无用户参与的服务间调用', flow:'客户端凭据', secret:true,
+     note:'不要为机器流程绑定人的身份，凭据用短期证书或工作负载身份更佳'},
+    {id:'device',  name:'电视或无输入设备', flow:'设备授权码', secret:false,
+     note:'轮询要遵守 interval 和 slow_down，用户码要短且不含易混字符'}
+  ];
+
+  function recommend(kind){
+    for (var i = 0; i < FLOWS.length; i++) if (FLOWS[i].id === kind) return {value:FLOWS[i]};
+    return {error:'未知客户端类型：' + kind};
+  }
+
+  function analyze(url, nowSec){
+    var a = auditAuthorize(url);
+    if (a.error) return a;
+    var v = a.value.params['code_challenge'];
+    return {value:{audit:a, pkcePresent:!!v, flows:FLOWS}, issues:a.issues, ok:a.ok, grade:a.grade};
+  }
+
+  var api = {utf8Bytes:utf8Bytes, bytesUtf8:bytesUtf8, b64urlEncode:b64urlEncode, b64urlDecode:b64urlDecode,
+             sha256:sha256, sha256Hex:sha256Hex, checkVerifier:checkVerifier, challengeOf:challengeOf,
+             verifyPkce:verifyPkce, parseUrl:parseUrl, checkRedirect:checkRedirect, auditAuthorize:auditAuthorize,
+             auditTokenResponse:auditTokenResponse, decodeJwt:decodeJwt, recommend:recommend,
+             FLOWS:FLOWS, analyze:analyze};
+  if (typeof window !== 'undefined'){ window.__PURE__ = api; }
+  if (typeof module !== 'undefined' && module.exports){ module.exports = {OauthForgePure:OauthForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P = OauthForgePure();
+  function esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function dot(level){
+    var c = level === 'error' ? '#EF4444' : level === 'warn' ? 'var(--warn)' : 'var(--ok)';
+    var t = level === 'error' ? '必须修' : level === 'warn' ? '建议改' : '合规';
+    return '<span style="color:' + c + ';font-weight:700">' + t + '</span>';
+  }
+  function run(){
+    var url = document.getElementById('o-url').value,
+        ver = document.getElementById('o-ver').value,
+        kind = document.getElementById('o-kind').value.trim(),
+        jwt = document.getElementById('o-jwt').value.trim();
+    var $e = document.getElementById('o-err'), $o = document.getElementById('o-out'), h = '';
+    var a = P.auditAuthorize(url);
+    if (a.error){ $e.textContent = a.error; $o.innerHTML = ''; return; }
+    $e.textContent = '';
+    h += '<div class="kv"><b>授权端点</b><span>' + esc(a.value.endpoint) + '</span></div>';
+    h += '<div class="kv"><b>体检结论</b><span style="font-weight:700;color:' +
+         (a.errors ? '#EF4444' : a.warnings ? 'var(--warn)' : 'var(--ok)') + '">' + a.grade +
+         '，' + a.errors + ' 项必须修，' + a.warnings + ' 项建议改</span></div>';
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">逐条检查</div>';
+    for (var i = 0; i < a.issues.length; i++)
+      h += '<div class="kv"><b>' + dot(a.issues[i].level) + '</b><span>' + esc(a.issues[i].msg) + '</span></div>';
+
+    if (a.value.scopes.length){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">申请的权限</div>';
+      h += '<div class="kv"><b>scope</b><span>' + a.value.scopes.map(function(s){ return '<code>' + esc(s) + '</code>'; }).join(' ') + '</span></div>';
+    }
+
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">PKCE 实算校验</div>';
+    var cv = P.checkVerifier(ver);
+    if (cv.error) h += '<div class="kv"><b>code_verifier</b><span style="color:#EF4444">' + esc(cv.error) + '</span></div>';
+    else {
+      var ch = P.challengeOf(ver, 'S256');
+      h += '<div class="kv"><b>长度与熵</b><span>' + cv.length + ' 字符，约 ' + cv.entropyBits + ' 比特</span></div>';
+      h += '<div class="kv"><b>S256 挑战值</b><span><code>' + esc(ch.value) + '</code></span></div>';
+      var declared = a.value.params['code_challenge'];
+      if (declared){
+        var vr = P.verifyPkce(ver, declared, a.value.params['code_challenge_method'] || 'S256');
+        h += '<div class="kv"><b>与请求中的挑战值比对</b><span style="color:' + (vr.value ? 'var(--ok)' : '#EF4444') +
+             ';font-weight:700">' + esc(vr.reason) + '</span></div>';
+      }
+    }
+
+    var rec = P.recommend(kind);
+    h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">流程选型</div>';
+    if (rec.error){
+      h += '<div class="kv"><b>可选类型</b><span>' + P.FLOWS.map(function(f){ return '<code>' + f.id + '</code>'; }).join(' ') + '</span></div>';
+      for (var k = 0; k < P.FLOWS.length; k++)
+        h += '<div class="kv"><b>' + esc(P.FLOWS[k].name) + '</b><span>' + esc(P.FLOWS[k].flow) + ' · ' + esc(P.FLOWS[k].note) + '</span></div>';
+    } else {
+      h += '<div class="kv"><b>' + esc(rec.value.name) + '</b><span style="color:var(--ok);font-weight:700">' + esc(rec.value.flow) + '</span></div>';
+      h += '<div class="kv"><b>能否持有密钥</b><span>' + (rec.value.secret ? '可以，属于机密客户端' : '不能，属于公共客户端') + '</span></div>';
+      h += '<div class="kv"><b>要点</b><span>' + esc(rec.value.note) + '</span></div>';
+    }
+
+    if (jwt){
+      h += '<div style="margin-top:14px;color:var(--dim);font-size:12px">令牌声明浏览（不验签）</div>';
+      var jd = P.decodeJwt(jwt);
+      if (jd.error) h += '<div class="kv"><b>解析失败</b><span style="color:#EF4444">' + esc(jd.error) + '</span></div>';
+      else {
+        h += '<div class="kv"><b>alg / typ</b><span>' + esc(jd.value.header.alg) + ' / ' + esc(jd.value.header.typ || '未声明') + '</span></div>';
+        var pl = jd.value.payload;
+        for (var key in pl) if (Object.prototype.hasOwnProperty.call(pl, key))
+          h += '<div class="kv"><b>' + esc(key) + '</b><span>' + esc(typeof pl[key] === 'object' ? JSON.stringify(pl[key]) : pl[key]) + '</span></div>';
+        for (var j = 0; j < jd.issues.length; j++)
+          h += '<div class="kv"><b>' + dot(jd.issues[j].level) + '</b><span>' + esc(jd.issues[j].msg) + '</span></div>';
+      }
+    }
+    $o.innerHTML = h;
+  }
+  function set(u, v){
+    document.getElementById('o-url').value = u;
+    if (v !== undefined) document.getElementById('o-ver').value = v;
+    run();
+  }
+  document.getElementById('o-go').addEventListener('click', run);
+  document.getElementById('o-a').addEventListener('click', function(){
+    set('https://auth.example.com/authorize?response_type=token&client_id=legacy&redirect_uri=https://app.example.com/cb');
+  });
+  document.getElementById('o-b').addEventListener('click', function(){
+    set('https://auth.example.com/authorize?response_type=code&client_id=web&redirect_uri=https://app.example.com/cb&scope=admin');
+  });
+  document.getElementById('o-c').addEventListener('click', function(){
+    set('http://auth.example.com/authorize?response_type=code&client_id=web&redirect_uri=http://app.example.com/cb&state=abc12345&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256');
+  });
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

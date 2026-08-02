@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>WaterfallForge — 瀑布图：期初到期末的增减归因，红涨绿跌符合 A 股习惯。</title>
+<meta property="og:title" content="WaterfallForge">
+<meta property="og:description" content="增减归因瀑布图，红涨绿跌，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="增减归因瀑布图，红涨绿跌，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>WaterfallForge</h1>
+  <p class="sub">瀑布图：首行期初值 + `+/-` 增减项 + `=` 小计，自动累计与连接线渲染，贡献度排序、最大增减项识别、万/亿单位格式化、SVG 导出 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="wfin">数据（首行为起始值；<code>+/-</code> 表示增减；<code>=</code> 表示小计）</label>
+  <textarea id="wfin" rows="11">期初营收 12000
+新客增量 +3400
+老客复购 +2100
+调价影响 +800
+客户流失 -1900
+退款 -600
+汇率损益 -350
+期末营收 =</textarea>
+  <div class="row">
+    <button id="wfrun">绘制瀑布图</button>
+    <button id="wfsvg" class="ghost">导出 SVG</button>
+  </div>
+  <div class="err" id="wferr"></div>
+  <div class="out" id="wfchart">瀑布图渲染区</div>
+  <div class="out" id="wfinfo"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var WF_UP = '#EF4444';
+var WF_DOWN = '#10B981';
+var WF_TOTAL = '#5E6AD2';
+
+function parseSeries(text){
+  var lines = String(text == null ? '' : text).split(/\r?\n/);
+  var items = [], errors = [];
+  for (var i = 0; i < lines.length; i++){
+    var l = lines[i].trim();
+    if (!l || l.charAt(0) === '#') continue;
+    var m = /^(.*?)[\s:：|,，]+([=+\-]?[\d,]*\.?\d*)$/.exec(l);
+    if (!m){ errors.push({ line:i + 1, text:l, why:'格式应为 标签 数值 / 标签 =' }); continue; }
+    var label = m[1].trim(), raw = m[2].trim();
+    if (!label){ errors.push({ line:i + 1, text:l, why:'缺少标签' }); continue; }
+    if (raw === '='){ items.push({ label:label, type:'subtotal', value:0 }); continue; }
+    var signed = raw.charAt(0) === '+' || raw.charAt(0) === '-';
+    var num = parseFloat(raw.replace(/,/g, ''));
+    if (!isFinite(num)){ errors.push({ line:i + 1, text:l, why:'数值无法解析' }); continue; }
+    if (signed) items.push({ label:label, type:'delta', value:num });
+    else if (items.length === 0) items.push({ label:label, type:'start', value:num });
+    else items.push({ label:label, type:'absolute', value:num });
+  }
+  return { items:items, errors:errors };
+}
+
+function compute(items){
+  var rows = [], running = 0, started = false;
+  for (var i = 0; i < items.length; i++){
+    var it = items[i];
+    if (it.type === 'start'){
+      running = it.value; started = true;
+      rows.push({ label:it.label, type:'start', delta:it.value, start:0, end:running, cumulative:running });
+    } else if (it.type === 'delta'){
+      var s = running; running += it.value;
+      rows.push({ label:it.label, type:'delta', delta:it.value, start:s, end:running, cumulative:running });
+      started = true;
+    } else if (it.type === 'absolute'){
+      var s2 = running, d = it.value - running; running = it.value;
+      rows.push({ label:it.label, type:'absolute', delta:d, start:s2, end:running, cumulative:running });
+      started = true;
+    } else if (it.type === 'subtotal'){
+      rows.push({ label:it.label, type:'subtotal', delta:running, start:0, end:running, cumulative:running });
+    }
+  }
+  return { rows:rows, total:round2(running), started:started };
+}
+
+function round2(n){ return Math.round(n * 100) / 100; }
+
+function analyze(rows){
+  var up = 0, down = 0, biggestUp = null, biggestDown = null, start = null, end = 0;
+  for (var i = 0; i < rows.length; i++){
+    var r = rows[i];
+    if (r.type === 'start'){ start = r.end; continue; }
+    if (r.type === 'subtotal') continue;
+    if (r.delta > 0){ up += r.delta; if (!biggestUp || r.delta > biggestUp.delta) biggestUp = r; }
+    else if (r.delta < 0){ down += r.delta; if (!biggestDown || r.delta < biggestDown.delta) biggestDown = r; }
+  }
+  if (rows.length) end = rows[rows.length - 1].cumulative;
+  if (start === null) start = 0;
+  var net = end - start;
+  return {
+    start:round2(start), end:round2(end), net:round2(net),
+    pct: start !== 0 ? Math.round(net / Math.abs(start) * 1000) / 10 : null,
+    gain:round2(up), loss:round2(down),
+    biggestUp:biggestUp, biggestDown:biggestDown,
+    contributions: rows.filter(function(r){ return r.type === 'delta' || r.type === 'absolute'; })
+      .map(function(r){ return { label:r.label, delta:round2(r.delta), share: up - down !== 0 ? Math.round(Math.abs(r.delta) / (up - down) * 1000) / 10 : 0 }; })
+      .sort(function(a, b){ return Math.abs(b.delta) - Math.abs(a.delta); })
+  };
+}
+
+function niceStep(range, target){
+  if (!(range > 0)) return 1;
+  var raw = range / (target || 5);
+  var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+  var norm = raw / mag;
+  var step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return step * mag;
+}
+
+function layout(rows, opt){
+  opt = opt || {};
+  var W = opt.width || 680, H = opt.height || 340;
+  var padL = opt.padL || 56, padR = 14, padT = 16, padB = 52;
+  if (!rows.length) return { bars:[], width:W, height:H, empty:true, ticks:[] };
+  var lo = 0, hi = 0;
+  for (var i = 0; i < rows.length; i++){
+    lo = Math.min(lo, rows[i].start, rows[i].end);
+    hi = Math.max(hi, rows[i].start, rows[i].end);
+  }
+  if (hi === lo) hi = lo + 1;
+  var pad = (hi - lo) * 0.08;
+  hi += pad; lo -= pad;
+  var plotH = H - padT - padB, plotW = W - padL - padR;
+  var y = function(v){ return padT + (hi - v) / (hi - lo) * plotH; };
+  var slot = plotW / rows.length, bw = Math.max(6, Math.min(48, slot * 0.62));
+  var bars = [];
+  for (var j = 0; j < rows.length; j++){
+    var r = rows[j];
+    var cx = padL + slot * j + slot / 2;
+    var yTop = y(Math.max(r.start, r.end)), yBot = y(Math.min(r.start, r.end));
+    var color = r.type === 'start' || r.type === 'subtotal' ? WF_TOTAL : (r.delta >= 0 ? WF_UP : WF_DOWN);
+    bars.push({ label:r.label, type:r.type, delta:round2(r.delta), cumulative:round2(r.cumulative),
+                x:cx - bw / 2, y:yTop, w:bw, h:Math.max(1.5, yBot - yTop), cx:cx, color:color,
+                connectorY:y(r.end) });
+  }
+  var step = niceStep(hi - lo, 5), ticks = [];
+  var t0 = Math.ceil(lo / step) * step;
+  for (var t = t0; t <= hi + 1e-9; t += step) ticks.push({ value:round2(t), y:y(t) });
+  return { bars:bars, ticks:ticks, width:W, height:H, padL:padL, padT:padT, plotW:plotW, plotH:plotH, zeroY:y(0), empty:false };
+}
+
+function escXml(s){
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function fmtNum(n){
+  var a = Math.abs(n);
+  if (a >= 1e8) return (Math.round(n / 1e7) / 10) + '亿';
+  if (a >= 1e4) return (Math.round(n / 1e3) / 10) + '万';
+  return String(Math.round(n * 100) / 100);
+}
+
+function toSvg(lay){
+  if (!lay || lay.empty) return '<svg xmlns="http://www.w3.org/2000/svg" width="' + ((lay && lay.width) || 680) + '" height="' + ((lay && lay.height) || 340) + '"></svg>';
+  var out = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + lay.width + ' ' + lay.height + '" width="100%" height="' + lay.height + '" role="img" aria-label="瀑布图">'];
+  out.push('<rect width="' + lay.width + '" height="' + lay.height + '" fill="#0A0A0B"/>');
+  for (var t = 0; t < lay.ticks.length; t++){
+    var tk = lay.ticks[t];
+    out.push('<line x1="' + lay.padL + '" y1="' + r2(tk.y) + '" x2="' + (lay.width - 14) + '" y2="' + r2(tk.y) + '" stroke="rgba(255,255,255,.08)"/>');
+    out.push('<text x="' + (lay.padL - 8) + '" y="' + r2(tk.y + 4) + '" fill="#71717A" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">' + escXml(fmtNum(tk.value)) + '</text>');
+  }
+  for (var i = 0; i < lay.bars.length; i++){
+    var b = lay.bars[i];
+    if (i > 0){
+      var prev = lay.bars[i - 1];
+      out.push('<line x1="' + r2(prev.cx + prev.w / 2) + '" y1="' + r2(prev.connectorY) + '" x2="' + r2(b.cx - b.w / 2) + '" y2="' + r2(prev.connectorY) + '" stroke="rgba(255,255,255,.22)" stroke-dasharray="3 3"/>');
+    }
+    out.push('<rect x="' + r2(b.x) + '" y="' + r2(b.y) + '" width="' + r2(b.w) + '" height="' + r2(b.h) + '" rx="2" fill="' + b.color + '"><title>' + escXml(b.label + ': ' + (b.delta >= 0 && b.type === 'delta' ? '+' : '') + b.delta + ' → ' + b.cumulative) + '</title></rect>');
+    out.push('<text x="' + r2(b.cx) + '" y="' + r2(b.y - 5) + '" fill="#FFFFFF" font-size="10" text-anchor="middle" font-family="system-ui,sans-serif">' + escXml((b.type === 'delta' && b.delta > 0 ? '+' : '') + fmtNum(b.delta)) + '</text>');
+    out.push('<text x="' + r2(b.cx) + '" y="' + (lay.height - 28) + '" fill="#A1A1AA" font-size="10" text-anchor="middle" font-family="system-ui,sans-serif">' + escXml(b.label) + '</text>');
+  }
+  out.push('</svg>');
+  return out.join('');
+}
+
+function r2(n){ return Math.round(n * 100) / 100; }
+
+var WaterfallForgePure = {
+  parseSeries: parseSeries, compute: compute, analyze: analyze, layout: layout, toSvg: toSvg,
+  niceStep: niceStep, fmtNum: fmtNum, UP: WF_UP, DOWN: WF_DOWN, TOTAL: WF_TOTAL
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = WaterfallForgePure;
+if (typeof window !== 'undefined') window.WaterfallForgePure = WaterfallForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.WaterfallForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function run(){
+    var p = P.parseSeries($('wfin').value);
+    $('wferr').textContent = p.errors.length ? ('第 ' + p.errors.map(function(e){ return e.line; }).join(',') + ' 行无法解析：' + p.errors[0].why) : '';
+    var c = P.compute(p.items);
+    if (!c.rows.length){ $('wfchart').textContent = '瀑布图渲染区（暂无有效数据）'; $('wfinfo').innerHTML = ''; return; }
+    var lay = P.layout(c.rows, { width:660, height:340 });
+    $('wfchart').innerHTML = P.toSvg(lay);
+    var a = P.analyze(c.rows);
+    var html = '<div class="kv"><b>期初 → 期末</b><span>' + P.fmtNum(a.start) + ' → ' + P.fmtNum(a.end) + '</span></div>' +
+      '<div class="kv"><b>净变动</b><span style="color:' + (a.net >= 0 ? 'var(--warn)' : 'var(--ok)') + '">' + (a.net >= 0 ? '+' : '') + P.fmtNum(a.net) + (a.pct === null ? '' : '（' + (a.pct >= 0 ? '+' : '') + a.pct + '%）') + '</span></div>' +
+      '<div class="kv"><b>正向合计 / 负向合计</b><span><span style="color:#EF4444">+' + P.fmtNum(a.gain) + '</span> / <span style="color:#10B981">' + P.fmtNum(a.loss) + '</span></span></div>';
+    if (a.biggestUp) html += '<div class="kv"><b>最大增项</b><span style="color:#EF4444">' + esc(a.biggestUp.label) + ' +' + P.fmtNum(a.biggestUp.delta) + '</span></div>';
+    if (a.biggestDown) html += '<div class="kv"><b>最大减项</b><span style="color:#10B981">' + esc(a.biggestDown.label) + ' ' + P.fmtNum(a.biggestDown.delta) + '</span></div>';
+    for (var i = 0; i < a.contributions.length && i < 8; i++){
+      var k = a.contributions[i];
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;font-size:13px"><span style="width:96px;color:var(--muted)">' + esc(k.label) + '</span><span style="flex:1;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden"><span style="display:block;height:4px;width:' + Math.min(100, Math.abs(k.share)) + '%;background:' + (k.delta >= 0 ? '#EF4444' : '#10B981') + '"></span></span><span style="width:76px;text-align:right">' + (k.delta >= 0 ? '+' : '') + P.fmtNum(k.delta) + '</span></div>';
+    }
+    $('wfinfo').innerHTML = html;
+  }
+
+  function download(){
+    var c = P.compute(P.parseSeries($('wfin').value).items);
+    if (!c.rows.length) return;
+    var svg = P.toSvg(P.layout(c.rows, { width:660, height:340 }));
+    var blob = new Blob([svg], { type:'image/svg+xml' });
+    var a = D.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'waterfall.svg';
+    D.body.appendChild(a); a.click(); D.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  $('wfrun').addEventListener('click', run);
+  $('wfsvg').addEventListener('click', download);
+  $('wfin').addEventListener('input', run);
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

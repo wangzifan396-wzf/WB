@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CVForge — 单文件简历工具</title>
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+    --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--fg);padding:28px 16px;min-height:100vh}
+  .app{width:100%;max-width:1180px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+  label{display:block;color:var(--muted);font-size:13px;margin:12px 0 6px}
+  input[type=text],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+       color:var(--fg);padding:8px 10px;font:14px/1.5 system-ui,"Microsoft YaHei",sans-serif}
+  textarea{resize:vertical}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 13px;cursor:pointer;font-size:13px}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  button.sm{padding:5px 9px;font-size:12px}
+  button.x{background:transparent;border:1px solid var(--line);color:var(--dim);padding:4px 8px;font-size:12px}
+  .row2{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .row2>*{flex:1;min-width:320px}
+  .list .item{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;background:var(--surface)}
+  .list .item .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .tpls{display:flex;gap:6px;margin-bottom:10px}
+  .tpls button.active{outline:2px solid var(--accent)}
+  .meter{height:8px;background:var(--surface);border-radius:999px;overflow:hidden;margin-top:6px}
+  .meter>i{display:block;height:100%;background:var(--ok);width:0;transition:width .2s}
+  #cv-wrap{border:1px solid var(--line);border-radius:10px;padding:22px;background:#fff;color:#111;min-height:300px;overflow:auto;max-height:70vh}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+  .badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+  footer{margin-top:20px;color:var(--dim);font-size:12px}
+  a{color:var(--info);text-decoration:none}
+
+  /* ===== 预览模板 ===== */
+  .cv{font-family:system-ui,"Microsoft YaHei",sans-serif;color:#111;line-height:1.55}
+  .cv h1{font-size:26px;margin:0}
+  .cv .cv-title{color:#444;font-size:15px;margin-top:2px}
+  .cv .cv-contacts{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:#555;margin-top:8px}
+  .cv section{margin-top:16px}
+  .cv h2{font-size:15px;border-bottom:2px solid #ddd;padding-bottom:4px;margin:0 0 8px;color:#222}
+  .cv .cv-item{margin-bottom:10px}
+  .cv .cv-item-h{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+  .cv .cv-role{font-weight:600}
+  .cv .cv-org{color:#555}
+  .cv .cv-date{margin-left:auto;color:#777;font-size:13px}
+  .cv ul{margin:4px 0 0;padding-left:18px}
+  .cv .cv-skills{display:flex;flex-wrap:wrap;gap:6px}
+  .cv .cv-skill{border:1px solid #ccc;border-radius:999px;padding:2px 10px;font-size:13px}
+  .cv .cv-link{color:#2563eb;font-size:13px;word-break:break-all}
+  .cv a{color:#2563eb}
+  /* modern: 强调色 */
+  .cv.modern h2{border-color:var(--accent)}
+  /* classic: 衬线 */
+  .cv.classic{font-family:Georgia,"Times New Roman",serif}
+  .cv.classic h2{border-bottom:1px solid #999}
+  /* compact: 紧凑行距 */
+  .cv.compact{font-size:13px;line-height:1.4}
+  .cv.compact section{margin-top:10px}
+  .cv.compact h1{font-size:22px}
+
+  @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+  @media print{
+    body *{visibility:hidden}
+    #cv-wrap, #cv-wrap *{visibility:visible}
+    #cv-wrap{position:absolute;left:0;top:0;width:100%;border:0;padding:0;max-height:none;overflow:visible;background:#fff}
+    .app{border:0;background:#fff}
+    @page{margin:14mm}
+  }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+<meta name="description" content="离线简历 / CV 工作台：结构化表单 + 实时预览，三种模板，一键打印导出 PDF，JSON 导入导出，数据留本地。">
+</head>
+<body>
+<div class="app">
+  <h1>CVForge</h1>
+  <p class="sub">离线简历工作台 · 单文件 · 零依赖 · 本地优先</p>
+
+  <div class="toolbar">
+    <button id="btnPrint">打印 / 导出 PDF</button>
+    <button id="btnExport" class="ghost">导出 JSON</button>
+    <button id="btnImport" class="ghost">导入 JSON</button>
+    <button id="btnReset" class="ghost">清空重置</button>
+    <input type="file" id="fileIn" accept="application/json,.json" style="display:none">
+  </div>
+
+  <div class="row2">
+    <div>
+      <label>基本信息</label>
+      <div class="grid2">
+        <input type="text" id="f-name" data-arr="__root" data-k="name" placeholder="姓名">
+        <input type="text" id="f-title" data-arr="__root" data-k="title" placeholder="职位 / 头衔">
+      </div>
+      <label for="f-summary">简介</label>
+      <textarea id="f-summary" rows="2" data-arr="__root" data-k="summary" placeholder="一句话简介…"></textarea>
+
+      <label>联系方式</label>
+      <div class="list" id="contacts"></div>
+      <button id="add-contact" class="ghost sm">+ 添加联系方式</button>
+
+      <label>工作经历</label>
+      <div class="list" id="exp"></div>
+      <button id="add-exp" class="ghost sm">+ 添加经历</button>
+
+      <label>教育背景</label>
+      <div class="list" id="edu"></div>
+      <button id="add-edu" class="ghost sm">+ 添加教育</button>
+
+      <label for="f-skills">技能（逗号分隔）</label>
+      <textarea id="f-skills" rows="2" data-arr="__root" data-k="__csv" placeholder="JavaScript, TypeScript, React"></textarea>
+
+      <label>项目</label>
+      <div class="list" id="proj"></div>
+      <button id="add-proj" class="ghost sm">+ 添加项目</button>
+
+      <label>链接</label>
+      <div class="list" id="links"></div>
+      <button id="add-link" class="ghost sm">+ 添加链接</button>
+    </div>
+
+    <div>
+      <label>模板</label>
+      <div class="tpls">
+        <button data-tpl="modern" class="sm active">Modern</button>
+        <button data-tpl="classic" class="sm">Classic</button>
+        <button data-tpl="compact" class="sm">Compact</button>
+      </div>
+      <label>完整度 <span id="meterVal" style="color:var(--muted);font-size:12px">0%</span></label>
+      <div class="meter"><i id="meter"></i></div>
+      <label>实时预览（打印或导出 PDF 即用此版式）</label>
+      <div id="cv-wrap"><div id="cv" class="cv modern"></div></div>
+    </div>
+  </div>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+
+<script>
+/* ===== 纯函数区（首个无属性 script）：可被 Node _test.js 提取并断言 ===== */
+  function escapeHTML(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escapeAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function slugify(s){ return String(s==null?'':s).toLowerCase().trim().replace(/[^\w\u4e00-\u9fa5]+/g,'-').replace(/^-+|-+$/g,'')||'resume'; }
+  function defaultData(){
+    return { name:'', title:'', summary:'', contacts:[], experience:[], education:[], skills:[], projects:[], links:[] };
+  }
+  function completeness(d){
+    var total=8, got=0;
+    function chk(c){ if(c) got++; }
+    chk(d.name && d.name.trim());
+    chk(d.title && d.title.trim());
+    chk(d.summary && d.summary.trim());
+    chk(d.contacts && d.contacts.length>0);
+    chk(d.experience && d.experience.length>0);
+    chk(d.education && d.education.length>0);
+    chk(d.skills && d.skills.length>0);
+    chk(d.projects && d.projects.length>0);
+    return Math.round(got/total*100);
+  }
+  function renderCV(d){
+    var h='';
+    h += '<header class="cv-head">';
+    h += '<h1>'+escapeHTML(d.name||'你的名字')+'</h1>';
+    if(d.title) h += '<div class="cv-title">'+escapeHTML(d.title)+'</div>';
+    if(d.contacts && d.contacts.length){ h += '<div class="cv-contacts">'+ d.contacts.map(function(c){ return '<span>'+escapeHTML(c.label||'')+(c.value?'：'+escapeHTML(c.value):'')+'</span>'; }).join('')+'</div>'; }
+    h += '</header>';
+    if(d.summary) h += '<section><h2>简介</h2><p>'+escapeHTML(d.summary)+'</p></section>';
+    if(d.experience && d.experience.length){ h += '<section><h2>工作经历</h2>'; d.experience.forEach(function(e){ h += '<div class="cv-item"><div class="cv-item-h"><span class="cv-role">'+escapeHTML(e.role||'')+'</span>'+(e.org?'<span class="cv-org">'+escapeHTML(e.org)+'</span>':'')+'<span class="cv-date">'+[e.start,e.end].filter(Boolean).join(' – ')+'</span></div>'; if(e.points&&e.points.length){ h += '<ul>'+e.points.map(function(p){return '<li>'+escapeHTML(p)+'</li>';}).join('')+'</ul>'; } h += '</div>'; }); h += '</section>'; }
+    if(d.education && d.education.length){ h += '<section><h2>教育背景</h2>'; d.education.forEach(function(e){ h += '<div class="cv-item"><div class="cv-item-h"><span class="cv-role">'+escapeHTML(e.school||'')+'</span>'+(e.degree?'<span class="cv-org">'+escapeHTML(e.degree)+'</span>':'')+'<span class="cv-date">'+[e.start,e.end].filter(Boolean).join(' – ')+'</span></div></div>'; }); h += '</section>'; }
+    if(d.skills && d.skills.length){ h += '<section><h2>技能</h2><div class="cv-skills">'+ d.skills.map(function(s){return '<span class="cv-skill">'+escapeHTML(s)+'</span>';}).join('')+'</div></section>'; }
+    if(d.projects && d.projects.length){ h += '<section><h2>项目</h2>'; d.projects.forEach(function(p){ h += '<div class="cv-item"><div class="cv-item-h"><span class="cv-role">'+escapeHTML(p.name||'')+'</span>'+(p.link?'<a class="cv-link" href="'+escapeAttr(p.link)+'">'+escapeHTML(p.link)+'</a>':'')+'</div>'+(p.desc?'<p>'+escapeHTML(p.desc)+'</p>':''); }); h += '</section>'; }
+    if(d.links && d.links.length){ h += '<section><h2>链接</h2><ul>'+ d.links.map(function(l){ return '<li><a href="'+escapeAttr(l.url||'#')+'">'+escapeHTML(l.label||l.url)+'</a></li>'; }).join('')+'</ul></section>'; }
+    return h;
+  }
+  function toJSON(d){ return JSON.stringify(d, null, 2); }
+  function fromJSON(str){ var o = JSON.parse(str); if(!o || typeof o!=='object') throw new Error('bad'); var d = defaultData();
+    ['name','title','summary'].forEach(function(k){ if(typeof o[k]==='string') d[k]=o[k]; });
+    ['contacts','experience','education','skills','projects','links'].forEach(function(k){ if(Array.isArray(o[k])) d[k]=o[k]; });
+    return d;
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      escapeHTML:escapeHTML, escapeAttr:escapeAttr, slugify:slugify,
+      defaultData:defaultData, completeness:completeness, renderCV:renderCV,
+      toJSON:toJSON, fromJSON:fromJSON
+    };
+  }
+  if (typeof window !== 'undefined') {
+    window.CVForgePure = {
+      escapeHTML:escapeHTML, escapeAttr:escapeAttr, slugify:slugify,
+      defaultData:defaultData, completeness:completeness, renderCV:renderCV,
+      toJSON:toJSON, fromJSON:fromJSON
+    };
+  }
+</script>
+
+<script>
+/* ===== UI 区（第二个 script）：仅在浏览器中运行 ===== */
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var KEY = 'cvforge.data.v1';
+    var tpl = 'modern';
+
+    function seed(){
+      var d = defaultData();
+      d.name='张三'; d.title='全栈工程师'; d.summary='5 年 Web 全栈经验，专注性能优化与可访问性。';
+      d.contacts=[{label:'邮箱',value:'zhangsan@example.com'},{label:'电话',value:'138-0000-0000'},{label:'GitHub',value:'github.com/zhangsan'}];
+      d.experience=[{role:'高级前端工程师',org:'Acme 科技',start:'2021',end:'至今',points:['主导设计系统重构，首屏耗时下降 40%','带 4 人小组交付 3 个核心产品']}];
+      d.education=[{school:'某某大学',degree:'计算机科学 学士',start:'2014',end:'2018'}];
+      d.skills=['JavaScript','TypeScript','React','Node.js','Python'];
+      d.projects=[{name:'开源工具集',desc:'零依赖单文件工具矩阵',link:'github.com/wangzifan396-wzf'}];
+      d.links=[{label:'个人主页',url:'https://example.com'}];
+      return d;
+    }
+    function load(){ try{ var s=JSON.parse(localStorage.getItem(KEY)); if(s && typeof s.name==='string') return s; }catch(e){} return null; }
+    function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+    var state = load() || seed();
+
+    function renderForm(){
+      // contacts
+      $('contacts').innerHTML = state.contacts.map(function(c,i){
+        return '<div class="item"><div class="top"><span>联系方式 #'+(i+1)+'</span><button class="x" data-del="contacts" data-i="'+i+'">删除</button></div>'+
+          '<div class="grid2"><input type="text" data-arr="contacts" data-i="'+i+'" data-k="label" placeholder="标签" value="'+escapeAttr(c.label||'')+'">'+
+          '<input type="text" data-arr="contacts" data-i="'+i+'" data-k="value" placeholder="内容" value="'+escapeAttr(c.value||'')+'"></div></div>';
+      }).join('');
+      // experience
+      $('exp').innerHTML = state.experience.map(function(e,i){
+        return '<div class="item"><div class="top"><span>经历 #'+(i+1)+'</span><button class="x" data-del="exp" data-i="'+i+'">删除</button></div>'+
+          '<div class="grid2"><input type="text" data-arr="exp" data-i="'+i+'" data-k="role" placeholder="职位" value="'+escapeAttr(e.role||'')+'">'+
+          '<input type="text" data-arr="exp" data-i="'+i+'" data-k="org" placeholder="公司" value="'+escapeAttr(e.org||'')+'"></div>'+
+          '<div class="grid3" style="margin-top:8px"><input type="text" data-arr="exp" data-i="'+i+'" data-k="start" placeholder="起始" value="'+escapeAttr(e.start||'')+'">'+
+          '<input type="text" data-arr="exp" data-i="'+i+'" data-k="end" placeholder="结束" value="'+escapeAttr(e.end||'')+'"><span></span></div>'+
+          '<textarea data-arr="exp" data-i="'+i+'" data-k="points" rows="2" placeholder="要点，每行一条" style="margin-top:8px">'+escapeHTML((e.points||[]).join('\n'))+'</textarea></div>';
+      }).join('');
+      // education
+      $('edu').innerHTML = state.education.map(function(e,i){
+        return '<div class="item"><div class="top"><span>教育 #'+(i+1)+'</span><button class="x" data-del="edu" data-i="'+i+'">删除</button></div>'+
+          '<div class="grid2"><input type="text" data-arr="edu" data-i="'+i+'" data-k="school" placeholder="学校" value="'+escapeAttr(e.school||'')+'">'+
+          '<input type="text" data-arr="edu" data-i="'+i+'" data-k="degree" placeholder="学位" value="'+escapeAttr(e.degree||'')+'"></div>'+
+          '<div class="grid3" style="margin-top:8px"><input type="text" data-arr="edu" data-i="'+i+'" data-k="start" placeholder="起始" value="'+escapeAttr(e.start||'')+'">'+
+          '<input type="text" data-arr="edu" data-i="'+i+'" data-k="end" placeholder="结束" value="'+escapeAttr(e.end||'')+'"><span></span></div></div>';
+      }).join('');
+      // projects
+      $('proj').innerHTML = state.projects.map(function(p,i){
+        return '<div class="item"><div class="top"><span>项目 #'+(i+1)+'</span><button class="x" data-del="proj" data-i="'+i+'">删除</button></div>'+
+          '<input type="text" data-arr="proj" data-i="'+i+'" data-k="name" placeholder="名称" value="'+escapeAttr(p.name||'')+'" style="margin-bottom:8px">'+
+          '<input type="text" data-arr="proj" data-i="'+i+'" data-k="link" placeholder="链接" value="'+escapeAttr(p.link||'')+'" style="margin-bottom:8px">'+
+          '<textarea data-arr="proj" data-i="'+i+'" data-k="desc" rows="2" placeholder="描述">'+escapeHTML(p.desc||'')+'</textarea></div>';
+      }).join('');
+      // links
+      $('links').innerHTML = state.links.map(function(l,i){
+        return '<div class="item"><div class="top"><span>链接 #'+(i+1)+'</span><button class="x" data-del="links" data-i="'+i+'">删除</button></div>'+
+          '<div class="grid2"><input type="text" data-arr="links" data-i="'+i+'" data-k="label" placeholder="标签" value="'+escapeAttr(l.label||'')+'">'+
+          '<input type="text" data-arr="links" data-i="'+i+'" data-k="url" placeholder="URL" value="'+escapeAttr(l.url||'')+'"></div></div>';
+      }).join('');
+      // static
+      $('f-name').value = state.name||'';
+      $('f-title').value = state.title||'';
+      $('f-summary').value = state.summary||'';
+      $('f-skills').value = (state.skills||[]).join(', ');
+    }
+
+    function renderPreview(){
+      $('cv').innerHTML = window.CVForgePure.renderCV(state);
+      var pct = window.CVForgePure.completeness(state);
+      $('meter').style.width = pct+'%';
+      $('meterVal').textContent = pct+'%';
+    }
+    function setTpl(t){ tpl=t; $('cv').className='cv '+t; document.querySelectorAll('.tpls button').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tpl')===t); }); }
+
+    // 输入委托
+    document.addEventListener('input', function(e){
+      var el = e.target; var arr = el.getAttribute && el.getAttribute('data-arr'); if(!arr) return;
+      var val = el.value;
+      if(arr==='__root'){ var k=el.getAttribute('data-k'); if(k==='__csv'){ state.skills = val.split(',').map(function(s){return s.trim();}).filter(Boolean); } else { state[k]=val; } }
+      else { var i=+el.getAttribute('data-i'), k=el.getAttribute('data-k');
+        if(k==='points'){ state.experience[i].points = val.split('\n').map(function(s){return s.trim();}).filter(Boolean); }
+        else if(state[arr] && state[arr][i]){ state[arr][i][k]=val; } }
+      renderPreview(); save();
+    });
+
+    // 删除委托
+    document.addEventListener('click', function(e){
+      var b = e.target; if(!(b.getAttribute && b.getAttribute('data-del'))) return;
+      var arr = b.getAttribute('data-del'), i = +b.getAttribute('data-i');
+      if(state[arr]) { state[arr].splice(i,1); renderForm(); renderPreview(); save(); }
+    });
+
+    $('add-contact').addEventListener('click', function(){ state.contacts.push({label:'',value:''}); renderForm(); renderPreview(); save(); });
+    $('add-exp').addEventListener('click', function(){ state.experience.push({role:'',org:'',start:'',end:'',points:[]}); renderForm(); renderPreview(); save(); });
+    $('add-edu').addEventListener('click', function(){ state.education.push({school:'',degree:'',start:'',end:''}); renderForm(); renderPreview(); save(); });
+    $('add-proj').addEventListener('click', function(){ state.projects.push({name:'',link:'',desc:''}); renderForm(); renderPreview(); save(); });
+    $('add-link').addEventListener('click', function(){ state.links.push({label:'',url:''}); renderForm(); renderPreview(); save(); });
+
+    document.querySelectorAll('.tpls button').forEach(function(b){ b.addEventListener('click', function(){ setTpl(b.getAttribute('data-tpl')); }); });
+
+    $('btnPrint').addEventListener('click', function(){ window.print(); });
+    $('btnExport').addEventListener('click', function(){
+      var blob=new Blob([window.CVForgePure.toJSON(state)],{type:'application/json'});
+      var u=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=u; a.download=window.CVForgePure.slugify(state.name)+'.json'; a.click(); setTimeout(function(){URL.revokeObjectURL(u);},1000);
+    });
+    $('btnImport').addEventListener('click', function(){ $('fileIn').click(); });
+    $('fileIn').addEventListener('change', function(){
+      var f=this.files[0]; if(!f) return; var r=new FileReader();
+      r.onload=function(){ try{ state=window.CVForgePure.fromJSON(String(r.result)); renderForm(); renderPreview(); save(); }catch(err){ alert('JSON 解析失败'); } };
+      r.readAsText(f); this.value='';
+    });
+    $('btnReset').addEventListener('click', function(){ state=defaultData(); renderForm(); renderPreview(); save(); });
+
+    renderForm(); renderPreview(); setTpl(tpl);
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

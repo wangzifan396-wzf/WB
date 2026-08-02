@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>OpenapiForge — OpenAPI 规范体检：内置 YAML 解析、A–F 评分与 curl 命令生成。</title>
+<meta property="og:title" content="OpenapiForge">
+<meta property="og:description" content="OpenAPI 文档解析、lint 评分与 curl 生成，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="OpenAPI 文档解析、lint 评分与 curl 生成，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>OpenapiForge</h1>
+  <p class="sub">OpenAPI 工具：不依赖第三方库的 YAML/JSON 解析、operationId 重复与路径参数未声明检测、响应覆盖率与 A–F 评分、逐接口 curl 命令导出 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="ospec">OpenAPI 文档（YAML 或 JSON）</label>
+  <textarea id="ospec" rows="14">openapi: 3.0.3
+info:
+  title: Orders API
+  version: 1.2.0
+servers:
+  - url: https://api.example.com/v1
+paths:
+  /orders:
+    get:
+      operationId: listOrders
+      summary: 列出订单
+      tags: [orders]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+    post:
+      summary: 创建订单
+      tags: [orders]
+      responses:
+        '201':
+          description: Created
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      responses:
+        '200':
+          description: OK
+</textarea>
+  <div class="row">
+    <button id="oparse">解析并体检</button>
+    <button id="ocurl" class="ghost">生成全部 curl</button>
+  </div>
+  <div class="err" id="oerr"></div>
+  <div class="out" id="oout"></div>
+  <div class="out" id="olist"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function ymlLines(text){
+  var raw = String(text == null ? '' : text).split(/\r?\n/), out = [];
+  for (var i = 0; i < raw.length; i++){
+    var l = raw[i];
+    if (!l.trim()) continue;
+    var inS = false, inD = false, cut = -1;
+    for (var j = 0; j < l.length; j++){
+      var ch = l.charAt(j);
+      if (ch === "'" && !inD) inS = !inS;
+      else if (ch === '"' && !inS) inD = !inD;
+      else if (ch === '#' && !inS && !inD && (j === 0 || /\s/.test(l.charAt(j - 1)))){ cut = j; break; }
+    }
+    if (cut >= 0) l = l.slice(0, cut);
+    if (!l.trim()) continue;
+    if (/^\s*---\s*$/.test(l)) continue;
+    out.push({ indent: l.length - l.replace(/^\s+/, '').length, text: l.trim(), line: i + 1 });
+  }
+  return out;
+}
+
+function ymlUnquote(s){
+  var t = String(s).trim();
+  if (/^'([\s\S]*)'$/.test(t)) return t.slice(1, -1).replace(/''/g, "'");
+  if (/^"([\s\S]*)"$/.test(t)) return t.slice(1, -1).replace(/\\"/g, '"').replace(/\\n/g, '\n');
+  return t;
+}
+
+function ymlScalar(s){
+  var t = String(s).trim();
+  if (t === '' || t === 'null' || t === '~') return null;
+  if (t === 'true') return true;
+  if (t === 'false') return false;
+  if (/^-?\d+$/.test(t)) return parseInt(t, 10);
+  if (/^-?\d*\.\d+$/.test(t)) return parseFloat(t);
+  if (/^\[[\s\S]*\]$/.test(t)){
+    var inner = t.slice(1, -1).trim();
+    if (!inner) return [];
+    return inner.split(',').map(function(x){ return ymlScalar(x); });
+  }
+  if (/^\{[\s\S]*\}$/.test(t)){
+    var body = t.slice(1, -1).trim();
+    if (!body) return {};
+    var o = {};
+    body.split(',').forEach(function(pair){
+      var k = splitKV(pair.trim());
+      if (k) o[k.key] = ymlScalar(k.val);
+    });
+    return o;
+  }
+  return ymlUnquote(t);
+}
+
+function splitKV(s){
+  var inS = false, inD = false;
+  for (var j = 0; j < s.length; j++){
+    var ch = s.charAt(j);
+    if (ch === "'" && !inD) inS = !inS;
+    else if (ch === '"' && !inS) inD = !inD;
+    else if (ch === ':' && !inS && !inD){
+      if (j === s.length - 1) return { key: ymlUnquote(s.slice(0, j)), val: '' };
+      if (s.charAt(j + 1) === ' ') return { key: ymlUnquote(s.slice(0, j)), val: s.slice(j + 1).trim() };
+    }
+  }
+  return null;
+}
+
+function isDash(t){ return t.charAt(0) === '-' && (t.length === 1 || t.charAt(1) === ' '); }
+
+function ymlBlock(lines, i, indent){
+  if (i < lines.length && lines[i].indent === indent && isDash(lines[i].text)){
+    var arr = [];
+    while (i < lines.length && lines[i].indent === indent && isDash(lines[i].text)){
+      var rest = lines[i].text.slice(1).trim(), childIndent = indent + 2;
+      if (rest === ''){
+        if (i + 1 < lines.length && lines[i + 1].indent > indent){ var r = ymlBlock(lines, i + 1, lines[i + 1].indent); arr.push(r.value); i = r.next; }
+        else { arr.push(null); i++; }
+        continue;
+      }
+      var kv = splitKV(rest);
+      if (!kv){ arr.push(ymlScalar(rest)); i++; continue; }
+      var map = {};
+      childIndent = lines[i].indent + 2;
+      i = absorbPair(lines, i, kv, map, childIndent, true);
+      while (i < lines.length && lines[i].indent === childIndent && !isDash(lines[i].text)){
+        var kv2 = splitKV(lines[i].text);
+        if (!kv2) break;
+        i = absorbPair(lines, i, kv2, map, childIndent, false);
+      }
+      arr.push(map);
+    }
+    return { value: arr, next: i };
+  }
+  var obj = {};
+  while (i < lines.length && lines[i].indent === indent && !isDash(lines[i].text)){
+    var k = splitKV(lines[i].text);
+    if (!k){ i++; continue; }
+    i = absorbPair(lines, i, k, obj, indent, false);
+  }
+  return { value: obj, next: i };
+}
+
+function absorbPair(lines, i, kv, target, indent, fromDash){
+  if (kv.val !== ''){ target[kv.key] = ymlScalar(kv.val); return i + 1; }
+  i++;
+  if (i < lines.length){
+    if (lines[i].indent > indent){ var r = ymlBlock(lines, i, lines[i].indent); target[kv.key] = r.value; return r.next; }
+    if (lines[i].indent === indent && isDash(lines[i].text)){ var r2 = ymlBlock(lines, i, indent); target[kv.key] = r2.value; return r2.next; }
+  }
+  target[kv.key] = {};
+  return i;
+}
+
+function parseYaml(text){
+  var lines = ymlLines(text);
+  if (!lines.length) return { value: null, error: 'YAML 为空' };
+  try {
+    var r = ymlBlock(lines, 0, lines[0].indent);
+    return { value: r.value, error: null };
+  } catch (e){ return { value: null, error: 'YAML 解析失败：' + e.message }; }
+}
+
+function parseSpec(text){
+  var t = String(text == null ? '' : text).trim();
+  if (!t) return { spec: null, format: '', error: '输入为空' };
+  if (t.charAt(0) === '{'){
+    try { return { spec: JSON.parse(t), format: 'json', error: null }; }
+    catch (e){ return { spec: null, format: 'json', error: 'JSON 解析失败：' + e.message }; }
+  }
+  var y = parseYaml(t);
+  if (y.error) return { spec: null, format: 'yaml', error: y.error };
+  if (!y.value || typeof y.value !== 'object') return { spec: null, format: 'yaml', error: 'YAML 顶层不是映射' };
+  return { spec: y.value, format: 'yaml', error: null };
+}
+
+var OA_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace'];
+
+function specInfo(spec){
+  spec = spec || {};
+  var info = spec.info || {};
+  var servers = spec.servers || [];
+  var paths = spec.paths || {};
+  var pathCount = 0;
+  for (var k in paths) if (Object.prototype.hasOwnProperty.call(paths, k)) pathCount++;
+  var comps = (spec.components && spec.components.schemas) || {};
+  var schemaCount = 0;
+  for (var s in comps) if (Object.prototype.hasOwnProperty.call(comps, s)) schemaCount++;
+  return {
+    version: spec.openapi || spec.swagger || '',
+    title: info.title || '',
+    apiVersion: info.version || '',
+    description: info.description || '',
+    servers: Array.isArray(servers) ? servers.length : 0,
+    baseUrl: (Array.isArray(servers) && servers[0] && servers[0].url) ? servers[0].url : '',
+    paths: pathCount,
+    schemas: schemaCount
+  };
+}
+
+function pathParams(p){
+  var out = [], re = /\{([^}]+)\}/g, m;
+  while ((m = re.exec(String(p))) !== null) out.push(m[1]);
+  return out;
+}
+
+function listOperations(spec){
+  var out = [], paths = (spec && spec.paths) || {};
+  for (var p in paths){
+    if (!Object.prototype.hasOwnProperty.call(paths, p)) continue;
+    var item = paths[p] || {};
+    var shared = Array.isArray(item.parameters) ? item.parameters : [];
+    for (var i = 0; i < OA_METHODS.length; i++){
+      var m = OA_METHODS[i];
+      if (!item[m]) continue;
+      var op = item[m] || {};
+      var params = shared.concat(Array.isArray(op.parameters) ? op.parameters : []);
+      var codes = [];
+      var rs = op.responses || {};
+      for (var c in rs) if (Object.prototype.hasOwnProperty.call(rs, c)) codes.push(String(c));
+      codes.sort();
+      out.push({
+        method: m.toUpperCase(), path: p,
+        operationId: op.operationId || '',
+        summary: op.summary || op.description || '',
+        tags: Array.isArray(op.tags) ? op.tags : [],
+        deprecated: op.deprecated === true,
+        params: params,
+        pathParams: pathParams(p),
+        declaredPath: params.filter(function(x){ return x && x['in'] === 'path'; }).map(function(x){ return x.name; }),
+        hasBody: !!op.requestBody,
+        security: op.security !== undefined ? op.security : (spec.security || null),
+        codes: codes
+      });
+    }
+  }
+  return out;
+}
+
+function lintSpec(spec){
+  var issues = [];
+  function add(level, where, msg){ issues.push({ level: level, where: where, msg: msg }); }
+  var info = specInfo(spec);
+  if (!info.version) add('bad', 'root', '缺少 openapi 版本字段，多数工具链会直接拒绝');
+  else if (/^2\./.test(info.version) || spec.swagger) add('warn', 'root', 'Swagger 2.0 规范，建议升级到 OpenAPI 3.x');
+  if (!info.title) add('bad', 'info', '缺少 info.title');
+  if (!info.apiVersion) add('warn', 'info', '缺少 info.version，客户端无法判断兼容性');
+  if (!info.servers) add('warn', 'servers', '未声明 servers，生成的客户端没有默认地址');
+  var ops = listOperations(spec);
+  if (!ops.length) add('bad', 'paths', '没有解析到任何操作，检查 paths 结构');
+  var ids = {};
+  for (var i = 0; i < ops.length; i++){
+    var o = ops[i], at = o.method + ' ' + o.path;
+    if (!o.operationId) add('warn', at, '缺少 operationId，代码生成器会造出难看的方法名');
+    else if (ids[o.operationId]) add('bad', at, 'operationId 重复：' + o.operationId);
+    else ids[o.operationId] = 1;
+    if (!o.summary) add('warn', at, '既无 summary 也无 description');
+    if (!o.tags.length) add('warn', at, '未打 tag，文档分组会散落');
+    for (var j = 0; j < o.pathParams.length; j++){
+      if (o.declaredPath.indexOf(o.pathParams[j]) < 0) add('bad', at, '路径参数 {' + o.pathParams[j] + '} 未在 parameters 中声明');
+    }
+    var has2xx = o.codes.some(function(c){ return /^2/.test(c); });
+    var hasErr = o.codes.some(function(c){ return /^[45]/.test(c) || c === 'default'; });
+    if (!has2xx) add('bad', at, '没有任何 2xx 响应定义');
+    if (!hasErr) add('warn', at, '没有 4xx/5xx/default 错误响应，调用方无从处理失败');
+    if ((o.method === 'POST' || o.method === 'PUT' || o.method === 'PATCH') && !o.hasBody) add('warn', at, o.method + ' 未定义 requestBody');
+    if (o.method === 'GET' && o.hasBody) add('warn', at, 'GET 定义了 requestBody，多数网关会丢弃');
+    if (/\/(get|create|update|delete|list|fetch)[A-Za-z]*(\/|$)/i.test(o.path)) add('warn', at, '路径里出现动词，REST 风格建议用名词 + HTTP 方法表达动作');
+    if (o.path.length > 1 && o.path.charAt(o.path.length - 1) === '/') add('warn', at, '路径以斜杠结尾，容易和无斜杠版本产生双份路由');
+    if (o.deprecated) add('warn', at, '已标记 deprecated，确认是否还有调用方');
+    if (!o.security && !spec.security) add('warn', at, '既无全局 security 也无操作级 security');
+  }
+  var bad = issues.filter(function(x){ return x.level === 'bad'; }).length;
+  var warn = issues.length - bad;
+  var score = Math.max(0, 100 - bad * 12 - warn * 3);
+  return { issues: issues, bad: bad, warn: warn, score: score, grade: gradeOf(score) };
+}
+
+function gradeOf(s){ return s >= 90 ? 'A' : s >= 78 ? 'B' : s >= 62 ? 'C' : s >= 45 ? 'D' : 'F'; }
+
+function coverage(spec){
+  var ops = listOperations(spec);
+  if (!ops.length) return { total: 0, opId: 0, summary: 0, errors: 0, tagged: 0 };
+  function pct(n){ return Math.round(n / ops.length * 1000) / 10; }
+  return {
+    total: ops.length,
+    opId: pct(ops.filter(function(o){ return !!o.operationId; }).length),
+    summary: pct(ops.filter(function(o){ return !!o.summary; }).length),
+    errors: pct(ops.filter(function(o){ return o.codes.some(function(c){ return /^[45]/.test(c) || c === 'default'; }); }).length),
+    tagged: pct(ops.filter(function(o){ return o.tags.length > 0; }).length)
+  };
+}
+
+function curlFor(op, baseUrl){
+  if (!op) return '';
+  var url = String(baseUrl || '') + op.path;
+  var query = [];
+  for (var i = 0; i < op.params.length; i++){
+    var p = op.params[i];
+    if (!p) continue;
+    if (p['in'] === 'path') url = url.replace('{' + p.name + '}', '<' + p.name + '>');
+    else if (p['in'] === 'query' && p.required) query.push(p.name + '=<' + p.name + '>');
+  }
+  if (query.length) url += '?' + query.join('&');
+  var lines = ["curl -sS -X " + op.method + " '" + url + "' \\"];
+  for (var j = 0; j < op.params.length; j++){
+    var h = op.params[j];
+    if (h && h['in'] === 'header') lines.push("  -H '" + h.name + ": <" + h.name + ">' \\");
+  }
+  if (op.hasBody){
+    lines.push("  -H 'Content-Type: application/json' \\");
+    lines.push("  --data-raw '{}'");
+  } else {
+    lines[lines.length - 1] = lines[lines.length - 1].replace(/ \\$/, '');
+  }
+  return lines.join('\n');
+}
+
+function tagSummary(spec){
+  var ops = listOperations(spec), map = {};
+  for (var i = 0; i < ops.length; i++){
+    var ts = ops[i].tags.length ? ops[i].tags : ['(未分组)'];
+    for (var j = 0; j < ts.length; j++) map[ts[j]] = (map[ts[j]] || 0) + 1;
+  }
+  var out = [];
+  for (var k in map) if (Object.prototype.hasOwnProperty.call(map, k)) out.push({ tag: k, count: map[k] });
+  out.sort(function(a, b){ return b.count - a.count || (a.tag < b.tag ? -1 : 1); });
+  return out;
+}
+
+var OpenapiForgePure = {
+  parseYaml: parseYaml, parseSpec: parseSpec, specInfo: specInfo, listOperations: listOperations,
+  lintSpec: lintSpec, coverage: coverage, curlFor: curlFor, tagSummary: tagSummary,
+  pathParams: pathParams, splitKV: splitKV, ymlScalar: ymlScalar, gradeOf: gradeOf, METHODS: OA_METHODS
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = OpenapiForgePure;
+if (typeof window !== 'undefined') window.OpenapiForgePure = OpenapiForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.OpenapiForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  var MC = { GET:'var(--info)', POST:'var(--ok)', PUT:'var(--warn)', PATCH:'var(--warn)', DELETE:'#EF4444' };
+
+  function current(){ return P.parseSpec($('ospec').value); }
+
+  function run(){
+    var r = current();
+    if (r.error){ $('oerr').textContent = r.error; $('oout').innerHTML = ''; $('olist').innerHTML = ''; return; }
+    $('oerr').textContent = '';
+    var info = P.specInfo(r.spec), lint = P.lintSpec(r.spec), cov = P.coverage(r.spec), tags = P.tagSummary(r.spec);
+    var html = '<div class="kv"><b>标题 / 版本</b><span>' + esc(info.title || '(缺失)') + ' · ' + esc(info.apiVersion || '-') + '</span></div>' +
+      '<div class="kv"><b>规范版本 / 格式</b><span>' + esc(info.version || '(缺失)') + ' · ' + r.format.toUpperCase() + '</span></div>' +
+      '<div class="kv"><b>路径 / 操作 / 模型</b><span>' + info.paths + ' / ' + cov.total + ' / ' + info.schemas + '</span></div>' +
+      '<div class="kv"><b>规范评分</b><span style="color:' + (lint.score >= 78 ? 'var(--ok)' : lint.score >= 45 ? 'var(--warn)' : '#EF4444') + '">' + lint.score + ' 分 · ' + lint.grade + ' 级（' + lint.bad + ' 严重 / ' + lint.warn + ' 提示）</span></div>' +
+      '<div class="kv"><b>覆盖率</b><span>operationId ' + cov.opId + '% · 描述 ' + cov.summary + '% · 错误码 ' + cov.errors + '% · 标签 ' + cov.tagged + '%</span></div>';
+    if (tags.length){
+      html += '<div style="margin-top:10px">';
+      for (var t = 0; t < tags.length; t++) html += '<span class="badge">' + esc(tags[t].tag) + ' × ' + tags[t].count + '</span> ';
+      html += '</div>';
+    }
+    for (var i = 0; i < lint.issues.length && i < 40; i++){
+      var it = lint.issues[i];
+      html += '<div style="font-size:13px;margin-top:6px;color:' + (it.level === 'bad' ? 'var(--warn)' : 'var(--muted)') + '">• <code>' + esc(it.where) + '</code> ' + esc(it.msg) + '</div>';
+    }
+    if (lint.issues.length > 40) html += '<div style="color:var(--dim);font-size:12px;margin-top:6px">… 另有 ' + (lint.issues.length - 40) + ' 条</div>';
+    $('oout').innerHTML = html;
+
+    var ops = P.listOperations(r.spec), lh = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    lh += '<tr style="color:var(--muted)"><th style="text-align:left;padding:4px 0">方法</th><th style="text-align:left">路径</th><th style="text-align:left">operationId</th><th style="text-align:right">响应</th></tr>';
+    for (var k = 0; k < ops.length; k++){
+      var o = ops[k];
+      lh += '<tr><td style="padding:3px 0;color:' + (MC[o.method] || 'var(--muted)') + '">' + o.method + '</td><td><code>' + esc(o.path) + '</code></td><td style="color:var(--muted)">' + esc(o.operationId || '—') + '</td><td style="text-align:right;color:var(--dim)">' + esc(o.codes.join(' ') || '—') + '</td></tr>';
+    }
+    $('olist').innerHTML = lh + '</table>';
+  }
+
+  function curls(){
+    var r = current();
+    if (r.error){ $('oerr').textContent = r.error; return; }
+    var info = P.specInfo(r.spec), ops = P.listOperations(r.spec), out = [];
+    for (var i = 0; i < ops.length; i++) out.push(P.curlFor(ops[i], info.baseUrl));
+    $('olist').innerHTML = '<pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">' + esc(out.join('\n\n')) + '</pre>';
+  }
+
+  $('oparse').addEventListener('click', run);
+  $('ocurl').addEventListener('click', curls);
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

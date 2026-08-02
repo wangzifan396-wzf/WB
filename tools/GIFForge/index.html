@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIFForge — 离线 GIF 动画制作器 · 单文件零依赖</title>
+<meta name="description" content="单文件、零依赖、完全离线的 GIF 动画制作器：拖入图片或雪碧图，排帧、调延时、设循环，纯 JS GIF89a 编码导出。数据不出浏览器。">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="GIFForge — 离线 GIF 动画制作器">
+<meta property="og:description" content="拖入图片或雪碧图，排帧调延时，纯 JS GIF89a 编码导出。单文件、零依赖、离线优先。">
+<meta property="og:image" content="og.svg">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --panel:#1A1B1E;
+  --text:#FFFFFF; --text2:#A1A1AA; --text3:#71717A;
+  --border:rgba(255,255,255,.08); --border-strong:rgba(255,255,255,.14);
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA;
+  --radius:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:14px; line-height:1.5; overflow:hidden;
+}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select{font-family:inherit;color:var(--text);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+input[type=range]{padding:0;border:none;background:transparent;accent-color:var(--accent)}
+input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px}
+
+.app{display:flex;flex-direction:column;height:100vh}
+header{
+  display:flex;align-items:center;gap:12px;padding:0 16px;height:52px;flex:none;
+  border-bottom:1px solid var(--border);background:var(--card);
+}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;letter-spacing:.2px}
+.logo svg{flex:none}
+.logo .tag{font-size:11px;font-weight:600;color:var(--purple);border:1px solid rgba(167,139,250,.35);border-radius:99px;padding:1px 8px}
+.spacer{flex:1}
+.hbtn{
+  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:7px;
+  border:1px solid var(--border);color:var(--text2);font-size:12.5px;font-weight:500;background:var(--panel);
+}
+.hbtn:hover{color:var(--text);border-color:var(--border-strong)}
+.hbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.hbtn.primary:hover{filter:brightness(1.1)}
+.hbtn.primary:disabled{opacity:.45;cursor:not-allowed;filter:none}
+
+main{display:flex;flex:1;min-height:0}
+.panel{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.panel h2{
+  font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;
+  padding:12px 14px 8px;flex:none;
+}
+.frames-panel{width:216px;flex:none}
+.frames-list{flex:1;overflow-y:auto;padding:0 10px 10px;display:flex;flex-direction:column;gap:8px}
+.frame-item{
+  position:relative;border:1px solid var(--border);border-radius:8px;background:var(--panel);
+  padding:8px;display:flex;gap:9px;align-items:center;cursor:grab;
+}
+.frame-item.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.frame-item.dragover{border-color:var(--info)}
+.frame-thumb{
+  width:52px;height:52px;flex:none;border-radius:5px;border:1px solid var(--border);
+  background:
+    linear-gradient(45deg,#232326 25%,transparent 25%,transparent 75%,#232326 75%),
+    linear-gradient(45deg,#232326 25%,transparent 25%,transparent 75%,#232326 75%);
+  background-size:12px 12px;background-position:0 0,6px 6px;background-color:#1c1c20;
+  image-rendering:pixelated;object-fit:contain;
+}
+.frame-meta{flex:1;min-width:0}
+.frame-meta .idx{font-size:12px;font-weight:600;color:var(--text2)}
+.frame-meta .dly{display:flex;align-items:center;gap:4px;margin-top:4px}
+.frame-meta .dly input{width:52px;padding:2px 5px;font-size:12px}
+.frame-meta .dly span{font-size:11px;color:var(--text3)}
+.frame-x{
+  position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:5px;line-height:1;
+  color:var(--text3);font-size:13px;display:flex;align-items:center;justify-content:center;
+}
+.frame-x:hover{color:#F87171;background:rgba(248,113,113,.12)}
+.frames-actions{flex:none;padding:10px;border-top:1px solid var(--border);display:flex;gap:6px}
+.frames-actions .hbtn{flex:1;justify-content:center;padding:0 4px}
+
+.stage{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:22px;position:relative}
+#previewCanvas{
+  max-width:100%;max-height:100%;border:1px solid var(--border-strong);border-radius:6px;
+  background:
+    linear-gradient(45deg,#1b1b1f 25%,transparent 25%,transparent 75%,#1b1b1f 75%),
+    linear-gradient(45deg,#1b1b1f 25%,transparent 25%,transparent 75%,#1b1b1f 75%);
+  background-size:16px 16px;background-position:0 0,8px 8px;background-color:#121215;
+  image-rendering:auto;
+}
+.empty-hint{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  color:var(--text3);pointer-events:none;text-align:center;padding:20px;
+}
+.empty-hint svg{opacity:.5}
+.empty-hint b{color:var(--text2);font-size:15px;font-weight:600}
+.empty-hint span{font-size:12.5px;max-width:340px}
+.transport{
+  flex:none;display:flex;align-items:center;gap:10px;justify-content:center;
+  padding:10px 16px;border-top:1px solid var(--border);background:var(--card);
+}
+.tbtn{
+  width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel);
+  display:inline-flex;align-items:center;justify-content:center;color:var(--text2);
+}
+.tbtn:hover{color:var(--text);border-color:var(--border-strong)}
+.tbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.transport .pos{font-size:12px;color:var(--text3);min-width:74px;text-align:center;font-variant-numeric:tabular-nums}
+
+.settings{width:248px;flex:none;border-right:none;border-left:1px solid var(--border);overflow-y:auto}
+.set-group{padding:4px 14px 14px;border-bottom:1px solid var(--border)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px}
+.row label{font-size:12.5px;color:var(--text2);flex:none}
+.row .val{font-size:12px;color:var(--text3);font-variant-numeric:tabular-nums}
+.row input[type=number]{width:74px}
+.row select{width:118px}
+.row input[type=range]{flex:1;min-width:0}
+.stat{display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-top:7px}
+.stat b{color:var(--text2);font-weight:600;font-variant-numeric:tabular-nums}
+.export-box{padding:14px}
+.export-box .hbtn{width:100%;justify-content:center;height:36px;font-size:13px}
+.export-note{font-size:11.5px;color:var(--text3);margin-top:9px;text-align:center}
+#exportStatus{font-size:12px;margin-top:9px;text-align:center;min-height:18px}
+#exportStatus.ok{color:var(--ok)} #exportStatus.err{color:#F87171}
+
+.dropzone{
+  position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+  background:rgba(10,10,11,.82);backdrop-filter:blur(2px);
+}
+.dropzone.show{display:flex}
+.dropzone .inner{
+  border:2px dashed var(--accent);border-radius:16px;padding:44px 64px;text-align:center;
+  color:var(--text);font-size:16px;font-weight:600;background:var(--card);
+}
+.dropzone .inner small{display:block;margin-top:8px;color:var(--text2);font-weight:400;font-size:12.5px}
+
+dialog{
+  background:var(--card);color:var(--text);border:1px solid var(--border-strong);border-radius:12px;
+  padding:0;width:min(420px,92vw);
+}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog .dhead{padding:14px 18px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px}
+dialog .dbody{padding:14px 18px}
+dialog .dfoot{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+#sheetPreview{width:100%;border:1px solid var(--border);border-radius:6px;margin-top:10px;image-rendering:pixelated;background:#121215}
+
+footer{
+  flex:none;display:flex;align-items:center;justify-content:center;gap:8px;
+  height:30px;border-top:1px solid var(--border);background:var(--card);
+  font-size:11.5px;color:var(--text3);
+}
+footer a{color:var(--text3);text-decoration:none}
+footer a:hover{color:var(--text2)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:5px;border:2px solid var(--card)}
+::-webkit-scrollbar-track{background:transparent}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:860px){.settings{width:210px}.frames-panel{width:180px}}
+</style>
+<meta name="theme-color" content="#5E6AD2">
+<style>.nt-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+</head>
+<body>
+<h1 class="nt-sr-only">GIFForge — 离线 GIF 动画制作器 · 单文件零依赖</h1>
+<div class="app">
+  <header>
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#141417" stroke="rgba(255,255,255,.14)"/><rect x="12" y="20" width="12" height="24" rx="3" fill="#5E6AD2"/><rect x="26" y="14" width="12" height="30" rx="3" fill="#A78BFA"/><rect x="40" y="26" width="12" height="18" rx="3" fill="#22D3EE"/><rect x="12" y="48" width="40" height="4" rx="2" fill="#10B981"/></svg>
+      <span data-i18n="title">GIFForge</span>
+      <span class="tag" data-i18n="tag">GIF 制作器</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="hbtn" id="btnImport" data-i18n="import">导入图片</button>
+    <button class="hbtn" id="btnSheet" data-i18n="sheet">雪碧图切片</button>
+    <button class="hbtn" id="btnLang">EN</button>
+    <input type="file" id="fileInput" accept="image/*" multiple hidden>
+    <input type="file" id="sheetInput" accept="image/*" hidden>
+  </header>
+  <main>
+    <div class="panel frames-panel">
+      <h2 data-i18n="frames">帧序列</h2>
+      <div class="frames-list" id="frames"></div>
+      <div class="frames-actions">
+        <button class="hbtn" id="btnDup" data-i18n="dup">复制帧</button>
+        <button class="hbtn" id="btnClear" data-i18n="clear">清空</button>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="canvas-wrap">
+        <canvas id="previewCanvas" width="320" height="240"></canvas>
+        <div class="empty-hint" id="emptyHint">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#71717A" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="9" cy="8" r="1.6"/></svg>
+          <b data-i18n="emptyTitle">拖入图片开始制作 GIF</b>
+          <span data-i18n="emptyDesc">支持多选图片、粘贴、或用「雪碧图切片」把精灵图拆成帧。全部处理都在本地完成，数据不出浏览器。</span>
+        </div>
+      </div>
+      <div class="transport">
+        <button class="tbtn" id="btnPrev" title="上一帧"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 20L9 12l10-8v16zM5 4v16"/></svg></button>
+        <button class="tbtn" id="btnPlay" title="播放/暂停"><svg id="icoPlay" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4l14 8-14 8z"/></svg><svg id="icoPause" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></button>
+        <button class="tbtn" id="btnNext" title="下一帧"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4l10 8-10 8V4zM19 4v16"/></svg></button>
+        <span class="pos" id="posLabel">0 / 0</span>
+      </div>
+    </div>
+    <div class="panel settings">
+      <h2 data-i18n="settings">导出设置</h2>
+      <div class="set-group">
+        <div class="row"><label data-i18n="maxSize">最长边</label><select id="selSize">
+          <option value="0" data-i18n="orig">原始尺寸</option>
+          <option value="128">128 px</option><option value="256">256 px</option>
+          <option value="320" selected>320 px</option><option value="480">480 px</option>
+          <option value="640">640 px</option>
+        </select></div>
+        <div class="row"><label data-i18n="colors">调色板</label><select id="selColors">
+          <option value="256" selected data-i18n="c256">256 色</option>
+          <option value="128" data-i18n="c128">128 色</option>
+          <option value="64" data-i18n="c64">64 色</option>
+          <option value="32" data-i18n="c32">32 色</option>
+        </select></div>
+        <div class="row"><label data-i18n="gDelay">统一延时</label><input type="number" id="inpDelay" min="20" max="5000" step="10" value="100"><span class="val">ms</span></div>
+        <div class="row"><label data-i18n="applyAll"></label><button class="hbtn" id="btnApplyDelay" data-i18n="applyBtn">应用到全部帧</button></div>
+        <div class="row"><label data-i18n="loop">循环播放</label><input type="checkbox" id="chkLoop" checked></div>
+        <div class="row"><label data-i18n="dither">有序抖动</label><input type="checkbox" id="chkDither"></div>
+      </div>
+      <h2 data-i18n="summary">概览</h2>
+      <div class="set-group" style="border-bottom:none;padding-top:0">
+        <div class="stat"><span data-i18n="stFrames">帧数</span><b id="stFrames">0</b></div>
+        <div class="stat"><span data-i18n="stSize">输出尺寸</span><b id="stSize">—</b></div>
+        <div class="stat"><span data-i18n="stDur">总时长</span><b id="stDur">—</b></div>
+      </div>
+      <div class="export-box">
+        <button class="hbtn primary" id="btnExport" disabled data-i18n="export">导出 GIF</button>
+        <div id="exportStatus"></div>
+        <div class="export-note" data-i18n="note">纯 JS GIF89a 编码 · 数据不出浏览器</div>
+      </div>
+    </div>
+  </main>
+  <footer>
+    <span>GIFForge · <span data-i18n="fLocal">单文件 · 零依赖 · 离线优先</span></span>
+    <span>·</span>
+    <a href="https://github.com/wangzifan396-wzf/WB/tree/main/tools/GIFForge" target="_blank" rel="noopener">GitHub</a>
+    <span>·</span>
+    <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener">nano-tools</a>
+  </footer>
+</div>
+
+<div class="dropzone" id="dropzone"><div class="inner"><span data-i18n="dropTitle">松手导入图片帧</span><small data-i18n="dropDesc">支持 PNG / JPG / WebP，多张按文件名排序</small></div></div>
+
+<dialog id="dlgSheet">
+  <div class="dhead" data-i18n="sheetTitle">雪碧图切片</div>
+  <div class="dbody">
+    <div class="row" style="margin-top:0"><label data-i18n="cols">列数</label><input type="number" id="inpCols" min="1" max="64" value="4" style="width:74px"></div>
+    <div class="row"><label data-i18n="rows">行数</label><input type="number" id="inpRows" min="1" max="64" value="1" style="width:74px"></div>
+    <div class="row"><label data-i18n="cellInfo">单帧尺寸</label><span class="val" id="cellInfo">—</span></div>
+    <canvas id="sheetPreview" width="380" height="120"></canvas>
+  </div>
+  <div class="dfoot">
+    <button class="hbtn" id="btnSheetCancel" data-i18n="cancel">取消</button>
+    <button class="hbtn primary" id="btnSheetOk" data-i18n="slice">切片导入</button>
+  </div>
+</dialog>
+<script>
+'use strict';
+/* =====================================================================
+   GIFForge pure-function kernel — GIF89a encoder (LZW + median-cut)
+   All functions below are side-effect free and Node-testable.
+   ===================================================================== */
+
+function gfU16le(n){ n = Math.max(0, Math.min(65535, n|0)); return [n & 255, (n >> 8) & 255]; }
+
+function gfDelayCs(ms){
+  var cs = Math.round((+ms || 0) / 10);
+  if (cs < 2) cs = 2;
+  if (cs > 65535) cs = 65535;
+  return cs;
+}
+
+function gfFit(w, h, maxSide){
+  w = Math.max(1, w|0); h = Math.max(1, h|0);
+  if (!maxSide || (w <= maxSide && h <= maxSide)) return { w: w, h: h, scale: 1 };
+  var s = maxSide / Math.max(w, h);
+  return { w: Math.max(1, Math.round(w * s)), h: Math.max(1, Math.round(h * s)), scale: s };
+}
+
+function gfSliceSheet(sheetW, sheetH, cols, rows){
+  cols = Math.max(1, cols|0); rows = Math.max(1, rows|0);
+  var cw = Math.floor(sheetW / cols), ch = Math.floor(sheetH / rows);
+  if (cw < 1 || ch < 1) return [];
+  var rects = [];
+  for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++)
+    rects.push({ x: c * cw, y: r * ch, w: cw, h: ch });
+  return rects;
+}
+
+function gfChunkBytes(bytes){
+  var out = [];
+  for (var i = 0; i < bytes.length; i += 255){
+    var n = Math.min(255, bytes.length - i);
+    out.push(n);
+    for (var j = 0; j < n; j++) out.push(bytes[i + j]);
+  }
+  out.push(0);
+  return out;
+}
+
+function gfPaletteBits(len){
+  var bits = 0;
+  while ((1 << (bits + 1)) < Math.max(2, len) && bits < 7) bits++;
+  return bits; /* GCT entry count = 2^(bits+1) */
+}
+
+function gfQuantize(pixels, maxColors){
+  maxColors = Math.max(2, Math.min(256, maxColors | 0));
+  if (!pixels.length) return [[0, 0, 0], [255, 255, 255]];
+  var seen = Object.create(null), uniq = [];
+  for (var i = 0; i < pixels.length; i++){
+    var p = pixels[i], k = (p[0] << 16) | (p[1] << 8) | p[2];
+    if (seen[k] === undefined){ seen[k] = 1; uniq.push(p); }
+  }
+  if (uniq.length <= maxColors) return uniq.map(function(q){ return [q[0], q[1], q[2]]; });
+  var boxes = [uniq];
+  while (boxes.length < maxColors){
+    var bi = -1, bch = 0, brange = -1;
+    for (var b = 0; b < boxes.length; b++){
+      var box = boxes[b];
+      if (box.length < 2) continue;
+      for (var ch = 0; ch < 3; ch++){
+        var mn = 255, mx = 0;
+        for (var j = 0; j < box.length; j++){ var v = box[j][ch]; if (v < mn) mn = v; if (v > mx) mx = v; }
+        if (mx - mn > brange){ brange = mx - mn; bi = b; bch = ch; }
+      }
+    }
+    if (bi < 0 || brange <= 0) break;
+    var target = boxes[bi], chn = bch;
+    target.sort(function(a, c){ return a[chn] - c[chn]; });
+    var mid = target.length >> 1;
+    boxes.splice(bi, 1, target.slice(0, mid), target.slice(mid));
+  }
+  return boxes.map(function(box){
+    var r = 0, g = 0, bl = 0, n = box.length || 1;
+    for (var j = 0; j < box.length; j++){ r += box[j][0]; g += box[j][1]; bl += box[j][2]; }
+    return [Math.round(r / n), Math.round(g / n), Math.round(bl / n)];
+  });
+}
+
+function gfNearest(palette, r, g, b){
+  var best = 0, bd = Infinity;
+  for (var i = 0; i < palette.length; i++){
+    var p = palette[i];
+    var dr = r - p[0], dg = g - p[1], db = b - p[2];
+    var d = dr * dr + dg * dg + db * db;
+    if (d < bd){ bd = d; best = i; }
+  }
+  return best;
+}
+
+var GF_BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+function gfBayer(x, y){ return GF_BAYER4[((y & 3) << 2) | (x & 3)] / 16 - 0.5; }
+
+function gfIndexFrame(rgba, w, h, palette, opts){
+  opts = opts || {};
+  var tIdx = (opts.transparentIndex === undefined) ? -1 : opts.transparentIndex;
+  var dither = !!opts.dither, strength = 24;
+  var out = new Array(w * h);
+  var cache = Object.create(null);
+  for (var y = 0; y < h; y++){
+    for (var x = 0; x < w; x++){
+      var i = y * w + x, o = i * 4;
+      if (tIdx >= 0 && rgba[o + 3] < 128){ out[i] = tIdx; continue; }
+      var r = rgba[o], g = rgba[o + 1], b = rgba[o + 2];
+      if (dither){
+        var t = gfBayer(x, y) * strength;
+        r = Math.max(0, Math.min(255, Math.round(r + t)));
+        g = Math.max(0, Math.min(255, Math.round(g + t)));
+        b = Math.max(0, Math.min(255, Math.round(b + t)));
+      }
+      var key = (r << 16) | (g << 8) | b;
+      var idx = cache[key];
+      if (idx === undefined){ idx = gfNearest(palette, r, g, b); cache[key] = idx; }
+      out[i] = idx;
+    }
+  }
+  return out;
+}
+
+/* LZW encoder — GIF variable-code-size variant (omggif-compatible semantics):
+   emit code first, then grow code size when the entry about to be added
+   no longer fits, clear + reset table at 4096. LSB-first bit packing. */
+function gfLzwEncode(indices, minCodeSize){
+  if (minCodeSize < 2) minCodeSize = 2;
+  var CLEAR = 1 << minCodeSize, EOI = CLEAR + 1;
+  var codeSize = minCodeSize + 1, next = EOI + 1;
+  var dict = Object.create(null);
+  var out = [], acc = 0, nbits = 0;
+  function emit(code){
+    acc |= code << nbits; nbits += codeSize;
+    while (nbits >= 8){ out.push(acc & 255); acc >>>= 8; nbits -= 8; }
+  }
+  emit(CLEAR);
+  if (!indices.length){
+    emit(EOI);
+    if (nbits) out.push(acc & 255);
+    return out;
+  }
+  var mask = CLEAR - 1;
+  var prefix = indices[0] & mask;
+  for (var i = 1; i < indices.length; i++){
+    var k = indices[i] & mask;
+    var key = (prefix << 8) | k;
+    var hit = dict[key];
+    if (hit !== undefined){ prefix = hit; continue; }
+    emit(prefix);
+    if (next === 4096){
+      emit(CLEAR);
+      dict = Object.create(null); next = EOI + 1; codeSize = minCodeSize + 1;
+    } else {
+      if (next >= (1 << codeSize) && codeSize < 12) codeSize++;
+      dict[key] = next++;
+    }
+    prefix = k;
+  }
+  emit(prefix);
+  emit(EOI);
+  if (nbits) out.push(acc & 255);
+  return out;
+}
+
+function gfBuildGif(opts){
+  var w = opts.width | 0, h = opts.height | 0;
+  var palette = opts.palette || [[0, 0, 0], [255, 255, 255]];
+  var frames = opts.frames || [];
+  var loop = (opts.loop === undefined) ? 0 : opts.loop; /* 0 = forever; null/false = play once */
+  var tIdx = (opts.transparentIndex === undefined) ? -1 : opts.transparentIndex;
+  var bits = gfPaletteBits(palette.length);
+  var gctSize = 1 << (bits + 1);
+  var minCode = Math.max(2, bits + 1);
+  var bytes = [];
+  function push(arr){ for (var i = 0; i < arr.length; i++) bytes.push(arr[i]); }
+  /* Header + Logical Screen Descriptor */
+  push([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
+  push(gfU16le(w)); push(gfU16le(h));
+  bytes.push(0x80 | 0x70 | bits, 0, 0);
+  /* Global Color Table (zero-padded to 2^(bits+1)) */
+  for (var c = 0; c < gctSize; c++){
+    var p = palette[c] || [0, 0, 0];
+    bytes.push(p[0] & 255, p[1] & 255, p[2] & 255);
+  }
+  /* NETSCAPE2.0 looping extension */
+  if (loop !== null && loop !== false){
+    push([0x21, 0xFF, 0x0B,
+      0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30,
+      0x03, 0x01]);
+    push(gfU16le(loop | 0));
+    bytes.push(0);
+  }
+  var hasT = tIdx >= 0;
+  for (var f = 0; f < frames.length; f++){
+    var fr = frames[f];
+    /* Graphic Control Extension */
+    push([0x21, 0xF9, 0x04]);
+    bytes.push(((hasT ? 2 : 1) << 2) | (hasT ? 1 : 0));
+    push(gfU16le(fr.delayCs === undefined ? 10 : fr.delayCs));
+    bytes.push(hasT ? (tIdx & 255) : 0, 0);
+    /* Image Descriptor (full frame, no local color table) */
+    bytes.push(0x2C);
+    push(gfU16le(0)); push(gfU16le(0)); push(gfU16le(w)); push(gfU16le(h));
+    bytes.push(0);
+    /* LZW-compressed indices in sub-blocks */
+    bytes.push(minCode);
+    push(gfChunkBytes(gfLzwEncode(fr.indices, minCode)));
+  }
+  bytes.push(0x3B);
+  return new Uint8Array(bytes);
+}
+
+var GF = {
+  version: '1.0.0',
+  gfU16le: gfU16le, gfDelayCs: gfDelayCs, gfFit: gfFit, gfSliceSheet: gfSliceSheet,
+  gfChunkBytes: gfChunkBytes, gfPaletteBits: gfPaletteBits, gfQuantize: gfQuantize,
+  gfNearest: gfNearest, gfBayer: gfBayer, gfIndexFrame: gfIndexFrame,
+  gfLzwEncode: gfLzwEncode, gfBuildGif: gfBuildGif
+};
+if (typeof module !== 'undefined' && module.exports){ module.exports = GF; }
+
+/* =====================================================================
+   UI layer — browser only
+   ===================================================================== */
+if (typeof window !== 'undefined' && window.document){ (function(){
+  var $ = function(id){ return document.getElementById(id); };
+
+  var I18N = {
+    zh: {
+      title: 'GIFForge', tag: 'GIF 制作器', import: '导入图片', sheet: '雪碧图切片',
+      frames: '帧序列', dup: '复制帧', clear: '清空',
+      emptyTitle: '拖入图片开始制作 GIF',
+      emptyDesc: '支持多选图片、粘贴、或用「雪碧图切片」把精灵图拆成帧。全部处理都在本地完成，数据不出浏览器。',
+      settings: '导出设置', maxSize: '最长边', orig: '原始尺寸', colors: '调色板',
+      c256: '256 色', c128: '128 色', c64: '64 色', c32: '32 色',
+      gDelay: '统一延时', applyAll: '', applyBtn: '应用到全部帧', loop: '循环播放', dither: '有序抖动',
+      summary: '概览', stFrames: '帧数', stSize: '输出尺寸', stDur: '总时长',
+      export: '导出 GIF', note: '纯 JS GIF89a 编码 · 数据不出浏览器',
+      fLocal: '单文件 · 零依赖 · 离线优先',
+      dropTitle: '松手导入图片帧', dropDesc: '支持 PNG / JPG / WebP，多张按文件名排序',
+      sheetTitle: '雪碧图切片', cols: '列数', rows: '行数', cellInfo: '单帧尺寸',
+      cancel: '取消', slice: '切片导入',
+      encoding: '编码中…', done: '已导出 ', failed: '导出失败: ', needFrames: '请先导入至少 1 帧'
+    },
+    en: {
+      title: 'GIFForge', tag: 'GIF Maker', import: 'Import Images', sheet: 'Slice Sprite Sheet',
+      frames: 'Frames', dup: 'Duplicate', clear: 'Clear',
+      emptyTitle: 'Drop images to build a GIF',
+      emptyDesc: 'Multi-select, paste, or slice a sprite sheet into frames. Everything runs locally - your data never leaves the browser.',
+      settings: 'Export Settings', maxSize: 'Max side', orig: 'Original size', colors: 'Palette',
+      c256: '256 colors', c128: '128 colors', c64: '64 colors', c32: '32 colors',
+      gDelay: 'Delay', applyAll: '', applyBtn: 'Apply to all frames', loop: 'Loop forever', dither: 'Ordered dither',
+      summary: 'Summary', stFrames: 'Frames', stSize: 'Output size', stDur: 'Duration',
+      export: 'Export GIF', note: 'Pure-JS GIF89a encoder - fully offline',
+      fLocal: 'Single file - zero deps - offline first',
+      dropTitle: 'Drop to import frames', dropDesc: 'PNG / JPG / WebP, sorted by filename',
+      sheetTitle: 'Slice Sprite Sheet', cols: 'Columns', rows: 'Rows', cellInfo: 'Cell size',
+      cancel: 'Cancel', slice: 'Slice & Import',
+      encoding: 'Encoding...', done: 'Exported ', failed: 'Export failed: ', needFrames: 'Import at least 1 frame first'
+    }
+  };
+
+  var state = {
+    frames: [],       /* { canvas, w, h, delayMs } */
+    sel: -1,
+    playing: false,
+    timer: null,
+    lang: 'zh',
+    sheetImg: null
+  };
+
+  function t(key){ return (I18N[state.lang][key] !== undefined) ? I18N[state.lang][key] : key; }
+
+  function applyLang(){
+    var nodes = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < nodes.length; i++){
+      var k = nodes[i].getAttribute('data-i18n');
+      if (I18N[state.lang][k] !== undefined) nodes[i].textContent = I18N[state.lang][k];
+    }
+    $('btnLang').textContent = state.lang === 'zh' ? 'EN' : '中';
+    document.documentElement.lang = state.lang === 'zh' ? 'zh-CN' : 'en';
+    document.title = state.lang === 'zh'
+      ? 'GIFForge — 离线 GIF 动画制作器 · 单文件零依赖'
+      : 'GIFForge - Offline GIF Maker, single-file zero-dependency';
+  }
+
+  /* ---------- frame management ---------- */
+  function snapshotToCanvas(img, w, h){
+    var cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    var cx = cv.getContext('2d');
+    if (cx) cx.drawImage(img, 0, 0, w, h);
+    return cv;
+  }
+
+  function addFrameFromCanvas(cv, delayMs){
+    state.frames.push({ canvas: cv, w: cv.width, h: cv.height, delayMs: delayMs || (+$('inpDelay').value || 100) });
+    state.sel = state.frames.length - 1;
+    renderAll();
+  }
+
+  function loadFiles(fileList){
+    var files = [];
+    for (var i = 0; i < fileList.length; i++)
+      if (/^image\//.test(fileList[i].type)) files.push(fileList[i]);
+    files.sort(function(a, b){ return a.name.localeCompare(b.name, undefined, { numeric: true }); });
+    files.forEach(function(f){
+      var url = URL.createObjectURL(f);
+      var img = new Image();
+      img.onload = function(){
+        addFrameFromCanvas(snapshotToCanvas(img, img.naturalWidth, img.naturalHeight));
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); };
+      img.src = url;
+    });
+  }
+
+  function removeFrame(i){
+    state.frames.splice(i, 1);
+    if (state.sel >= state.frames.length) state.sel = state.frames.length - 1;
+    renderAll();
+  }
+
+  function moveFrame(from, to){
+    if (from === to || from < 0 || to < 0 || from >= state.frames.length || to >= state.frames.length) return;
+    var fr = state.frames.splice(from, 1)[0];
+    state.frames.splice(to, 0, fr);
+    state.sel = to;
+    renderAll();
+  }
+
+  /* ---------- rendering ---------- */
+  function outputDims(){
+    if (!state.frames.length) return { w: 0, h: 0 };
+    var maxSide = +$('selSize').value | 0;
+    var f0 = state.frames[0];
+    var fit = gfFit(f0.w, f0.h, maxSide);
+    return { w: fit.w, h: fit.h };
+  }
+
+  function renderFramesList(){
+    var list = $('frames');
+    list.innerHTML = '';
+    state.frames.forEach(function(fr, i){
+      var item = document.createElement('div');
+      item.className = 'frame-item' + (i === state.sel ? ' sel' : '');
+      item.draggable = true;
+      item.dataset.idx = i;
+
+      var thumb = document.createElement('canvas');
+      thumb.className = 'frame-thumb';
+      thumb.width = 52; thumb.height = 52;
+      var tx = thumb.getContext('2d');
+      if (tx){
+        var s = Math.min(52 / fr.w, 52 / fr.h);
+        var tw = Math.max(1, Math.round(fr.w * s)), th = Math.max(1, Math.round(fr.h * s));
+        tx.imageSmoothingEnabled = fr.w > 52;
+        tx.drawImage(fr.canvas, (52 - tw) / 2, (52 - th) / 2, tw, th);
+      }
+      item.appendChild(thumb);
+
+      var meta = document.createElement('div');
+      meta.className = 'frame-meta';
+      var idx = document.createElement('div');
+      idx.className = 'idx'; idx.textContent = '#' + (i + 1);
+      var dly = document.createElement('div');
+      dly.className = 'dly';
+      var inp = document.createElement('input');
+      inp.type = 'number'; inp.min = 20; inp.max = 5000; inp.step = 10; inp.value = fr.delayMs;
+      inp.addEventListener('change', function(){ fr.delayMs = Math.max(20, +inp.value || 100); renderStats(); });
+      inp.addEventListener('click', function(e){ e.stopPropagation(); });
+      var unit = document.createElement('span'); unit.textContent = 'ms';
+      dly.appendChild(inp); dly.appendChild(unit);
+      meta.appendChild(idx); meta.appendChild(dly);
+      item.appendChild(meta);
+
+      var x = document.createElement('button');
+      x.className = 'frame-x'; x.textContent = '\u00D7'; x.title = 'delete';
+      x.addEventListener('click', function(e){ e.stopPropagation(); removeFrame(i); });
+      item.appendChild(x);
+
+      item.addEventListener('click', function(){ state.sel = i; renderAll(); });
+      item.addEventListener('dragstart', function(e){ e.dataTransfer.setData('text/plain', String(i)); });
+      item.addEventListener('dragover', function(e){ e.preventDefault(); item.classList.add('dragover'); });
+      item.addEventListener('dragleave', function(){ item.classList.remove('dragover'); });
+      item.addEventListener('drop', function(e){
+        e.preventDefault(); e.stopPropagation();
+        item.classList.remove('dragover');
+        var from = +e.dataTransfer.getData('text/plain');
+        moveFrame(from, i);
+      });
+      list.appendChild(item);
+    });
+  }
+
+  function renderPreview(){
+    var cv = $('previewCanvas');
+    var dims = outputDims();
+    var has = state.frames.length > 0 && state.sel >= 0;
+    $('emptyHint').style.display = has ? 'none' : 'flex';
+    if (!has){ cv.width = 320; cv.height = 240; return; }
+    cv.width = dims.w; cv.height = dims.h;
+    var cx = cv.getContext('2d');
+    if (!cx) return;
+    var fr = state.frames[state.sel];
+    cx.clearRect(0, 0, dims.w, dims.h);
+    cx.imageSmoothingEnabled = fr.w > dims.w;
+    cx.drawImage(fr.canvas, 0, 0, dims.w, dims.h);
+  }
+
+  function renderStats(){
+    var dims = outputDims();
+    $('stFrames').textContent = String(state.frames.length);
+    $('stSize').textContent = state.frames.length ? dims.w + ' \u00D7 ' + dims.h : '\u2014';
+    var total = 0;
+    state.frames.forEach(function(f){ total += gfDelayCs(f.delayMs) * 10; });
+    $('stDur').textContent = state.frames.length ? (total / 1000).toFixed(2) + ' s' : '\u2014';
+    $('posLabel').textContent = (state.sel + 1) + ' / ' + state.frames.length;
+    $('btnExport').disabled = !state.frames.length;
+  }
+
+  function renderAll(){ renderFramesList(); renderPreview(); renderStats(); }
+
+  /* ---------- playback ---------- */
+  function stopPlay(){
+    state.playing = false;
+    if (state.timer){ clearTimeout(state.timer); state.timer = null; }
+    $('btnPlay').classList.remove('on');
+    $('icoPlay').style.display = '';
+    $('icoPause').style.display = 'none';
+  }
+
+  function tick(){
+    if (!state.playing || !state.frames.length){ stopPlay(); return; }
+    state.sel = (state.sel + 1) % state.frames.length;
+    renderPreview(); renderStats();
+    renderFramesList();
+    state.timer = setTimeout(tick, Math.max(20, state.frames[state.sel].delayMs));
+  }
+
+  function togglePlay(){
+    if (!state.frames.length) return;
+    if (state.playing){ stopPlay(); return; }
+    state.playing = true;
+    $('btnPlay').classList.add('on');
+    $('icoPlay').style.display = 'none';
+    $('icoPause').style.display = '';
+    state.timer = setTimeout(tick, Math.max(20, state.frames[Math.max(0, state.sel)].delayMs));
+  }
+
+  /* ---------- export ---------- */
+  function collectSamplePixels(canvases, w, h, cap){
+    var samples = [], hasAlpha = false;
+    var scratch = document.createElement('canvas');
+    scratch.width = w; scratch.height = h;
+    var sx = scratch.getContext('2d');
+    if (!sx) return { samples: samples, hasAlpha: false, datas: [] };
+    var datas = [];
+    for (var f = 0; f < canvases.length; f++){
+      sx.clearRect(0, 0, w, h);
+      sx.imageSmoothingEnabled = true;
+      sx.drawImage(canvases[f], 0, 0, w, h);
+      var d = sx.getImageData(0, 0, w, h).data;
+      datas.push(d);
+    }
+    var totalPx = canvases.length * w * h;
+    var step = Math.max(1, Math.floor(totalPx / cap));
+    for (var g = 0; g < datas.length; g++){
+      var dd = datas[g];
+      for (var i = 0; i < dd.length; i += 4 * step){
+        if (dd[i + 3] < 128){ hasAlpha = true; continue; }
+        samples.push([dd[i], dd[i + 1], dd[i + 2]]);
+      }
+    }
+    return { samples: samples, hasAlpha: hasAlpha, datas: datas };
+  }
+
+  function exportGif(){
+    var status = $('exportStatus');
+    if (!state.frames.length){ status.className = 'err'; status.textContent = t('needFrames'); return null; }
+    status.className = ''; status.textContent = t('encoding');
+    try {
+      var dims = outputDims();
+      var maxColors = +$('selColors').value | 0;
+      var dither = $('chkDither').checked;
+      var loop = $('chkLoop').checked ? 0 : null;
+      var canvases = state.frames.map(function(f){ return f.canvas; });
+      var got = collectSamplePixels(canvases, dims.w, dims.h, 65536);
+      var quantTarget = got.hasAlpha ? Math.max(2, maxColors - 1) : maxColors;
+      var palette = gfQuantize(got.samples, quantTarget);
+      var tIdx = -1;
+      if (got.hasAlpha){ tIdx = palette.length; palette = palette.concat([[0, 0, 0]]); }
+      var frames = state.frames.map(function(f, i){
+        return {
+          indices: gfIndexFrame(got.datas[i], dims.w, dims.h, palette.slice(0, tIdx >= 0 ? tIdx : palette.length), { transparentIndex: tIdx, dither: dither }),
+          delayCs: gfDelayCs(f.delayMs)
+        };
+      });
+      var bytes = gfBuildGif({
+        width: dims.w, height: dims.h, palette: palette,
+        frames: frames, loop: loop, transparentIndex: tIdx
+      });
+      var blob = new Blob([bytes], { type: 'image/gif' });
+      var name = 'gifforge-' + Date.now() + '.gif';
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
+      var kb = (blob.size / 1024).toFixed(1);
+      status.className = 'ok'; status.textContent = t('done') + name + ' (' + kb + ' KB)';
+      return bytes;
+    } catch (err){
+      status.className = 'err'; status.textContent = t('failed') + (err && err.message ? err.message : String(err));
+      return null;
+    }
+  }
+
+  /* ---------- sprite sheet dialog ---------- */
+  function drawSheetPreview(){
+    var img = state.sheetImg;
+    var cv = $('sheetPreview');
+    var cx = cv.getContext('2d');
+    var cols = Math.max(1, +$('inpCols').value | 0);
+    var rows = Math.max(1, +$('inpRows').value | 0);
+    if (!img){ $('cellInfo').textContent = '\u2014'; return; }
+    var cw = Math.floor(img.width / cols), ch = Math.floor(img.height / rows);
+    $('cellInfo').textContent = cw + ' \u00D7 ' + ch + ' px';
+    if (!cx) return;
+    var s = Math.min(380 / img.width, 160 / img.height, 1);
+    cv.width = Math.max(1, Math.round(img.width * s));
+    cv.height = Math.max(1, Math.round(img.height * s));
+    cx.clearRect(0, 0, cv.width, cv.height);
+    cx.imageSmoothingEnabled = false;
+    cx.drawImage(img, 0, 0, cv.width, cv.height);
+    cx.strokeStyle = 'rgba(94,106,210,.9)';
+    cx.lineWidth = 1;
+    for (var c = 1; c < cols; c++){
+      var x = Math.round(c * cw * s) + 0.5;
+      cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, cv.height); cx.stroke();
+    }
+    for (var r = 1; r < rows; r++){
+      var y = Math.round(r * ch * s) + 0.5;
+      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(cv.width, y); cx.stroke();
+    }
+  }
+
+  function sliceAndImport(){
+    var img = state.sheetImg;
+    if (!img) return;
+    var cols = Math.max(1, +$('inpCols').value | 0);
+    var rows = Math.max(1, +$('inpRows').value | 0);
+    var rects = gfSliceSheet(img.width, img.height, cols, rows);
+    rects.forEach(function(rc){
+      var cv = document.createElement('canvas');
+      cv.width = rc.w; cv.height = rc.h;
+      var cx = cv.getContext('2d');
+      if (cx) cx.drawImage(img, rc.x, rc.y, rc.w, rc.h, 0, 0, rc.w, rc.h);
+      state.frames.push({ canvas: cv, w: rc.w, h: rc.h, delayMs: +$('inpDelay').value || 100 });
+    });
+    state.sel = state.frames.length - 1;
+    renderAll();
+    $('dlgSheet').close();
+  }
+
+  /* ---------- wiring ---------- */
+  $('btnImport').addEventListener('click', function(){ $('fileInput').click(); });
+  $('fileInput').addEventListener('change', function(){ loadFiles(this.files); this.value = ''; });
+  $('btnSheet').addEventListener('click', function(){ $('sheetInput').click(); });
+  $('sheetInput').addEventListener('change', function(){
+    var f = this.files[0]; this.value = '';
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    var img = new Image();
+    img.onload = function(){
+      state.sheetImg = img;
+      $('dlgSheet').showModal();
+      drawSheetPreview();
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  });
+  $('inpCols').addEventListener('input', drawSheetPreview);
+  $('inpRows').addEventListener('input', drawSheetPreview);
+  $('btnSheetCancel').addEventListener('click', function(){ $('dlgSheet').close(); });
+  $('btnSheetOk').addEventListener('click', sliceAndImport);
+
+  $('btnDup').addEventListener('click', function(){
+    if (state.sel < 0) return;
+    var fr = state.frames[state.sel];
+    var cv = document.createElement('canvas');
+    cv.width = fr.w; cv.height = fr.h;
+    var cx = cv.getContext('2d');
+    if (cx) cx.drawImage(fr.canvas, 0, 0);
+    state.frames.splice(state.sel + 1, 0, { canvas: cv, w: fr.w, h: fr.h, delayMs: fr.delayMs });
+    state.sel++;
+    renderAll();
+  });
+  $('btnClear').addEventListener('click', function(){
+    stopPlay();
+    state.frames = []; state.sel = -1;
+    renderAll();
+  });
+  $('btnApplyDelay').addEventListener('click', function(){
+    var d = Math.max(20, +$('inpDelay').value || 100);
+    state.frames.forEach(function(f){ f.delayMs = d; });
+    renderAll();
+  });
+  $('btnPlay').addEventListener('click', togglePlay);
+  $('btnPrev').addEventListener('click', function(){
+    if (!state.frames.length) return;
+    stopPlay();
+    state.sel = (state.sel - 1 + state.frames.length) % state.frames.length;
+    renderAll();
+  });
+  $('btnNext').addEventListener('click', function(){
+    if (!state.frames.length) return;
+    stopPlay();
+    state.sel = (state.sel + 1) % state.frames.length;
+    renderAll();
+  });
+  $('btnExport').addEventListener('click', exportGif);
+  $('selSize').addEventListener('change', function(){ renderPreview(); renderStats(); });
+  $('btnLang').addEventListener('click', function(){
+    state.lang = state.lang === 'zh' ? 'en' : 'zh';
+    try { localStorage.setItem('gifforge-lang', state.lang); } catch (e){}
+    applyLang();
+  });
+
+  /* drag & drop + paste */
+  var dz = $('dropzone'), dragDepth = 0;
+  window.addEventListener('dragenter', function(e){
+    if (e.dataTransfer && Array.prototype.some.call(e.dataTransfer.types || [], function(x){ return x === 'Files'; })){
+      dragDepth++; dz.classList.add('show');
+    }
+  });
+  window.addEventListener('dragleave', function(){
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) dz.classList.remove('show');
+  });
+  window.addEventListener('dragover', function(e){ e.preventDefault(); });
+  window.addEventListener('drop', function(e){
+    e.preventDefault();
+    dragDepth = 0; dz.classList.remove('show');
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) loadFiles(e.dataTransfer.files);
+  });
+  document.addEventListener('paste', function(e){
+    if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length) loadFiles(e.clipboardData.files);
+  });
+
+  /* boot */
+  try {
+    var saved = localStorage.getItem('gifforge-lang');
+    if (saved === 'en' || saved === 'zh') state.lang = saved;
+  } catch (e){}
+  applyLang();
+  renderAll();
+
+  if ('serviceWorker' in navigator){
+    try { navigator.serviceWorker.register('sw.js'); } catch (e){}
+  }
+
+  /* test hook */
+  window.__GIFFORGE__ = {
+    version: GF.version,
+    kernel: GF,
+    state: state,
+    addFrameFromCanvas: addFrameFromCanvas,
+    exportGif: exportGif,
+    applyLang: applyLang,
+    renderAll: renderAll,
+    t: t
+  };
+})(); }
+</script>
+</body>
+</html>

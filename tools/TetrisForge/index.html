@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>TetrisForge — 俄罗斯方块：纯逻辑内核（碰撞/旋转/消行）+ Canvas 游戏，方向键操作。</title>
+<meta property="og:title" content="TetrisForge">
+<meta property="og:description" content="俄罗斯方块：纯逻辑内核（碰撞/旋转/消行）+ Canvas 游戏，方向键操作。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="俄罗斯方块：纯逻辑内核（碰撞/旋转/消行）+ Canvas 游戏，方向键操作。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>TetrisForge</h1>
+  <p class="sub">俄罗斯方块：纯逻辑内核（碰撞/旋转/消行）+ Canvas 游戏，方向键操作。 · 单文件 · 零依赖 · 本地优先</p>
+
+<div class="row">
+  <canvas id="cv" width="200" height="400"></canvas>
+  <div class="side">
+    <div class="out" id="score">得分 0</div>
+    <div class="out" id="lines">消行 0</div>
+    <div class="out" id="next">下一个</div>
+    <canvas id="nxt" width="80" height="80"></canvas>
+    <button id="reset">重新开始</button>
+    <p class="hint">← → 移动，↑ 旋转，↓ 加速，空格 硬降</p>
+  </div>
+</div>
+<div class="err" id="err"></div>
+<script>
+var TT_W=10, TT_H=20;
+var TT_SHAPES={
+  I:[[0,0],[1,0],[2,0],[3,0]], O:[[0,0],[1,0],[0,1],[1,1]],
+  T:[[0,0],[1,0],[2,0],[1,1]], S:[[1,0],[2,0],[0,1],[1,1]],
+  Z:[[0,0],[1,0],[1,1],[2,1]], J:[[0,0],[0,1],[1,1],[2,1]], L:[[2,0],[0,1],[1,1],[2,1]]
+};
+var TT_TYPES=Object.keys(TT_SHAPES);
+function ttRot(off){ return off.map(function(p){ return [-p[1], p[0]]; }); }
+function ttClone(b){ return b.map(function(r){ return r.slice(); }); }
+function ttEmpty(){ var g=[]; for(var y=0;y<TT_H;y++){ g.push(new Array(TT_W).fill(0)); } return g; }
+function ttCells(type, rot){ var o=TT_SHAPES[type]; for(var i=0;i<(rot%4+4)%4;i++) o=ttRot(o); return o; }
+function ttCollide(board, type, rot, x, y){
+  var cells=ttCells(type,rot);
+  for(var i=0;i<cells.length;i++){ var cx=x+cells[i][0], cy=y+cells[i][1];
+    if(cx<0||cx>=TT_W||cy<0||cy>=TT_H) return true;
+    if(cy>=0 && board[cy][cx]) return true; }
+  return false;
+}
+function ttMerge(board, type, rot, x, y){
+  var b=ttClone(board), cells=ttCells(type,rot);
+  for(var i=0;i<cells.length;i++){ var cx=x+cells[i][0], cy=y+cells[i][1]; if(cy>=0) b[cy][cx]=type; }
+  return b;
+}
+function ttClearLines(board){
+  var cleared=0, nb=[];
+  for(var y=0;y<TT_H;y++){ if(board[y].every(function(v){ return v; })) cleared++; else nb.push(board[y]); }
+  while(nb.length<TT_H) nb.unshift(new Array(TT_W).fill(0));
+  return {board:nb, cleared:cleared};
+}
+function ttNew(){
+  return { board:ttEmpty(), type:TT_TYPES[Math.floor(Math.random()*7)], rot:0, x:3, y:0,
+           next:TT_TYPES[Math.floor(Math.random()*7)], score:0, lines:0, over:false };
+}
+function ttStep(s){
+  if(s.over) return s;
+  if(ttCollide(s.board, s.type, s.rot, s.x, s.y+1)){ return ttLock(s); }
+  s.y++; return s;
+}
+function ttLock(s){
+  s.board=ttMerge(s.board, s.type, s.rot, s.x, s.y);
+  var r=ttClearLines(s.board); s.board=r.board; s.lines+=r.cleared; s.score+=r.cleared*r.cleared*100;
+  s.type=s.next; s.next=TT_TYPES[Math.floor(Math.random()*7)]; s.rot=0; s.x=3; s.y=0;
+  if(ttCollide(s.board, s.type, s.rot, s.x, s.y)) s.over=true;
+  return s;
+}
+function ttMove(s, dx){ if(!s.over && !ttCollide(s.board, s.type, s.rot, s.x+dx, s.y)) s.x+=dx; return s; }
+function ttRotate(s){ var nr=(s.rot+1)%4; if(!ttCollide(s.board, s.type, nr, s.x, s.y)) s.rot=nr; return s; }
+function ttHardDrop(s){ if(s.over) return s; while(!ttCollide(s.board, s.type, s.rot, s.x, s.y+1)) s.y++; return ttLock(s); }
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { TT_W:TT_W, TT_H:TT_H, TT_SHAPES:TT_SHAPES, ttRot:ttRot, ttEmpty:ttEmpty,
+    ttCells:ttCells, ttCollide:ttCollide, ttMerge:ttMerge, ttClearLines:ttClearLines, ttNew:ttNew,
+    ttStep:ttStep, ttMove:ttMove, ttRotate:ttRotate, ttHardDrop:ttHardDrop };
+}
+if (typeof window !== 'undefined') {
+  window.TetrisForgePure = { TT_W:TT_W, TT_H:TT_H, TT_SHAPES:TT_SHAPES, ttRot:ttRot, ttEmpty:ttEmpty,
+    ttCells:ttCells, ttCollide:ttCollide, ttMerge:ttMerge, ttClearLines:ttClearLines, ttNew:ttNew,
+    ttStep:ttStep, ttMove:ttMove, ttRotate:ttRotate, ttHardDrop:ttHardDrop };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $ = function(id){ return document.getElementById(id); };
+    var P = window.TetrisForgePure, s=P.ttNew(), timer=null;
+    function draw(){
+      var cv=$('cv'), ctx=cv.getContext('2d');
+      ctx.fillStyle='#0A0A0B'; ctx.fillRect(0,0,200,400);
+      for(var y=0;y<P.TT_H;y++) for(var x=0;x<P.TT_W;x++){ if(s.board[y][x]) cell(ctx,x,y,'#5E6AD2'); }
+      if(!s.over){ var cells=P.ttCells(s.type,s.rot); for(var i=0;i<cells.length;i++){ var cx=s.x+cells[i][0], cy=s.y+cells[i][1]; if(cy>=0) cell(ctx,cx,cy,'#A78BFA'); } }
+      $('score').textContent='得分 '+s.score; $('lines').textContent='消行 '+s.lines;
+      // next
+      var nx=$('nxt').getContext('2d'); nx.fillStyle='#0A0A0B'; nx.fillRect(0,0,80,80);
+      var nc=P.ttCells(s.next,0); var minx=9,miny=9; nc.forEach(function(p){minx=Math.min(minx,p[0]);miny=Math.min(miny,p[1]);});
+      nc.forEach(function(p){ cell(nx, p[0]-minx+1, p[1]-miny+1, '#10B981'); });
+    }
+    function cell(ctx,x,y,c){ ctx.fillStyle=c; ctx.fillRect(x*20+1,y*20+1,18,18); }
+    function loop(){ if(s.over){ $('next').textContent='游戏结束'; return; } s=P.ttStep(s); draw(); }
+    function start(){ s=P.ttNew(); $('next').textContent='下一个'; if(timer) clearInterval(timer); timer=setInterval(loop, 500); draw(); }
+    document.addEventListener('keydown', function(e){
+      if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].indexOf(e.key)<0) return;
+      e.preventDefault();
+      if(e.key==='ArrowLeft') s=P.ttMove(s,-1);
+      else if(e.key==='ArrowRight') s=P.ttMove(s,1);
+      else if(e.key==='ArrowUp') s=P.ttRotate(s);
+      else if(e.key==='ArrowDown') s=P.ttStep(s);
+      else if(e.key===' ') s=P.ttHardDrop(s);
+      draw();
+    });
+    $('reset').addEventListener('click', start);
+    start();
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

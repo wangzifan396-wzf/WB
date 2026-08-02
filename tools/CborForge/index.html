@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>CborForge — CBOR 编解码：RFC 8949 调试器，十六进制字节与结构化值互相转换，支持数组/映射/字节串/标签/浮点，离线可用。</title>
+<meta property="og:title" content="CborForge">
+<meta property="og:description" content="CBOR（RFC 8949）编解码器：把十六进制字节串解码为可读的结构化值（数组、映射、字节串、文本、标签、布尔/空与浮点），也可把 JSON 值编码回 CBOR 十六进制。适合调试 CoAP、物联网与二进制协议载荷，纯 JS 实现、零依赖、离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="CBOR（RFC 8949）编解码器：把十六进制字节串解码为可读的结构化值（数组、映射、字节串、文本、标签、布尔/空与浮点），也可把 JSON 值编码回 CBOR 十六进制。适合调试 CoAP、物联网与二进制协议载荷，纯 JS 实现、零依赖、离线可用。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>CborForge</h1>
+  <p class="sub">CBOR · 序列化 · 编码</p>
+
+<div class="tabs">
+  <button class="tab on" data-tab="dec">解码（十六进制 → 值）</button>
+  <button class="tab" data-tab="enc">编码（值 → 十六进制）</button>
+</div>
+<div id="cbor-dec">
+  <label for="cbor-hex">CBOR 字节（十六进制，可带 0x / 空格 / 逗号）</label>
+  <textarea id="cbor-hex" rows="4" placeholder="0x9f 01 02 03 ff  或  a1 61 61 01"></textarea>
+  <div class="row"><button id="cbor-go">解码</button><button class="ghost" id="cbor-clr">清空</button></div>
+  <div class="err" id="cbor-err"></div>
+  <div class="out" id="cbor-out"></div>
+</div>
+<div id="cbor-enc" style="display:none">
+  <label for="cbor-val">JSON 值（也支持 true/false/null、字节用 {"__bytes__":[...]}）</label>
+  <textarea id="cbor-val" rows="4" placeholder='{"name":"alice","scores":[1,2,3],"ok":true}'></textarea>
+  <div class="row"><button id="cbor-enc-go">编码</button><button class="ghost" id="cbor-enc-clr">清空</button></div>
+  <div class="err" id="cbor-enc-err"></div>
+  <div class="out" id="cbor-enc-out"></div>
+</div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 365 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function CborForgePure(){
+  // ---------- 解码 ----------
+  function decode(bytes){
+    var pos=0;
+    function u8(){ if(pos>=bytes.length) throw new Error('意外结束'); return bytes[pos++]; }
+    function readUint(l){
+      if(l<0) throw new Error('不支持不定长整数');
+      var v=0n;
+      for(var i=0;i<l;i++){ v=(v*256n)+BigInt(u8()); }
+      return l>6 ? v : Number(v);
+    }
+    function readFloat(n){
+      var ab=new ArrayBuffer(n), dv=new DataView(ab);
+      for(var i=0;i<n;i++){ dv.setUint8(i, u8()); }
+      if(n===2) return halfToFloat(dv.getUint16(0));
+      if(n===4) return dv.getFloat32(0);
+      return dv.getFloat64(0);
+    }
+    function halfToFloat(h){
+      var sign=(h>>15)?-1:1, exp=(h>>10)&0x1f, frac=h&0x3ff;
+      if(exp===0) return sign*Math.pow(2,-14)*(frac/1024);
+      if(exp===31) return frac?NaN:sign*Infinity;
+      return sign*Math.pow(2,exp-15)*(1+frac/1024);
+    }
+    function val(){
+      var ib=u8(), mt=ib>>5, ai=ib&0x1f;
+      function len(){
+        if(ai<24) return ai;
+        if(ai===24) return u8();
+        if(ai===25) return (u8()<<8)|u8();
+        if(ai===26) return (u8()<<24)|(u8()<<16)|(u8()<<8)|u8();
+        if(ai===27) return (u8()<<56)|(u8()<<48)|(u8()<<40)|(u8()<<32)|(u8()<<24)|(u8()<<16)|(u8()<<8)|u8();
+        if(ai===31) return -1;
+        throw new Error('非法附加信息 '+ai);
+      }
+      if(mt===0 || mt===1){
+        var iv;
+        if(ai<24) iv=ai;
+        else if(ai===24) iv=u8();
+        else if(ai===25) iv=(u8()<<8)|u8();
+        else if(ai===26) iv=(u8()<<24)|(u8()<<16)|(u8()<<8)|u8();
+        else if(ai===27){ var big=0n; for(var j=0;j<8;j++) big=(big*256n)+BigInt(u8()); iv=(big>0x7fffffffffffffffn)?big:Number(big); }
+        else throw new Error('非法的整数附加信息 '+ai);
+        return (mt===1) ? (typeof iv==='bigint'?(-1n-iv):(-1-iv)) : iv;
+      }
+      if(mt===2){ var l=len(); var arr=[]; for(var i=0;i<l;i++) arr.push(u8()); return {__bytes__:true, data:arr}; }
+      if(mt===3){ var l=len(); var s=''; for(var i=0;i<l;i++) s+=String.fromCharCode(u8()); return decodeURIComponent(escape(s)); }
+      if(mt===4){ var l=len(); if(l<0){ var a=[]; while(peek()!==0xff){ a.push(val()); } pos++; return a; } var arr=[]; for(var i=0;i<l;i++) arr.push(val()); return arr; }
+      if(mt===5){ var l=len(); if(l<0){ var o={}; while(peek()!==0xff){ var k=val(); o[fmtKey(k)]=val(); } pos++; return o; } var o={}; for(var i=0;i<l;i++){ var k=val(); o[fmtKey(k)]=val(); } return o; }
+      if(mt===6){ var t=readUint(len()); return {__tag__:t, value:val()}; }
+      if(mt===7){
+        if(ai===20) return false;
+        if(ai===21) return true;
+        if(ai===22) return null;
+        if(ai===23) return undefined;
+        if(ai===25) return readFloat(2);
+        if(ai===26) return readFloat(4);
+        if(ai===27) return readFloat(8);
+        if(ai>=24 && ai<=30) return {__simple__:ai};
+        throw new Error('非法简单值 '+ai);
+      }
+      throw new Error('非法主类型 '+mt);
+    }
+    function peek(){ return bytes[pos]; }
+    function fmtKey(k){
+      if(typeof k==='object' && k && k.__bytes__) return 'b64:'+bytesToB64(k.data);
+      return (typeof k==='string')?k:JSON.stringify(k);
+    }
+    var result=val();
+    return {value:result, bytesRead:pos};
+  }
+  // ---------- 编码 ----------
+  function encInt(mt, mag){ // mag >= 0（非负数幅值）
+    var head=mt<<5;
+    var v=BigInt(mag);
+    if(v<24n) return [head|Number(v)];
+    if(v<256n) return [head|24, Number(v)];
+    if(v<65536n) return [head|25, Number(v>>8n), Number(v&0xffn)];
+    if(v<4294967296n) return [head|26, Number(v>>24n),Number(v>>16n),Number(v>>8n),Number(v&0xffn)];
+    var out=[head|27];
+    for(var s=7;s>=0;s--){ out.push(Number((v>>BigInt(8*s))&0xffn)); }
+    return out;
+  }
+  function encode(v){
+    var out=[];
+    function w(b){ for(var i=0;i<b.length;i++) out.push(b[i]&0xff); }
+    function put(v){
+      if(v===false){ out.push(0xf4); return; }
+      if(v===true){ out.push(0xf5); return; }
+      if(v===null){ out.push(0xf6); return; }
+      if(v===undefined){ out.push(0xf7); return; }
+      if(typeof v==='number'){
+        if(Number.isInteger(v) && Math.abs(v)<9007199254740991){
+          if(v>=0) w(encInt(0, v)); else w(encInt(1, -1 - v));
+          return;
+        }
+        // float64
+        var ab=new ArrayBuffer(8), dv=new DataView(ab); dv.setFloat64(0,v);
+        out.push(0xfb); for(var i=0;i<8;i++) out.push(dv.getUint8(i)); return;
+      }
+      if(typeof v==='bigint'){ w(encInt(0, v<0n?-1n-v:v)); return; }
+      if(typeof v==='string'){
+        var s=unescape(encodeURIComponent(v));
+        var b=[]; for(var i=0;i<s.length;i++) b.push(s.charCodeAt(i)&0xff);
+        w(encInt(3, b.length)); for(var i=0;i<b.length;i++) out.push(b[i]); return;
+      }
+      if(v && v.__bytes__){ w(encInt(2, v.data.length)); for(var i=0;i<v.data.length;i++) out.push(v.data[i]&0xff); return; }
+      if(Array.isArray(v)){ w(encInt(4, v.length)); for(var i=0;i<v.length;i++) put(v[i]); return; }
+      if(typeof v==='object'){
+        var keys=Object.keys(v); w(encInt(5, keys.length));
+        for(var i=0;i<keys.length;i++){ put(keys[i]); put(v[keys[i]]); } return;
+      }
+      throw new Error('无法编码的类型: '+typeof v);
+    }
+    put(v);
+    return out;
+  }
+  // ---------- 辅助 ----------
+  function bytesToB64(arr){
+    var s='';
+    for(var i=0;i<arr.length;i++) s+=String.fromCharCode(arr[i]&0xff);
+    if(typeof btoa==='function') return btoa(s);
+    return Buffer.from(arr).toString('base64');
+  }
+  function b64ToBytes(str){
+    var s=(typeof atob==='function')?atob(str):Buffer.from(str,'base64').toString('binary');
+    var out=[]; for(var i=0;i<s.length;i++) out.push(s.charCodeAt(i)&0xff); return out;
+  }
+  function hex(arr){ var s=''; for(var i=0;i<arr.length;i++) s+=('0'+(arr[i]&0xff).toString(16)).slice(-2); return s; }
+  function bytesFromHex(h){ h=(h||'').replace(/[^0-9a-fA-F]/g,''); var out=[]; for(var i=0;i<h.length;i+=2) out.push(parseInt(h.substr(i,2),16)); return out; }
+  function prettify(v, indent){
+    indent=indent||0;
+    var pad='  '.repeat(indent);
+    if(v && v.__bytes__) return 'h\''+hex(v.data)+'\'';
+    if(v && v.__tag__) return 'tag('+v.__tag__+') '+(typeof v.value==='object'?prettify(v.value,indent):JSON.stringify(v.value));
+    if(Array.isArray(v)){ if(!v.length) return '[]'; return '[\n'+v.map(function(x){return pad+'  '+prettify(x,indent+1);}).join(',\n')+'\n'+pad+']'; }
+    if(typeof v==='object' && v!==null){
+      var ks=Object.keys(v); if(!ks.length) return '{}';
+      return '{\n'+ks.map(function(k){return pad+'  '+JSON.stringify(k)+': '+prettify(v[k],indent+1);}).join(',\n')+'\n'+pad+'}';
+    }
+    if(typeof v==='number' && (v===Infinity||v===-Infinity||isNaN(v))) return String(v);
+    if(typeof v==='bigint') return v.toString()+'n';
+    if(v===undefined) return 'undefined';
+    return JSON.stringify(v);
+  }
+  function analyze(input){
+    var s=(input||'').trim();
+    if(!s) return {error:'请输入十六进制 CBOR 字节串（如 0x 或空格分隔）'};
+    var bytes=bytesFromHex(s);
+    if(!bytes.length) return {error:'未解析到任何字节'};
+    try{
+      var r=decode(bytes);
+      return {error:null, value:r.value, pretty:prettify(r.value), bytesRead:r.bytesRead, total:bytes.length,
+              diag:(r.bytesRead<bytes.length?'注：仅解码了前 '+r.bytesRead+' / '+bytes.length+' 字节':''), hex:hex(bytes)};
+    }catch(e){ return {error:'解码失败：'+e.message}; }
+  }
+  function build(value){
+    try{
+      var arr=encode(value);
+      return {error:null, bytes:arr, hex:hex(arr)};
+    }catch(e){ return {error:'编码失败：'+e.message}; }
+  }
+  var api={decode:decode, encode:encode, analyze:analyze, build:build,
+           bytesToB64:bytesToB64, b64ToBytes:b64ToBytes, hex:hex,
+           bytesFromHex:bytesFromHex, prettify:prettify};
+  if(typeof window!=='undefined'){ window.__PURE__=api; }
+  if(typeof module!=='undefined'&&module.exports){ module.exports={CborForgePure:CborForgePure}; }
+  return api;
+}
+
+</script>
+<script>
+
+(function(){
+  var P=CborForgePure();
+  function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click',function(){
+      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
+      t.classList.add('on');
+      var tab=t.getAttribute('data-tab');
+      document.getElementById('cbor-dec').style.display = tab==='dec'?'':'none';
+      document.getElementById('cbor-enc').style.display = tab==='enc'?'':'none';
+    });
+  });
+  // 解码
+  document.getElementById('cbor-go').addEventListener('click',function(){
+    var r=P.analyze(document.getElementById('cbor-hex').value);
+    var $e=document.getElementById('cbor-err'), $o=document.getElementById('cbor-out');
+    $e.textContent=r.error||'';
+    if(r.error){ $o.innerHTML=''; return; }
+    var h='';
+    if(r.diag) h+='<div class="kv"><b>提示</b><span style="color:var(--warn)">'+esc(r.diag)+'</span></div>';
+    h+='<div class="kv"><b>解码值</b><span style="color:var(--accent)">'+esc(r.pretty)+'</span></div>';
+    h+='<div class="kv"><b>Hex</b><span>'+esc(r.hex)+'</span></div>';
+    h+='<div class="kv"><b>字节数</b><span>'+r.total+'</span></div>';
+    $o.innerHTML=h;
+  });
+  document.getElementById('cbor-clr').addEventListener('click',function(){
+    document.getElementById('cbor-hex').value='';document.getElementById('cbor-out').innerHTML='';document.getElementById('cbor-err').textContent='';
+  });
+  // 编码
+  document.getElementById('cbor-enc-go').addEventListener('click',function(){
+    var $i=document.getElementById('cbor-val'), $e=document.getElementById('cbor-enc-err'), $o=document.getElementById('cbor-enc-out');
+    var raw=$i.value.trim();
+    var val;
+    try{ val=JSON.parse(raw); }catch(e){
+      try{ val=eval('('+raw+')'); }catch(e2){ $e.textContent='JSON 解析失败：'+e2.message; $o.innerHTML=''; return; }
+    }
+    var r=P.build(val);
+    $e.textContent=r.error||'';
+    if(r.error){ $o.innerHTML=''; return; }
+    $o.innerHTML='<div class="kv"><b>Hex</b><span style="color:var(--accent)">'+esc(r.hex)+'</span></div><div class="kv"><b>字节数</b><span>'+r.bytes.length+'</span></div>';
+  });
+  document.getElementById('cbor-enc-clr').addEventListener('click',function(){
+    document.getElementById('cbor-val').value='';document.getElementById('cbor-enc-out').innerHTML='';document.getElementById('cbor-enc-err').textContent='';
+  });
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

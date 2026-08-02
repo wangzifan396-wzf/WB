@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AudioForge · 离线音频编辑器</title>
+<meta name="description" content="本地优先的音频编辑器：加载音频、波形预览、裁剪、增益、淡入淡出、归一化、反转，导出 WAV。零上传、离线可用。nano-tools 矩阵第 14 旗舰。">
+<meta name="keywords" content="audio editor,audio trim,gain,normalize,wav,offline,single-file,nano-tools">
+<meta property="og:title" content="AudioForge · 离线音频编辑器">
+<meta property="og:description" content="本地优先音频编辑器：裁剪 / 增益 / 淡入淡出 / 归一化 / 反转，导出 WAV。零上传。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M4 9v6M8 5v14M12 8v8M16 4v16M20 10v4' stroke='%235E6AD2' stroke-width='2' fill='none' stroke-linecap='round'/></svg>">
+<style>
+  :root{
+    --bg:#0A0A0B; --surface:#141417; --surface2:#1A1B1E;
+    --text:#FFFFFF; --z2:#A1A1AA; --z3:#71717A;
+    --bord:rgba(255,255,255,0.08); --bord2:rgba(255,255,255,0.14);
+    --acc:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --pur:#A78BFA;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 64px}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .logo{width:34px;height:34px;flex:none}
+  h1{font-size:20px;font-weight:700;letter-spacing:.3px}
+  h1 span{color:var(--acc)}
+  .tag{font-size:12px;color:var(--z3);margin-bottom:22px}
+  .panel{background:var(--surface);border:1px solid var(--bord);border-radius:12px;padding:18px;margin-bottom:16px}
+  .panel h2{font-size:13px;font-weight:600;color:var(--z2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px}
+  .drop{
+    border:1.5px dashed var(--bord2);border-radius:12px;padding:30px 18px;text-align:center;
+    color:var(--z2);cursor:pointer;transition:.15s;background:var(--surface2)
+  }
+  .drop:hover,.drop.over{border-color:var(--acc);color:var(--text);background:#16161b}
+  .drop b{color:var(--acc)}
+  .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .row.tight{gap:8px}
+  button{
+    background:var(--surface2);color:var(--text);border:1px solid var(--bord2);
+    border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s
+  }
+  button:hover:not(:disabled){border-color:var(--acc);background:#1d1d24}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+  button.primary:hover:not(:disabled){background:#6b76e0}
+  .btn-ico{display:inline-flex;align-items:center;gap:7px}
+  label.ctl{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--z3);min-width:150px}
+  label.ctl .val{color:var(--text);font-weight:600;font-size:13px}
+  input[type=range]{width:100%;accent-color:var(--acc);height:4px}
+  select,input[type=number]{
+    background:var(--surface2);color:var(--text);border:1px solid var(--bord2);
+    border-radius:8px;padding:8px 10px;font-size:13px;width:100%
+  }
+  .switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--z2);cursor:pointer;user-select:none}
+  .switch input{accent-color:var(--acc);width:16px;height:16px}
+  .wave-wrap{position:relative;background:var(--surface2);border:1px solid var(--bord);border-radius:10px;overflow:hidden;cursor:crosshair}
+  canvas#wave{display:block;width:100%;height:180px}
+  .sel-box{position:absolute;top:0;bottom:0;background:rgba(94,106,210,.18);border-left:2px solid var(--acc);border-right:2px solid var(--acc);pointer-events:none}
+  .playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--warn);pointer-events:none}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;font-size:13px;color:var(--z2);margin-top:10px}
+  .meta b{color:var(--text);font-weight:600}
+  .time{font-variant-numeric:tabular-nums;font-size:13px;color:var(--z3);min-width:90px}
+  .hint{font-size:12px;color:var(--z3);margin-top:8px}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+    background:var(--surface2);border:1px solid var(--bord2);color:var(--text);
+    padding:10px 18px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  footer{margin-top:30px;font-size:12px;color:var(--z3);text-align:center}
+  footer a{color:var(--z2);text-decoration:none}
+  .badge{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--acc);border-radius:999px;padding:2px 9px;margin-left:8px;vertical-align:middle}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr}.row{flex-direction:column;align-items:stretch}}
+
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#5E6AD2">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="logo" viewBox="0 0 24 24"><path d="M4 9v6M8 5v14M12 8v8M16 4v16M20 10v4" stroke="#5E6AD2" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+    <h1>Audio<span>Forge</span><span class="badge">新</span></h1>
+  </header>
+  <div class="tag">离线音频编辑器 · 零上传 · 单文件工具（nano-tools 第 14 旗舰）</div>
+
+  <div class="panel">
+    <h2>① 加载音频</h2>
+    <div class="drop" id="drop">
+      <div>拖入音频文件（<b>MP3 / WAV / OGG / M4A / FLAC</b>），或 <b>点击选择</b> · 也可用下方「载入示例」</div>
+      <input type="file" id="file" accept="audio/*" hidden>
+    </div>
+    <div class="row tight" style="margin-top:12px">
+      <button id="sampleBtn" class="btn-ico">载入示例音</button>
+      <span class="hint">示例为程序生成的 440Hz 正弦 + 衰减包络，便于离线测试。</span>
+    </div>
+  </div>
+
+  <div class="panel" id="editorPanel" style="display:none">
+    <h2>② 波形与播放</h2>
+    <div class="wave-wrap" id="waveWrap">
+      <canvas id="wave"></canvas>
+      <div class="sel-box" id="selBox" style="display:none"></div>
+      <div class="playhead" id="playhead" style="display:none"></div>
+    </div>
+    <div class="row tight" style="margin-top:12px">
+      <button id="playBtn" class="btn-ico">▶ 播放</button>
+      <button id="stopBtn" class="btn-ico">■ 停止</button>
+      <span class="time" id="timeLabel">0.00 / 0.00 s</span>
+      <span class="hint">在波形上 <b>拖拽</b> 框选裁剪区间；单击设置播放头。</span>
+    </div>
+    <div class="meta">
+      <span>文件：<b id="mName">—</b></span>
+      <span>大小：<b id="mSize">—</b></span>
+      <span>时长：<b id="mDur">—</b></span>
+      <span>采样率：<b id="mRate">—</b></span>
+      <span>声道：<b id="mCh">—</b></span>
+    </div>
+  </div>
+
+  <div class="panel" id="procPanel" style="display:none">
+    <h2>③ 处理与导出</h2>
+    <div class="grid2">
+      <label class="ctl">增益 (dB)
+        <span class="val" id="gainVal">0.0</span>
+        <input type="range" id="gain" min="-12" max="12" step="0.5" value="0">
+      </label>
+      <label class="ctl">导出采样率
+        <select id="rate">
+          <option value="0">保持原采样率</option>
+          <option value="44100">44100 Hz</option>
+          <option value="48000">48000 Hz</option>
+          <option value="22050">22050 Hz</option>
+        </select>
+      </label>
+      <label class="ctl">淡入 (秒)
+        <span class="val" id="fadeInVal">0.00</span>
+        <input type="range" id="fadeIn" min="0" max="3" step="0.05" value="0">
+      </label>
+      <label class="ctl">淡出 (秒)
+        <span class="val" id="fadeOutVal">0.00</span>
+        <input type="range" id="fadeOut" min="0" max="3" step="0.05" value="0">
+      </label>
+    </div>
+    <div class="row tight" style="margin-top:16px">
+      <label class="switch"><input type="checkbox" id="normalize"> 归一化（峰值 ≈ -1 dB）</label>
+      <label class="switch"><input type="checkbox" id="reverse"> 反转播放顺序</label>
+    </div>
+    <div class="row tight" style="margin-top:16px">
+      <button id="applyTrim" class="primary btn-ico">应用裁剪</button>
+      <button id="resetSel" class="btn-ico">清除选区</button>
+      <button id="exportBtn" class="primary btn-ico">导出 WAV</button>
+      <span class="hint" id="selInfo">未选择裁剪区间。</span>
+    </div>
+  </div>
+
+  <footer>纯前端 · 文件不离开浏览器 · 属于 <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">nano-tools</a> 开源矩阵 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+/* ============ PURE FUNCTIONS (browser + Node) ============ */
+function clamp(v,min,max){return v<min?min:(v>max?max:v);}
+function formatBytes(n){
+  if(n<1024) return n+' B';
+  if(n<1048576) return (n/1024).toFixed(1)+' KB';
+  if(n<1073741824) return (n/1048576).toFixed(2)+' MB';
+  return (n/1073741824).toFixed(2)+' GB';
+}
+// downsample channel data to `buckets` peak magnitudes for waveform display
+function computePeaks(data, buckets){
+  var out=new Float32Array(buckets);
+  if(!data||data.length===0) return out;
+  var per=data.length/buckets;
+  for(var b=0;b<buckets;b++){
+    var start=Math.floor(b*per), end=Math.min(data.length, Math.floor((b+1)*per));
+    var mx=0;
+    for(var i=start;i<end;i++){var a=Math.abs(data[i]); if(a>mx)mx=a;}
+    out[b]=mx;
+  }
+  return out;
+}
+function applyGainToChannel(data, gainLinear){
+  var out=new Float32Array(data.length);
+  for(var i=0;i<data.length;i++) out[i]=data[i]*gainLinear;
+  return out;
+}
+function applyFadeToChannel(data, type, fadeSamples){
+  if(!(fadeSamples>1)) return data.slice();
+  var n=Math.min(fadeSamples, data.length);
+  var denom=n-1;
+  var out=data.slice();
+  if(type==='in'){
+    for(var i=0;i<n;i++) out[i]=data[i]*(i/denom);
+  } else if(type==='out'){
+    for(var i=0;i<n;i++) out[data.length-1-i]=data[data.length-1-i]*(i/denom);
+  }
+  return out;
+}
+function normalizeChannel(data, target){
+  target = (target===undefined)?0.891:target;
+  var mx=0;
+  for(var i=0;i<data.length;i++){var a=Math.abs(data[i]); if(a>mx)mx=a;}
+  if(mx<=0) return data.slice();
+  var g=target/mx;
+  var out=new Float32Array(data.length);
+  for(var j=0;j<data.length;j++) out[j]=data[j]*g;
+  return out;
+}
+function reverseChannel(data){
+  var out=new Float32Array(data.length);
+  for(var i=0;i<data.length;i++) out[i]=data[data.length-1-i];
+  return out;
+}
+function resampleChannel(data, fromRate, toRate){
+  if(!toRate || toRate<=0 || toRate===fromRate) return data;
+  var ratio=fromRate/toRate;
+  var newLen=Math.max(1, Math.round(data.length/ratio));
+  var out=new Float32Array(newLen);
+  for(var i=0;i<newLen;i++){
+    var pos=i*ratio;
+    var i0=Math.floor(pos);
+    var i1=Math.min(data.length-1, i0+1);
+    var frac=pos-i0;
+    out[i]=data[i0]*(1-frac)+data[i1]*frac;
+  }
+  return out;
+}
+// interleave channels -> 16-bit PCM WAV (Uint8Array)
+function encodeWAVFromChannels(channels, sampleRate){
+  var numCh=channels.length;
+  var numFrames=channels[0].length;
+  var bytesPerSample=2;
+  var blockAlign=numCh*bytesPerSample;
+  var dataSize=numFrames*blockAlign;
+  var buffer=new ArrayBuffer(44+dataSize);
+  var view=new DataView(buffer);
+  var o=0;
+  function wstr(s){for(var i=0;i<s.length;i++) view.setUint8(o++, s.charCodeAt(i));}
+  function u32(v){view.setUint32(o,v,true);o+=4;}
+  function u16(v){view.setUint16(o,v,true);o+=2;}
+  wstr('RIFF'); u32(36+dataSize); wstr('WAVE');
+  wstr('fmt '); u32(16); u16(1); u16(numCh); u32(sampleRate); u32(sampleRate*blockAlign); u16(blockAlign); u16(16);
+  wstr('data'); u32(dataSize);
+  for(var f=0;f<numFrames;f++){
+    for(var c=0;c<numCh;c++){
+      var s=clamp(channels[c][f], -1, 1);
+      s = s<0 ? s*0x8000 : s*0x7FFF;
+      view.setInt16(o, s, true); o+=2;
+    }
+  }
+  return new Uint8Array(buffer);
+}
+
+if(typeof module!=='undefined' && module.exports){
+  module.exports={clamp,formatBytes,computePeaks,applyGainToChannel,applyFadeToChannel,normalizeChannel,reverseChannel,resampleChannel,encodeWAVFromChannels};
+}
+
+/* ============ UI LAYER (browser only) ============ */
+if(typeof window!=='undefined'){
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var toastEl=$('toast'), toastTimer=null;
+  function toast(msg){
+    toastEl.textContent=msg; toastEl.classList.add('show');
+    clearTimeout(toastTimer); toastTimer=setTimeout(function(){toastEl.classList.remove('show');},2200);
+  }
+  function fmtTime(s){return (s==null?0:s).toFixed(2)+' s';}
+  function dbToLin(db){return Math.pow(10, db/20);}
+
+  var ctx=null;
+  function ac(){ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)(); return ctx; }
+
+  var currentBuffer=null;     // AudioBuffer being edited
+  var srcNode=null, startedAt=0, playing=false, rafId=null;
+  var peaksCache=null;        // Float32Array peaks for display
+  var sel={active:false, s:0, e:0}; // selection sample indices
+
+  var dropEl=$('drop'), fileEl=$('file');
+  dropEl.addEventListener('click', function(){ fileEl.click(); });
+  dropEl.addEventListener('dragover', function(e){e.preventDefault(); dropEl.classList.add('over');});
+  dropEl.addEventListener('dragleave', function(){dropEl.classList.remove('over');});
+  dropEl.addEventListener('drop', function(e){
+    e.preventDefault(); dropEl.classList.remove('over');
+    if(e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  fileEl.addEventListener('change', function(){ if(fileEl.files[0]) loadFile(fileEl.files[0]); });
+  $('sampleBtn').addEventListener('click', function(){
+    var rate=44100, len=Math.floor(rate*1.5);
+    var buf=ac().createBuffer(1, len, rate);
+    var d=buf.getChannelData(0);
+    for(var i=0;i<len;i++){
+      var env=Math.min(1, i/(rate*0.05)) * Math.min(1, (len-i)/(rate*0.3)); // quick attack, slow decay
+      d[i]=Math.sin(2*Math.PI*440*i/rate)*0.8*env;
+    }
+    setBuffer(buf, '示例音 (440Hz).wav', 0);
+    toast('已载入示例音');
+  });
+
+  function loadFile(file){
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      ac().decodeAudioData(ev.target.result.slice(0), function(buf){
+        setBuffer(buf, file.name, file.size);
+        toast('已载入：'+file.name);
+      }, function(err){ toast('解码失败：'+ (err&&err.message||err)); });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function setBuffer(buf, name, size){
+    currentBuffer=buf;
+    $('editorPanel').style.display='';
+    $('procPanel').style.display='';
+    $('mName').textContent=name||'—';
+    $('mSize').textContent=size?formatBytes(size):'—';
+    $('mDur').textContent=fmtTime(buf.duration);
+    $('mRate').textContent=buf.sampleRate+' Hz';
+    $('mCh').textContent=buf.numberOfChannels;
+    sel={active:false,s:0,e:0};
+    $('selBox').style.display='none';
+    $('selInfo').textContent='未选择裁剪区间。';
+    drawWave();
+  }
+
+  var waveCanvas=$('wave'), waveWrap=$('waveWrap');
+  function drawWave(){
+    if(!currentBuffer) return;
+    var ch0=currentBuffer.getChannelData(0);
+    var W=waveWrap.clientWidth||1000, H=180;
+    waveCanvas.width=W; waveCanvas.height=H;
+    peaksCache=computePeaks(ch0, W);
+    var c=waveCanvas.getContext('2d');
+    c.fillStyle='#1A1B1E'; c.fillRect(0,0,W,H);
+    var mid=H/2;
+    c.fillStyle='#5E6AD2';
+    for(var x=0;x<W;x++){
+      var p=peaksCache[x]||0;
+      var h=Math.max(1, p*(H/2-4));
+      c.fillRect(x, mid-h, 1, h*2);
+    }
+    // selection overlay
+    if(sel.active && sel.e>sel.s){
+      var sx=Math.floor(sel.s/ch0.length*W);
+      var ex=Math.ceil(sel.e/ch0.length*W);
+      c.fillStyle='rgba(94,106,210,0.18)';
+      c.fillRect(sx,0,ex-sx,H);
+      c.fillStyle='#5E6AD2'; c.fillRect(sx,0,2,H); c.fillRect(ex-2,0,2,H);
+    }
+  }
+  window.addEventListener('resize', drawWave);
+
+  /* selection on waveform */
+  var dragging=false, dragStartX=0;
+  waveWrap.addEventListener('mousedown', function(e){
+    if(!currentBuffer) return;
+    dragging=true; dragStartX=e.offsetX;
+    updateSel(dragStartX, dragStartX);
+  });
+  waveWrap.addEventListener('mousemove', function(e){
+    if(dragging) updateSel(dragStartX, e.offsetX);
+  });
+  window.addEventListener('mouseup', function(){
+    if(dragging){ dragging=false; finalizeSel(); }
+  });
+  function updateSel(x0,x1){
+    var W=waveCanvas.width||waveWrap.clientWidth;
+    var a=clamp(Math.min(x0,x1),0,W), b=clamp(Math.max(x0,x1),0,W);
+    var N=currentBuffer.length;
+    sel={active:true, s:Math.floor(a/W*N), e:Math.floor(b/W*N)};
+    var box=$('selBox');
+    box.style.display='';
+    box.style.left=a+'px'; box.style.width=Math.max(0,b-a)+'px';
+  }
+  function finalizeSel(){
+    if(sel.e<=sel.s){ sel={active:false,s:0,e:0}; $('selBox').style.display='none'; $('selInfo').textContent='未选择裁剪区间。'; return; }
+    $('selInfo').textContent='选区：'+fmtTime(sel.s/currentBuffer.sampleRate)+' – '+fmtTime(sel.e/currentBuffer.sampleRate)+'（'+((sel.e-sel.s)/currentBuffer.sampleRate).toFixed(2)+' s）';
+  }
+  $('resetSel').addEventListener('click', function(){
+    sel={active:false,s:0,e:0}; $('selBox').style.display='none'; $('selInfo').textContent='未选择裁剪区间。';
+  });
+
+  /* transport */
+  $('playBtn').addEventListener('click', function(){
+    if(!currentBuffer) return;
+    if(playing){ stopPlay(); return; }
+    var node=ac().createBufferSource();
+    node.buffer=currentBuffer;
+    node.connect(ac().destination);
+    var off=0;
+    node.start(0, off);
+    startedAt=ac().currentTime;
+    playing=true; srcNode=node;
+    $('playBtn').textContent='⏸ 暂停';
+    node.onended=function(){ if(playing) stopPlay(); };
+    tick();
+  });
+  function tick(){
+    if(!playing||!currentBuffer) return;
+    var t=ac().currentTime-startedAt;
+    if(t>currentBuffer.duration){ stopPlay(); return; }
+    var ph=$('playhead'); ph.style.display='';
+    ph.style.left=(t/currentBuffer.duration*waveCanvas.width)+'px';
+    $('timeLabel').textContent=fmtTime(t)+' / '+fmtTime(currentBuffer.duration);
+    rafId=requestAnimationFrame(tick);
+  }
+  function stopPlay(){
+    playing=false; if(rafId) cancelAnimationFrame(rafId);
+    try{ if(srcNode) srcNode.stop(); }catch(e){}
+    srcNode=null;
+    $('playBtn').textContent='▶ 播放';
+    $('playhead').style.display='none';
+    $('timeLabel').textContent=fmtTime(0)+' / '+fmtTime(currentBuffer?currentBuffer.duration:0);
+  }
+  $('stopBtn').addEventListener('click', stopPlay);
+
+  /* control labels */
+  $('gain').addEventListener('input', function(){ $('gainVal').textContent=parseFloat(this.value).toFixed(1); });
+  $('fadeIn').addEventListener('input', function(){ $('fadeInVal').textContent=parseFloat(this.value).toFixed(2); });
+  $('fadeOut').addEventListener('input', function(){ $('fadeOutVal').textContent=parseFloat(this.value).toFixed(2); });
+
+  $('applyTrim').addEventListener('click', function(){
+    if(!currentBuffer){ toast('请先载入音频'); return; }
+    if(!sel.active || sel.e<=sel.s){ toast('请先在波形上框选裁剪区间'); return; }
+    var rate=currentBuffer.sampleRate;
+    var nb=ac().createBuffer(currentBuffer.numberOfChannels, sel.e-sel.s, rate);
+    for(var c=0;c<currentBuffer.numberOfChannels;c++){
+      nb.getChannelData(c).set(currentBuffer.getChannelData(c).subarray(sel.s, sel.e));
+    }
+    setBuffer(nb, ($('mName').textContent||'audio')+' (trim)', 0);
+    toast('已裁剪');
+  });
+
+  function buildProcessedChannels(){
+    var rate=currentBuffer.sampleRate;
+    var chs=[];
+    for(var c=0;c<currentBuffer.numberOfChannels;c++){
+      var d=currentBuffer.getChannelData(c);
+      // gain
+      var g=dbToLin(parseFloat($('gain').value||0));
+      if(g!==1) d=applyGainToChannel(d, g);
+      // fades
+      var fi=Math.round(parseFloat($('fadeIn').value||0)*rate);
+      var fo=Math.round(parseFloat($('fadeOut').value||0)*rate);
+      if(fi>0) d=applyFadeToChannel(d,'in',fi);
+      if(fo>0) d=applyFadeToChannel(d,'out',fo);
+      // normalize
+      if($('normalize').checked) d=normalizeChannel(d);
+      // reverse
+      if($('reverse').checked) d=reverseChannel(d);
+      // resample target
+      var tr=parseInt($('rate').value||'0',10);
+      if(tr>0 && tr!==rate) d=resampleChannel(d, rate, tr);
+      chs.push(d);
+    }
+    return {channels:chs, rate: (parseInt($('rate').value||'0',10)>0?parseInt($('rate').value,10):rate)};
+  }
+
+  $('exportBtn').addEventListener('click', function(){
+    if(!currentBuffer){ toast('请先载入音频'); return; }
+    var r=buildProcessedChannels();
+    var wav=encodeWAVFromChannels(r.channels, r.rate);
+    var blob=new Blob([wav], {type:'audio/wav'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download=(($('mName').textContent||'audio').replace(/\.[^.]+$/,'')||'audio')+'.wav';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);}, 1000);
+    toast('已导出 WAV（'+formatBytes(wav.length)+'）');
+  });
+})();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

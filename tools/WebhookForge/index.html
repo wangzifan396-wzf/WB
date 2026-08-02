@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>WebhookForge — Webhook 签名校验：Stripe / GitHub / Shopify / Slack 五种方案本地验签。</title>
+<meta property="og:title" content="WebhookForge">
+<meta property="og:description" content="Webhook 签名生成与校验，含重试退避推演，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Webhook 签名生成与校验，含重试退避推演，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>WebhookForge</h1>
+  <p class="sub">Webhook 工具：纯前端 HMAC-SHA256 签名与验签、重放窗口检查、恒定时间比对、指数退避重试时间表（四种抖动）、负载体检与 curl 复现命令 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="wprov">签名方案</label>
+  <select id="wprov">
+    <option value="stripe">Stripe（t=&lt;ts&gt;,v1=&lt;hex&gt;，含重放窗口）</option>
+    <option value="github">GitHub（sha256=&lt;hex&gt;）</option>
+    <option value="slack">Slack（v0=&lt;hex&gt;，含重放窗口）</option>
+    <option value="generic">通用（裸 hex）</option>
+  </select>
+  <label for="wsecret">签名密钥 secret</label>
+  <input type="text" id="wsecret" value="whsec_demo_key">
+  <label for="wbody">请求体 payload</label>
+  <textarea id="wbody" rows="6">{"id":"evt_001","type":"order.paid","created":1750000000,"data":{"amount":4200}}</textarea>
+  <div class="grid">
+    <div><label for="wts">事件时间戳（秒）</label><input type="text" id="wts" value="1750000000"></div>
+    <div><label for="wnow">当前时间戳（秒）</label><input type="text" id="wnow" value="1750000060"></div>
+  </div>
+  <label for="whdr">收到的签名头（留空则用密钥现算）</label>
+  <input type="text" id="whdr" value="">
+  <div class="row">
+    <button id="wverify">校验签名</button>
+    <button id="wsign" class="ghost">生成签名头</button>
+    <button id="wcurl" class="ghost">生成 curl</button>
+  </div>
+  <div class="err" id="werr"></div>
+  <div class="out" id="wout"></div>
+  <label for="wattempts">重试次数</label>
+  <div class="grid">
+    <div><input type="text" id="wattempts" value="6"></div>
+    <div><select id="wjitter"><option value="full">full jitter</option><option value="equal">equal jitter</option><option value="decorrelated">decorrelated</option><option value="none">无抖动</option></select></div>
+  </div>
+  <div class="row"><button id="wretry" class="ghost">推演重试节奏</button></div>
+  <div class="out" id="wretryout"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function utf8Bytes(str){
+  var out=[], s=String(str===undefined?'':str);
+  for(var i=0;i<s.length;i++){
+    var c=s.charCodeAt(i);
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xc0|(c>>6), 0x80|(c&63)); }
+    else if(c>=0xd800 && c<=0xdbff && i+1<s.length){
+      var c2=s.charCodeAt(i+1);
+      var cp=0x10000+((c-0xd800)<<10)+(c2-0xdc00); i++;
+      out.push(0xf0|(cp>>18), 0x80|((cp>>12)&63), 0x80|((cp>>6)&63), 0x80|(cp&63));
+    } else { out.push(0xe0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }
+  }
+  return out;
+}
+function rotr32(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }
+var SHA256_K=[
+0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function sha256Bytes(bytes){
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var msg=bytes.slice(), bitLen=msg.length*8;
+  msg.push(0x80);
+  while(msg.length%64!==56) msg.push(0);
+  var hi=Math.floor(bitLen/4294967296)>>>0, lo=(bitLen>>>0);
+  msg.push((hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255);
+  msg.push((lo>>>24)&255,(lo>>>16)&255,(lo>>>8)&255,lo&255);
+  var w=new Array(64);
+  for(var i=0;i<msg.length;i+=64){
+    for(var t=0;t<16;t++) w[t]=((msg[i+t*4]<<24)|(msg[i+t*4+1]<<16)|(msg[i+t*4+2]<<8)|msg[i+t*4+3])>>>0;
+    for(t=16;t<64;t++){
+      var s0=(rotr32(w[t-15],7)^rotr32(w[t-15],18)^(w[t-15]>>>3))>>>0;
+      var s1=(rotr32(w[t-2],17)^rotr32(w[t-2],19)^(w[t-2]>>>10))>>>0;
+      w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(t=0;t<64;t++){
+      var S1=(rotr32(e,6)^rotr32(e,11)^rotr32(e,25))>>>0;
+      var ch=((e&f)^((~e)&g))>>>0;
+      var t1=(h+S1+ch+SHA256_K[t]+w[t])>>>0;
+      var S0=(rotr32(a,2)^rotr32(a,13)^rotr32(a,22))>>>0;
+      var maj=((a&b)^(a&c)^(b&c))>>>0;
+      var t2=(S0+maj)>>>0;
+      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+  }
+  var out=[];
+  for(var j=0;j<8;j++) out.push((H[j]>>>24)&255,(H[j]>>>16)&255,(H[j]>>>8)&255,H[j]&255);
+  return out;
+}
+function bytesToHex(bytes){
+  var s='';
+  for(var i=0;i<bytes.length;i++) s += ('0'+(bytes[i]&255).toString(16)).slice(-2);
+  return s;
+}
+
+function hmacSha256Hex(key, msg){
+  var kb = utf8Bytes(key);
+  if (kb.length > 64) kb = sha256Bytes(kb);
+  while (kb.length < 64) kb.push(0);
+  var ipad = [], opad = [];
+  for (var i = 0; i < 64; i++){ ipad.push(kb[i] ^ 0x36); opad.push(kb[i] ^ 0x5c); }
+  var inner = sha256Bytes(ipad.concat(utf8Bytes(msg)));
+  return bytesToHex(sha256Bytes(opad.concat(inner)));
+}
+
+var WH_PROVIDERS = {
+  stripe:  { header:'Stripe-Signature', scheme:'t=<ts>,v1=<hex>', payload:'<ts>.<body>', tolerance:300 },
+  github:  { header:'X-Hub-Signature-256', scheme:'sha256=<hex>', payload:'<body>', tolerance:0 },
+  shopify: { header:'X-Shopify-Hmac-Sha256', scheme:'<base64>', payload:'<body>', tolerance:0 },
+  slack:   { header:'X-Slack-Signature', scheme:'v0=<hex>', payload:'v0:<ts>:<body>', tolerance:300 },
+  generic: { header:'X-Signature', scheme:'<hex>', payload:'<body>', tolerance:300 }
+};
+
+function signPayload(provider, secret, body, ts){
+  var p = WH_PROVIDERS[provider];
+  if (!p) return { value:'', error:'unknown provider: ' + provider };
+  var base;
+  if (provider === 'stripe') base = String(ts) + '.' + body;
+  else if (provider === 'slack') base = 'v0:' + String(ts) + ':' + body;
+  else base = body;
+  var hex = hmacSha256Hex(secret, base);
+  var header;
+  if (provider === 'stripe') header = 't=' + ts + ',v1=' + hex;
+  else if (provider === 'github') header = 'sha256=' + hex;
+  else if (provider === 'slack') header = 'v0=' + hex;
+  else header = hex;
+  return { value:header, base:base, hex:hex, error:null };
+}
+
+function extractHex(provider, header){
+  var h = String(header == null ? '' : header).trim();
+  if (!h) return '';
+  if (provider === 'stripe'){
+    var parts = h.split(',');
+    for (var i = 0; i < parts.length; i++){
+      var kv = parts[i].split('=');
+      if (kv[0].trim() === 'v1') return kv.slice(1).join('=').trim().toLowerCase();
+    }
+    return '';
+  }
+  if (h.indexOf('=') >= 0) return h.slice(h.indexOf('=') + 1).trim().toLowerCase();
+  return h.toLowerCase();
+}
+
+function extractTs(header){
+  var m = /(?:^|,)\s*t=(\d+)/.exec(String(header == null ? '' : header));
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function timingSafeEqual(a, b){
+  var x = String(a || ''), y = String(b || '');
+  if (x.length !== y.length) return false;
+  var diff = 0;
+  for (var i = 0; i < x.length; i++) diff |= (x.charCodeAt(i) ^ y.charCodeAt(i));
+  return diff === 0;
+}
+
+function verifyWebhook(opt){
+  opt = opt || {};
+  var provider = opt.provider || 'generic';
+  var p = WH_PROVIDERS[provider];
+  if (!p) return { ok:false, reason:'unknown provider', checks:[] };
+  var checks = [];
+  var got = extractHex(provider, opt.header);
+  if (!got) return { ok:false, reason:'签名头解析失败', checks:[{name:'解析签名头', pass:false, note:'未找到十六进制摘要'}] };
+  checks.push({ name:'解析签名头', pass:true, note:got.slice(0, 16) + '…' });
+  var ts = extractTs(opt.header);
+  if (ts === null && opt.timestamp != null) ts = parseInt(opt.timestamp, 10);
+  var tol = opt.tolerance == null ? p.tolerance : opt.tolerance;
+  if (tol > 0 && ts != null && opt.now != null){
+    var age = Math.abs(parseInt(opt.now, 10) - ts);
+    var fresh = age <= tol;
+    checks.push({ name:'重放窗口', pass:fresh, note:'age ' + age + 's / 容忍 ' + tol + 's' });
+    if (!fresh) return { ok:false, reason:'时间戳超出容忍窗口，疑似重放', checks:checks, age:age };
+  }
+  var sig = signPayload(provider, opt.secret || '', opt.body == null ? '' : opt.body, ts == null ? 0 : ts);
+  var match = timingSafeEqual(got, sig.hex);
+  checks.push({ name:'HMAC 比对', pass:match, note:match ? '摘要一致' : '期望 ' + sig.hex.slice(0, 16) + '…' });
+  return { ok:match, reason: match ? '签名有效' : 'HMAC 不匹配（密钥或原文有误）', checks:checks, expected:sig.hex, got:got, base:sig.base };
+}
+
+function retrySchedule(opt){
+  opt = opt || {};
+  var attempts = parseInt(opt.attempts, 10);
+  if (!isFinite(attempts)) attempts = 5;
+  attempts = Math.max(1, Math.min(20, attempts));
+  var base = parseFloat(opt.base);
+  if (!isFinite(base)) base = 1;
+  base = Math.max(0.1, base);
+  var factor = Math.max(1, parseFloat(opt.factor) || 2);
+  var cap = Math.max(base, parseFloat(opt.cap) || 3600);
+  var jitter = opt.jitter || 'full';
+  var rows = [], elapsed = 0;
+  for (var i = 0; i < attempts; i++){
+    var raw = base * Math.pow(factor, i);
+    var d = Math.min(cap, raw);
+    var lo = d, hi = d;
+    if (jitter === 'full'){ lo = 0; hi = d; }
+    else if (jitter === 'equal'){ lo = d / 2; hi = d; }
+    else if (jitter === 'decorrelated'){ lo = base; hi = Math.min(cap, d * 3); }
+    var avg = (lo + hi) / 2;
+    elapsed += avg;
+    rows.push({ attempt:i + 1, delay:round2(d), min:round2(lo), max:round2(hi), avg:round2(avg), elapsed:round2(elapsed), capped: raw > cap });
+  }
+  return { rows:rows, total:round2(elapsed), totalHuman:humanDuration(elapsed), capped: rows.some(function(r){ return r.capped; }) };
+}
+
+function round2(n){ return Math.round(n * 100) / 100; }
+
+function humanDuration(sec){
+  var s = Math.round(sec);
+  if (s < 60) return s + ' 秒';
+  if (s < 3600) return Math.floor(s / 60) + ' 分 ' + (s % 60) + ' 秒';
+  var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (s < 86400) return h + ' 小时 ' + m + ' 分';
+  return Math.floor(s / 86400) + ' 天 ' + Math.floor((s % 86400) / 3600) + ' 小时';
+}
+
+function deliverySuccess(successRate, attempts){
+  var p = Math.max(0, Math.min(1, parseFloat(successRate)));
+  var n = Math.max(1, parseInt(attempts, 10) || 1);
+  var fail = Math.pow(1 - p, n);
+  return { value: Math.round((1 - fail) * 10000) / 10000, lostPerMillion: Math.round(fail * 1000000) };
+}
+
+function lintPayload(text, opt){
+  opt = opt || {};
+  var issues = [], body = String(text == null ? '' : text);
+  var bytes = utf8Bytes(body).length;
+  if (!body.trim()) issues.push({ level:'bad', msg:'负载为空，接收端无法区分心跳与事件' });
+  var parsed = null, ok = true;
+  try { parsed = JSON.parse(body); } catch (e){ ok = false; }
+  if (body.trim() && !ok) issues.push({ level:'bad', msg:'不是合法 JSON：' + '接收端解析将失败' });
+  if (bytes > 1048576) issues.push({ level:'bad', msg:'负载 ' + fmtBytes(bytes) + ' 超过 1 MB，多数网关会截断' });
+  else if (bytes > 262144) issues.push({ level:'warn', msg:'负载 ' + fmtBytes(bytes) + ' 偏大，建议只传 ID 由消费方回查' });
+  if (ok && parsed && typeof parsed === 'object' && !Array.isArray(parsed)){
+    if (!parsed.id && !parsed.event_id && !parsed.eventId) issues.push({ level:'warn', msg:'缺少事件 ID 字段，消费方无法幂等去重' });
+    if (!parsed.type && !parsed.event && !parsed.event_type) issues.push({ level:'warn', msg:'缺少事件类型字段，消费方需要靠猜路由' });
+    if (!parsed.created && !parsed.timestamp && !parsed.created_at) issues.push({ level:'warn', msg:'缺少时间戳字段，乱序投递时无法排序' });
+  }
+  if (/"(password|secret|token|api_?key|authorization)"\s*:/i.test(body)) issues.push({ level:'bad', msg:'负载疑似包含明文凭据字段' });
+  if (Array.isArray(parsed) && parsed.length > 100) issues.push({ level:'warn', msg:'一次投递 ' + parsed.length + ' 条事件，建议拆分批次' });
+  return { bytes:bytes, human:fmtBytes(bytes), json:ok, issues:issues, score: scoreIssues(issues) };
+}
+
+function scoreIssues(issues){
+  var s = 100;
+  for (var i = 0; i < issues.length; i++) s -= (issues[i].level === 'bad' ? 25 : 10);
+  return Math.max(0, s);
+}
+
+function fmtBytes(n){
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (Math.round(n / 102.4) / 10) + ' KB';
+  return (Math.round(n / 104857.6) / 10) + ' MB';
+}
+
+function curlCommand(opt){
+  opt = opt || {};
+  var provider = opt.provider || 'generic';
+  var p = WH_PROVIDERS[provider] || WH_PROVIDERS.generic;
+  var sig = signPayload(provider, opt.secret || '', opt.body || '{}', opt.timestamp || 0);
+  var lines = ["curl -sS -X POST '" + (opt.url || 'https://example.com/hook') + "' \\"];
+  lines.push("  -H 'Content-Type: application/json' \\");
+  lines.push("  -H '" + p.header + ": " + sig.value + "' \\");
+  lines.push("  --data-raw '" + String(opt.body || '{}').replace(/'/g, "'\\''") + "'");
+  return lines.join('\n');
+}
+
+var WebhookForgePure = {
+  hmacSha256Hex: hmacSha256Hex, signPayload: signPayload, extractHex: extractHex, extractTs: extractTs,
+  timingSafeEqual: timingSafeEqual, verifyWebhook: verifyWebhook, retrySchedule: retrySchedule,
+  deliverySuccess: deliverySuccess, lintPayload: lintPayload, curlCommand: curlCommand,
+  humanDuration: humanDuration, fmtBytes: fmtBytes, PROVIDERS: WH_PROVIDERS
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = WebhookForgePure;
+if (typeof window !== 'undefined') window.WebhookForgePure = WebhookForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.WebhookForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function col(l){ return l === 'bad' ? 'var(--warn)' : l === 'warn' ? 'var(--info)' : 'var(--ok)'; }
+
+  function currentHeader(){
+    var h = $('whdr').value.trim();
+    if (h) return h;
+    return P.signPayload($('wprov').value, $('wsecret').value, $('wbody').value, parseInt($('wts').value, 10) || 0).value;
+  }
+
+  function verify(){
+    var r = P.verifyWebhook({
+      provider: $('wprov').value, secret: $('wsecret').value, body: $('wbody').value,
+      header: currentHeader(), now: parseInt($('wnow').value, 10) || null
+    });
+    var lint = P.lintPayload($('wbody').value);
+    var html = '<div class="kv"><b>校验结果</b><span style="color:' + (r.ok ? 'var(--ok)' : 'var(--warn)') + '">' + esc(r.reason) + '</span></div>';
+    for (var i = 0; i < r.checks.length; i++){
+      var c = r.checks[i];
+      html += '<div class="kv"><b>' + esc(c.name) + '</b><span style="color:' + (c.pass ? 'var(--ok)' : 'var(--warn)') + '">' + (c.pass ? '通过' : '失败') + ' · ' + esc(c.note) + '</span></div>';
+    }
+    html += '<div class="kv"><b>负载体检</b><span>' + esc(lint.human) + ' · ' + (lint.json ? 'JSON 合法' : 'JSON 非法') + ' · 评分 ' + lint.score + '</span></div>';
+    for (var j = 0; j < lint.issues.length; j++){
+      html += '<div style="color:' + col(lint.issues[j].level) + ';font-size:13px;margin-top:6px">• ' + esc(lint.issues[j].msg) + '</div>';
+    }
+    if (r.base) html += '<div style="margin-top:10px;color:var(--dim);font-size:12px">签名原文：<code>' + esc(r.base.slice(0, 120)) + (r.base.length > 120 ? '…' : '') + '</code></div>';
+    $('wout').innerHTML = html;
+    $('werr').textContent = r.ok ? '' : r.reason;
+  }
+
+  function sign(){
+    var s = P.signPayload($('wprov').value, $('wsecret').value, $('wbody').value, parseInt($('wts').value, 10) || 0);
+    if (s.error){ $('werr').textContent = s.error; return; }
+    $('whdr').value = s.value;
+    $('wout').innerHTML = '<div class="kv"><b>' + esc(P.PROVIDERS[$('wprov').value].header) + '</b><span>已写入上方签名头</span></div>' +
+      '<pre style="white-space:pre-wrap;word-break:break-all;margin:8px 0 0;font-size:12px">' + esc(s.value) + '</pre>';
+    $('werr').textContent = '';
+  }
+
+  function curl(){
+    var cmd = P.curlCommand({ provider: $('wprov').value, secret: $('wsecret').value, body: $('wbody').value, timestamp: parseInt($('wts').value, 10) || 0 });
+    $('wout').innerHTML = '<pre style="white-space:pre-wrap;word-break:break-all;margin:0;font-size:12px">' + esc(cmd) + '</pre>';
+  }
+
+  function retry(){
+    var r = P.retrySchedule({ attempts: $('wattempts').value, base: 1, factor: 2, cap: 3600, jitter: $('wjitter').value });
+    var d = P.deliverySuccess(0.9, r.rows.length);
+    var html = '<div class="kv"><b>总重试跨度</b><span>' + esc(r.totalHuman) + '</span></div>' +
+      '<div class="kv"><b>单次成功率 90% 时最终送达</b><span>' + (r.rows.length ? (d.value * 100).toFixed(2) : '0') + '% · 百万丢 ' + d.lostPerMillion + '</span></div>' +
+      '<table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:13px"><tr style="color:var(--muted)"><th style="text-align:left;padding:4px 0">#</th><th style="text-align:right">延迟</th><th style="text-align:right">抖动区间</th><th style="text-align:right">累计</th></tr>';
+    for (var i = 0; i < r.rows.length; i++){
+      var x = r.rows[i];
+      html += '<tr><td style="padding:3px 0">' + x.attempt + '</td><td style="text-align:right">' + x.delay + 's' + (x.capped ? ' <span style="color:var(--warn)">封顶</span>' : '') + '</td><td style="text-align:right;color:var(--muted)">' + x.min + '–' + x.max + 's</td><td style="text-align:right">' + x.elapsed + 's</td></tr>';
+    }
+    $('wretryout').innerHTML = html + '</table>';
+  }
+
+  $('wverify').addEventListener('click', verify);
+  $('wsign').addEventListener('click', sign);
+  $('wcurl').addEventListener('click', curl);
+  $('wretry').addEventListener('click', retry);
+  $('wprov').addEventListener('change', function(){ $('whdr').value = ''; verify(); });
+  verify(); retry();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

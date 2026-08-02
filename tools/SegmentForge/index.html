@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SegmentForge — 线段树区间和/最值查询 + 懒标记区间加，O(log n)</title>
+<meta property="og:title" content="SegmentForge">
+<meta property="og:description" content="线段树区间和/最值查询 + 懒标记区间加，O(log n)">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="线段树区间和/最值查询 + 懒标记区间加，O(log n) · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SegmentForge</h1>
+  <p class="sub">线段树区间和/最值查询 + 懒标记区间加，O(log n) · 单文件 · 零依赖 · 本地优先</p>
+
+<label>初始数组（逗号分隔）</label>
+<textarea id="txt" rows="2">5, 2, 8, 1, 9, 3, 7, 4</textarea>
+<div class="opt">
+  <label>操作
+    <select id="mode">
+      <option value="sum">区间和 query(l,r)</option>
+      <option value="min">区间最小值</option>
+      <option value="max">区间最大值</option>
+      <option value="add">区间加 update(l,r,delta)</option>
+    </select>
+  </label>
+  <label>l <input id="lo" type="number" value="1" style="width:70px"></label>
+  <label>r <input id="hi" type="number" value="5" style="width:70px"></label>
+  <label>delta <input id="delta" type="number" value="10" style="width:80px"></label>
+</div>
+<div class="row">
+  <button id="run">执行</button>
+  <button id="clear" class="ghost">重置</button>
+</div>
+<div class="err" id="err"></div>
+<label>结果</label>
+<div class="out" id="out" aria-live="polite">先执行区间查询或更新</div>
+<script>
+function stBuild(arr){
+  if(!Array.isArray(arr)||!arr.length) return { value:null, error:'数组为空' };
+  for(var i=0;i<arr.length;i++){
+    if(typeof arr[i]!=='number'||!isFinite(arr[i])) return { value:null, error:'第 '+(i+1)+' 项不是有限数' };
+  }
+  var n=arr.length;
+  var t={ n:n, sum:new Array(4*n).fill(0), min:new Array(4*n).fill(0),
+          max:new Array(4*n).fill(0), lazy:new Array(4*n).fill(0) };
+  (function build(node,l,r){
+    if(l===r){ t.sum[node]=arr[l]; t.min[node]=arr[l]; t.max[node]=arr[l]; return; }
+    var mid=(l+r)>>1;
+    build(2*node,l,mid); build(2*node+1,mid+1,r);
+    t.sum[node]=t.sum[2*node]+t.sum[2*node+1];
+    t.min[node]=Math.min(t.min[2*node],t.min[2*node+1]);
+    t.max[node]=Math.max(t.max[2*node],t.max[2*node+1]);
+  })(1,0,n-1);
+  return { value:t, error:null };
+}
+function stPush(t,node,l,r){
+  if(t.lazy[node]===0) return;
+  var mid=(l+r)>>1, d=t.lazy[node];
+  var kids=[[2*node,l,mid],[2*node+1,mid+1,r]];
+  for(var i=0;i<2;i++){
+    var k=kids[i][0], kl=kids[i][1], kr=kids[i][2];
+    t.sum[k]+=d*(kr-kl+1); t.min[k]+=d; t.max[k]+=d; t.lazy[k]+=d;
+  }
+  t.lazy[node]=0;
+}
+function stUpdate(t,ql,qr,delta){
+  if(ql<0||qr>=t.n||ql>qr) return { value:null, error:'区间 ['+ql+','+qr+'] 越界（0..'+(t.n-1)+'）' };
+  (function upd(node,l,r){
+    if(qr<l||r<ql) return;
+    if(ql<=l&&r<=qr){
+      t.sum[node]+=delta*(r-l+1); t.min[node]+=delta; t.max[node]+=delta; t.lazy[node]+=delta;
+      return;
+    }
+    stPush(t,node,l,r);
+    var mid=(l+r)>>1;
+    upd(2*node,l,mid); upd(2*node+1,mid+1,r);
+    t.sum[node]=t.sum[2*node]+t.sum[2*node+1];
+    t.min[node]=Math.min(t.min[2*node],t.min[2*node+1]);
+    t.max[node]=Math.max(t.max[2*node],t.max[2*node+1]);
+  })(1,0,t.n-1);
+  return { value:true, error:null };
+}
+function stQuery(t,ql,qr,kind){
+  if(ql<0||qr>=t.n||ql>qr) return { value:null, error:'区间 ['+ql+','+qr+'] 越界（0..'+(t.n-1)+'）' };
+  var k=kind||'sum';
+  if(k!=='sum'&&k!=='min'&&k!=='max') return { value:null, error:'kind 必须是 sum/min/max' };
+  var res=(function q(node,l,r){
+    if(qr<l||r<ql) return null;
+    if(ql<=l&&r<=qr) return t[k][node];
+    stPush(t,node,l,r);
+    var mid=(l+r)>>1;
+    var a=q(2*node,l,mid), b=q(2*node+1,mid+1,r);
+    if(a===null) return b; if(b===null) return a;
+    if(k==='sum') return a+b;
+    if(k==='min') return Math.min(a,b);
+    return Math.max(a,b);
+  })(1,0,t.n-1);
+  return { value:res, error:null };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { stBuild:stBuild, stUpdate:stUpdate, stQuery:stQuery };
+}
+if (typeof window !== 'undefined') {
+  window.SegmentForgePure = { stBuild:stBuild, stUpdate:stUpdate, stQuery:stQuery };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.SegmentForgePure; var tree=null; var log=[];
+    function ensure(){
+      if(tree) return true;
+      var arr=$('txt').value.split(',').map(function(x){ return Number(x.trim()); });
+      var r=P.stBuild(arr);
+      if(r.error){ $('err').textContent=r.error; return false; }
+      tree=r.value; return true;
+    }
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      if(!ensure()) return;
+      var mode=$('mode').value, l=Number($('lo').value), h=Number($('hi').value);
+      if(mode==='add'){
+        var d=Number($('delta').value);
+        var u=P.stUpdate(tree,l,h,d);
+        if(u.error){ $('err').textContent=u.error; return; }
+        log.push('update ['+l+','+h+'] += '+d);
+      } else {
+        var q=P.stQuery(tree,l,h,mode);
+        if(q.error){ $('err').textContent=q.error; return; }
+        log.push(mode+' ['+l+','+h+'] = '+q.value);
+      }
+      $('out').textContent=log.join('\n');
+    });
+    $('clear').addEventListener('click', function(){ tree=null; log=[]; $('out').textContent='先执行区间查询或更新'; $('err').textContent=''; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>WordCloudForge — 词云：词频统计 + 螺旋碰撞布局，一键生成 SVG 词云</title>
+<meta property="og:title" content="WordCloudForge">
+<meta property="og:description" content="词云：词频统计 + 螺旋碰撞布局，一键生成 SVG 词云">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="词云：词频统计 + 螺旋碰撞布局，一键生成 SVG 词云 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.webmanifest">
+<style>
+
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+input[type=number]{max-width:160px}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.opt{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:13px}
+.opt label{display:inline-flex;align-items:center;gap:6px;margin:0;cursor:pointer}
+.opt input{width:auto}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>WordCloudForge</h1>
+  <p class="sub">词云：词频统计 + 螺旋碰撞布局，一键生成 SVG 词云 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>文本（自动分词统计词频，英文按单词、中文按 2-4 字滑窗）</label>
+<textarea id="txt" rows="8">single file tools are fast and offline. single file tools need zero dependency. offline first tools load fast. zero dependency means fast audit. single file wins.</textarea>
+<div class="opt">
+  <label>最多词数 <input id="maxn" type="number" value="40" min="5" max="120" style="width:80px"></label>
+  <label><input id="stopw" type="checkbox" checked> 过滤停用词</label>
+</div>
+<div class="row">
+  <button id="run">生成词云</button>
+  <button id="clear" class="ghost">清空</button>
+</div>
+<div class="err" id="err"></div>
+<label>SVG 词云</label>
+<div class="out" id="out" aria-live="polite" style="overflow:auto">生成结果显示在这里</div>
+<script>
+var WC_STOP={'the':1,'a':1,'an':1,'and':1,'or':1,'of':1,'to':1,'in':1,'is':1,'are':1,'was':1,'be':1,'on':1,'for':1,'with':1,'that':1,'this':1,'it':1,'as':1,'at':1,'by':1,'from':1,'not':1,'but':1,'means':1,'need':1};
+function wcTokenize(text){
+  if(typeof text!=='string'||!text.trim()) return { value:null, error:'文本为空' };
+  var out=[], re=/[a-zA-Z][a-zA-Z0-9'-]*|[\u4e00-\u9fa5]+|\d+/g, m;
+  while((m=re.exec(text))!==null){
+    var t=m[0];
+    if(/^[\u4e00-\u9fa5]+$/.test(t)){
+      if(t.length<=2){ out.push(t); }
+      else { for(var i=0;i+2<=t.length;i++) out.push(t.slice(i,i+2)); }
+    } else out.push(t.toLowerCase());
+  }
+  return { value:out, error:null };
+}
+function wcCount(tokens, opts){
+  var o=opts||{}, stop=o.stopwords!==false, min=o.minLen||2;
+  var map={};
+  for(var i=0;i<tokens.length;i++){
+    var t=tokens[i];
+    if(t.length<min) continue;
+    if(stop && WC_STOP[t]) continue;
+    map[t]=(map[t]||0)+1;
+  }
+  var arr=Object.keys(map).map(function(k){ return { word:k, count:map[k] }; });
+  arr.sort(function(a,b){ return b.count-a.count || (a.word<b.word?-1:1); });
+  return arr;
+}
+function wcLayout(freqs, opts){
+  var o=opts||{}, W=o.width||640, H=o.height||360, maxN=o.max||40;
+  var items=freqs.slice(0,maxN);
+  if(!items.length) return { value:null, error:'无有效词' };
+  var top=items[0].count, low=items[items.length-1].count;
+  var placed=[];
+  function box(x,y,w,h){ return { x:x-w/2, y:y-h/2, w:w, h:h }; }
+  function hits(b){
+    if(b.x<0||b.y<0||b.x+b.w>W||b.y+b.h>H) return true;
+    for(var i=0;i<placed.length;i++){
+      var p=placed[i].bb;
+      if(b.x<p.x+p.w && b.x+b.w>p.x && b.y<p.y+p.h && b.y+b.h>p.y) return true;
+    }
+    return false;
+  }
+  for(var i=0;i<items.length;i++){
+    var f=items[i];
+    var size=top===low?24:Math.round(14+(f.count-low)/(top-low)*30);
+    var w=f.word.length*size*0.62+6, h=size*1.15;
+    var ang=0, r=0, done=false;
+    while(r<Math.max(W,H)){
+      var x=W/2+r*Math.cos(ang), y=H/2+r*Math.sin(ang)*0.62;
+      var b=box(x,y,w,h);
+      if(!hits(b)){ placed.push({ word:f.word, count:f.count, size:size, x:x, y:y, bb:b }); done=true; break; }
+      ang+=0.35; r+=0.55;
+    }
+    if(!done) break;
+  }
+  return { value:{ items:placed, width:W, height:H }, error:null };
+}
+function wcEsc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function wcSvg(text, opts){
+  var t=wcTokenize(text);
+  if(t.error) return { value:null, error:t.error };
+  var L=wcLayout(wcCount(t.value, opts), opts);
+  if(L.error) return { value:null, error:L.error };
+  var PAL=['#5E6AD2','#22D3EE','#10B981','#A78BFA','#F5A623','#A1A1AA'];
+  var s='<svg xmlns="http://www.w3.org/2000/svg" width="'+L.value.width+'" height="'+L.value.height+'" viewBox="0 0 '+L.value.width+' '+L.value.height+'">';
+  s+='<rect width="'+L.value.width+'" height="'+L.value.height+'" fill="#0A0A0B"/>';
+  for(var i=0;i<L.value.items.length;i++){
+    var it=L.value.items[i];
+    s+='<text x="'+Math.round(it.x)+'" y="'+Math.round(it.y)+'" text-anchor="middle" dominant-baseline="middle" font-size="'+it.size+'" fill="'+PAL[i%PAL.length]+'" font-family="system-ui,sans-serif" font-weight="'+(i<3?700:400)+'">'+wcEsc(it.word)+'</text>';
+  }
+  s+='</svg>';
+  return { value:s, error:null };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { wcTokenize:wcTokenize, wcCount:wcCount, wcLayout:wcLayout, wcSvg:wcSvg, wcEsc:wcEsc };
+}
+if (typeof window !== 'undefined') {
+  window.WordCloudForgePure = { wcTokenize:wcTokenize, wcCount:wcCount, wcLayout:wcLayout, wcSvg:wcSvg, wcEsc:wcEsc };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.WordCloudForgePure;
+    $('run').addEventListener('click', function(){
+      $('err').textContent='';
+      var r=P.wcSvg($('txt').value, { max:Number($('maxn').value)||40, stopwords:$('stopw').checked });
+      if(r.error){ $('err').textContent=r.error; return; }
+      $('out').innerHTML=r.value;
+    });
+    $('clear').addEventListener('click', function(){ $('txt').value=''; $('out').textContent='生成结果显示在这里'; });
+  })();
+}
+</script>
+
+  <div class="badges" id="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+</script>
+</body>
+</html>

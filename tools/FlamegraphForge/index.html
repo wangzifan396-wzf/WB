@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>FlamegraphForge — 火焰图渲染器：折叠栈转 SVG、self 时间排行、最热调用路径，离线可用。</title>
+<meta property="og:title" content="FlamegraphForge">
+<meta property="og:description" content="火焰图渲染器：折叠栈转 SVG、self 时间排行、最热调用路径，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="火焰图渲染器：折叠栈转 SVG、self 时间排行、最热调用路径，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>FlamegraphForge</h1>
+  <p class="sub">性能火焰图：folded stacks 解析、SVG 火焰图渲染、self 时间 Top-5、最热调用路径追踪 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>折叠栈（folded stacks，每行 <code>a;b;c 样本数</code>）</label>
+<textarea id="src" rows="8" spellcheck="false"></textarea>
+<div class="row">
+  <button id="run">绘制火焰图</button>
+  <button id="copy" class="ghost">复制 SVG</button>
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="out"></div>
+<div class="out" id="flame" style="overflow-x:auto"></div>
+<div class="out" id="top"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function fgParseFolded(text){
+  var lines=String(text||'').split(/\n+/), rows=[], bad=0;
+  for(var i=0;i<lines.length;i++){
+    var l=lines[i].trim();
+    if(!l || l.charAt(0)==='#') continue;
+    var m=l.match(/^(.+?)\s+(\d+(?:\.\d+)?)$/);
+    if(!m){ bad++; continue; }
+    var frames=m[1].split(';').map(function(s){ return s.trim(); }).filter(function(s){ return s!==''; });
+    if(!frames.length){ bad++; continue; }
+    rows.push({ frames:frames, value:parseFloat(m[2]) });
+  }
+  if(!rows.length) return { error:'未解析到有效的折叠栈行（格式：a;b;c 123）', bad:bad };
+  return { error:null, rows:rows, bad:bad };
+}
+function fgBuild(rows){
+  var root={ name:'root', value:0, children:{}, depth:0 };
+  for(var i=0;i<rows.length;i++){
+    var node=root, fr=rows[i].frames;
+    root.value += rows[i].value;
+    for(var j=0;j<fr.length;j++){
+      if(!node.children[fr[j]]) node.children[fr[j]]={ name:fr[j], value:0, children:{}, depth:j+1 };
+      node = node.children[fr[j]];
+      node.value += rows[i].value;
+    }
+    node.self = (node.self||0) + rows[i].value;
+  }
+  return root;
+}
+function fgFlatten(root){
+  var out=[];
+  function walk(node, x){
+    out.push({ name:node.name, value:node.value, self:node.self||0, depth:node.depth, x:x });
+    var keys=Object.keys(node.children).sort(function(a,b){
+      var d=node.children[b].value-node.children[a].value;
+      return d!==0 ? d : (a<b?-1:1);
+    });
+    var cx=x;
+    for(var i=0;i<keys.length;i++){ walk(node.children[keys[i]], cx); cx += node.children[keys[i]].value; }
+  }
+  walk(root, 0);
+  return out;
+}
+function fgSelfTop(flat, k){
+  var arr=flat.filter(function(f){ return f.depth>0 && f.self>0; })
+              .sort(function(a,b){ return b.self-a.self || (a.name<b.name?-1:1); });
+  return arr.slice(0, k||5);
+}
+function fgHotPath(root){
+  var path=[], node=root;
+  while(true){
+    var keys=Object.keys(node.children);
+    if(!keys.length) break;
+    var best=keys[0];
+    for(var i=1;i<keys.length;i++) if(node.children[keys[i]].value>node.children[best].value) best=keys[i];
+    node=node.children[best]; path.push({ name:node.name, value:node.value });
+  }
+  return path;
+}
+function fgStats(root, flat){
+  var maxDepth=0, leaves=0;
+  for(var i=0;i<flat.length;i++){
+    if(flat[i].depth>maxDepth) maxDepth=flat[i].depth;
+    if(flat[i].self>0) leaves++;
+  }
+  return { total:root.value, frames:flat.length-1, maxDepth:maxDepth, leaves:leaves };
+}
+function fgColor(name){
+  var h=0;
+  for(var i=0;i<name.length;i++) h=(h*31+name.charCodeAt(i))>>>0;
+  var hue = 15 + (h % 45);
+  var sat = 62 + (h>>8) % 20;
+  var lig = 44 + (h>>16) % 14;
+  return 'hsl('+hue+','+sat+'%,'+lig+'%)';
+}
+function fgPercent(v, total){
+  if(!total) return '0.00%';
+  return (v/total*100).toFixed(2)+'%';
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { fgParseFolded:fgParseFolded, fgBuild:fgBuild, fgFlatten:fgFlatten,
+    fgSelfTop:fgSelfTop, fgHotPath:fgHotPath, fgStats:fgStats, fgColor:fgColor, fgPercent:fgPercent };
+}
+if (typeof window !== 'undefined') {
+  window.FlamegraphForgePure = { fgParseFolded:fgParseFolded, fgBuild:fgBuild, fgFlatten:fgFlatten,
+    fgSelfTop:fgSelfTop, fgHotPath:fgHotPath, fgStats:fgStats, fgColor:fgColor, fgPercent:fgPercent };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.FlamegraphForgePure;
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  var lastSvg='';
+  function run(){
+    var r=P.fgParseFolded($('src').value);
+    if(r.error){ $('err').textContent=r.error; $('out').innerHTML=''; $('flame').innerHTML=''; $('top').innerHTML=''; return; }
+    $('err').textContent = r.bad ? ('跳过 '+r.bad+' 行无法解析的内容') : '';
+    var root=P.fgBuild(r.rows), flat=P.fgFlatten(root), s=P.fgStats(root, flat);
+    $('out').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>总样本</b><span>'+s.total+'</span></div>'+
+      '<div class="kv"><b>唯一帧</b><span>'+s.frames+'</span></div>'+
+      '<div class="kv"><b>最大栈深</b><span>'+s.maxDepth+'</span></div>'+
+      '<div class="kv"><b>叶子帧</b><span>'+s.leaves+'</span></div></div>';
+    var W=720, H=(s.maxDepth+1)*20+10, svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">';
+    svg+='<rect width="'+W+'" height="'+H+'" fill="#0A0A0B"/>';
+    for(var i=0;i<flat.length;i++){
+      var f=flat[i];
+      var x=f.x/s.total*W, w=Math.max(0.7, f.value/s.total*W), y=H-(f.depth+1)*20-4;
+      var fill = f.depth===0 ? '#1A1B1E' : P.fgColor(f.name);
+      svg+='<g><title>'+esc(f.name)+' '+f.value+' ('+P.fgPercent(f.value,s.total)+')</title>'+
+           '<rect x="'+x.toFixed(2)+'" y="'+y+'" width="'+w.toFixed(2)+'" height="18" fill="'+fill+'" stroke="#0A0A0B" stroke-width="0.6" rx="2"/>';
+      if(w>42) svg+='<text x="'+(x+4).toFixed(2)+'" y="'+(y+13)+'" font-size="11" font-family="ui-monospace,Consolas,monospace" fill="#0A0A0B">'+esc(f.name.slice(0, Math.floor(w/6.4)))+'</text>';
+      svg+='</g>';
+    }
+    lastSvg = svg+'</svg>';
+    $('flame').innerHTML=lastSvg;
+    var tops=P.fgSelfTop(flat,5), h='';
+    for(var k=0;k<tops.length;k++)
+      h+='<div class="kv"><b>self 时间 #'+(k+1)+'</b><span>'+esc(tops[k].name)+' · '+tops[k].self+' ('+P.fgPercent(tops[k].self,s.total)+')</span></div>';
+    var hp=P.fgHotPath(root);
+    h+='<div class="kv"><b>最热调用路径</b><span>'+esc(hp.map(function(p){ return p.name; }).join(' \u2192 ')||'-')+'</span></div>';
+    $('top').innerHTML=h;
+  }
+  $('run').addEventListener('click', run);
+  $('copy').addEventListener('click', function(){ if(navigator.clipboard) navigator.clipboard.writeText(lastSvg); });
+  $('src').value='main;parse;lex 42\nmain;parse;ast 18\nmain;compile;optimize 61\nmain;compile;emit 25\nmain;io;read 12';
+  run();
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

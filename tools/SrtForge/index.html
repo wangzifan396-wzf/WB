@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SrtForge — 字幕工具：SRT ⇄ WebVTT 互转、时间轴平移与速率缩放、重叠检测，离线可用。</title>
+<meta property="og:title" content="SrtForge">
+<meta property="og:description" content="字幕工具：SRT 与 WebVTT 互转、时间轴平移缩放、重叠检测，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="字幕工具：SRT 与 WebVTT 互转、时间轴平移缩放、重叠检测，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>SrtForge</h1>
+  <p class="sub">字幕工具：SRT ⇄ WebVTT 互转、时间轴平移 / 速率缩放、重叠检测与统计 · 单文件 · 零依赖 · 本地优先</p>
+
+<label>字幕内容（SRT 或 WebVTT）</label>
+<textarea id="src" rows="8" spellcheck="false"></textarea>
+<div class="row">
+  <label style="margin:0">时间平移（毫秒）</label>
+  <input type="text" id="shift" value="0" style="max-width:120px">
+  <label style="margin:0">速率缩放</label>
+  <input type="text" id="scale" value="1" style="max-width:100px">
+</div>
+<div class="row">
+  <button id="run">转换为 WebVTT</button>
+  <button id="tosrt" class="ghost">转换为 SRT</button>
+  <button id="copy" class="ghost">复制结果</button>
+</div>
+<div class="err" id="err"></div>
+<div class="out" id="out"></div>
+<label>输出</label>
+<textarea id="dst" rows="8" spellcheck="false"></textarea>
+
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+function srtParseTime(s){
+  var m=String(s).trim().match(/^(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})$/);
+  if(!m) return null;
+  return ((+m[1])*3600 + (+m[2])*60 + (+m[3]))*1000 + Number((m[4]+'00').slice(0,3));
+}
+function srtFmtTime(ms, vtt){
+  if(ms<0) ms=0;
+  var h=Math.floor(ms/3600000), mi=Math.floor(ms%3600000/60000), se=Math.floor(ms%60000/1000), mss=ms%1000;
+  function p(n,w){ n=String(n); while(n.length<w) n='0'+n; return n; }
+  return p(h,2)+':'+p(mi,2)+':'+p(se,2)+(vtt?'.':',')+p(mss,3);
+}
+function srtParse(text){
+  if(!text || !String(text).trim()) return { error:'请输入字幕内容' };
+  var body=String(text).replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n').replace(/^WEBVTT[^\n]*\n+/,'');
+  var blocks=body.split(/\n{2,}/), cues=[], bad=[];
+  for(var i=0;i<blocks.length;i++){
+    var lines=blocks[i].split('\n').filter(function(l){ return l.trim()!==''; });
+    if(!lines.length) continue;
+    if(/^\d+$/.test(lines[0].trim()) && lines.length>1) lines.shift();
+    var tm=lines[0] && lines[0].match(/(\S+)\s*-->\s*(\S+)/);
+    if(!tm){ bad.push(i+1); continue; }
+    var a=srtParseTime(tm[1]), b=srtParseTime(tm[2]);
+    if(a===null||b===null){ bad.push(i+1); continue; }
+    cues.push({ start:a, end:b, text:lines.slice(1).join('\n') });
+  }
+  if(!cues.length) return { error:'未解析到有效字幕块' };
+  return { error:null, cues:cues, bad:bad };
+}
+function srtShift(cues, deltaMs){
+  return cues.map(function(c){
+    return { start:Math.max(0,c.start+deltaMs), end:Math.max(0,c.end+deltaMs), text:c.text };
+  });
+}
+function srtScale(cues, factor){
+  if(!(factor>0)) return cues;
+  return cues.map(function(c){
+    return { start:Math.round(c.start*factor), end:Math.round(c.end*factor), text:c.text };
+  });
+}
+function srtStringify(cues, vtt){
+  var out = vtt ? 'WEBVTT\n\n' : '';
+  for(var i=0;i<cues.length;i++){
+    var c=cues[i];
+    if(!vtt) out += (i+1)+'\n';
+    out += srtFmtTime(c.start,vtt)+' --> '+srtFmtTime(c.end,vtt)+'\n'+c.text+'\n\n';
+  }
+  return out.replace(/\n+$/,'\n');
+}
+function srtStats(cues){
+  var dur=0, chars=0, overlap=0;
+  for(var i=0;i<cues.length;i++){
+    dur += Math.max(0, cues[i].end-cues[i].start);
+    chars += cues[i].text.replace(/\s/g,'').length;
+    if(i && cues[i].start < cues[i-1].end) overlap++;
+  }
+  return { count:cues.length, duration:dur, chars:chars, overlap:overlap,
+           span: cues.length? cues[cues.length-1].end - cues[0].start : 0 };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { srtParseTime:srtParseTime, srtFmtTime:srtFmtTime, srtParse:srtParse,
+                     srtShift:srtShift, srtScale:srtScale, srtStringify:srtStringify, srtStats:srtStats };
+}
+if (typeof window !== 'undefined') {
+  window.SrtForgePure = { srtParseTime:srtParseTime, srtFmtTime:srtFmtTime, srtParse:srtParse,
+                     srtShift:srtShift, srtScale:srtScale, srtStringify:srtStringify, srtStats:srtStats };
+}
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){ return document.getElementById(id); };
+  var P=window.SrtForgePure;
+  function run(vtt){
+    var r=P.srtParse($('src').value);
+    if(r.error){ $('err').textContent=r.error; $('out').innerHTML=''; $('dst').value=''; return; }
+    $('err').textContent = r.bad.length ? ('跳过 '+r.bad.length+' 个无法解析的块') : '';
+    var cues=r.cues;
+    var d=parseInt($('shift').value,10); if(d) cues=P.srtShift(cues,d);
+    var f=parseFloat($('scale').value); if(f && f>0 && f!==1) cues=P.srtScale(cues,f);
+    var s=P.srtStats(cues);
+    $('out').innerHTML='<div class="grid">'+
+      '<div class="kv"><b>字幕条数</b><span>'+s.count+'</span></div>'+
+      '<div class="kv"><b>总时长</b><span>'+P.srtFmtTime(s.duration,true)+'</span></div>'+
+      '<div class="kv"><b>正文字数</b><span>'+s.chars+'</span></div>'+
+      '<div class="kv"><b>时间轴重叠</b><span>'+s.overlap+'</span></div>'+
+      '<div class="kv"><b>首末跨度</b><span>'+P.srtFmtTime(s.span,true)+'</span></div>'+
+      '<div class="kv"><b>输出格式</b><span>'+(vtt?'WebVTT':'SRT')+'</span></div></div>';
+    $('dst').value=P.srtStringify(cues, vtt);
+  }
+  $('run').addEventListener('click', function(){ run(true); });
+  $('tosrt').addEventListener('click', function(){ run(false); });
+  $('copy').addEventListener('click', function(){ if(navigator.clipboard) navigator.clipboard.writeText($('dst').value); });
+  $('src').value='1\n00:00:01,000 --> 00:00:03,500\n\u4f60\u597d\uff0cnano-tools\u3002\n\n2\n00:00:04,000 --> 00:00:06,000\n\u5b57\u5e55\u5b8c\u5168\u5728\u672c\u673a\u5904\u7406\u3002';
+  run(true);
+})();
+
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

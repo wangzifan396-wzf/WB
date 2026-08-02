@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>CalendarHeatForge — 日历热力图：GitHub 风格贡献格，连续天数与星期分布一览。</title>
+<meta property="og:title" content="CalendarHeatForge">
+<meta property="og:description" content="GitHub 风格日历热力图与连续天数统计，离线可用">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="GitHub 风格日历热力图与连续天数统计，离线可用 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:780px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea{resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>CalendarHeatForge</h1>
+  <p class="sub">日历热力图：`YYYY-MM-DD 数值` 直出周对齐格子图，同日累加、五档配色、当前与最长连续天数、活跃覆盖率与星期分布、月份标签与 SVG 导出 · 单文件 · 零依赖 · 本地优先</p>
+  <label for="chin">数据（每行 <code>YYYY-MM-DD 数值</code>；同日多行自动累加）</label>
+  <textarea id="chin" rows="10">2026-01-02 3
+2026-01-03 5
+2026-01-04 1
+2026-01-06 8
+2026-01-07 2
+2026-01-08 6
+2026-01-09 4
+2026-01-13 9
+2026-01-14 3
+2026-01-15 7
+2026-01-16 2
+2026-01-20 5
+2026-01-21 11
+2026-01-22 4
+2026-02-02 6
+2026-02-03 3
+2026-02-04 8</textarea>
+  <div class="grid">
+    <div><label for="chstart">起始日期（可空）</label><input type="text" id="chstart" value="2026-01-01"></div>
+    <div><label for="chend">结束日期（可空）</label><input type="text" id="chend" value="2026-02-28"></div>
+  </div>
+  <div class="row">
+    <button id="chrun">绘制热力图</button>
+    <button id="chsvg" class="ghost">导出 SVG</button>
+  </div>
+  <div class="err" id="cherr"></div>
+  <div class="out" id="chchart" style="overflow-x:auto">热力图渲染区</div>
+  <div class="out" id="chinfo"></div>
+  <div class="badges">
+    <span class="badge">零依赖</span>
+    <span class="badge">离线可用</span>
+    <span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 338 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+var CH_DAY = 86400000;
+var CH_LEVELS = ['#161B22', '#0E4429', '#006D32', '#26A641', '#39D353'];
+var CH_MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+var CH_WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'];
+
+function pad2(n){ return (n < 10 ? '0' : '') + n; }
+
+function fromISO(s){
+  var m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(s == null ? '' : s).trim());
+  if (!m) return null;
+  var y = parseInt(m[1], 10), mo = parseInt(m[2], 10), da = parseInt(m[3], 10);
+  if (mo < 1 || mo > 12 || da < 1 || da > 31) return null;
+  var ts = Date.UTC(y, mo - 1, da);
+  var d = new Date(ts);
+  if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo - 1 || d.getUTCDate() !== da) return null;
+  return ts;
+}
+
+function toISO(ts){
+  var d = new Date(ts);
+  return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+}
+
+function dow(ts){ return new Date(ts).getUTCDay(); }
+
+function addDays(ts, n){ return ts + n * CH_DAY; }
+
+function parseEntries(text){
+  var lines = String(text == null ? '' : text).split(/\r?\n/);
+  var map = {}, errors = [], order = [];
+  for (var i = 0; i < lines.length; i++){
+    var l = lines[i].trim();
+    if (!l || l.charAt(0) === '#') continue;
+    var m = /^([^\s,，:：\t]+)[\s,，:：\t]+(-?[\d.]+)$/.exec(l);
+    if (!m){
+      var only = fromISO(l);
+      if (only !== null){ if (map[l] === undefined){ map[l] = 0; order.push(l); } map[l] += 1; continue; }
+      errors.push({ line:i + 1, text:l, why:'格式应为 YYYY-MM-DD 数值' });
+      continue;
+    }
+    var ts = fromISO(m[1]);
+    if (ts === null){ errors.push({ line:i + 1, text:l, why:'日期非法：' + m[1] }); continue; }
+    var v = parseFloat(m[2]);
+    if (!isFinite(v)){ errors.push({ line:i + 1, text:l, why:'数值无法解析' }); continue; }
+    var key = toISO(ts);
+    if (map[key] === undefined){ map[key] = 0; order.push(key); }
+    map[key] += v;
+  }
+  var entries = order.map(function(k){ return { date:k, ts:fromISO(k), value:map[k] }; });
+  entries.sort(function(a, b){ return a.ts - b.ts; });
+  return { entries:entries, map:map, errors:errors };
+}
+
+function rangeOf(entries, opt){
+  opt = opt || {};
+  var start = opt.start ? fromISO(opt.start) : null;
+  var end = opt.end ? fromISO(opt.end) : null;
+  if (!entries.length && (start === null || end === null)) return { start:null, end:null };
+  if (start === null) start = entries[0].ts;
+  if (end === null) end = entries[entries.length - 1].ts;
+  if (end < start){ var t = start; start = end; end = t; }
+  return { start:start, end:end };
+}
+
+function levelOf(value, max){
+  if (!(value > 0)) return 0;
+  if (!(max > 0)) return 1;
+  var r = value / max;
+  if (r <= 0.25) return 1;
+  if (r <= 0.5) return 2;
+  if (r <= 0.75) return 3;
+  return 4;
+}
+
+function buildGrid(parsed, opt){
+  opt = opt || {};
+  var weekStart = opt.weekStart === 0 ? 0 : 1;
+  var rg = rangeOf(parsed.entries, opt);
+  if (rg.start === null) return { weeks:[], days:0, empty:true, weekStart:weekStart, start:null, end:null, max:0 };
+  var lead = (dow(rg.start) - weekStart + 7) % 7;
+  var gridStart = addDays(rg.start, -lead);
+  var tail = (weekStart + 6 - dow(rg.end) + 7) % 7;
+  var gridEnd = addDays(rg.end, tail);
+  var max = 0;
+  for (var e = 0; e < parsed.entries.length; e++){
+    var t = parsed.entries[e].ts;
+    if (t >= rg.start && t <= rg.end) max = Math.max(max, parsed.entries[e].value);
+  }
+  var weeks = [], week = [], count = 0;
+  for (var ts = gridStart; ts <= gridEnd; ts = addDays(ts, 1)){
+    var iso = toISO(ts);
+    var inRange = ts >= rg.start && ts <= rg.end;
+    var v = inRange && parsed.map[iso] !== undefined ? parsed.map[iso] : 0;
+    week.push({ date:iso, ts:ts, value:inRange ? v : null, inRange:inRange, level:inRange ? levelOf(v, max) : -1, dow:dow(ts) });
+    if (inRange) count++;
+    if (week.length === 7){ weeks.push(week); week = []; }
+  }
+  if (week.length) weeks.push(week);
+  return { weeks:weeks, days:count, empty:false, weekStart:weekStart, start:rg.start, end:rg.end, max:max };
+}
+
+function stats(parsed, grid){
+  var total = 0, active = 0, best = null, weekday = [0,0,0,0,0,0,0], weekdayDays = [0,0,0,0,0,0,0];
+  if (!grid || grid.empty) return { total:0, active:0, days:0, best:null, average:0, activeAverage:0, currentStreak:0, longestStreak:0, weekday:weekday, coverage:0 };
+  var flat = [];
+  for (var w = 0; w < grid.weeks.length; w++)
+    for (var d = 0; d < grid.weeks[w].length; d++)
+      if (grid.weeks[w][d].inRange) flat.push(grid.weeks[w][d]);
+  for (var i = 0; i < flat.length; i++){
+    var c = flat[i];
+    total += c.value;
+    weekday[c.dow] += c.value;
+    weekdayDays[c.dow]++;
+    if (c.value > 0){ active++; if (!best || c.value > best.value) best = { date:c.date, value:c.value }; }
+  }
+  var cur = 0, longest = 0, run = 0;
+  for (var j = 0; j < flat.length; j++){
+    if (flat[j].value > 0){ run++; longest = Math.max(longest, run); }
+    else run = 0;
+  }
+  for (var k = flat.length - 1; k >= 0; k--){
+    if (flat[k].value > 0) cur++;
+    else break;
+  }
+  var wd = [];
+  for (var q = 0; q < 7; q++) wd.push({ name:CH_WEEKDAYS[q], total:round2(weekday[q]), average: weekdayDays[q] ? round2(weekday[q] / weekdayDays[q]) : 0 });
+  return {
+    total: round2(total), active: active, days: flat.length,
+    best: best, average: flat.length ? round2(total / flat.length) : 0,
+    activeAverage: active ? round2(total / active) : 0,
+    currentStreak: cur, longestStreak: longest,
+    coverage: flat.length ? Math.round(active / flat.length * 1000) / 10 : 0,
+    weekday: wd
+  };
+}
+
+function round2(n){ return Math.round(n * 100) / 100; }
+
+function monthLabels(grid){
+  if (!grid || grid.empty) return [];
+  var out = [], last = -1;
+  for (var w = 0; w < grid.weeks.length; w++){
+    var col = grid.weeks[w], first = null;
+    for (var d = 0; d < col.length; d++){ if (col[d].inRange){ first = col[d]; break; } }
+    if (!first) continue;
+    var mo = new Date(first.ts).getUTCMonth();
+    if (mo !== last){ out.push({ week:w, month:mo, name:CH_MONTHS[mo] }); last = mo; }
+  }
+  return out;
+}
+
+function escXml(s){
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toSvg(grid, opt){
+  opt = opt || {};
+  var cell = opt.cell || 12, gap = opt.gap || 3, padL = 34, padT = 22, padB = 26;
+  if (!grid || grid.empty) return '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80"></svg>';
+  var W = padL + grid.weeks.length * (cell + gap) + 10;
+  var H = padT + 7 * (cell + gap) + padB;
+  var out = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" role="img" aria-label="日历热力图">'];
+  out.push('<rect width="' + W + '" height="' + H + '" fill="#0A0A0B"/>');
+  var labels = monthLabels(grid);
+  for (var l = 0; l < labels.length; l++){
+    out.push('<text x="' + (padL + labels[l].week * (cell + gap)) + '" y="' + (padT - 7) + '" fill="#71717A" font-size="10" font-family="system-ui,sans-serif">' + escXml(labels[l].name) + '</text>');
+  }
+  for (var r = 0; r < 7; r += 2){
+    var dayIdx = (grid.weekStart + r) % 7;
+    out.push('<text x="' + (padL - 6) + '" y="' + (padT + r * (cell + gap) + cell - 2) + '" fill="#71717A" font-size="9" text-anchor="end" font-family="system-ui,sans-serif">' + escXml(CH_WEEKDAYS[dayIdx].slice(1)) + '</text>');
+  }
+  for (var w = 0; w < grid.weeks.length; w++){
+    for (var d = 0; d < grid.weeks[w].length; d++){
+      var c = grid.weeks[w][d];
+      var x = padL + w * (cell + gap), y = padT + d * (cell + gap);
+      if (!c.inRange){
+        out.push('<rect x="' + x + '" y="' + y + '" width="' + cell + '" height="' + cell + '" rx="2" fill="#0F1113"/>');
+        continue;
+      }
+      out.push('<rect x="' + x + '" y="' + y + '" width="' + cell + '" height="' + cell + '" rx="2" fill="' + CH_LEVELS[c.level] + '"><title>' + escXml(c.date + '：' + c.value) + '</title></rect>');
+    }
+  }
+  var lx = padL, ly = padT + 7 * (cell + gap) + 8;
+  out.push('<text x="' + lx + '" y="' + (ly + 10) + '" fill="#71717A" font-size="10" font-family="system-ui,sans-serif">少</text>');
+  for (var k = 0; k < CH_LEVELS.length; k++){
+    out.push('<rect x="' + (lx + 20 + k * (cell + 3)) + '" y="' + ly + '" width="' + cell + '" height="' + cell + '" rx="2" fill="' + CH_LEVELS[k] + '"/>');
+  }
+  out.push('<text x="' + (lx + 26 + CH_LEVELS.length * (cell + 3)) + '" y="' + (ly + 10) + '" fill="#71717A" font-size="10" font-family="system-ui,sans-serif">多</text>');
+  out.push('</svg>');
+  return out.join('');
+}
+
+var CalendarHeatForgePure = {
+  fromISO: fromISO, toISO: toISO, dow: dow, addDays: addDays, parseEntries: parseEntries,
+  rangeOf: rangeOf, levelOf: levelOf, buildGrid: buildGrid, stats: stats, monthLabels: monthLabels,
+  toSvg: toSvg, LEVELS: CH_LEVELS, WEEKDAYS: CH_WEEKDAYS, DAY: CH_DAY
+};
+if (typeof module !== 'undefined' && module.exports) module.exports = CalendarHeatForgePure;
+if (typeof window !== 'undefined') window.CalendarHeatForgePure = CalendarHeatForgePure;
+
+</script>
+<script>
+(function(){
+  if (typeof window === 'undefined' || !window.document) return;
+  var P = window.CalendarHeatForgePure, D = document;
+  function $(id){ return D.getElementById(id); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function run(){
+    var p = P.parseEntries($('chin').value);
+    $('cherr').textContent = p.errors.length ? ('第 ' + p.errors.map(function(e){ return e.line; }).join(',') + ' 行无法解析：' + p.errors[0].why) : '';
+    var grid = P.buildGrid(p, { start: $('chstart').value.trim(), end: $('chend').value.trim() });
+    if (grid.empty){ $('chchart').textContent = '热力图渲染区（暂无有效数据）'; $('chinfo').innerHTML = ''; return; }
+    $('chchart').innerHTML = P.toSvg(grid);
+    var s = P.stats(p, grid);
+    var html = '<div class="kv"><b>区间</b><span>' + P.toISO(grid.start) + ' ~ ' + P.toISO(grid.end) + '（' + s.days + ' 天）</span></div>' +
+      '<div class="kv"><b>总量 / 日均</b><span>' + s.total + ' / ' + s.average + '</span></div>' +
+      '<div class="kv"><b>活跃天数</b><span>' + s.active + ' 天 · 覆盖率 ' + s.coverage + '% · 活跃日均 ' + s.activeAverage + '</span></div>' +
+      '<div class="kv"><b>连续记录</b><span>当前 ' + s.currentStreak + ' 天 · 最长 ' + s.longestStreak + ' 天</span></div>';
+    if (s.best) html += '<div class="kv"><b>峰值</b><span>' + esc(s.best.date) + ' · ' + s.best.value + '</span></div>';
+    var maxWd = 1;
+    for (var i = 0; i < s.weekday.length; i++) maxWd = Math.max(maxWd, s.weekday[i].total);
+    html += '<div style="margin-top:10px;color:var(--muted);font-size:13px">星期分布：</div>';
+    for (var j = 0; j < s.weekday.length; j++){
+      var w = s.weekday[j];
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;font-size:13px"><span style="width:40px;color:var(--muted)">' + esc(w.name) + '</span><span style="flex:1;height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden"><span style="display:block;height:4px;width:' + Math.round(w.total / maxWd * 100) + '%;background:var(--accent)"></span></span><span style="width:60px;text-align:right">' + w.total + '</span></div>';
+    }
+    $('chinfo').innerHTML = html;
+  }
+
+  function download(){
+    var p = P.parseEntries($('chin').value);
+    var grid = P.buildGrid(p, { start: $('chstart').value.trim(), end: $('chend').value.trim() });
+    if (grid.empty) return;
+    var blob = new Blob([P.toSvg(grid)], { type:'image/svg+xml' });
+    var a = D.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'calendar-heatmap.svg';
+    D.body.appendChild(a); a.click(); D.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  $('chrun').addEventListener('click', run);
+  $('chsvg').addEventListener('click', download);
+  $('chin').addEventListener('input', run);
+  $('chstart').addEventListener('input', run);
+  $('chend').addEventListener('input', run);
+  run();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

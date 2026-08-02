@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="WhiteboardForge: offline infinite-canvas whiteboard. Draw shapes, freehand, text and sticky notes; pan and zoom; undo/redo; autosave; export PNG and SVG. Single file, zero dependency, local first.">
+<meta property="og:title" content="WhiteboardForge">
+<meta property="og:description" content="Offline infinite-canvas whiteboard.">
+<meta property="og:image" content="og.png">
+<meta name="theme-color" content="#0A0A0B">
+<title>WhiteboardForge</title>
+<link rel="icon" href="favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E;
+  --t1:#FFFFFF; --t2:#A1A1AA; --t3:#71717A;
+  --bd:rgba(255,255,255,.08); --bd2:rgba(255,255,255,.14);
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --purple:#A78BFA;
+  --r:10px;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:14px}
+a{color:var(--accent);text-decoration:none}
+header.top{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--bd)}
+header.top h1{font-size:16px;margin:0;font-weight:700}
+header.top .sub{color:var(--t3);font-size:12px}
+header.top .spacer{flex:1}
+.langbtn{background:var(--surface);border:1px solid var(--bd);color:var(--t2);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px}
+.langbtn:hover{color:var(--t1)}
+.stage{display:flex;height:calc(100vh - 53px)}
+.toolbar{width:58px;background:var(--card);border-right:1px solid var(--bd);display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;overflow-y:auto}
+.tool{width:42px;height:42px;border-radius:9px;border:1px solid var(--bd);background:var(--surface);color:var(--t2);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.tool:hover{border-color:var(--bd2);color:var(--t1)}
+.tool.on{background:rgba(94,106,210,.18);border-color:var(--accent);color:#fff}
+.tool svg{width:22px;height:22px}
+.canvaswrap{flex:1;position:relative;overflow:hidden}
+#cv{display:block;width:100%;height:100%;cursor:default;touch-action:none}
+.panel{width:240px;background:var(--card);border-left:1px solid var(--bd);padding:14px;overflow-y:auto}
+.panel h3{font-size:12px;color:var(--t2);margin:0 0 10px;text-transform:uppercase;letter-spacing:.5px}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.row label{font-size:12px;color:var(--t2);flex:0 0 52px}
+.swatches{display:flex;flex-wrap:wrap;gap:6px}
+.sw{width:24px;height:24px;border-radius:6px;border:2px solid transparent;cursor:pointer}
+.sw.on{border-color:#fff}
+input[type=range]{flex:1}
+input[type=color]{width:34px;height:28px;border:1px solid var(--bd);border-radius:6px;background:var(--surface);padding:2px}
+.btn{width:100%;background:var(--surface);border:1px solid var(--bd);color:var(--t1);padding:9px;border-radius:8px;cursor:pointer;font-size:12px;margin-bottom:8px}
+.btn:hover{border-color:var(--bd2)}
+.btn.primary{background:var(--accent);border-color:var(--accent)}
+.hint{font-size:11px;color:var(--t3);margin-top:6px;line-height:1.5}
+.stat{font-size:11px;color:var(--t3);margin-top:10px}
+.foot{position:absolute;left:8px;bottom:8px;font-size:11px;color:var(--t3);background:rgba(10,10,11,.6);padding:4px 8px;border-radius:6px;pointer-events:none}
+@media(max-width:760px){.panel{display:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#5E6AD2" stroke-width="1.6"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>
+  <div><h1>WhiteboardForge</h1><div class="sub" data-i18n="subtitle">离线无限画布白板</div></div>
+  <div class="spacer"></div>
+  <button class="langbtn" id="langBtn">EN</button>
+</header>
+<div class="stage">
+  <div class="toolbar" id="tools">
+    <div class="tool on" data-tool="select" title="Select"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3l14 8-6 1 3 6-3 1-3-6-5 4z"/></svg></div>
+    <div class="tool" data-tool="rect" title="Rect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="6" width="16" height="12" rx="1.5"/></svg></div>
+    <div class="tool" data-tool="ellipse" title="Ellipse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="12" rx="9" ry="7"/></svg></div>
+    <div class="tool" data-tool="line" title="Line"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19L19 5"/></svg></div>
+    <div class="tool" data-tool="arrow" title="Arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19L19 5M19 5h-6M19 5v6"/></svg></div>
+    <div class="tool" data-tool="pen" title="Pen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20s2-1 4-3 3-5 6-8l3 3c-3 3-6 4-8 6s-3 4-3 4z"/></svg></div>
+    <div class="tool" data-tool="text" title="Text"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 6h14M12 6v13M9 19h6"/></svg></div>
+    <div class="tool" data-tool="note" title="Note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5"/></svg></div>
+    <div class="tool" data-tool="eraser" title="Eraser"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 15l7-7 6 6-4 4H8zM14 21H4"/></svg></div>
+  </div>
+  <div class="canvaswrap">
+    <canvas id="cv"></canvas>
+    <div class="foot" id="foot">100%</div>
+  </div>
+  <div class="panel">
+    <h3 data-i18n="stroke">描边</h3>
+    <div class="row"><input type="color" id="stroke" value="#5E6AD2"></div>
+    <div class="swatches" id="strokeSw"></div>
+    <h3 data-i18n="fill">填充</h3>
+    <div class="row"><input type="color" id="fill" value="#1A1B1E"></div>
+    <div class="swatches" id="fillSw"></div>
+    <h3 data-i18n="width">线宽</h3>
+    <div class="row"><input type="range" id="sw" min="1" max="20" value="3"><span id="swv" style="font-size:12px;color:var(--t2);flex:0 0 24px;text-align:right">3</span></div>
+    <button class="btn" id="undo" data-i18n="undo">撤销</button>
+    <button class="btn" id="redo" data-i18n="redo">重做</button>
+    <button class="btn" id="fit" data-i18n="fit">适应画布</button>
+    <button class="btn" id="clear" data-i18n="clearAll">清空</button>
+    <button class="btn primary" id="png" data-i18n="exportPng">导出 PNG</button>
+    <button class="btn" id="svg" data-i18n="exportSvg">导出 SVG</button>
+    <div class="hint" data-i18n="hint">滚轮缩放 · 空白拖拽平移 · 双击文字/便签重命名</div>
+    <div class="stat" id="stat"></div>
+  </div>
+</div>
+<script>
+var WF = (function(){
+  'use strict';
+  function uid(){ return 's'+Math.random().toString(36).slice(2,9); }
+  function create(type, props){
+    var s = { id:uid(), type:type, x:0, y:0, w:100, h:60, points:[], text:'', stroke:'#5E6AD2', fill:'#1A1B1E', strokeWidth:3 };
+    if(props) for(var k in props) s[k]=props[k];
+    return s;
+  }
+  function clone(shapes){ return JSON.parse(JSON.stringify(shapes)); }
+  function bounds(shapes){
+    if(!shapes.length) return {minX:0,minY:0,maxX:100,maxY:100};
+    var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    shapes.forEach(function(s){
+      var pts = s.points && s.points.length ? s.points : [{x:s.x,y:s.y},{x:s.x+s.w,y:s.y+s.h}];
+      pts.forEach(function(p){ if(p.x<minX)minX=p.x; if(p.y<minY)minY=p.y; if(p.x>maxX)maxX=p.x; if(p.y>maxY)maxY=p.y; });
+    });
+    if(!isFinite(minX)) return {minX:0,minY:0,maxX:100,maxY:100};
+    return {minX:minX,minY:minY,maxX:maxX,maxY:maxY};
+  }
+  function distToSeg(px,py,ax,ay,bx,by){
+    var dx=bx-ax, dy=by-ay; var l2=dx*dx+dy*dy;
+    if(l2===0) return Math.hypot(px-ax,py-ay);
+    var t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(0,Math.min(1,t));
+    return Math.hypot(px-(ax+t*dx), py-(ay+t*dy));
+  }
+  function hitTest(shapes, x, y, tol){
+    tol = tol||6;
+    for(var i=shapes.length-1;i>=0;i--){
+      var s=shapes[i];
+      if(s.type==='line'||s.type==='arrow'||s.type==='free'){
+        var ps=s.points;
+        for(var j=0;j<ps.length-1;j++){
+          if(distToSeg(x,y,ps[j].x,ps[j].y,ps[j+1].x,ps[j+1].y)<=tol) return s;
+        }
+        if(ps.length===1 && Math.hypot(x-ps[0].x,y-ps[0].y)<=tol) return s;
+      } else {
+        var w=s._w||s.w, h=s._h||s.h;
+        if(s.type==='ellipse'){
+          var cx=s.x+s.w/2, cy=s.y+s.h/2, rx=s.w/2, ry=s.h/2;
+          if(rx<=0||ry<=0) continue;
+          var nx=(x-cx)/rx, ny=(y-cy)/ry;
+          if(nx*nx+ny*ny<=1.15) return s;
+        } else {
+          if(x>=s.x-tol && x<=s.x+w+tol && y>=s.y-tol && y<=s.y+h+tol) return s;
+        }
+      }
+    }
+    return null;
+  }
+  function serialize(shapes){ return JSON.stringify(shapes); }
+  function deserialize(str){
+    try { var a=JSON.parse(str); return Array.isArray(a)?a:[]; } catch(e){ return []; }
+  }
+  function fit(shapes, vw, vh, pad){
+    pad=pad||40;
+    var b=bounds(shapes);
+    var bw=b.maxX-b.minX, bh=b.maxY-b.minY;
+    if(bw<=0)bw=100; if(bh<=0)bh=100;
+    var scale=Math.min((vw-2*pad)/bw, (vh-2*pad)/bh, 4);
+    if(scale<=0||!isFinite(scale)) scale=1;
+    var tx=vw/2 - scale*(b.minX+bw/2);
+    var ty=vh/2 - scale*(b.minY+bh/2);
+    return {scale:scale, tx:tx, ty:ty};
+  }
+  function toSVG(shapes, opts){
+    opts=opts||{};
+    var b=bounds(shapes);
+    var pad=opts.pad||20;
+    var w=(b.maxX-b.minX)+pad*2, h=(b.maxY-b.minY)+pad*2;
+    if(w<=0)w=100; if(h<=0)h=100;
+    var ox=-b.minX+pad, oy=-b.minY+pad;
+    var s='<svg xmlns="http://www.w3.org/2000/svg" width="'+Math.round(w)+'" height="'+Math.round(h)+'" viewBox="0 0 '+Math.round(w)+' '+Math.round(h)+'">';
+    s+='<rect width="100%" height="100%" fill="#0A0A0B"/>';
+    shapes.forEach(function(sh){
+      var st='stroke="'+(sh.stroke||'#5E6AD2')+'" stroke-width="'+(sh.strokeWidth||3)+'" fill="'+(sh.fill&&sh.fill!=='none'?sh.fill:'none')+'"';
+      if(sh.type==='rect'||sh.type==='note'){
+        s+='<rect x="'+sh.x+'" y="'+sh.y+'" width="'+sh.w+'" height="'+sh.h+'" rx="8" '+st+'/>';
+        if(sh.text) s+='<text x="'+(sh.x+10)+'" y="'+(sh.y+26)+'" fill="#fff" font-family="sans-serif" font-size="16">'+escapeXml(sh.text)+'</text>';
+      } else if(sh.type==='ellipse'){
+        s+='<ellipse cx="'+(sh.x+sh.w/2)+'" cy="'+(sh.y+sh.h/2)+'" rx="'+(sh.w/2)+'" ry="'+(sh.h/2)+'" '+st+'/>';
+      } else if(sh.type==='line'||sh.type==='arrow'){
+        var p=sh.points;
+        s+='<line x1="'+p[0].x+'" y1="'+p[0].y+'" x2="'+p[1].x+'" y2="'+p[1].y+'" '+st+'/>';
+        if(sh.type==='arrow'){
+          var ang=Math.atan2(p[1].y-p[0].y,p[1].x-p[0].x), L=12;
+          s+='<line x1="'+p[1].x+'" y1="'+p[1].y+'" x2="'+(p[1].x-L*Math.cos(ang-0.4))+'" y2="'+(p[1].y-L*Math.sin(ang-0.4))+'" '+st+'/>';
+          s+='<line x1="'+p[1].x+'" y1="'+p[1].y+'" x2="'+(p[1].x-L*Math.cos(ang+0.4))+'" y2="'+(p[1].y-L*Math.sin(ang+0.4))+'" '+st+'/>';
+        }
+      } else if(sh.type==='free'){
+        var d='M'+sh.points.map(function(pt){return pt.x+' '+pt.y;}).join(' L');
+        s+='<path d="'+d+'" fill="none" stroke="'+(sh.stroke||'#5E6AD2')+'" stroke-width="'+(sh.strokeWidth||3)+'" stroke-linecap="round" stroke-linejoin="round"/>';
+      } else if(sh.type==='text'){
+        s+='<text x="'+sh.x+'" y="'+(sh.y+22)+'" fill="'+(sh.stroke||'#fff')+'" font-family="sans-serif" font-size="22">'+escapeXml(sh.text)+'</text>';
+      }
+    });
+    s+='</svg>';
+    return s;
+  }
+  function escapeXml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function version(){ return '1.0.0'; }
+  var API={ create:create, clone:clone, bounds:bounds, hitTest:hitTest, serialize:serialize, deserialize:deserialize, fit:fit, toSVG:toSVG, version:version, uid:uid };
+  if(typeof module!=='undefined' && module.exports){ module.exports=API; }
+  return API;
+})();
+
+if(typeof window!=='undefined' && window.document){
+  (function(){
+    var I18N={
+      zh:{subtitle:'离线无限画布白板', stroke:'描边', fill:'填充', width:'线宽', undo:'撤销', redo:'重做', fit:'适应画布', clearAll:'清空', exportPng:'导出 PNG', exportSvg:'导出 SVG', hint:'滚轮缩放 · 空白拖拽平移 · 双击文字/便签重命名', shapes:'个图形'},
+      en:{subtitle:'Offline infinite-canvas whiteboard', stroke:'Stroke', fill:'Fill', width:'Width', undo:'Undo', redo:'Redo', fit:'Fit', clearAll:'Clear', exportPng:'Export PNG', exportSvg:'Export SVG', hint:'Wheel to zoom · drag empty space to pan · double-click text/note to rename', shapes:'shapes'}
+    };
+    var lang='zh';
+    function t(k){ return (I18N[lang]&&I18N[lang][k])||I18N.zh[k]||k; }
+    function $(id){ return document.getElementById(id); }
+    var canvas=$('cv'), ctx=null;
+    try { ctx = canvas.getContext('2d'); } catch(e){ ctx=null; }
+    var cv=null; // offscreen for export
+    var state={ shapes:[], selected:null, tool:'select', stroke:'#5E6AD2', fill:'#1A1B1E', strokeWidth:3, pan:{x:0,y:0}, scale:1, history:[], future:[], draft:null, drag:null };
+    var W=0,H=0, DPR=1;
+    var LS_KEY='whiteboardforge.scene';
+
+    function resize(){
+      var r=canvas.parentNode.getBoundingClientRect();
+      DPR=window.devicePixelRatio||1;
+      W=r.width; H=r.height;
+      canvas.width=Math.max(1,Math.round(W*DPR));
+      canvas.height=Math.max(1,Math.round(H*DPR));
+      render();
+    }
+    function toWorld(sx,sy){ return {x:(sx-state.pan.x)/state.scale, y:(sy-state.pan.y)/state.scale}; }
+    function pos(e){ var r=canvas.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+
+    function render(){
+      if(!ctx) return;
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle='#0A0A0B'; ctx.fillRect(0,0,W,H);
+      // grid
+      ctx.save();
+      ctx.translate(state.pan.x, state.pan.y); ctx.scale(state.scale,state.scale);
+      drawGrid();
+      state.shapes.forEach(drawShape);
+      if(state.draft) drawShape(state.draft);
+      if(state.selected) drawHandles(state.selected);
+      ctx.restore();
+      $('foot').textContent=Math.round(state.scale*100)+'%';
+      $('stat').textContent=state.shapes.length+' '+t('shapes');
+    }
+    function drawGrid(){
+      var b=WF.bounds(state.shapes);
+      var step=40;
+      var x0=-2000, x1=2000, y0=-2000, y1=2000;
+      ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.lineWidth=1/state.scale;
+      for(var x=x0;x<=x1;x+=step){ ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke(); }
+      for(var y=y0;y<=y1;y+=step){ ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke(); }
+    }
+    function drawShape(s){
+      ctx.lineWidth=s.strokeWidth||3; ctx.strokeStyle=s.stroke||'#5E6AD2'; ctx.fillStyle=s.fill||'none';
+      if(s.type==='rect'||s.type==='note'){
+        ctx.beginPath(); roundRect(s.x,s.y,s.w,s.h,8); ctx.fillStyle=(s.fill&&s.fill!=='none')?s.fill:'#1A1B1E'; ctx.fill(); ctx.stroke();
+        if(s.text){ ctx.fillStyle='#fff'; ctx.font='16px system-ui,sans-serif'; ctx.textBaseline='top'; ctx.fillText(s.text, s.x+10, s.y+10); }
+      } else if(s.type==='ellipse'){
+        ctx.beginPath(); ctx.ellipse(s.x+s.w/2, s.y+s.h/2, Math.abs(s.w/2), Math.abs(s.h/2), 0, 0, Math.PI*2);
+        if(s.fill&&s.fill!=='none') ctx.fill(); ctx.stroke();
+      } else if(s.type==='line'||s.type==='arrow'){
+        var p=s.points; if(!p||p.length<2) return;
+        ctx.beginPath(); ctx.moveTo(p[0].x,p[0].y); ctx.lineTo(p[1].x,p[1].y); ctx.stroke();
+        if(s.type==='arrow'){
+          var ang=Math.atan2(p[1].y-p[0].y,p[1].x-p[0].x), L=12;
+          ctx.beginPath(); ctx.moveTo(p[1].x,p[1].y); ctx.lineTo(p[1].x-L*Math.cos(ang-0.4),p[1].y-L*Math.sin(ang-0.4)); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(p[1].x,p[1].y); ctx.lineTo(p[1].x-L*Math.cos(ang+0.4),p[1].y-L*Math.sin(ang+0.4)); ctx.stroke();
+        }
+      } else if(s.type==='free'){
+        if(!s.points||s.points.length<1) return;
+        ctx.beginPath(); ctx.moveTo(s.points[0].x,s.points[0].y);
+        for(var i=1;i<s.points.length;i++) ctx.lineTo(s.points[i].x,s.points[i].y);
+        ctx.stroke();
+      } else if(s.type==='text'){
+        ctx.fillStyle=s.stroke||'#fff'; ctx.font='22px system-ui,sans-serif'; ctx.textBaseline='top'; ctx.fillText(s.text, s.x, s.y);
+      }
+    }
+    function roundRect(x,y,w,h,r){ ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+    function drawHandles(s){
+      if(s.type==='line'||s.type==='arrow'||s.type==='free') return;
+      ctx.strokeStyle='#22D3EE'; ctx.lineWidth=1.5/state.scale;
+      ctx.strokeRect(s.x-3,s.y-3,s.w+6,s.h+6);
+    }
+
+    function pushHistory(){ state.history.push(WF.clone(state.shapes)); if(state.history.length>100) state.history.shift(); state.future=[]; }
+    function undo(){ if(!state.history.length) return; state.future.push(WF.clone(state.shapes)); state.shapes=state.history.pop(); state.selected=null; save(); render(); }
+    function redo(){ if(!state.future.length) return; state.history.push(WF.clone(state.shapes)); state.shapes=state.future.pop(); state.selected=null; save(); render(); }
+    function save(){ try{ localStorage.setItem(LS_KEY, WF.serialize(state.shapes)); }catch(e){} }
+    function load(){ try{ var s=localStorage.getItem(LS_KEY); if(s) state.shapes=WF.deserialize(s); }catch(e){} }
+
+    function setTool(tool){
+      state.tool=tool;
+      document.querySelectorAll('#tools .tool').forEach(function(el){ el.classList.toggle('on', el.getAttribute('data-tool')===tool); });
+      canvas.style.cursor = tool==='select'?'default':(tool==='eraser'?'cell':'crosshair');
+    }
+
+    function onDown(e){
+      var p=pos(e), w=toWorld(p.x,p.y);
+      if(state.tool==='select'){
+        var hit=WF.hitTest(state.shapes, w.x, w.y, 8/state.scale);
+        if(hit){ state.selected=hit; state.drag={mode:'move', dx:w.x-hit.x, dy:w.y-hit.y, ox:hit.x, oy:hit.y}; pushHistory(); }
+        else { state.selected=null; state.drag={mode:'pan', sx:p.x, sy:p.y, px:state.pan.x, py:state.pan.y}; }
+      } else if(state.tool==='rect'||state.tool==='ellipse'||state.tool==='note'){
+        pushHistory();
+        state.draft=WF.create(state.tool, {x:w.x,y:w.y,w:0,h:0,stroke:state.stroke,fill:state.fill,strokeWidth:state.strokeWidth,text:state.tool==='note'?'Sticky':''});
+        state.drag={mode:'create'};
+      } else if(state.tool==='line'||state.tool==='arrow'){
+        pushHistory();
+        state.draft=WF.create(state.tool, {points:[{x:w.x,y:w.y},{x:w.x,y:w.y}],stroke:state.stroke,strokeWidth:state.strokeWidth});
+        state.drag={mode:'create'};
+      } else if(state.tool==='pen'){
+        pushHistory();
+        state.draft=WF.create('free', {points:[{x:w.x,y:w.y}],stroke:state.stroke,strokeWidth:state.strokeWidth});
+        state.drag={mode:'pen'};
+      } else if(state.tool==='text'){
+        pushHistory();
+        var sh=WF.create('text',{x:w.x,y:w.y,stroke:state.stroke,text:'Text'});
+        state.shapes.push(sh); state.selected=sh; save(); render();
+        return;
+      } else if(state.tool==='eraser'){
+        var h=WF.hitTest(state.shapes, w.x, w.y, 8/state.scale);
+        if(h){ pushHistory(); state.shapes=state.shapes.filter(function(x){return x!==h;}); if(state.selected===h)state.selected=null; save(); render(); }
+        return;
+      }
+      render();
+    }
+    function onMove(e){
+      if(!state.drag) return;
+      var p=pos(e), w=toWorld(p.x,p.y);
+      if(state.drag.mode==='pan'){ state.pan.x=state.drag.px+(p.x-state.drag.sx); state.pan.y=state.drag.py+(p.y-state.drag.sy); }
+      else if(state.drag.mode==='move' && state.selected){ state.selected.x=w.x-state.drag.dx; state.selected.y=w.y-state.drag.dy; }
+      else if(state.drag.mode==='create' && state.draft){
+        if(state.draft.type==='line'||state.draft.type==='arrow'){ state.draft.points[1]={x:w.x,y:w.y}; }
+        else { state.draft.w=w.x-state.draft.x; state.draft.h=w.y-state.draft.y; }
+      } else if(state.drag.mode==='pen' && state.draft){ state.draft.points.push({x:w.x,y:w.y}); }
+      render();
+    }
+    function onUp(e){
+      if(!state.drag){ return; }
+      if((state.drag.mode==='create'||state.drag.mode==='pen') && state.draft){
+        var d=state.draft; state.draft=null;
+        if(d.type==='rect'||d.type==='ellipse'||d.type==='note'){
+          if(Math.abs(d.w)<4 && Math.abs(d.h)<4){ d.w=100; d.h=60; }
+        } else if(d.type==='line'||d.type==='arrow'){
+          var a=d.points[0], b=d.points[1]; if(Math.hypot(b.x-a.x,b.y-a.y)<4){ d.points[1]={x:a.x+80,y:a.y}; }
+        } else if(d.type==='free'){ if(d.points.length<2) d.points.push({x:d.points[0].x+1,y:d.points[0].y+1}); }
+        state.shapes.push(d); state.selected=d; save();
+      }
+      state.drag=null; render();
+    }
+    function onWheel(e){
+      e.preventDefault();
+      var p=pos(e); var before=toWorld(p.x,p.y);
+      var factor=e.deltaY<0?1.1:0.9;
+      state.scale=Math.max(0.1,Math.min(8,state.scale*factor));
+      state.pan.x=p.x-before.x*state.scale; state.pan.y=p.y-before.y*state.scale;
+      render();
+    }
+    function onDbl(e){
+      var p=pos(e), w=toWorld(p.x,p.y);
+      var hit=WF.hitTest(state.shapes,w.x,w.y,8/state.scale);
+      if(hit && (hit.type==='text'||hit.type==='note')){
+        var nv=window.prompt('Text:', hit.text||''); if(nv!==null){ hit.text=nv; save(); render(); }
+      }
+    }
+    function exportPNG(){
+      if(!ctx){ return; }
+      var b=WF.bounds(state.shapes); var pad=30;
+      var bw=Math.max(100,b.maxX-b.minX)+pad*2, bh=Math.max(100,b.maxY-b.minY)+pad*2;
+      var c=document.createElement('canvas'); c.width=Math.round(bw); c.height=Math.round(bh);
+      var x=c.getContext('2d'); x.fillStyle='#0A0A0B'; x.fillRect(0,0,bw,bh);
+      x.save(); x.translate(pad-b.minX, pad-b.minY);
+      state.shapes.forEach(function(s){ var sv=ctx; drawShapeOn(x,s); });
+      x.restore();
+      try{ var url=c.toDataURL('image/png'); var a=document.createElement('a'); a.href=url; a.download='whiteboard.png'; a.click(); }catch(e){}
+    }
+    function drawShapeOn(x,s){
+      x.lineWidth=s.strokeWidth||3; x.strokeStyle=s.stroke||'#5E6AD2';
+      if(s.type==='rect'||s.type==='note'){ x.beginPath(); x.rect(s.x,s.y,s.w,s.h); if(s.fill&&s.fill!=='none'){x.fillStyle=s.fill;x.fill();} x.stroke(); if(s.text){x.fillStyle='#fff';x.font='16px sans-serif';x.fillText(s.text,s.x+10,s.y+22);} }
+      else if(s.type==='ellipse'){ x.beginPath(); x.ellipse(s.x+s.w/2,s.y+s.h/2,Math.abs(s.w/2),Math.abs(s.h/2),0,0,Math.PI*2); if(s.fill&&s.fill!=='none')x.fill(); x.stroke(); }
+      else if(s.type==='line'||s.type==='arrow'){ var p=s.points; x.beginPath(); x.moveTo(p[0].x,p[0].y); x.lineTo(p[1].x,p[1].y); x.stroke(); if(s.type==='arrow'){var ang=Math.atan2(p[1].y-p[0].y,p[1].x-p[0].x),L=12;x.beginPath();x.moveTo(p[1].x,p[1].y);x.lineTo(p[1].x-L*Math.cos(ang-0.4),p[1].y-L*Math.sin(ang-0.4));x.stroke();x.beginPath();x.moveTo(p[1].x,p[1].y);x.lineTo(p[1].x-L*Math.cos(ang+0.4),p[1].y-L*Math.sin(ang+0.4));x.stroke();} }
+      else if(s.type==='free'){ x.beginPath(); x.moveTo(s.points[0].x,s.points[0].y); for(var i=1;i<s.points.length;i++)x.lineTo(s.points[i].x,s.points[i].y); x.stroke(); }
+      else if(s.type==='text'){ x.fillStyle=s.stroke||'#fff'; x.font='22px sans-serif'; x.fillText(s.text,s.x,s.y+22); }
+    }
+    function exportSVG(){
+      var svg=WF.toSVG(state.shapes);
+      try{ var blob=new Blob([svg],{type:'image/svg+xml'}); var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download='whiteboard.svg'; a.click(); URL.revokeObjectURL(url); }catch(e){}
+    }
+    function fitView(){
+      if(!state.shapes.length) return;
+      var f=WF.fit(state.shapes, W, H, 60);
+      state.scale=f.scale; state.pan.x=f.tx; state.pan.y=f.ty; render();
+    }
+
+    var STROKE_COLORS=['#5E6AD2','#10B981','#F5A623','#22D3EE','#A78BFA','#EC4899','#FFFFFF','#000000'];
+    var FILL_COLORS=['#1A1B1E','#5E6AD2','#10B981','#F5A623','#22D3EE','#A78BFA','#EC4899','#FFFFFF'];
+    function buildSwatches(){
+      var ss=$('strokeSw'); ss.innerHTML='';
+      STROKE_COLORS.forEach(function(c){ var d=document.createElement('div'); d.className='sw'+(c===state.stroke?' on':''); d.style.background=c; d.onclick=function(){ state.stroke=c; $('stroke').value=c; markSw(ss,d); }; ss.appendChild(d); });
+      var fs=$('fillSw'); fs.innerHTML='';
+      FILL_COLORS.forEach(function(c){ var d=document.createElement('div'); d.className='sw'+(c===state.fill?' on':''); d.style.background=c; d.onclick=function(){ state.fill=c; $('fill').value=c; markSw(fs,d); }; fs.appendChild(d); });
+    }
+    function markSw(box,el){ box.querySelectorAll('.sw').forEach(function(x){x.classList.remove('on');}); el.classList.add('on'); }
+
+    function applyLang(){
+      document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent=t(el.getAttribute('data-i18n')); });
+      document.documentElement.lang = lang==='zh'?'zh':'en';
+      $('langBtn').textContent = lang==='zh'?'EN':'中';
+    }
+    function bind(){
+      document.querySelectorAll('#tools .tool').forEach(function(el){ el.addEventListener('click', function(){ setTool(el.getAttribute('data-tool')); }); });
+      canvas.addEventListener('pointerdown', onDown);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      canvas.addEventListener('wheel', onWheel, {passive:false});
+      canvas.addEventListener('dblclick', onDbl);
+      $('stroke').addEventListener('input', function(){ state.stroke=this.value; });
+      $('fill').addEventListener('input', function(){ state.fill=this.value; });
+      $('sw').addEventListener('input', function(){ state.strokeWidth=+this.value; $('swv').textContent=this.value; });
+      $('undo').addEventListener('click', undo);
+      $('redo').addEventListener('click', redo);
+      $('fit').addEventListener('click', fitView);
+      $('clear').addEventListener('click', function(){ if(state.shapes.length && window.confirm(t('clearAll')+'?')){ pushHistory(); state.shapes=[]; state.selected=null; save(); render(); } });
+      $('png').addEventListener('click', exportPNG);
+      $('svg').addEventListener('click', exportSVG);
+      $('langBtn').addEventListener('click', function(){ lang=lang==='zh'?'en':'zh'; applyLang(); });
+      window.addEventListener('resize', resize);
+      window.addEventListener('keydown', function(e){
+        if((e.ctrlKey||e.metaKey) && e.key==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); }
+        else if(e.key==='Delete' && state.selected){ pushHistory(); state.shapes=state.shapes.filter(function(x){return x!==state.selected;}); state.selected=null; save(); render(); }
+      });
+      if('serviceWorker' in navigator){ window.addEventListener('load', function(){ try{ navigator.serviceWorker.register('sw.js'); }catch(e){} }); }
+    }
+    function init(){
+      load(); setTool('select'); buildSwatches(); bind(); applyLang(); resize();
+      if(state.shapes.length) fitView();
+    }
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+    window.__WHITEBOARD__={ version:WF.version(), kernel:WF, state:state, toSVG:function(){return WF.toSVG(state.shapes);}, fit:fitView, setLang:function(l){lang=l;applyLang();}, t:t, undo:undo, redo:redo, create:WF.create };
+  })();
+}
+</script>
+<footer style="margin-top:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.08);color:#71717A;font-size:12px;text-align:center">nano-tools · 单文件 · 零依赖 · 本地优先 · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</body>
+</html>

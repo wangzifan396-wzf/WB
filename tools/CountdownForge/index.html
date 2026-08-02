@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>CountdownForge — 多倒计时：添加多个目标时刻，实时显示剩余天/时/分/秒，本地保存，离线可用。</title>
+<meta property="og:title" content="CountdownForge">
+<meta property="og:description" content="多倒计时：添加多个目标时刻，实时显示剩余天/时/分/秒，本地保存，离线可用。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="多倒计时：多目标实时倒数 + 本地保存 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A; --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:10px 0 6px}
+input[type=text],input[type=datetime-local]{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.flex{display:flex;gap:10px}.flex>div{flex:1}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.cards{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.cd{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.cd .lab{font-size:14px;font-weight:600}
+.cd .big{font:26px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--accent);margin-top:6px}
+.cd .dig{display:inline-block;min-width:42px}
+.cd .rm{float:right;background:transparent;border:1px solid var(--line);color:var(--dim);padding:3px 9px;font-size:12px;border-radius:6px;cursor:pointer}
+.cd.done .big{color:var(--ok)}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<div class="app">
+  <h1>CountdownForge</h1>
+  <p class="sub">多倒计时：多目标实时倒数 + 本地保存 · 单文件 · 零依赖 · 本地优先</p>
+
+  <label>标签</label>
+  <input id="label" type="text" placeholder="春节 / 项目截止 / 生日">
+  <label>目标时间</label>
+  <input id="target" type="datetime-local">
+  <div class="row">
+    <button id="add">添加倒计时</button>
+    <button id="clear" class="ghost">清空全部</button>
+  </div>
+  <div class="err" id="err"></div>
+  <div class="cards" id="out"></div>
+
+  <div class="badges">
+    <span class="badge">零依赖</span><span class="badge">离线可用</span><span class="badge">数据不出本机</span>
+    <span class="badge flag">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 328 款工具 &rarr;</a></footer>
+</div>
+<script>
+function countdownParse(s){
+  s=String(s||'').trim(); if(!s) return null;
+  var iso=s.replace(' ','T');
+  var dt=new Date(iso);
+  if(!isNaN(dt.getTime())) return dt;
+  var d2=new Date(s);
+  return isNaN(d2.getTime())? null : d2;
+}
+function countdownRemain(target, now){
+  target=target instanceof Date? target : countdownParse(target);
+  now=now||new Date();
+  var ms=target.getTime()-now.getTime();
+  if(ms<=0) return { done:true, ms:0, d:0, h:0, m:0, s:0 };
+  var d=Math.floor(ms/86400000); ms-=d*86400000;
+  var h=Math.floor(ms/3600000); ms-=h*3600000;
+  var m=Math.floor(ms/60000); ms-=m*60000;
+  var sec=Math.floor(ms/1000);
+  return { done:false, ms:target.getTime()-now.getTime(), d:d, h:h, m:m, s:sec };
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { countdownParse:countdownParse, countdownRemain:countdownRemain };
+}
+if (typeof window !== 'undefined') {
+  window.CountdownForgePure = { countdownParse:countdownParse, countdownRemain:countdownRemain };
+}
+</script>
+<script>
+if (typeof window !== 'undefined') {
+  (function(){
+    var $=function(id){ return document.getElementById(id); };
+    var P=window.CountdownForgePure;
+    var store=null; try{ store=window.localStorage; }catch(e){}
+    var list=[];
+    function save(){ if(store) store.setItem('countdown_list', JSON.stringify(list)); }
+    function load(){ if(store){ try{ list=JSON.parse(store.getItem('countdown_list'))||[]; }catch(e){ list=[]; } } }
+    function pad(x){ return ('0'+x).slice(-2); }
+    function render(){
+      if(!list.length){ $('out').innerHTML='<div class="cd" style="color:var(--dim)">还没有倒计时，添加一个吧。</div>'; return; }
+      var now=new Date(), html='';
+      for(var i=0;i<list.length;i++){
+        var r=P.countdownRemain(list[i].target, now);
+        var big = r.done ? '已到期' :
+          '<span class="dig">'+r.d+'</span>天 <span class="dig">'+pad(r.h)+'</span>:<span class="dig">'+pad(r.m)+'</span>:<span class="dig">'+pad(r.s)+'</span>';
+        html+='<div class="cd'+(r.done?' done':'')+'"><button class="rm" data-i="'+i+'">删除</button>'+
+          '<div class="lab">'+list[i].label+'</div><div class="big">'+big+'</div></div>';
+      }
+      $('out').innerHTML=html;
+      var btns=$('out').querySelectorAll('.rm');
+      for(var j=0;j<btns.length;j++) btns[j].addEventListener('click', function(){ list.splice(Number(this.getAttribute('data-i')),1); save(); render(); });
+    }
+    $('add').addEventListener('click', function(){
+      var t=P.countdownParse($('target').value);
+      if(!t){ $('err').textContent='请选择有效的目标时间'; return; }
+      $('err').textContent='';
+      list.push({ label:$('label').value||'倒计时', target:t.toISOString() });
+      save(); render();
+    });
+    $('clear').addEventListener('click', function(){ list=[]; save(); render(); });
+    load(); render();
+    setInterval(render, 1000);
+  })();
+}
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>
