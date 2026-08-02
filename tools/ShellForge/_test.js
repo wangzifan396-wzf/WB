@@ -1,0 +1,44 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const kernel=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
+const mo={exports:{}};new Function('module','exports',kernel)(mo,mo.exports);
+const C=mo.exports;let pass=0,fail=0;
+function ok(n,c){if(c)pass++;else{fail++;console.error('FAIL '+n);}}
+function codes(s){var r=C.lint(s);return r.value?r.value.issues.map(function(x){return x.code;}):[];}
+ok('empty', C.lint('').error!=null);
+ok('shebang-missing', codes('echo hi').indexOf('SC2148')>=0);
+ok('shebang-ok', codes('#!/bin/bash\nset -e\necho hi').indexOf('SC2148')<0);
+ok('detect-env', C.detectShell('#!/usr/bin/env bash\n')==='bash');
+ok('detect-sh', C.detectShell('#!/bin/sh\n')==='sh');
+ok('strict', codes('#!/bin/bash\necho x').indexOf('NANO01')>=0);
+ok('strict-off', codes('#!/bin/bash\nset -euo pipefail\necho x').indexOf('NANO01')<0);
+ok('sc2086', codes('#!/bin/bash\nset -e\nA=1\necho $A').indexOf('SC2086')>=0);
+ok('sc2086-quoted', codes('#!/bin/bash\nset -e\nA=1\necho "$A"').indexOf('SC2086')<0);
+ok('sc2006', codes('#!/bin/bash\nset -e\nX=`date`\necho "$X"').indexOf('SC2006')>=0);
+ok('sc2164', codes('#!/bin/bash\nset -e\ncd /tmp').indexOf('SC2164')>=0);
+ok('sc2164-ok', codes('#!/bin/bash\nset -e\ncd /tmp || exit 1').indexOf('SC2164')<0);
+ok('sc2115', codes('#!/bin/bash\nset -e\nD=/x\nrm -rf $D/old').indexOf('SC2115')>=0);
+ok('sc2181', codes('#!/bin/bash\nset -e\nif [ $? -ne 0 ]; then echo n; fi').indexOf('SC2181')>=0);
+ok('sc2162', codes('#!/bin/bash\nset -e\nread name').indexOf('SC2162')>=0);
+ok('sc2162-ok', codes('#!/bin/bash\nset -e\nread -r name').indexOf('SC2162')<0);
+ok('sc2166', codes('#!/bin/bash\nset -e\nif [ -f a -a -f b ]; then echo y; fi').indexOf('SC2166')>=0);
+ok('sc2035', codes('#!/bin/bash\nset -e\nrm *').indexOf('SC2035')>=0);
+ok('sc2002', codes('#!/bin/bash\nset -e\ncat f.txt | grep x').indexOf('SC2002')>=0);
+ok('sc2196', codes('#!/bin/bash\nset -e\negrep foo f').indexOf('SC2196')>=0);
+ok('sc2044', codes('#!/bin/bash\nset -e\nfor f in $(find . -name x); do echo "$f"; done').indexOf('SC2044')>=0);
+ok('sc3010', codes('#!/bin/sh\nset -e\nif [[ -f a ]]; then echo y; fi').indexOf('SC3010')>=0);
+ok('sc3010-bash', codes('#!/bin/bash\nset -e\nif [[ -f a ]]; then echo y; fi').indexOf('SC3010')<0);
+ok('sc2034', codes('#!/bin/bash\nset -e\nUNUSED=1\necho hi').indexOf('SC2034')>=0);
+ok('sc2154', codes('#!/bin/bash\nset -e\necho "$NOPE"').indexOf('SC2154')>=0);
+ok('sc2154-env', codes('#!/bin/bash\nset -e\necho "$HOME"').indexOf('SC2154')<0);
+ok('comment-skip', codes('#!/bin/bash\nset -e\n# rm -rf $D/old\necho ok').indexOf('SC2115')<0);
+ok('singlequote-skip', codes("#!/bin/bash\nset -e\necho '$A'").indexOf('SC2086')<0);
+var q=C.quoteMap('a"b"c');
+ok('qmap', q[0]===0&&q[1]===2&&q[2]===2&&q[4]===0);
+ok('strip', C.stripComment('echo a # note')==='echo a ');
+ok('rank', C.severityRank('error')<C.severityRank('style'));
+var full=C.lint('#!/bin/bash\nBACKUP=/t\ncd $1\nrm -rf $BACKUP/x\n');
+ok('score', full.value.score<100&&full.value.score>=0);
+ok('sorted', full.value.issues.every(function(x,i,a){return i===0||a[i-1].line<=x.line;}));
+console.log((fail?'FAIL':'PASS')+' ShellForge '+pass+'/'+fail);process.exit(fail?1:0);

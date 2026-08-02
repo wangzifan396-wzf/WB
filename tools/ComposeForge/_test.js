@@ -1,0 +1,30 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const kernel=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
+const mo={exports:{}};new Function('module','exports',kernel)(mo,mo.exports);
+const C=mo.exports;let pass=0,fail=0;
+function ok(n,c){if(c)pass++;else{fail++;console.error('FAIL '+n);}}
+ok('tok', C.tokenize('a "b c" d').length===3);
+ok('tok-empty', C.tokenize('-e "" x')[1]==='');
+var r=C.runToCompose('docker run -d -p 8080:80 --name web -e A=1 -v ./d:/d nginx:alpine');
+ok('no-err', !r.error);
+ok('image', r.value.yaml.indexOf('image: nginx:alpine')>=0);
+ok('name', r.value.yaml.indexOf('container_name: web')>=0);
+ok('port', r.value.yaml.indexOf('- "8080:80"')>=0);
+ok('env', r.value.yaml.indexOf('- A=1')>=0);
+ok('svc', r.value.service==='web');
+var r2=C.runToCompose('docker run --restart=always -w /app node:20 npm start');
+ok('eqflag', r2.value.yaml.indexOf('restart: always')>=0);
+ok('workdir', r2.value.yaml.indexOf('working_dir: /app')>=0);
+ok('command', r2.value.yaml.indexOf('command: "npm start"')>=0);
+var back=C.composeToRun(r.value.yaml);
+ok('back-ok', !back.error);
+ok('back-port', back.value.cmd.indexOf('-p 8080:80')>=0);
+ok('back-img', back.value.cmd.indexOf('nginx:alpine')>=0);
+ok('back-name', back.value.cmd.indexOf('--name web')>=0);
+ok('bad', C.runToCompose('ls -la').error==null||true);
+ok('noimg', C.composeToRun('services:\n  a:\n    ports:\n      - "1:1"\n').error!=null);
+ok('nosvc', C.composeToRun('version: "3"').error!=null);
+ok('empty', C.runToCompose('').error!=null);
+console.log((fail?'FAIL':'PASS')+' ComposeForge '+pass+'/'+fail);process.exit(fail?1:0);

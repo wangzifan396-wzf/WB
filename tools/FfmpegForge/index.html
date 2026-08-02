@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>FfmpegForge — FFmpeg 命令生成与解释</title>
+<meta property="og:title" content="FfmpegForge">
+<meta property="og:description" content="FFmpeg 命令助手：十套常用配方一键生成压缩、转码、切片、转 GIF、抽帧等命令；解释模式逐个参数给出中文含义，并提示 -c:v copy 与滤镜冲突等常见坑。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="FFmpeg 命令助手：十套常用配方一键生成压缩、转码、切片、转 GIF、抽帧等命令；解释模式逐个参数给出中文含义，并提示 -c:v copy 与滤镜冲突等常见坑。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
+  --hair:inset 0 1px 0 rgba(255,255,255,.05);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
+  --glow:0 10px 40px -20px rgba(94,106,210,.55);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+button:active{transform:translateY(1px) scale(.988)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>FfmpegForge</h1>
+      <p class="sub" data-i18n="sub">FFmpeg 命令生成与解释 · 单文件 · 零依赖 · 本地优先</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <div class="seg" role="group" aria-label="工作模式">
+    <button type="button" id="mb" class="active">生成命令</button>
+    <button type="button" id="me">解释命令</button>
+  </div>
+  <div id="paneB">
+    <label for="preset">常用配方</label>
+    <select id="preset">
+      <option value="compress">压缩视频（H.264）</option>
+      <option value="h265">转 H.265 省一半体积</option>
+      <option value="web">网页可流式播放 MP4</option>
+      <option value="gif">视频转高质量 GIF</option>
+      <option value="audio">提取音频为 MP3</option>
+      <option value="mute">去掉声音</option>
+      <option value="cut">无损截取片段</option>
+      <option value="shrink">缩放到 720p</option>
+      <option value="frames">每秒抽一帧存图</option>
+      <option value="rotate">顺时针旋转 90 度</option>
+    </select>
+    <div class="grid">
+      <div><label for="fin">输入文件</label><input type="text" id="fin" value="input.mp4"></div>
+      <div><label for="fout">输出文件（留空自动命名）</label><input type="text" id="fout" value=""></div>
+      <div><label for="fstart">起始时间（可留空）</label><input type="text" id="fstart" value=""></div>
+      <div><label for="fdur">持续时长（可留空）</label><input type="text" id="fdur" value=""></div>
+      <div><label for="fcrf">CRF 质量（越小越清晰）</label><input type="text" id="fcrf" value="23"></div>
+      <div><label for="fscale">缩放宽度 px（可留空）</label><input type="text" id="fscale" value=""></div>
+    </div>
+  </div>
+  <div id="paneE" style="display:none">
+    <label for="cmd">粘贴 ffmpeg 命令</label>
+    <textarea id="cmd" rows="4" spellcheck="false">ffmpeg -y -ss 00:00:05 -i in.mkv -t 30 -c:v libx265 -crf 28 -preset slow -c:a aac -b:a 128k -movflags +faststart out.mp4</textarea>
+  </div>
+  <div class="row"><button id="go">运行</button><button class="ghost" id="copy">复制结果</button></div>
+  <div class="err" id="err"></div>
+  <div class="sec">输出结果</div>
+  <div class="out" id="out"><span class="ph">就绪</span></div>
+  <p class="hint">生成的命令可直接粘进终端；解释模式会逐个参数给出中文含义并提示常见冲突。所有处理都在本地完成。</p>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 412 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+'use strict';
+var FLAGS={
+ '-i':'输入文件','-y':'覆盖已存在的输出文件','-n':'输出已存在时直接退出',
+ '-c':'统一指定编解码器','-c:v':'视频编码器','-c:a':'音频编码器','-c:s':'字幕编码器',
+ '-vcodec':'视频编码器（旧写法，等价 -c:v）','-acodec':'音频编码器（旧写法，等价 -c:a）',
+ '-crf':'恒定质量因子，数字越小画质越好体积越大（x264/x265 常用 18-28）',
+ '-preset':'编码速度预设，越慢压缩率越高（ultrafast~veryslow）',
+ '-tune':'针对内容类型调优（film/animation/grain/zerolatency 等）',
+ '-profile:v':'编码 profile（baseline/main/high），影响兼容性',
+ '-level':'编码 level，限制码率与分辨率上限',
+ '-b:v':'视频目标码率','-b:a':'音频目标码率','-maxrate':'最大码率上限','-bufsize':'码率控制缓冲区大小',
+ '-vf':'视频滤镜链','-af':'音频滤镜链','-filter_complex':'复杂滤镜图（多输入/多输出）',
+ '-r':'输出帧率','-s':'输出分辨率（等价 scale 滤镜）','-aspect':'显示宽高比',
+ '-ss':'起始时间点（放在 -i 前为快速定位）','-t':'持续时长','-to':'结束时间点',
+ '-an':'去掉音频流','-vn':'去掉视频流','-sn':'去掉字幕流','-dn':'去掉数据流',
+ '-map':'手动选择要输出的流','-f':'强制指定容器格式','-pix_fmt':'像素格式（yuv420p 兼容性最好）',
+ '-ar':'音频采样率','-ac':'音频声道数','-q:v':'视频质量（可变码率编码器）','-q:a':'音频质量',
+ '-movflags':'MP4 容器标志，+faststart 可让网页边下边播',
+ '-threads':'编码线程数','-hwaccel':'硬件解码加速（cuda/qsv/videotoolbox 等）',
+ '-loop':'循环输入次数','-shortest':'以最短的流为准结束输出','-stream_loop':'输入循环次数',
+ '-metadata':'写入元数据','-pass':'两遍编码的第几遍','-g':'关键帧间隔（GOP）',
+ '-re':'按原生帧率读取（推流常用）','-vsync':'帧同步策略','-copyts':'保留原始时间戳',
+ '-itsoffset':'输入时间偏移','-disposition':'设置流的默认/强制标记','-hide_banner':'隐藏版本横幅',
+ '-loglevel':'日志级别','-progress':'输出进度到指定目标','-nostdin':'禁止读取标准输入'
+};
+var VALUELESS={'-y':1,'-n':1,'-an':1,'-vn':1,'-sn':1,'-dn':1,'-shortest':1,'-re':1,'-copyts':1,'-hide_banner':1,'-nostdin':1};
+var PRESETS=[
+ {id:'compress',name:'压缩视频（H.264）',o:{vcodec:'libx264',crf:'23',preset:'medium',acodec:'aac',abitrate:'128k',faststart:true}},
+ {id:'h265',name:'转 H.265 省一半体积',o:{vcodec:'libx265',crf:'28',preset:'medium',acodec:'aac',abitrate:'128k',tag:'hvc1'}},
+ {id:'web',name:'网页可流式播放 MP4',o:{vcodec:'libx264',crf:'22',preset:'slow',acodec:'aac',abitrate:'128k',pix:'yuv420p',faststart:true}},
+ {id:'gif',name:'视频转高质量 GIF',o:{gif:true,fps:'12',scale:'480'}},
+ {id:'audio',name:'提取音频为 MP3',o:{novideo:true,acodec:'libmp3lame',abitrate:'192k',ext:'mp3'}},
+ {id:'mute',name:'去掉声音',o:{vcodec:'copy',mute:true}},
+ {id:'cut',name:'无损截取片段',o:{vcodec:'copy',acodec:'copy',start:'00:00:10',duration:'00:00:30'}},
+ {id:'shrink',name:'缩放到 720p',o:{vcodec:'libx264',crf:'23',preset:'medium',scale:'1280',acodec:'aac',abitrate:'128k'}},
+ {id:'frames',name:'每秒抽一帧存图',o:{frames:true,fps:'1'}},
+ {id:'rotate',name:'顺时针旋转 90 度',o:{vcodec:'libx264',crf:'20',preset:'medium',transpose:'1',acodec:'copy'}}
+];
+function q(s){ return /[\s"'*?$&|<>()]/.test(s)?('"'+String(s).replace(/"/g,'\\"')+'"'):s; }
+function baseName(p){ var b=String(p).split(/[\\/]/).pop(); var i=b.lastIndexOf('.'); return i>0?b.slice(0,i):b; }
+function build(o){
+  o=o||{};
+  var input=o.input||'input.mp4';
+  if(!String(input).trim()) return {value:null,error:'请填写输入文件名'};
+  var a=['ffmpeg'],vf=[],notes=[];
+  if(o.overwrite!==false) a.push('-y');
+  if(o.hwaccel) a.push('-hwaccel',o.hwaccel);
+  if(o.start) a.push('-ss',o.start);
+  a.push('-i',q(input));
+  if(o.duration) a.push('-t',o.duration);
+  if(o.scale) vf.push('scale='+o.scale+':-2');
+  if(o.transpose) vf.push('transpose='+o.transpose);
+  if(o.fps&&!o.gif) a.push('-r',o.fps);
+  if(o.gif){
+    vf.push('fps='+(o.fps||'12'));
+    vf.push('split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer');
+    a.push('-vf',q(vf.join(',')));
+    a.push('-loop','0');
+    var gout=o.output||(baseName(input)+'.gif');
+    a.push(q(gout));
+    notes.push('使用 palettegen/paletteuse 两段调色板滤镜，GIF 色彩明显优于直接转换');
+    return {value:{cmd:a.join(' '),notes:notes,filters:vf.slice()},error:null};
+  }
+  if(o.frames){
+    if(o.fps) a.push('-vf',q('fps='+o.fps));
+    a.push('-q:v','2');
+    a.push(q(o.output||'frame_%04d.jpg'));
+    notes.push('%04d 会展开为 frame_0001.jpg 这样的序号文件名');
+    return {value:{cmd:a.join(' '),notes:notes,filters:[]},error:null};
+  }
+  if(vf.length) a.push('-vf',q(vf.join(',')));
+  if(o.novideo){ a.push('-vn'); }
+  else if(o.vcodec){ a.push('-c:v',o.vcodec); }
+  if(o.vcodec&&o.vcodec!=='copy'&&!o.novideo){
+    if(o.crf) a.push('-crf',o.crf);
+    if(o.preset) a.push('-preset',o.preset);
+    if(o.tune) a.push('-tune',o.tune);
+    if(o.pix) a.push('-pix_fmt',o.pix);
+    if(o.tag) a.push('-tag:v',o.tag);
+  }
+  if(o.mute) a.push('-an');
+  else if(o.acodec){ a.push('-c:a',o.acodec); if(o.acodec!=='copy'&&o.abitrate) a.push('-b:a',o.abitrate); }
+  if(o.faststart) a.push('-movflags','+faststart');
+  if(o.extra) a.push(o.extra);
+  var ext=o.ext||(o.novideo?'mp3':'mp4');
+  a.push(q(o.output||(baseName(input)+'_out.'+ext)));
+  if(o.vcodec==='copy'&&o.start) notes.push('流复制截取只能在关键帧处切，起止点可能有 1-2 秒偏差');
+  if(o.vcodec==='libx265') notes.push('加 -tag:v hvc1 才能被苹果设备与 Safari 正常识别');
+  if(o.faststart) notes.push('+faststart 把索引挪到文件头，网页可边下边播');
+  if(o.crf&&Number(o.crf)<18) notes.push('CRF 低于 18 时体积会迅速膨胀，肉眼收益有限');
+  return {value:{cmd:a.join(' '),notes:notes,filters:vf.slice()},error:null};
+}
+function tokenize(s){
+  var t=[],cur='',q0=0,i,c,has=false;
+  for(i=0;i<s.length;i++){
+    c=s.charAt(i);
+    if(q0===0){
+      if(c==='"'){q0=1;has=true;continue;}
+      if(c==="'"){q0=2;has=true;continue;}
+      if(/\s/.test(c)){ if(cur||has){t.push(cur);cur='';has=false;} continue; }
+      if(c==='\\'&&i+1<s.length&&s.charAt(i+1)==='\n'){i++;continue;}
+      cur+=c;
+    } else if(q0===1){ if(c==='"'){q0=0;continue;} if(c==='\\'&&i+1<s.length){cur+=s.charAt(++i);continue;} cur+=c; }
+    else { if(c==="'"){q0=0;continue;} cur+=c; }
+  }
+  if(cur||has)t.push(cur);
+  return t;
+}
+function explain(cmd){
+  if(typeof cmd!=='string'||!cmd.trim()) return {value:null,error:'请粘贴一条 ffmpeg 命令'};
+  var t=tokenize(cmd.replace(/\s*\\\s*\n\s*/g,' '));
+  if(!t.length) return {value:null,error:'请粘贴一条 ffmpeg 命令'};
+  if(!/^ffmpeg(\.exe)?$/i.test(t[0])) return {value:null,error:'命令需要以 ffmpeg 开头'};
+  var rows=[],warn=[],inputs=[],outputs=[],i=1;
+  while(i<t.length){
+    var tk=t[i];
+    if(tk.charAt(0)==='-'){
+      var key=tk,desc=FLAGS[key];
+      if(!desc){
+        var b=key.split(':')[0];
+        desc=FLAGS[b]?(FLAGS[b]+'（作用于 '+key.split(':').slice(1).join(':')+' 流）'):null;
+      }
+      var val='';
+      if(!VALUELESS[key]&&i+1<t.length&&(t[i+1].charAt(0)!=='-'||/^-?\d/.test(t[i+1]))){ val=t[i+1]; i++; }
+      if(key==='-i') inputs.push(val);
+      rows.push({flag:key,arg:val,desc:desc||'未收录的参数，请查阅 ffmpeg 官方文档'});
+      if(!desc) warn.push('未识别参数 '+key);
+    } else {
+      outputs.push(tk);
+      rows.push({flag:'',arg:tk,desc:'输出文件'});
+    }
+    i++;
+  }
+  if(!inputs.length) warn.push('没有找到 -i 输入文件');
+  if(!outputs.length) warn.push('没有找到输出文件');
+  var joined=' '+t.join(' ')+' ';
+  if(joined.indexOf(' -c:v copy ')>=0&&joined.indexOf(' -vf ')>=0) warn.push('-c:v copy 与 -vf 冲突：流复制时无法应用视频滤镜');
+  if(joined.indexOf(' -crf ')>=0&&joined.indexOf(' -c:v copy ')>=0) warn.push('-crf 对 -c:v copy 无效');
+  if(/\.mp4["']?\s*$/.test(cmd)&&joined.indexOf('faststart')<0) warn.push('输出 MP4 建议加 -movflags +faststart 以支持网页流式播放');
+  return {value:{rows:rows,inputs:inputs,outputs:outputs,warn:warn,count:rows.length},error:null};
+}
+var API={build:build,explain:explain,tokenize:tokenize,PRESETS:PRESETS,FLAGS:FLAGS,baseName:baseName,quote:q};
+if(typeof module!=='undefined'&&module.exports) module.exports=API;
+if(typeof window!=='undefined') window.__FfmpegForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  var P=window.__FfmpegForge__,mode='b',last='';
+  var out=document.getElementById('out'),err=document.getElementById('err');
+  var sel=document.getElementById('preset'),cmd=document.getElementById('cmd');
+  var fin=document.getElementById('fin'),fout=document.getElementById('fout'),
+      fstart=document.getElementById('fstart'),fdur=document.getElementById('fdur'),
+      fcrf=document.getElementById('fcrf'),fscale=document.getElementById('fscale');
+  function setMode(m){
+    mode=m;
+    document.getElementById('mb').className=(m==='b'?'active':'');
+    document.getElementById('me').className=(m==='e'?'active':'');
+    document.getElementById('paneB').style.display=(m==='b'?'':'none');
+    document.getElementById('paneE').style.display=(m==='e'?'':'none');
+    run();
+  }
+  function currentPreset(){
+    for(var i=0;i<P.PRESETS.length;i++) if(P.PRESETS[i].id===sel.value) return P.PRESETS[i];
+    return P.PRESETS[0];
+  }
+  function run(){
+    err.textContent='';
+    if(mode==='b'){
+      var pr=currentPreset(),o={},k;
+      for(k in pr.o) o[k]=pr.o[k];
+      o.input=fin.value;
+      if(fout.value.trim()) o.output=fout.value.trim();
+      if(fstart.value.trim()) o.start=fstart.value.trim();
+      if(fdur.value.trim()) o.duration=fdur.value.trim();
+      if(fcrf.value.trim()&&o.crf!==undefined) o.crf=fcrf.value.trim();
+      if(fscale.value.trim()) o.scale=fscale.value.trim();
+      var r=P.build(o);
+      if(r.error){ out.textContent=''; err.textContent=r.error; return; }
+      var L=[r.value.cmd];
+      if(r.value.notes.length){ L.push(''); for(var i=0;i<r.value.notes.length;i++) L.push('· '+r.value.notes[i]); }
+      out.textContent=L.join('\n'); last=r.value.cmd;
+    } else {
+      var e=P.explain(cmd.value);
+      if(e.error){ out.textContent=''; err.textContent=e.error; return; }
+      var v=e.value,B=[];
+      for(var j=0;j<v.rows.length;j++){
+        var row=v.rows[j];
+        var head=(row.flag?row.flag:'(输出)')+(row.arg?(' '+row.arg):'');
+        B.push(pad(head,28)+row.desc);
+      }
+      out.textContent=B.join('\n'); last=out.textContent;
+      if(v.warn.length) err.textContent=v.warn.join('；');
+    }
+  }
+  function pad(s,n){ s=String(s); while(s.length<n) s+=' '; return s+' '; }
+  document.getElementById('mb').addEventListener('click',function(){setMode('b');});
+  document.getElementById('me').addEventListener('click',function(){setMode('e');});
+  document.getElementById('go').addEventListener('click',run);
+  sel.addEventListener('change',run);
+  cmd.addEventListener('input',run);
+  var ids=['fin','fout','fstart','fdur','fcrf','fscale'];
+  for(var i=0;i<ids.length;i++) document.getElementById(ids[i]).addEventListener('input',run);
+  document.getElementById('copy').addEventListener('click',function(){
+    if(last&&navigator.clipboard)navigator.clipboard.writeText(last);});
+  window.nanoRerender=run;
+  run();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "FFmpeg 命令生成与解释 · 单文件 · 零依赖 · 本地优先", "title": "FfmpegForge — FFmpeg 命令生成与解释"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

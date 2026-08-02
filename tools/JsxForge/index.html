@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>JsxForge — SVG 转 React 组件</title>
+<meta property="og:title" content="JsxForge">
+<meta property="og:description" content="把 SVG 代码转成可直接使用的 React/JSX 组件：属性自动转驼峰、style 转对象、空元素自闭合，支持 TypeScript 签名与 props 透传，省去手工改写。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="把 SVG 代码转成可直接使用的 React/JSX 组件：属性自动转驼峰、style 转对象、空元素自闭合，支持 TypeScript 签名与 props 透传，省去手工改写。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
+  --hair:inset 0 1px 0 rgba(255,255,255,.05);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
+  --glow:0 10px 40px -20px rgba(94,106,210,.55);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+button:active{transform:translateY(1px) scale(.988)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>JsxForge</h1>
+      <p class="sub" data-i18n="sub">SVG 转 React 组件 · 单文件 · 零依赖 · 本地优先</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="src">SVG 源码</label>
+  <textarea id="src" rows="7" spellcheck="false">&lt;svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon" fill="none" stroke-width="1.6"&gt;&lt;path d="M12 3v18M3 12h18"/&gt;&lt;circle cx="12" cy="12" r="9" style="fill:none;stroke-opacity:.4"/&gt;&lt;/svg&gt;</textarea>
+  <div class="grid">
+    <div><label for="cname">组件名</label><input type="text" id="cname" value="Icon"></div>
+    <div><label for="o2">选项</label>
+      <div class="row" style="margin-top:0">
+        <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="ts" style="width:auto"> TypeScript</label>
+        <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="sp" style="width:auto" checked> 透传 props</label>
+        <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="wrap" style="width:auto" checked> 生成组件</label>
+      </div>
+    </div>
+  </div>
+  <div class="row"><button id="go">转换为 JSX</button><button class="ghost" id="copy">复制结果</button></div>
+  <div class="err" id="err"></div>
+  <div class="sec">输出结果</div>
+  <div class="bento span2" id="stat"></div>
+  <div class="out" id="out"></div>
+  <p class="hint">属性自动驼峰化（class→className、stroke-width→strokeWidth），style 转为对象，空元素自闭合。</p>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 412 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+  var KEEP=/^(data-|aria-)/;
+  var SPECIAL={'class':'className','for':'htmlFor','tabindex':'tabIndex','readonly':'readOnly',
+               'maxlength':'maxLength','colspan':'colSpan','rowspan':'rowSpan','usemap':'useMap',
+               'contenteditable':'contentEditable','crossorigin':'crossOrigin','datetime':'dateTime',
+               'enctype':'encType','autofocus':'autoFocus','autocomplete':'autoComplete',
+               'srcset':'srcSet','novalidate':'noValidate','accept-charset':'acceptCharset'};
+  var VOID={path:1,circle:1,rect:1,line:1,polyline:1,polygon:1,ellipse:1,use:1,stop:1,image:1,
+            br:1,img:1,input:1,hr:1,meta:1,link:1,area:1,base:1,col:1,embed:1,source:1,track:1,wbr:1};
+  function camel(name){
+    if(KEEP.test(name)) return name;
+    if(SPECIAL[name.toLowerCase()]) return SPECIAL[name.toLowerCase()];
+    return name.replace(/[:-]+([a-zA-Z0-9])/g,function(m,c){return c.toUpperCase();});
+  }
+  function styleObj(s){
+    var parts=String(s).split(';'),o=[];
+    for(var i=0;i<parts.length;i++){
+      var p=parts[i];
+      if(!p||p.indexOf(':')<0) continue;
+      var k=p.slice(0,p.indexOf(':')).trim(),v=p.slice(p.indexOf(':')+1).trim();
+      if(!k) continue;
+      var ck=(k.charAt(0)==='-')?k:k.replace(/-+([a-z])/g,function(m,c){return c.toUpperCase();});
+      o.push((/^[A-Za-z][A-Za-z0-9]*$/.test(ck)?ck:JSON.stringify(ck))+": '"+v.replace(/'/g,"\\'")+"'");
+    }
+    return '{{'+o.join(', ')+'}}';
+  }
+  var ATTR_RE=/([^\s=\/>]+)(\s*=\s*("[^"]*"|'[^']*'|[^\s"'>]+))?/g;
+  function convAttrs(raw,spread){
+    var out=[],m;
+    ATTR_RE.lastIndex=0;
+    while((m=ATTR_RE.exec(raw))){
+      var name=m[1],val=m[3];
+      if(!name) continue;
+      if(val==null){ out.push(camel(name)); continue; }
+      var q=val.charAt(0),body=(q==='"'||q==="'")?val.slice(1,-1):val;
+      if(name.toLowerCase()==='style'){ out.push('style='+styleObj(body)); continue; }
+      out.push(camel(name)+'="'+body.replace(/"/g,'&quot;')+'"');
+    }
+    if(spread) out.push('{...props}');
+    return out.length?(' '+out.join(' ')):'';
+  }
+  function clean(svg){
+    return String(svg||'')
+      .replace(/<\?xml[\s\S]*?\?>/g,'')
+      .replace(/<!DOCTYPE[\s\S]*?>/gi,'')
+      .replace(/<!--[\s\S]*?-->/g,'')
+      .replace(/^\s+|\s+$/g,'');
+  }
+  function transform(svg,opt){
+    opt=opt||{};
+    var s=clean(svg);
+    if(!s) return {error:'请输入 SVG 源码'};
+    if(s.indexOf('<svg')<0) return {error:'未找到 svg 根元素'};
+    var first=true;
+    var out=s.replace(/<(\/?)([A-Za-z][\w:.-]*)((?:\s+[^\s=\/>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>/g,
+      function(all,slash,tag,attrs,selfc){
+        if(slash) return '</'+tag+'>';
+        var spread=(first&&opt.spread!==false&&tag.toLowerCase()==='svg');
+        var a=convAttrs(attrs||'',spread);
+        if(first) first=false;
+        var sc=(selfc==='/')||VOID[tag.toLowerCase()]===1;
+        return '<'+tag+a+(sc?' />':'>');
+      });
+    var name=String(opt.name||'Icon').replace(/[^A-Za-z0-9_]/g,'')||'Icon';
+    if(/^[0-9]/.test(name)) name='Icon'+name;
+    var body=out.split('\n').map(function(l){return l?('    '+l):l;}).join('\n');
+    var ts=!!opt.ts;
+    var sig=ts?('const '+name+' = (props: React.SVGProps<SVGSVGElement>) => (')
+              :('const '+name+' = (props) => (');
+    var code="import * as React from 'react';\n\n"+sig+'\n'+body+'\n);\n\nexport default '+name+';\n';
+    if(opt.wrap===false) code=out+'\n';
+    var attrCount=(out.match(/[A-Za-z]+="/g)||[]).length;
+    return {value:{code:code,jsx:out,name:name,attrs:attrCount,bytes:code.length}};
+  }
+  var API={transform:transform,camel:camel,styleObj:styleObj,clean:clean};
+  if(typeof module!=='undefined'&&module.exports)module.exports=API;
+  if(typeof window!=='undefined')window.__JsxForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  var P=window.__JsxForge__;
+  var src=document.getElementById('src'),out=document.getElementById('out'),err=document.getElementById('err');
+  function run(){
+    err.textContent='';
+    var r=P.transform(src.value,{name:document.getElementById('cname').value,
+      ts:document.getElementById('ts').checked,
+      spread:document.getElementById('sp').checked,
+      wrap:document.getElementById('wrap').checked});
+    if(r.error){ out.textContent=''; document.getElementById('stat').innerHTML=''; err.textContent=r.error; return; }
+    out.textContent=r.value.code;
+    document.getElementById('stat').innerHTML=
+      '<div class="tile"><h3>'+(window.nanoT?window.nanoT('t1'):'属性数')+'</h3><div class="big">'+r.value.attrs+'</div></div>'+
+      '<div class="tile"><h3>'+(window.nanoT?window.nanoT('t2'):'输出字节')+'</h3><div class="big">'+r.value.bytes+'</div></div>';
+  }
+  src.addEventListener('input',run);
+  ['cname','ts','sp','wrap'].forEach(function(id){
+    document.getElementById(id).addEventListener('input',run);
+    document.getElementById(id).addEventListener('change',run);});
+  document.getElementById('go').addEventListener('click',run);
+  document.getElementById('copy').addEventListener('click',function(){
+    if(out.textContent&&navigator.clipboard)navigator.clipboard.writeText(out.textContent);});
+  window.nanoRerender=run;
+  run();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "SVG 转 React 组件 · 单文件 · 零依赖 · 本地优先", "title": "JsxForge — SVG 转 React 组件"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

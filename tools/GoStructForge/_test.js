@@ -1,0 +1,38 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const kernel=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
+const mo={exports:{}};new Function('module','exports',kernel)(mo,mo.exports);
+const C=mo.exports;let pass=0,fail=0;
+function ok(n,c){if(c)pass++;else{fail++;console.error('FAIL '+n);}}
+ok('pascal', C.pascal('user_name')==='UserName');
+ok('pascal-init', C.pascal('user_id')==='UserID');
+ok('pascal-url', C.pascal('api_url')==='APIURL');
+ok('pascal-num', C.pascal('3d')==='F3D'||C.pascal('3d').charAt(0)==='F');
+ok('sing1', C.singular('items')==='item');
+ok('sing2', C.singular('categories')==='category');
+ok('sing3', C.singular('boxes')==='box');
+var r=C.toGo('{"user_name":"a","age":3,"ratio":1.5,"ok":true,"tags":["x"],"addr":{"city":"b"}}');
+ok('no-err', !r.error);
+var c=r.value.code;
+ok('str', /UserName string `json:"user_name"`/.test(c));
+ok('int', /Age int64/.test(c));
+ok('float', /Ratio float64/.test(c));
+ok('bool', /Ok bool/.test(c));
+ok('slice', /Tags \[\]string/.test(c));
+ok('nested-type', /type Addr struct/.test(c));
+ok('nested-ptr', /Addr \*Addr/.test(c));
+var r2=C.toGo('[{"a":1},{"a":2,"b":"x"}]',{root:'List'});
+ok('arr-root', /type List \[\]ListItem/.test(r2.value.code));
+ok('arr-merge', /B string/.test(r2.value.code));
+var r3=C.toGo('{"a":1}',{omitempty:true});
+ok('omit', /json:"a,omitempty"/.test(r3.value.code));
+var r4=C.toGo('{"a":1}',{yaml:true});
+ok('yaml', /yaml:"a"/.test(r4.value.code));
+var r5=C.toGo('{"a":null}');
+ok('null', /A interface\{\}/.test(r5.value.code));
+var r6=C.toGo('{"n":[1,2.5]}');
+ok('num-merge', /N \[\]float64/.test(r6.value.code));
+ok('bad', C.toGo('{oops').error!=null);
+ok('scalar', C.toGo('42').error!=null);
+console.log((fail?'FAIL':'PASS')+' GoStructForge '+pass+'/'+fail);process.exit(fail?1:0);

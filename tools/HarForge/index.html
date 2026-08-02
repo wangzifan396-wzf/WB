@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>HarForge — HAR 抓包性能分析</title>
+<meta property="og:title" content="HarForge">
+<meta property="og:description" content="HAR 抓包分析：统计请求数、传输量、加载耗时与失败请求，按资源类型与域名聚合，列出最慢与最大的请求、各阶段耗时合计，并给出针对性的优化建议。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="HAR 抓包分析：统计请求数、传输量、加载耗时与失败请求，按资源类型与域名聚合，列出最慢与最大的请求、各阶段耗时合计，并给出针对性的优化建议。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
+  --hair:inset 0 1px 0 rgba(255,255,255,.05);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
+  --glow:0 10px 40px -20px rgba(94,106,210,.55);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+button:active{transform:translateY(1px) scale(.988)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>HarForge</h1>
+      <p class="sub" data-i18n="sub">HAR 抓包性能分析 · 单文件 · 零依赖 · 本地优先</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="src">HAR 内容（DevTools 网络面板右键导出 HAR）</label>
+  <textarea id="src" rows="7" spellcheck="false">{"log":{"version":"1.2","creator":{"name":"DevTools"},"entries":[
+{"startedDateTime":"2026-08-02T10:00:00.000Z","time":320,"request":{"method":"GET","url":"https://cdn.example.com/app.js"},"response":{"status":200,"headersSize":300,"bodySize":524288,"content":{"size":1048576,"mimeType":"application/javascript"}},"timings":{"blocked":5,"dns":12,"connect":30,"ssl":18,"send":1,"wait":210,"receive":62}},
+{"startedDateTime":"2026-08-02T10:00:00.100Z","time":90,"request":{"method":"GET","url":"https://www.example.com/style.css"},"response":{"status":200,"headersSize":220,"bodySize":40960,"content":{"size":163840,"mimeType":"text/css"}},"timings":{"blocked":2,"dns":0,"connect":0,"ssl":0,"send":1,"wait":70,"receive":17}},
+{"startedDateTime":"2026-08-02T10:00:00.200Z","time":1500,"request":{"method":"GET","url":"https://img.example.com/hero.png"},"response":{"status":200,"headersSize":180,"bodySize":2097152,"content":{"size":2097152,"mimeType":"image/png"}},"timings":{"blocked":8,"dns":15,"connect":40,"ssl":25,"send":1,"wait":300,"receive":1111}},
+{"startedDateTime":"2026-08-02T10:00:00.300Z","time":45,"request":{"method":"POST","url":"https://api.example.com/v1/track"},"response":{"status":404,"headersSize":140,"bodySize":90,"content":{"size":90,"mimeType":"application/json"}},"timings":{"blocked":1,"dns":0,"connect":0,"ssl":0,"send":1,"wait":40,"receive":3}}
+]}}</textarea>
+  <div class="row"><button id="go">分析</button><button class="ghost" id="copy">复制报告</button></div>
+  <div class="err" id="err"></div>
+  <div class="bento">
+    <div class="tile"><h3>请求总数</h3><div class="big" id="t1">--</div><div class="sub2" id="s1">--</div></div>
+    <div class="tile"><h3>传输总量</h3><div class="big" id="t2">--</div><div class="sub2" id="s2">--</div></div>
+    <div class="tile"><h3>加载耗时</h3><div class="big" id="t3">--</div><div class="sub2" id="s3">--</div></div>
+    <div class="tile"><h3>失败请求</h3><div class="big" id="t4">--</div><div class="sub2" id="s4">--</div></div>
+  </div>
+  <div class="sec">分析报告</div>
+  <div class="out" id="out"><span class="ph">就绪</span></div>
+  <p class="hint">HAR 可能包含 Cookie 与请求体等敏感信息；本工具全部在浏览器内解析，数据不会离开本机。</p>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 412 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+'use strict';
+function fmtBytes(n){
+  if(!isFinite(n)||n<0) return '-';
+  var u=['B','KB','MB','GB'],i=0;
+  while(n>=1024&&i<u.length-1){n/=1024;i++;}
+  return (i===0?n:Math.round(n*10)/10)+' '+u[i];
+}
+function fmtMs(n){
+  if(!isFinite(n)||n<0) return '-';
+  return n<1000?(Math.round(n)+' ms'):((Math.round(n/100)/10)+' s');
+}
+function hostOf(u){
+  var m=/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/([^\/?#]+)/.exec(String(u||''));
+  return m?m[1]:'(相对路径)';
+}
+function typeOf(mime,url){
+  var m=String(mime||'').split(';')[0].toLowerCase();
+  if(m.indexOf('javascript')>=0||m.indexOf('ecmascript')>=0) return 'JS';
+  if(m==='text/css') return 'CSS';
+  if(m.indexOf('html')>=0) return 'HTML';
+  if(m.indexOf('json')>=0) return 'JSON';
+  if(m.indexOf('xml')>=0) return 'XML';
+  if(m.indexOf('image/')===0) return '图片';
+  if(m.indexOf('font')>=0||/\.(woff2?|ttf|otf|eot)(\?|$)/i.test(url||'')) return '字体';
+  if(m.indexOf('video/')===0||m.indexOf('audio/')===0) return '音视频';
+  if(m) return '其他';
+  return '未知';
+}
+function num(v){ var n=Number(v); return isFinite(n)&&n>0?n:0; }
+function analyze(text){
+  if(typeof text!=='string'||!text.trim()) return {value:null,error:'请粘贴 HAR 文件内容（DevTools 网络面板可导出）'};
+  var har;
+  try{ har=JSON.parse(text); }catch(e){ return {value:null,error:'JSON 解析失败：'+e.message}; }
+  var log=har&&har.log?har.log:har;
+  if(!log||!log.entries||!log.entries.length) return {value:null,error:'未找到 log.entries，确认这是 HAR 文件'};
+  var es=log.entries,list=[],i;
+  var totalTime=0,totalTransfer=0,totalContent=0,cached=0;
+  var tSum={blocked:0,dns:0,connect:0,ssl:0,send:0,wait:0,receive:0};
+  var byType={},byDomain={},statuses={},methods={};
+  var tMin=null,tMax=null;
+  for(i=0;i<es.length;i++){
+    var e=es[i]||{},req=e.request||{},res=e.response||{},c=res.content||{},tm=e.timings||{};
+    var url=req.url||'',host=hostOf(url);
+    var content=num(c.size);
+    var transfer=num(e._transferSize);
+    if(!transfer) transfer=num(res.bodySize)+num(res.headersSize);
+    if(!transfer) transfer=content;
+    var dur=num(e.time);
+    var st=num(res.status);
+    var isCache=(st===304)||(res._fromCache?true:false)||(num(res.bodySize)===0&&content>0&&st===200&&num(e._transferSize)===0);
+    var ty=typeOf(c.mimeType||res.content&&res.content.mimeType,url);
+    totalTime+=dur; totalTransfer+=transfer; totalContent+=content;
+    if(isCache) cached++;
+    var kk;
+    for(kk in tSum){ var v=Number(tm[kk]); if(isFinite(v)&&v>0) tSum[kk]+=v; }
+    if(!byType[ty]) byType[ty]={type:ty,count:0,bytes:0,time:0};
+    byType[ty].count++; byType[ty].bytes+=transfer; byType[ty].time+=dur;
+    if(!byDomain[host]) byDomain[host]={domain:host,count:0,bytes:0,time:0};
+    byDomain[host].count++; byDomain[host].bytes+=transfer; byDomain[host].time+=dur;
+    var sk=st?String(st):'0';
+    statuses[sk]=(statuses[sk]||0)+1;
+    var mk=(req.method||'GET').toUpperCase();
+    methods[mk]=(methods[mk]||0)+1;
+    var started=e.startedDateTime?Date.parse(e.startedDateTime):NaN;
+    if(isFinite(started)){
+      if(tMin===null||started<tMin) tMin=started;
+      var end=started+dur;
+      if(tMax===null||end>tMax) tMax=end;
+    }
+    list.push({url:url,short:url.split('?')[0].split('/').pop()||host,host:host,method:mk,status:st,
+               type:ty,transfer:transfer,content:content,time:dur,cached:isCache,
+               wait:num(tm.wait),blocked:num(tm.blocked),receive:num(tm.receive),start:started});
+  }
+  function arr(o){ var a=[],k; for(k in o) a.push(o[k]); return a; }
+  var types=arr(byType).sort(function(a,b){return b.bytes-a.bytes;});
+  var domains=arr(byDomain).sort(function(a,b){return b.bytes-a.bytes;});
+  var slowest=list.slice().sort(function(a,b){return b.time-a.time;}).slice(0,10);
+  var largest=list.slice().sort(function(a,b){return b.transfer-a.transfer;}).slice(0,10);
+  var errors=list.filter(function(x){return x.status>=400||x.status===0;});
+  var span=(tMin!==null&&tMax!==null)?(tMax-tMin):totalTime;
+  var advice=[];
+  var jsBytes=byType['JS']?byType['JS'].bytes:0, imgBytes=byType['图片']?byType['图片'].bytes:0;
+  if(jsBytes>1024*1024) advice.push('JS 传输量 '+fmtBytes(jsBytes)+' 偏大，考虑代码分割与按需加载');
+  if(imgBytes>2*1024*1024) advice.push('图片传输量 '+fmtBytes(imgBytes)+' 偏大，考虑 WebP/AVIF 与响应式尺寸');
+  if(domains.length>10) advice.push('涉及 '+domains.length+' 个域名，跨域连接握手成本高，可合并或预连接');
+  if(errors.length) advice.push('存在 '+errors.length+' 个失败请求（4xx/5xx/0），优先排查');
+  if(list.length>80) advice.push('请求数 '+list.length+' 偏多，可合并静态资源或启用 HTTP/2 多路复用');
+  if(cached===0&&list.length>10) advice.push('没有命中缓存的请求，检查 Cache-Control 与 ETag 配置');
+  if(tSum.wait>totalTime*0.5&&totalTime>0) advice.push('等待服务器响应（TTFB）占总耗时超过一半，瓶颈在后端');
+  if(!advice.length) advice.push('未发现明显性能问题');
+  return {value:{
+    summary:{count:list.length,span:span,totalTime:totalTime,totalTransfer:totalTransfer,totalContent:totalContent,
+             cached:cached,errors:errors.length,domains:domains.length,
+             avgTime:list.length?totalTime/list.length:0,
+             saved:totalContent>totalTransfer?(totalContent-totalTransfer):0},
+    types:types,domains:domains.slice(0,10),statuses:statuses,methods:methods,
+    slowest:slowest,largest:largest,errorList:errors.slice(0,10),timings:tSum,advice:advice,
+    creator:(log.creator&&log.creator.name)||'未知',pages:(log.pages&&log.pages.length)||0
+  },error:null};
+}
+var API={analyze:analyze,fmtBytes:fmtBytes,fmtMs:fmtMs,hostOf:hostOf,typeOf:typeOf};
+if(typeof module!=='undefined'&&module.exports) module.exports=API;
+if(typeof window!=='undefined') window.__HarForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  var P=window.__HarForge__,last='';
+  var src=document.getElementById('src'),out=document.getElementById('out'),err=document.getElementById('err');
+  function pad(s,n){ s=String(s); while(s.length<n) s+=' '; return s; }
+  function padl(s,n){ s=String(s); while(s.length<n) s=' '+s; return s; }
+  function cut(s,n){ s=String(s); return s.length>n?(s.slice(0,n-1)+'…'):s; }
+  function run(){
+    err.textContent='';
+    var r=P.analyze(src.value);
+    if(r.error){
+      out.textContent=''; err.textContent=r.error;
+      var ids=['t1','t2','t3','t4','s1','s2','s3','s4'];
+      for(var z=0;z<ids.length;z++) document.getElementById(ids[z]).textContent='--';
+      return;
+    }
+    var v=r.value,S=v.summary,L=[],i;
+    document.getElementById('t1').textContent=S.count;
+    document.getElementById('s1').textContent=S.domains+' 个域名 · 缓存命中 '+S.cached;
+    document.getElementById('t2').textContent=P.fmtBytes(S.totalTransfer);
+    document.getElementById('s2').textContent='解压后 '+P.fmtBytes(S.totalContent)+(S.saved?(' · 省 '+P.fmtBytes(S.saved)):'');
+    document.getElementById('t3').textContent=P.fmtMs(S.span);
+    document.getElementById('s3').textContent='平均 '+P.fmtMs(S.avgTime)+' / 请求';
+    document.getElementById('t4').textContent=S.errors;
+    document.getElementById('s4').textContent=S.errors?'需要排查':'全部正常';
+    L.push('抓包来源：'+v.creator+(v.pages?(' · 页面 '+v.pages+' 个'):''));
+    L.push('');
+    L.push('── 按资源类型 ──');
+    for(i=0;i<v.types.length;i++){
+      var t=v.types[i];
+      L.push(pad(t.type,8)+padl(t.count,4)+' 个   '+padl(P.fmtBytes(t.bytes),10)+'   '+padl(P.fmtMs(t.time),9));
+    }
+    L.push('');
+    L.push('── 按域名（前 10）──');
+    for(i=0;i<v.domains.length;i++){
+      var d=v.domains[i];
+      L.push(pad(cut(d.domain,32),34)+padl(d.count,4)+' 个   '+padl(P.fmtBytes(d.bytes),10));
+    }
+    L.push('');
+    L.push('── 耗时最久（前 10）──');
+    for(i=0;i<v.slowest.length;i++){
+      var s=v.slowest[i];
+      L.push(padl(P.fmtMs(s.time),9)+'  '+padl(s.status,3)+'  '+cut(s.url,58));
+    }
+    L.push('');
+    L.push('── 体积最大（前 10）──');
+    for(i=0;i<v.largest.length;i++){
+      var g=v.largest[i];
+      L.push(padl(P.fmtBytes(g.transfer),10)+'  '+pad(g.type,6)+'  '+cut(g.url,54));
+    }
+    if(v.errorList.length){
+      L.push('');
+      L.push('── 失败请求 ──');
+      for(i=0;i<v.errorList.length;i++) L.push(padl(v.errorList[i].status,4)+'  '+v.errorList[i].method+'  '+cut(v.errorList[i].url,58));
+    }
+    L.push('');
+    L.push('── 阶段耗时合计 ──');
+    var TL={blocked:'排队/阻塞',dns:'DNS 解析',connect:'建立连接',ssl:'TLS 握手',send:'发送请求',wait:'等待响应(TTFB)',receive:'内容下载'};
+    for(var k in TL) L.push(pad(TL[k],16)+padl(P.fmtMs(v.timings[k]),9));
+    L.push('');
+    L.push('── 优化建议 ──');
+    for(i=0;i<v.advice.length;i++) L.push('· '+v.advice[i]);
+    out.textContent=L.join('\n'); last=out.textContent;
+  }
+  document.getElementById('go').addEventListener('click',run);
+  src.addEventListener('input',run);
+  document.getElementById('copy').addEventListener('click',function(){
+    if(last&&navigator.clipboard)navigator.clipboard.writeText(last);});
+  window.nanoRerender=run;
+  run();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "HAR 抓包性能分析 · 单文件 · 零依赖 · 本地优先", "title": "HarForge — HAR 抓包性能分析"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

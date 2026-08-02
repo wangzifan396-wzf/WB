@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>ShellForge — Shell 脚本静态检查</title>
+<meta property="og:title" content="ShellForge">
+<meta property="og:description" content="Shell 脚本静态检查：内置未加引号变量、反引号、cd 无兜底、危险 rm、$? 判断、read 缺 -r、未使用变量等 18 条高频缺陷规则，逐行给出行号、说明与修复建议。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="Shell 脚本静态检查：内置未加引号变量、反引号、cd 无兜底、危险 rm、$? 判断、read 缺 -r、未使用变量等 18 条高频缺陷规则，逐行给出行号、说明与修复建议。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
+  --hair:inset 0 1px 0 rgba(255,255,255,.05);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
+  --glow:0 10px 40px -20px rgba(94,106,210,.55);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+button:active{transform:translateY(1px) scale(.988)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>ShellForge</h1>
+      <p class="sub" data-i18n="sub">Shell 脚本静态检查 · 单文件 · 零依赖 · 本地优先</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <label for="src">Shell 脚本</label>
+  <textarea id="src" rows="13" spellcheck="false">#!/bin/bash
+BACKUP_DIR=/tmp/backup
+TARGET=$1
+cd $TARGET
+for f in `ls *.log`; do
+  cp $f $BACKUP_DIR
+done
+tar -czf out.tgz *
+if [ $? -ne 0 ]; then
+  echo failed
+fi
+read name
+rm -rf $BACKUP_DIR/old
+</textarea>
+  <div class="row"><button id="go">检查</button><button class="ghost" id="copy">复制报告</button></div>
+  <div class="err" id="err"></div>
+  <div class="bento">
+    <div class="tile"><h3>健康分</h3><div class="big" id="score">--</div><div class="sub2" id="shell">解释器：--</div></div>
+    <div class="tile"><h3>问题分布</h3><div class="big" id="cnt">--</div><div class="sub2" id="dist">--</div></div>
+  </div>
+  <div class="sec">检查结果</div>
+  <div class="out" id="out"><span class="ph">就绪</span></div>
+  <p class="hint">内置 18 条常见 Shell 缺陷规则（对标 shellcheck 的高频告警），全部在浏览器内静态分析，脚本不上传。</p>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 412 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+'use strict';
+var META={
+ SC2148:{s:'error',m:'缺少 shebang，脚本解释器不确定',f:'首行加 #!/usr/bin/env bash'},
+ SC2086:{s:'warning',m:'变量展开未加引号，含空格/通配符时会被拆词',f:'改为 "$VAR"'},
+ SC2046:{s:'warning',m:'命令替换未加引号，输出会被拆词',f:'改为 "$(cmd)"'},
+ SC2006:{s:'style',m:'使用了过时的反引号命令替换',f:'改为 $(cmd)'},
+ SC2164:{s:'warning',m:'cd 可能失败却继续执行后续命令',f:'改为 cd dir || exit 1'},
+ SC2115:{s:'error',m:'变量为空时 rm -rf 会删到根路径',f:'改为 "${VAR:?}/..."'},
+ SC2181:{s:'style',m:'用 $? 判断退出码不如直接判断命令',f:'改为 if cmd; then'},
+ SC2162:{s:'info',m:'read 未加 -r，反斜杠会被吞掉',f:'改为 read -r'},
+ SC2166:{s:'warning',m:'[ ] 内的 -a/-o 行为未定义',f:'拆成 [ x ] && [ y ]'},
+ SC2035:{s:'info',m:'通配符开头的文件名会被当成选项',f:'改为 ./* 形式'},
+ SC2002:{s:'style',m:'cat 单文件再管道是多余的',f:'改为 cmd < file'},
+ SC2196:{s:'style',m:'egrep/fgrep 已废弃',f:'改为 grep -E / grep -F'},
+ SC2044:{s:'warning',m:'for 遍历 find 输出遇空格会断行',f:'改为 find ... -print0 | while IFS= read -r -d ""'},
+ SC2059:{s:'info',m:'printf 的格式串含变量，可能被当格式符解析',f:'改为 printf "%s" "$var"'},
+ SC3010:{s:'warning',m:'sh 下使用了 bash 专有语法 [[ ]]',f:'改用 [ ] 或把 shebang 换成 bash'},
+ SC2034:{s:'info',m:'变量被赋值但从未使用',f:'删除该变量或加 export'},
+ SC2154:{s:'warning',m:'变量被引用但从未赋值',f:'检查拼写或先赋默认值'},
+ NANO01:{s:'info',m:'未启用严格模式，出错时脚本会继续跑',f:'加 set -euo pipefail'}
+};
+function quoteMap(line){
+  var m=new Array(line.length),q=0,i,c;
+  for(i=0;i<line.length;i++){
+    c=line.charAt(i);
+    if(q===0){
+      if(c==="'"){q=1;m[i]=1;continue;}
+      if(c==='"'){q=2;m[i]=2;continue;}
+      m[i]=0;
+    } else if(q===1){ m[i]=1; if(c==="'")q=0; }
+    else { m[i]=2; if(c==='\\'){ if(i+1<line.length){m[i+1]=2;i++;} continue;} if(c==='"')q=0; }
+  }
+  return m;
+}
+function stripComment(line){
+  var qm=quoteMap(line),i;
+  for(i=0;i<line.length;i++){
+    if(line.charAt(i)==='#'&&qm[i]===0&&(i===0||/\s/.test(line.charAt(i-1)))) return line.slice(0,i);
+  }
+  return line;
+}
+function detectShell(src){
+  var m=/^#!\s*(\S+)/.exec(src);
+  if(!m) return '';
+  var p=m[1];
+  if(/env$/.test(p)){ var m2=/^#!\s*\S+\s+(\S+)/.exec(src); p=m2?m2[1]:p; }
+  return p.split('/').pop();
+}
+function lint(src,opt){
+  if(typeof src!=='string'||!src.trim()) return {value:null,error:'请输入 Shell 脚本内容'};
+  opt=opt||{};
+  var lines=src.split(/\r?\n/),issues=[],i,raw,line,qm,shell=detectShell(src);
+  var isSh=(shell==='sh'||shell==='dash');
+  function add(code,ln,col,extra){
+    var d=META[code];
+    issues.push({code:code,sev:d.s,line:ln,col:col||1,msg:d.m+(extra?('（'+extra+'）'):''),fix:d.f});
+  }
+  var firstReal='';
+  for(i=0;i<lines.length;i++){ if(lines[i].trim()){ firstReal=lines[i]; break; } }
+  if(firstReal.indexOf('#!')!==0) add('SC2148',1,1);
+  if(!/\bset\s+-[a-zA-Z]*e/.test(src)) add('NANO01',1,1);
+  var assigned={},used={};
+  for(i=0;i<lines.length;i++){
+    raw=lines[i]; line=stripComment(raw); qm=quoteMap(line);
+    var ln=i+1;
+    if(!line.trim()) continue;
+    var re,m;
+    // 赋值 / 使用采集
+    re=/(^|[;&|]\s*)(?:local\s+|export\s+|declare\s+(?:-\w+\s+)?)?([A-Za-z_][A-Za-z0-9_]*)=/g;
+    while((m=re.exec(line))){ if(qm[m.index+m[0].length-1]===0) assigned[m[2]]=assigned[m[2]]||ln; }
+    re=/\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?/g;
+    while((m=re.exec(line))){ if(qm[m.index]!==1) used[m[1]]=true; }
+    if(/\bexport\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/.test(line)) used[/\bexport\s+([A-Za-z_][A-Za-z0-9_]*)/.exec(line)[1]]=true;
+    // SC2006 反引号
+    for(var k=0;k<line.length;k++){ if(line.charAt(k)==='`'&&qm[k]!==1){ add('SC2006',ln,k+1); break; } }
+    // SC2046 未加引号的命令替换
+    re=/\$\(/g;
+    while((m=re.exec(line))){
+      if(qm[m.index]===0&&!/^\s*(?:local\s+|export\s+)?[A-Za-z_][A-Za-z0-9_]*=\s*\$\($/.test(line.slice(0,m.index+2))
+         &&!/\(\(/.test(line.slice(m.index,m.index+3))){ add('SC2046',ln,m.index+1); break; }
+    }
+    // SC2086 未加引号的变量
+    re=/\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?/g;
+    var inArith=/\(\(/.test(line)||/\[\[/.test(line);
+    while((m=re.exec(line))){
+      if(qm[m.index]!==0) continue;
+      if(inArith) continue;
+      var before=line.slice(0,m.index);
+      if(/=\s*$/.test(before)) continue;
+      if(/^\s*(?:local|export|declare|readonly)\b/.test(line)&&/=\s*$/.test(before)) continue;
+      add('SC2086',ln,m.index+1,'$'+m[1]);
+      break;
+    }
+    // SC2164 cd 无兜底
+    if(/^\s*cd\s+[^\s;]/.test(line)&&!/\|\||&&|exit|return/.test(line)) add('SC2164',ln,1);
+    // SC2115 危险 rm
+    if(/\brm\s+(-\w+\s+)*["']?\$\{?[A-Za-z_][A-Za-z0-9_]*\}?\//.test(line)&&line.indexOf(':?')<0) add('SC2115',ln,1);
+    // SC2181 $? 判断
+    if(/\[\[?\s*\$\?\s*(-ne|-eq|!=|==)/.test(line)) add('SC2181',ln,1);
+    // SC2162 read 无 -r
+    if(/(^|[;&|]\s*)read\s+/.test(line)&&!/\bread\s+(-\w*r\w*|-\w+\s+-\w*r)/.test(line)) add('SC2162',ln,1);
+    // SC2166 [ -a / -o ]
+    if(/\[\s[^\]]*\s-(a|o)\s[^\]]*\]/.test(line)&&line.indexOf('[[')<0) add('SC2166',ln,1);
+    // SC2035 通配符首字符
+    if(/(^|[;&|]\s*)(rm|cp|mv|chmod|chown|tar)\s+(-\w+\s+)*\*/.test(line)) add('SC2035',ln,1);
+    // SC2002 无用 cat
+    if(/^\s*cat\s+[^|]+\|/.test(line)&&!/\*/.test(line.split('|')[0])) add('SC2002',ln,1);
+    // SC2196 egrep/fgrep
+    if(/(^|[\s|;])(egrep|fgrep)\s/.test(line)) add('SC2196',ln,1);
+    // SC2044 for + find
+    if(/for\s+\w+\s+in\s+\$\(\s*find\b/.test(line)) add('SC2044',ln,1);
+    // SC2059 printf 变量格式串
+    if(/printf\s+["'][^"']*\$\{?[A-Za-z_]/.test(line)) add('SC2059',ln,1);
+    // SC3010 sh 用 [[
+    if(isSh&&line.indexOf('[[')>=0) add('SC3010',ln,1);
+  }
+  var name;
+  for(name in assigned){ if(!used[name]&&name!=='IFS'&&name!=='PATH') add('SC2034',assigned[name],1,name); }
+  var ENVOK={HOME:1,PATH:1,USER:1,PWD:1,SHELL:1,IFS:1,LANG:1,TERM:1,HOSTNAME:1,UID:1,EUID:1,RANDOM:1,SECONDS:1,LINENO:1,BASH_SOURCE:1,FUNCNAME:1,OPTARG:1,OPTIND:1,REPLY:1,PS1:1,TMPDIR:1};
+  for(name in used){ if(!assigned[name]&&!ENVOK[name]) add('SC2154',1,1,name); }
+  issues.sort(function(a,b){ return a.line-b.line||a.col-b.col||(a.code<b.code?-1:1); });
+  var stats={error:0,warning:0,info:0,style:0};
+  for(i=0;i<issues.length;i++) stats[issues[i].sev]++;
+  return {value:{issues:issues,stats:stats,shell:shell||'(未声明)',lines:lines.length,
+                 score:Math.max(0,100-stats.error*15-stats.warning*7-stats.info*3-stats.style*1)},error:null};
+}
+function severityRank(s){ return {error:0,warning:1,info:2,style:3}[s]; }
+var API={lint:lint,quoteMap:quoteMap,stripComment:stripComment,detectShell:detectShell,severityRank:severityRank,META:META};
+if(typeof module!=='undefined'&&module.exports) module.exports=API;
+if(typeof window!=='undefined') window.__ShellForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  var P=window.__ShellForge__;
+  var src=document.getElementById('src'),out=document.getElementById('out'),err=document.getElementById('err');
+  var elScore=document.getElementById('score'),elShell=document.getElementById('shell'),
+      elCnt=document.getElementById('cnt'),elDist=document.getElementById('dist');
+  var last='';
+  function T(k,d){ return window.nanoT?window.nanoT(k):d; }
+  function run(){
+    err.textContent='';
+    var r=P.lint(src.value);
+    if(r.error){ out.textContent=''; err.textContent=r.error; elScore.textContent='--'; return; }
+    var v=r.value,L=[];
+    elScore.textContent=v.score+' / 100';
+    elShell.textContent='解释器：'+v.shell+' · '+v.lines+' 行';
+    elCnt.textContent=v.issues.length+' 个';
+    elDist.textContent='错误 '+v.stats.error+' · 警告 '+v.stats.warning+' · 提示 '+v.stats.info+' · 风格 '+v.stats.style;
+    if(!v.issues.length){ out.textContent='未发现问题，脚本很干净。'; last=out.textContent; return; }
+    var TAG={error:'[错误]',warning:'[警告]',info:'[提示]',style:'[风格]'};
+    for(var i=0;i<v.issues.length;i++){
+      var it=v.issues[i];
+      L.push('L'+it.line+':'+it.col+'  '+TAG[it.sev]+' '+it.code+'  '+it.msg);
+      L.push('        修复建议：'+it.fix);
+    }
+    out.textContent=L.join('\n');
+    last=out.textContent;
+  }
+  document.getElementById('go').addEventListener('click',run);
+  src.addEventListener('input',run);
+  document.getElementById('copy').addEventListener('click',function(){
+    if(last&&navigator.clipboard)navigator.clipboard.writeText(last);});
+  window.nanoRerender=run;
+  run();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "Shell 脚本静态检查 · 单文件 · 零依赖 · 本地优先", "title": "ShellForge — Shell 脚本静态检查"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

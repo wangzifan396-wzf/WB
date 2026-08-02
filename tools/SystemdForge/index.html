@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>SystemdForge — systemd 服务单元生成与校验</title>
+<meta property="og:title" content="SystemdForge">
+<meta property="og:description" content="systemd unit 助手：按表单生成带安全加固项的 service 与 timer 文件并附安装命令；校验模式内置 20+ 条检查，覆盖相对路径、sudo、结尾 &、非法 Restart 与缺失 Install 等错误。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="systemd unit 助手：按表单生成带安全加固项的 service 与 timer 文件并附安装命令；校验模式内置 20+ 条检查，覆盖相对路径、sudo、结尾 &、非法 Restart 与缺失 Install 等错误。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
+  --hair:inset 0 1px 0 rgba(255,255,255,.05);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
+  --glow:0 10px 40px -20px rgba(94,106,210,.55);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+button:active{transform:translateY(1px) scale(.988)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>SystemdForge</h1>
+      <p class="sub" data-i18n="sub">systemd 服务单元生成与校验 · 单文件 · 零依赖 · 本地优先</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <div class="seg" role="group" aria-label="工作模式">
+    <button type="button" id="mb" class="active">生成 unit</button>
+    <button type="button" id="ml">校验 unit</button>
+  </div>
+  <div id="paneB">
+    <div class="grid">
+      <div><label for="nm">服务名</label><input type="text" id="nm" value="myapp"></div>
+      <div><label for="ds">描述</label><input type="text" id="ds" value="My application service"></div>
+      <div><label for="ex">ExecStart（绝对路径）</label><input type="text" id="ex" value="/usr/local/bin/myapp --config /etc/myapp.toml"></div>
+      <div><label for="us">运行用户</label><input type="text" id="us" value="myapp"></div>
+      <div><label for="wd">工作目录</label><input type="text" id="wd" value="/var/lib/myapp"></div>
+      <div><label for="ty">Type</label>
+        <select id="ty">
+          <option value="simple">simple（常驻前台进程）</option>
+          <option value="exec">exec（严格等待 execve）</option>
+          <option value="notify">notify（sd_notify 上报就绪）</option>
+          <option value="forking">forking（自行 fork 到后台）</option>
+          <option value="oneshot">oneshot（跑完即退出）</option>
+        </select>
+      </div>
+      <div><label for="rs">Restart 策略</label>
+        <select id="rs">
+          <option value="on-failure">on-failure（异常才重启）</option>
+          <option value="always">always（总是重启）</option>
+          <option value="no">no（不自动重启）</option>
+          <option value="on-abnormal">on-abnormal（被信号杀死才重启）</option>
+        </select>
+      </div>
+      <div><label for="tm">附带定时器</label>
+        <select id="tm">
+          <option value="">不需要</option>
+          <option value="daily">每天一次</option>
+          <option value="hourly">每小时一次</option>
+          <option value="*-*-* 03:30:00">每天 03:30</option>
+          <option value="Mon *-*-* 02:00:00">每周一 02:00</option>
+        </select>
+      </div>
+    </div>
+    <label for="ev">环境变量（每行一条 KEY=VALUE）</label>
+    <textarea id="ev" rows="3" spellcheck="false">NODE_ENV=production
+LOG_LEVEL=info</textarea>
+  </div>
+  <div id="paneL" style="display:none">
+    <label for="src">粘贴 unit 文件内容</label>
+    <textarea id="src" rows="12" spellcheck="false">[Unit]
+Description=demo
+
+[Service]
+Type=simple
+ExecStart=myapp --serve &amp;
+Restart=alwyas
+User=root
+Environment=MSG=hello world
+</textarea>
+  </div>
+  <div class="row"><button id="go">运行</button><button class="ghost" id="copy">复制结果</button></div>
+  <div class="err" id="err"></div>
+  <div class="sec">输出结果</div>
+  <div class="out" id="out"><span class="ph">就绪</span></div>
+  <p class="hint">生成的 unit 默认带上 NoNewPrivileges / PrivateTmp / ProtectSystem 等加固项；校验模式内置 20+ 条常见配置错误检查。</p>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 412 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+'use strict';
+var RESTARTS={'no':'从不自动重启','on-success':'正常退出后重启','on-failure':'异常退出/超时才重启',
+  'on-abnormal':'被信号杀死或超时才重启','on-abort':'收到未捕获信号才重启','on-watchdog':'看门狗超时才重启','always':'无论如何都重启'};
+var TYPES={'simple':'ExecStart 进程即主进程，启动后立即视为就绪','exec':'与 simple 类似但等到 execve 成功才算启动完成',
+  'forking':'主进程会 fork 后退出，需配合 PIDFile','oneshot':'跑完就退出，常配合 RemainAfterExit',
+  'notify':'服务通过 sd_notify 主动上报就绪','idle':'延迟到其他任务派发完再启动','dbus':'服务就绪以取得 D-Bus 名称为准'};
+function esc(v){ return String(v==null?'':v).replace(/\r?\n/g,' ').trim(); }
+function build(o){
+  o=o||{};
+  var name=esc(o.name||'myapp');
+  if(!/^[A-Za-z0-9_.@-]+$/.test(name)) return {value:null,error:'服务名只能包含字母、数字与 _ . @ -'};
+  var exec=esc(o.execStart||'');
+  if(!exec) return {value:null,error:'请填写 ExecStart 启动命令'};
+  var L=[],warn=[];
+  L.push('[Unit]');
+  L.push('Description='+esc(o.description||(name+' service')));
+  if(o.documentation) L.push('Documentation='+esc(o.documentation));
+  L.push('After='+esc(o.after||'network-online.target'));
+  if((o.after||'network-online.target').indexOf('network-online')>=0) L.push('Wants=network-online.target');
+  if(o.requires) L.push('Requires='+esc(o.requires));
+  L.push('');
+  L.push('[Service]');
+  var type=o.type||'simple';
+  L.push('Type='+type);
+  if(type==='oneshot'&&o.remain!==false) L.push('RemainAfterExit=yes');
+  if(type==='forking'&&o.pidfile) L.push('PIDFile='+esc(o.pidfile));
+  if(o.user) L.push('User='+esc(o.user));
+  if(o.group) L.push('Group='+esc(o.group));
+  if(o.workdir) L.push('WorkingDirectory='+esc(o.workdir));
+  if(o.envFile) L.push('EnvironmentFile=-'+esc(o.envFile));
+  var envs=(o.env||'').split(/\r?\n/).filter(function(x){return x.trim();});
+  for(var i=0;i<envs.length;i++){
+    var kv=envs[i].trim();
+    L.push('Environment='+(/\s/.test(kv)?('"'+kv+'"'):kv));
+  }
+  L.push('ExecStart='+exec);
+  if(o.execReload) L.push('ExecReload='+esc(o.execReload));
+  if(o.execStop) L.push('ExecStop='+esc(o.execStop));
+  var restart=o.restart||'on-failure';
+  if(type!=='oneshot'){
+    L.push('Restart='+restart);
+    if(restart!=='no') L.push('RestartSec='+(o.restartSec||'5'));
+  }
+  if(o.timeout) L.push('TimeoutStopSec='+esc(o.timeout));
+  if(o.hardening!==false){
+    L.push('NoNewPrivileges=yes');
+    L.push('PrivateTmp=yes');
+    L.push('ProtectSystem=strict');
+    L.push('ProtectHome=yes');
+    if(o.workdir) L.push('ReadWritePaths='+esc(o.workdir));
+  }
+  if(o.limitNofile) L.push('LimitNOFILE='+esc(o.limitNofile));
+  L.push('StandardOutput=journal');
+  L.push('StandardError=journal');
+  L.push('');
+  L.push('[Install]');
+  L.push('WantedBy='+esc(o.wantedBy||'multi-user.target'));
+  var unit=L.join('\n')+'\n';
+  var timer='';
+  if(o.timer){
+    var T=[];
+    T.push('[Unit]');
+    T.push('Description=Timer for '+name);
+    T.push('');
+    T.push('[Timer]');
+    T.push('OnCalendar='+esc(o.onCalendar||'daily'));
+    T.push('Persistent=true');
+    T.push('AccuracySec=1min');
+    T.push('Unit='+name+'.service');
+    T.push('');
+    T.push('[Install]');
+    T.push('WantedBy=timers.target');
+    timer=T.join('\n')+'\n';
+    if(type!=='oneshot') warn.push('定时任务建议把 Type 设为 oneshot，否则 systemd 会认为服务常驻');
+  }
+  if(!o.user) warn.push('未指定 User，服务将以 root 运行，建议创建专用低权限账号');
+  if(exec.charAt(0)!=='/') warn.push('ExecStart 必须使用绝对路径，systemd 不会走 PATH 查找');
+  var cmds=['sudo cp '+name+'.service /etc/systemd/system/'+name+'.service',
+            'sudo systemctl daemon-reload',
+            'sudo systemctl enable --now '+name+(o.timer?'.timer':'.service'),
+            'systemctl status '+name,
+            'journalctl -u '+name+' -f'];
+  return {value:{unit:unit,timer:timer,warn:warn,cmds:cmds,fileName:name+'.service',
+                 typeDesc:TYPES[type]||'',restartDesc:RESTARTS[restart]||''},error:null};
+}
+function parseUnit(text){
+  var lines=String(text||'').split(/\r?\n/),sec='',out={},order=[],i;
+  for(i=0;i<lines.length;i++){
+    var l=lines[i].trim();
+    if(!l||l.charAt(0)==='#'||l.charAt(0)===';') continue;
+    var m=/^\[([^\]]+)\]$/.exec(l);
+    if(m){ sec=m[1]; if(!out[sec]){out[sec]={};order.push(sec);} continue; }
+    var j=l.indexOf('=');
+    if(j<0) continue;
+    var k=l.slice(0,j).trim(),v=l.slice(j+1).trim();
+    if(!sec) continue;
+    if(!out[sec]) out[sec]={};
+    if(out[sec][k]!==undefined) out[sec][k]=[].concat(out[sec][k],v);
+    else out[sec][k]=v;
+  }
+  return {sections:out,order:order};
+}
+function lint(text){
+  if(typeof text!=='string'||!text.trim()) return {value:null,error:'请粘贴 systemd unit 文件内容'};
+  var p=parseUnit(text),S=p.sections,issues=[];
+  function add(sev,msg,fix){ issues.push({sev:sev,msg:msg,fix:fix||''}); }
+  if(!p.order.length) return {value:null,error:'未识别到任何 [Section]，确认这是 unit 文件'};
+  var isTimer=!!S['Timer'],isSock=!!S['Socket'];
+  if(!S['Unit']) add('error','缺少 [Unit] 段','补上 [Unit] 与 Description');
+  else if(!S['Unit']['Description']) add('warning','[Unit] 缺少 Description','加一句人类可读的描述，systemctl 列表才好认');
+  if(!isTimer&&!isSock&&!S['Service']) add('error','缺少 [Service] 段','service 单元必须有 [Service]');
+  if(S['Service']){
+    var sv=S['Service'],type=sv['Type']||'simple';
+    if(!sv['ExecStart']&&type!=='oneshot') add('error','[Service] 缺少 ExecStart','指定启动命令的绝对路径');
+    var ex=[].concat(sv['ExecStart']||[])[0]||'';
+    if(ex){
+      var head=ex.replace(/^[-@+!]+/,'').split(/\s+/)[0];
+      if(head&&head.charAt(0)!=='/') add('error','ExecStart 不是绝对路径：'+head,'systemd 不解析 PATH，写成 /usr/bin/xxx');
+      if(/\bsudo\b/.test(ex)) add('error','ExecStart 中使用了 sudo','改用 User= 指定运行身份');
+      if(/[|<>]|&&|\$\(/.test(ex)) add('warning','ExecStart 含 shell 语法（管道/重定向/变量替换）','包一层 /bin/sh -c "..." 或写成脚本');
+      if(/\s&\s*$/.test(ex)) add('error','ExecStart 结尾的 & 会让 systemd 误判进程退出','去掉 &，交给 systemd 管理前台进程');
+    }
+    if(!TYPES[type]) add('warning','未知的 Type='+type,'常用值：simple / exec / forking / oneshot / notify');
+    if(type==='forking'&&!sv['PIDFile']) add('warning','Type=forking 未配 PIDFile','systemd 可能追踪不到主进程');
+    if(type==='oneshot'&&sv['Restart']&&sv['Restart']!=='no') add('warning','Type=oneshot 配合 Restart='+sv['Restart']+' 会反复拉起','oneshot 通常配 RemainAfterExit=yes 且不重启');
+    if(sv['Restart']&&!RESTARTS[sv['Restart']]) add('error','非法的 Restart='+sv['Restart'],'合法值：'+Object.keys(RESTARTS).join(' / '));
+    if(sv['Restart']&&sv['Restart']!=='no'&&!sv['RestartSec']) add('info','设置了 Restart 但没有 RestartSec','加 RestartSec=5 避免崩溃时疯狂重启');
+    if(!sv['User']) add('info','未指定 User，默认以 root 运行','建议建立专用系统账号并设置 User=');
+    else if(sv['User']==='root') add('warning','显式以 root 运行','除非确有必要，否则降权运行');
+    if(!sv['NoNewPrivileges']) add('info','未开启 NoNewPrivileges','加 NoNewPrivileges=yes 阻止提权');
+    if(!sv['ProtectSystem']) add('info','未开启 ProtectSystem','加 ProtectSystem=strict 只读挂载系统目录');
+    if(sv['Environment']){
+      var envs=[].concat(sv['Environment']);
+      for(var i=0;i<envs.length;i++){
+        if(/\s/.test(envs[i])&&envs[i].charAt(0)!=='"') add('warning','Environment 含空格却未加引号：'+envs[i],'写成 Environment="K=a b"');
+      }
+    }
+    if(sv['EnvironmentFile']&&String([].concat(sv['EnvironmentFile'])[0]).charAt(0)!=='-')
+      add('info','EnvironmentFile 未加 - 前缀','文件缺失时服务会启动失败，加 - 可容忍缺失');
+  }
+  if(isTimer){
+    var tm=S['Timer'];
+    if(!tm['OnCalendar']&&!tm['OnUnitActiveSec']&&!tm['OnBootSec']) add('error','[Timer] 没有任何触发条件','至少设置 OnCalendar= 或 OnBootSec=');
+    if(tm['OnCalendar']&&!tm['Persistent']) add('info','OnCalendar 未设 Persistent','设 Persistent=true 可在关机错过后补跑');
+  }
+  if(!S['Install']&&!isSock) add('warning','缺少 [Install] 段','没有 WantedBy 时 systemctl enable 会失败');
+  else if(S['Install']&&!S['Install']['WantedBy']&&!S['Install']['RequiredBy']) add('warning','[Install] 缺少 WantedBy','通常写 WantedBy=multi-user.target');
+  var stats={error:0,warning:0,info:0},k;
+  for(k=0;k<issues.length;k++) stats[issues[k].sev]++;
+  return {value:{issues:issues,stats:stats,sections:p.order,
+                 score:Math.max(0,100-stats.error*20-stats.warning*8-stats.info*3)},error:null};
+}
+var API={build:build,lint:lint,parseUnit:parseUnit,TYPES:TYPES,RESTARTS:RESTARTS};
+if(typeof module!=='undefined'&&module.exports) module.exports=API;
+if(typeof window!=='undefined') window.__SystemdForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  var P=window.__SystemdForge__,mode='b',last='';
+  var out=document.getElementById('out'),err=document.getElementById('err');
+  function g(id){ return document.getElementById(id); }
+  function setMode(m){
+    mode=m;
+    g('mb').className=(m==='b'?'active':'');
+    g('ml').className=(m==='l'?'active':'');
+    g('paneB').style.display=(m==='b'?'':'none');
+    g('paneL').style.display=(m==='l'?'':'none');
+    run();
+  }
+  function run(){
+    err.textContent='';
+    if(mode==='b'){
+      var timer=g('tm').value;
+      var r=P.build({name:g('nm').value,description:g('ds').value,execStart:g('ex').value,
+        user:g('us').value,group:g('us').value,workdir:g('wd').value,type:g('ty').value,
+        restart:g('rs').value,env:g('ev').value,timer:!!timer,onCalendar:timer||'daily'});
+      if(r.error){ out.textContent=''; err.textContent=r.error; return; }
+      var v=r.value,L=[];
+      L.push('# /etc/systemd/system/'+v.fileName);
+      L.push(v.unit);
+      if(v.timer){ L.push('# /etc/systemd/system/'+v.fileName.replace('.service','.timer')); L.push(v.timer); }
+      L.push('# Type 说明：'+v.typeDesc);
+      if(v.restartDesc) L.push('# Restart 说明：'+v.restartDesc);
+      L.push('');
+      L.push('# 安装步骤');
+      for(var i=0;i<v.cmds.length;i++) L.push(v.cmds[i]);
+      out.textContent=L.join('\n'); last=out.textContent;
+      if(v.warn.length) err.textContent=v.warn.join('；');
+    } else {
+      var lr=P.lint(g('src').value);
+      if(lr.error){ out.textContent=''; err.textContent=lr.error; return; }
+      var lv=lr.value,B=[];
+      B.push('健康分：'+lv.score+' / 100    段落：'+lv.sections.join(' '));
+      B.push('错误 '+lv.stats.error+' · 警告 '+lv.stats.warning+' · 提示 '+lv.stats.info);
+      B.push('');
+      if(!lv.issues.length) B.push('未发现问题，配置很规范。');
+      var TAG={error:'[错误]',warning:'[警告]',info:'[提示]'};
+      for(var j=0;j<lv.issues.length;j++){
+        var it=lv.issues[j];
+        B.push(TAG[it.sev]+' '+it.msg);
+        if(it.fix) B.push('       建议：'+it.fix);
+      }
+      out.textContent=B.join('\n'); last=out.textContent;
+    }
+  }
+  g('mb').addEventListener('click',function(){setMode('b');});
+  g('ml').addEventListener('click',function(){setMode('l');});
+  g('go').addEventListener('click',run);
+  var ids=['nm','ds','ex','us','wd','ev','src'];
+  for(var i=0;i<ids.length;i++) g(ids[i]).addEventListener('input',run);
+  var sels=['ty','rs','tm'];
+  for(var k=0;k<sels.length;k++) g(sels[k]).addEventListener('change',run);
+  g('copy').addEventListener('click',function(){
+    if(last&&navigator.clipboard)navigator.clipboard.writeText(last);});
+  window.nanoRerender=run;
+  run();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "systemd 服务单元生成与校验 · 单文件 · 零依赖 · 本地优先", "title": "SystemdForge — systemd 服务单元生成与校验"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const kernel=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
+const mo={exports:{}};new Function('module','exports',kernel)(mo,mo.exports);
+const C=mo.exports;let pass=0,fail=0;
+function ok(n,c){if(c)pass++;else{fail++;console.error('FAIL '+n);}}
+ok('luma-white', Math.round(C.luma(255,255,255))===255);
+ok('luma-black', C.luma(0,0,0)===0);
+ok('ramps', typeof C.RAMPS.standard==='string'&&C.RAMPS.standard.length===10);
+var f=C.fitSize(200,100,50,0.5);
+ok('fit-cols', f.cols===50);
+ok('fit-rows', f.rows===13);
+ok('fit-clamp', C.fitSize(10,10,80,0.5).cols===10);
+function img(w,h,fn){var d=new Uint8ClampedArray(w*h*4);
+  for(var y=0;y<h;y++)for(var x=0;x<w;x++){var i=(y*w+x)*4,v=fn(x,y);d[i]=d[i+1]=d[i+2]=v;d[i+3]=255;}return d;}
+var black=img(4,4,function(){return 0;});
+var g=C.sampleGrid(black,4,4,2,2);
+ok('grid-ok', !g.error&&g.value.grid.length===4);
+ok('grid-black', g.value.grid[0]===0);
+var white=img(4,4,function(){return 255;});
+ok('grid-white', C.sampleGrid(white,4,4,2,2).value.grid[3]===255);
+var a=C.toAscii(g.value.grid,2,2,{ramp:' #'});
+ok('ascii-black', a.value.text==='##\n##');
+var aw=C.toAscii(C.sampleGrid(white,4,4,2,2).value.grid,2,2,{ramp:' #'});
+ok('ascii-white', aw.value.text==='  \n  ');
+var ai=C.toAscii(g.value.grid,2,2,{ramp:' #',invert:true});
+ok('ascii-invert', ai.value.text==='  \n  ');
+ok('ascii-chars', a.value.chars===4);
+var half=img(2,2,function(x){return x===0?0:255;});
+var hg=C.sampleGrid(half,2,2,2,2);
+ok('grid-split', hg.value.grid[0]===0&&hg.value.grid[1]===255);
+var alpha=new Uint8ClampedArray(4); alpha[0]=0;alpha[1]=0;alpha[2]=0;alpha[3]=0;
+ok('alpha-bg', Math.round(C.sampleGrid(alpha,1,1,1,1).value.grid[0])===255);
+var r=C.render(black,4,4,{cols:2,charAspect:1});
+ok('render', !r.error&&r.value.cols===2);
+ok('bad-data', C.sampleGrid(new Uint8ClampedArray(3),4,4,2,2).error!=null);
+ok('bad-ramp', C.toAscii(g.value.grid,2,2,{ramp:''}).error!=null);
+ok('short-grid', C.toAscii(new Float64Array(1),2,2,{}).error!=null);
+console.log((fail?'FAIL':'PASS')+' ImgAsciiForge '+pass+'/'+fail);process.exit(fail?1:0);

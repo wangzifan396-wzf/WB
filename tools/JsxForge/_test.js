@@ -1,0 +1,36 @@
+
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const kernel=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
+const mo={exports:{}};new Function('module','exports',kernel)(mo,mo.exports);
+const C=mo.exports;let pass=0,fail=0;
+function ok(n,c){if(c)pass++;else{fail++;console.error('FAIL '+n);}}
+ok('camel-class', C.camel('class')==='className');
+ok('camel-dash', C.camel('stroke-width')==='strokeWidth');
+ok('camel-colon', C.camel('xlink:href')==='xlinkHref');
+ok('camel-data', C.camel('data-id')==='data-id');
+ok('camel-aria', C.camel('aria-label')==='aria-label');
+ok('style', C.styleObj('fill:red;stroke-width:2px')==="{{fill: 'red', strokeWidth: '2px'}}");
+ok('clean', C.clean('<!-- x --><svg></svg>')==='<svg></svg>');
+var r=C.transform('<svg class="a" stroke-width="2"><path d="M0 0"/></svg>');
+ok('no-err', !r.error);
+ok('cn', r.value.jsx.indexOf('className="a"')>=0);
+ok('sw', r.value.jsx.indexOf('strokeWidth="2"')>=0);
+ok('spread', r.value.jsx.indexOf('{...props}')>=0);
+ok('selfclose', r.value.jsx.indexOf('<path d="M0 0" />')>=0);
+ok('component', r.value.code.indexOf('export default Icon;')>=0);
+var r2=C.transform('<svg><rect x="1"></rect></svg>');
+ok('void-fix', r2.value.jsx.indexOf('<rect x="1" />')>=0);
+var r3=C.transform('<svg><path/></svg>',{ts:true,name:'MyIcon'});
+ok('ts', r3.value.code.indexOf('React.SVGProps<SVGSVGElement>')>=0);
+ok('name', r3.value.code.indexOf('const MyIcon')>=0);
+var r4=C.transform('<svg style="fill:red"><path/></svg>');
+ok('style-attr', r4.value.jsx.indexOf("style={{fill: 'red'}}")>=0);
+var r5=C.transform('<svg><path/></svg>',{spread:false});
+ok('no-spread', r5.value.jsx.indexOf('{...props}')<0);
+var r6=C.transform('<svg><g><path/></g></svg>',{wrap:false});
+ok('no-wrap', r6.value.code.indexOf('export default')<0);
+ok('keep-g', r6.value.jsx.indexOf('</g>')>=0);
+ok('bad', C.transform('hello').error!=null);
+ok('empty', C.transform('').error!=null);
+console.log((fail?'FAIL':'PASS')+' JsxForge '+pass+'/'+fail);process.exit(fail?1:0);
