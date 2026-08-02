@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>EcdhForge — 本地 ECDH 密钥协商</title>
+<meta property="og:title" content="EcdhForge">
+<meta property="og:description" content="本地 ECDH（P-256）密钥协商演示：Alice 与 Bob 各自生成密钥对，用对方公钥派生出一致的共享密钥，可用于进一步派生对称加密密钥。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="本地 ECDH（P-256）密钥协商演示：Alice 与 Bob 各自生成密钥对，用对方公钥派生出一致的共享密钥，可用于进一步派生对称加密密钥。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;transition:border-color .15s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px;
+       transition:filter .15s ease,transform .05s ease}
+button:hover{filter:brightness(1.08)}
+button:active{transform:translateY(1px)}
+button:disabled{opacity:.5;cursor:not-allowed;filter:none;transform:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:6px}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;
+            transition:background .15s ease,color .15s ease}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;flex:0 0 auto}
+#langBtn:hover{border-color:var(--line2);color:var(--fg)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>EcdhForge</h1>
+      <p class="sub" data-i18n="sub">本地 ECDH 密钥协商 · 单文件 · 零依赖 · 本地优先</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+  <div class="bento span2">
+    <div class="tile"><h3>Alice 公钥</h3><textarea id="aPub" rows="2" readonly></textarea><div class="row"><button id="genA">生成 Alice</button></div><div class="sub2">派生共享密钥</div><div class="big" id="aOut" style="font-size:13px">—</div></div>
+    <div class="tile"><h3>Bob 公钥</h3><textarea id="bPub" rows="2" readonly></textarea><div class="row"><button id="genB">生成 Bob</button></div><div class="sub2">派生共享密钥</div><div class="big" id="bOut" style="font-size:13px">—</div></div>
+  </div>
+  <div class="sec">一致性校验</div>
+  <div class="sec">输出结果</div>
+  <div class="out" id="st">—</div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部 412 款工具 &rarr;</a></footer>
+</div>
+<script>
+
+(function(){
+var B64C='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function b64e(b){var s='',i;for(i=0;i+2<b.length;i+=3){var n=(b[i]<<16)|(b[i+1]<<8)|b[i+2];s+=B64C[n>>18&63]+B64C[n>>12&63]+B64C[n>>6&63]+B64C[n&63];}var r=b.length-i;if(r===1){var n1=b[i]<<16;s+=B64C[n1>>18&63]+B64C[n1>>12&63]+'==';}else if(r===2){var n2=(b[i]<<16)|(b[i+1]<<8);s+=B64C[n2>>18&63]+B64C[n2>>12&63]+B64C[n2>>6&63]+'=';}return s;}
+function b64d(s){s=String(s).replace(/\s+/g,'').replace(/=+$/,'');var o=[],i;for(i=0;i+3<s.length;i+=4){var n=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6)|B64C.indexOf(s[i+3]);o.push(n>>16&255,n>>8&255,n&255);}var r=s.length-i;if(r===2){var n3=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12);o.push(n3>>16&255);}else if(r===3){var n4=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6);o.push(n4>>16&255,n4>>8&255);}return Uint8Array.from(o);}
+  function gen(){return globalThis.crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},true,['deriveBits']).then(function(kp){return Promise.all([globalThis.crypto.subtle.exportKey('jwk',kp.publicKey),globalThis.crypto.subtle.exportKey('jwk',kp.privateKey)]);}).then(function(j){return {value:{publicKey:JSON.stringify(j[0]),privateKey:JSON.stringify(j[1])}};}).catch(function(e){return {error:String(e&&e.message||e)};});}
+  function derive(privJwk,pubJwk){return Promise.all([globalThis.crypto.subtle.importKey('jwk',JSON.parse(privJwk),{name:'ECDH',namedCurve:'P-256'},false,['deriveBits']),globalThis.crypto.subtle.importKey('jwk',JSON.parse(pubJwk),{name:'ECDH',namedCurve:'P-256'},false,[])]).then(function(ks){return globalThis.crypto.subtle.deriveBits({name:'ECDH',public:ks[1]},ks[0],256);}).then(function(bits){return {value:b64e(new Uint8Array(bits))};}).catch(function(e){return {error:String(e&&e.message||e)};});}
+  var API={generate:gen,derive:derive};
+  if(typeof module!=='undefined'&&module.exports)module.exports=API;
+  if(typeof window!=='undefined')window.__EcdhForge__=API;
+})();
+
+</script>
+<script>
+
+(function(){
+  var P=window.__EcdhForge__;var A=null,B=null;
+  function set(){if(A&&B){P.derive(A.privateKey,B.publicKey).then(function(ra){P.derive(B.privateKey,A.publicKey).then(function(rb){var eq=ra.value===rb.value;document.getElementById('aOut').textContent=ra.value;document.getElementById('bOut').textContent=rb.value;var s=document.getElementById('st');s.textContent=eq?'一致 ✓ 共享密钥可安全用于派生对称密钥':'不一致 ✗';s.className='state '+(eq?'ok':'bad');});});}}
+  function genA(){P.generate().then(function(r){A=r.value;document.getElementById('aPub').value=A.publicKey;set();});}
+  function genB(){P.generate().then(function(r){B=r.value;document.getElementById('bPub').value=B.publicKey;set();});}
+  document.getElementById('genA').addEventListener('click',genA);
+  document.getElementById('genB').addEventListener('click',genB);
+  genA();genB();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "本地 ECDH 密钥协商 · 单文件 · 零依赖 · 本地优先", "title": "EcdhForge — 本地 ECDH 密钥协商"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>
