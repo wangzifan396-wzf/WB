@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TunerForge — 麦克风调音器</title>
+<meta name="description" data-i18n="meta_desc" content="TunerForge：用麦克风做十二平均律调音的网页工具。实时检测音名、频率与音分偏差，支持自定义参考音 A4，离线优先、零依赖。">
+<meta property="og:title" content="TunerForge">
+<meta property="og:description" content="Chromatic microphone tuner: detect note, frequency and cents offset in real time. Offline, zero-dep.">
+<meta property="og:image" content="og.svg">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0A0A0B">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E;
+    --text:#FFFFFF; --muted:#A1A1AA; --faint:#71717A;
+    --border:rgba(255,255,255,.08);
+    --accent:#5E6AD2; --success:#10B981; --warning:#F5A623; --info:#22D3EE;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.5; min-height:100vh; display:flex; flex-direction:column;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.3px;}
+  .brand svg{width:22px; height:22px; stroke:var(--accent); fill:none; stroke-width:1.7;}
+  .langbtn{
+    background:var(--surface); color:var(--muted); border:1px solid var(--border);
+    border-radius:var(--radius); padding:6px 12px; cursor:pointer; font-size:13px;
+  }
+  .langbtn:hover{color:var(--text); border-color:var(--accent);}
+  main{flex:1; width:100%; max-width:760px; margin:0 auto; padding:28px 20px 40px;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:24px; margin-bottom:18px;
+  }
+  .readout{text-align:center; margin-bottom:18px;}
+  .note{
+    font-size:64px; font-weight:700; line-height:1; letter-spacing:1px;
+    transition:color .15s ease;
+  }
+  .note.in{color:var(--success);}
+  .note.off{color:var(--warning);}
+  .note.idle{color:var(--faint);}
+  .cents{font-size:18px; color:var(--muted); margin-top:6px; min-height:24px;}
+  .freq{font-size:14px; color:var(--faint); margin-top:2px;}
+  .bar{
+    position:relative; height:14px; border-radius:8px;
+    background:var(--surface); border:1px solid var(--border); margin:18px 0 8px;
+    overflow:hidden;
+  }
+  .bar .center{
+    position:absolute; left:50%; top:0; bottom:0; width:2px; transform:translateX(-1px);
+    background:var(--success);
+  }
+  .bar .greenzone{
+    position:absolute; left:46%; right:46%; top:0; bottom:0; background:rgba(16,185,129,.16);
+  }
+  .bar .marker{
+    position:absolute; top:-3px; width:4px; height:20px; border-radius:3px;
+    background:var(--text); transform:translateX(-2px); left:50%;
+    transition:left .08s linear;
+  }
+  .bar .marker.in{background:var(--success);}
+  .scale{display:flex; justify-content:space-between; font-size:11px; color:var(--faint);}
+  .controls{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:8px;}
+  .btn{
+    background:var(--accent); color:#fff; border:none; border-radius:var(--radius);
+    padding:11px 18px; cursor:pointer; font-size:14px; font-weight:600;
+  }
+  .btn:hover{filter:brightness(1.1);}
+  .btn.secondary{background:var(--surface); color:var(--text); border:1px solid var(--border); font-weight:500;}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+  .field{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted);}
+  .field input{
+    width:78px; background:var(--surface); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; padding:7px 9px; font-size:14px;
+  }
+  .status{margin-top:14px; font-size:13px; color:var(--muted); min-height:20px;}
+  .status.err{color:var(--warning);}
+  .status.ok{color:var(--success);}
+  .manual{margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:13px; color:var(--muted);}
+  .manual input{
+    width:120px; background:var(--surface); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; padding:7px 9px; font-size:14px;
+  }
+  h2.sec{font-size:15px; color:var(--muted); margin:0 0 12px; font-weight:600;}
+  .about p{color:var(--muted); font-size:13.5px; margin:0 0 10px;}
+  .about code{background:var(--surface); padding:1px 6px; border-radius:5px; color:var(--info); font-size:12.5px;}
+  footer{
+    border-top:1px solid var(--border); padding:18px 20px; text-align:center;
+    color:var(--faint); font-size:12.5px;
+  }
+  footer a{color:var(--muted); text-decoration:none;}
+  footer a:hover{color:var(--text);}
+  @media (prefers-reduced-motion:reduce){ .note,.bar .marker{transition:none;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 17a8.5 8.5 0 0 1 17 0"/><path d="M12 17l4.5-4.5"/><circle cx="12" cy="17" r="1.2"/></svg>
+    <span>TunerForge</span>
+  </div>
+  <button class="langbtn" id="langBtn" type="button">EN</button>
+</header>
+
+<main>
+  <section class="card">
+    <div class="readout">
+      <div class="note idle" id="noteName">--</div>
+      <div class="cents" id="centsLine">等待麦克风</div>
+      <div class="freq" id="freqLine">&nbsp;</div>
+    </div>
+    <div class="bar" id="bar">
+      <div class="greenzone"></div>
+      <div class="center"></div>
+      <div class="marker" id="marker"></div>
+    </div>
+    <div class="scale"><span>-50&cent;</span><span>0</span><span>+50&cent;</span></div>
+
+    <div class="controls">
+      <button class="btn" id="startBtn" type="button" data-i18n="start">开始</button>
+      <button class="btn secondary" id="stopBtn" type="button" data-i18n="stop" disabled>停止</button>
+      <div class="field">
+        <label for="a4" data-i18n="ref_a4">参考音 A4</label>
+        <input id="a4" type="number" min="415" max="466" step="0.1" value="440">
+        <span>Hz</span>
+      </div>
+    </div>
+    <div class="status" id="status" data-i18n="status_idle">点击「开始」并允许麦克风权限即可调音。</div>
+
+    <div class="manual">
+      <span data-i18n="manual_hint">无麦克风？手动输入频率试算：</span>
+      <input id="manualFreq" type="number" min="20" max="5000" step="0.01" placeholder="440">
+      <span>Hz</span>
+      <button class="btn secondary" id="toneBtn" type="button" data-i18n="play_tone">播放参考音</button>
+    </div>
+  </section>
+
+  <section class="card about">
+    <h2 class="sec" data-i18n="about_title">关于</h2>
+    <p data-i18n="about_p1">TunerForge 用麦克风采集声音，通过自相关算法估计基频，再对照十二平均律给出最近的音名、频率与音分偏差。音分偏差在 <code>&plusmn;5&cent;</code> 内视为已调准（绿色）。</p>
+    <p data-i18n="about_p2">参考音 A4 可在 415&ndash;466 Hz 间调节（默认 440 Hz，部分乐团用 442 Hz）。所有计算在本地完成，声音数据不会上传。</p>
+    <p data-i18n="about_p3">若浏览器拒绝麦克风或环境无麦克风，可用「播放参考音」验证检测逻辑，或在上方手动输入频率查看对应音名。</p>
+  </section>
+</main>
+
+<footer>
+  <span data-i18n="footer">TunerForge · 单文件 · 零依赖 · 本地优先</span> ·
+  <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener noreferrer">GitHub</a>
+</footer>
+
+<script>
+var CORE = (function(){
+  var NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  var BASE = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+
+  function midiToNoteName(m){
+    m = Math.round(m);
+    var name = NOTE_NAMES[((m % 12) + 12) % 12];
+    var oct = Math.floor(m / 12) - 1;
+    return name + oct;
+  }
+
+  // Estimate fundamental frequency from a time-domain buffer via normalized autocorrelation.
+  // Uses the FIRST strong local maximum (the fundamental period), not the global max,
+  // because a periodic signal has equal-height autocorrelation peaks at every multiple of the period.
+  function autocorrelate(buf, sampleRate){
+    var SIZE = buf.length;
+    if(!SIZE) return null;
+    var rms = 0;
+    for(var i = 0; i < SIZE; i++){ var v = buf[i]; rms += v * v; }
+    rms = Math.sqrt(rms / SIZE);
+    if(rms < 0.01) return null; // too quiet / silence
+    var minLag = Math.max(2, Math.floor(sampleRate / 1000)); // up to 1000 Hz
+    var maxLag = Math.min(SIZE - 1, Math.floor(sampleRate / 50)); // down to 50 Hz
+    if(maxLag <= minLag) return null;
+    var corr = new Float32Array(maxLag + 2);
+    for(var lag = 0; lag <= maxLag + 1; lag++){
+      var s = 0, lim = SIZE - lag;
+      for(var j = 0; j < lim; j++){ s += buf[j] * buf[j + lag]; }
+      corr[lag] = s;
+    }
+    var e0 = corr[0];
+    if(e0 <= 0) return null;
+    var bestLag = -1;
+    for(var lag = minLag; lag <= maxLag; lag++){
+      if(corr[lag] > corr[lag - 1] && corr[lag] >= corr[lag + 1] && corr[lag] > 0.35 * e0){
+        bestLag = lag; break;
+      }
+    }
+    if(bestLag < 0){
+      // fallback: global argmax within range
+      var gv = 0;
+      for(var lag2 = minLag; lag2 <= maxLag; lag2++){ if(corr[lag2] > gv){ gv = corr[lag2]; bestLag = lag2; } }
+    }
+    if(bestLag < 0) return null;
+    var x1 = bestLag > minLag ? bestLag - 1 : bestLag;
+    var x2 = bestLag;
+    var x3 = bestLag < maxLag ? bestLag + 1 : bestLag;
+    var y1 = corr[x1], y2 = corr[x2], y3 = corr[x3];
+    var denom = (y1 - 2 * y2 + y3);
+    var shift = denom !== 0 ? 0.5 * (y1 - y3) / denom : 0;
+    var lagEst = bestLag + shift;
+    if(lagEst <= 0) return null;
+    return sampleRate / lagEst;
+  }
+
+  function noteFromFreq(freq, a4){
+    a4 = a4 || 440;
+    if(!(freq > 0)) return null;
+    var midi = 69 + 12 * Math.log(freq / a4) / Math.LN2;
+    var nearest = Math.round(midi);
+    var cents = Math.round((midi - nearest) * 100);
+    return {midi:midi, nearest:nearest, name:midiToNoteName(nearest), cents:cents, freq:freq, a4:a4};
+  }
+
+  function noteToFreq(name, a4){
+    a4 = a4 || 440;
+    var m = /^([A-Ga-g])([#b]?)(-?\d+)$/.exec(name);
+    if(!m) return null;
+    var semis = m[2] === '#' ? 1 : (m[2] === 'b' ? -1 : 0);
+    var midi = BASE[m[1].toUpperCase()] + semis + (parseInt(m[3], 10) + 1) * 12;
+    return a4 * Math.pow(2, (midi - 69) / 12);
+  }
+
+  function freqToNote(freq, a4){ return noteFromFreq(freq, a4); }
+
+  return {
+    NOTE_NAMES:NOTE_NAMES,
+    midiToNoteName:midiToNoteName,
+    autocorrelate:autocorrelate,
+    noteFromFreq:noteFromFreq,
+    freqToNote:freqToNote,
+    noteToFreq:noteToFreq
+  };
+})();
+
+if(typeof module !== 'undefined' && module.exports){ module.exports = CORE; }
+
+if(typeof window !== 'undefined' && window.document){
+  (function(){
+    var I18N = {
+      zh:{
+        meta_desc:"TunerForge：用麦克风做十二平均律调音的网页工具。实时检测音名、频率与音分偏差，支持自定义参考音 A4，离线优先、零依赖。",
+        start:"开始", stop:"停止", ref_a4:"参考音 A4", status_idle:"点击「开始」并允许麦克风权限即可调音。",
+        manual_hint:"无麦克风？手动输入频率试算：", play_tone:"播放参考音",
+        about_title:"关于", about_p1:"TunerForge 用麦克风采集声音，通过自相关算法估计基频，再对照十二平均律给出最近的音名、频率与音分偏差。音分偏差在 ±5¢ 内视为已调准（绿色）。",
+        about_p2:"参考音 A4 可在 415–466 Hz 间调节（默认 440 Hz，部分乐团用 442 Hz）。所有计算在本地完成，声音数据不会上传。",
+        about_p3:"若浏览器拒绝麦克风或环境无麦克风，可用「播放参考音」验证检测逻辑，或在上方手动输入频率查看对应音名。",
+        footer:"TunerForge · 单文件 · 零依赖 · 本地优先",
+        listening:"正在收音…", mic_err:"无法访问麦克风：", denied:"麦克风权限被拒绝。", no_mic:"此环境没有可用的麦克风。", in_tune:"已调准", sharp:"偏尖", flat:"偏低", tap_start:"点击「开始」并允许麦克风"
+      },
+      en:{
+        meta_desc:"TunerForge: a chromatic microphone tuner. Detect note, frequency and cents offset in real time, with adjustable reference A4. Offline, zero-dep.",
+        start:"Start", stop:"Stop", ref_a4:"Ref A4", status_idle:"Hit Start and allow microphone access to tune.",
+        manual_hint:"No mic? Enter a frequency to compute:", play_tone:"Play tone",
+        about_title:"About", about_p1:"TunerForge captures sound from the microphone, estimates the fundamental frequency with autocorrelation, then maps it to the nearest equal-tempered note, frequency and cents offset. Within ±5¢ is treated as in tune (green).",
+        about_p2:"Reference A4 can be set from 415–466 Hz (default 440 Hz; some orchestras use 442 Hz). All computation is local; audio is never uploaded.",
+        about_p3:"If the browser denies the mic or no mic exists, use “Play tone” to verify the detection, or type a frequency above to see its note.",
+        footer:"TunerForge · single-file · zero-dep · local-first",
+        listening:"Listening…", mic_err:"Cannot access microphone: ", denied:"Microphone permission denied.", no_mic:"No microphone available in this environment.", in_tune:"In tune", sharp:"Sharp", flat:"Flat", tap_start:"Hit Start and allow the mic"
+      }
+    };
+    var lang = (function(){
+      try{ return localStorage.getItem('nano-lang'); }catch(e){ return null; }
+    })() || ((navigator.language || 'zh').slice(0,2) === 'zh' ? 'zh' : 'en');
+    function t(k){ return (I18N[lang] && I18N[lang][k] != null) ? I18N[lang][k] : (I18N.zh[k] != null ? I18N.zh[k] : k); }
+    function applyI18n(root){
+      root.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent = t(el.getAttribute('data-i18n')); });
+    }
+
+    var $ = function(id){ return document.getElementById(id); };
+    var noteEl = $('noteName'), centsEl = $('centsLine'), freqEl = $('freqLine'),
+        markerEl = $('marker'), statusEl = $('status'),
+        startBtn = $('startBtn'), stopBtn = $('stopBtn'), toneBtn = $('toneBtn'),
+        a4Input = $('a4'), manualInput = $('manualFreq'), langBtn = $('langBtn');
+
+    var audioCtx = null, stream = null, analyser = null, rafId = null, buf = null, running = false;
+
+    function getCtx(){
+      if(audioCtx) return audioCtx;
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!Ctx) return null;
+      try{ audioCtx = new Ctx(); }catch(e){ audioCtx = null; }
+      return audioCtx;
+    }
+
+    function setReadout(res, a4){
+      if(!res){ noteEl.textContent = '--'; noteEl.className = 'note idle'; centsEl.textContent = t('tap_start'); freqEl.innerHTML = '&nbsp;'; markerEl.style.left = '50%'; markerEl.className = 'marker'; return; }
+      noteEl.textContent = res.name;
+      var cents = res.cents;
+      var inTune = Math.abs(cents) <= 5;
+      noteEl.className = 'note ' + (inTune ? 'in' : 'off');
+      var label = inTune ? t('in_tune') : (cents > 0 ? t('sharp') : t('flat'));
+      var sign = cents > 0 ? '+' : '';
+      centsEl.textContent = label + ' ' + sign + cents + '¢';
+      freqEl.textContent = res.freq.toFixed(2) + ' Hz';
+      var pct = Math.max(0, Math.min(100, 50 + cents)); // clamp -50..50 -> 0..100
+      markerEl.style.left = pct + '%';
+      markerEl.className = 'marker' + (inTune ? ' in' : '');
+    }
+
+    function getA4(){ var v = parseFloat(a4Input.value); return (v >= 415 && v <= 466) ? v : 440; }
+
+    function loop(){
+      if(!running) return;
+      analyser.getFloatTimeDomainData(buf);
+      var f = CORE.autocorrelate(buf, audioCtx.sampleRate);
+      if(f){ setReadout(CORE.noteFromFreq(f, getA4()), getA4()); }
+      rafId = requestAnimationFrame(loop);
+    }
+
+    function start(){
+      var Ctx = getCtx();
+      if(!Ctx){ statusEl.className = 'status err'; statusEl.textContent = t('no_mic'); return; }
+      if(Ctx.state === 'suspended'){ Ctx.resume().catch(function(){}); }
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        statusEl.className = 'status err'; statusEl.textContent = t('no_mic'); return;
+      }
+      navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){
+        stream = s;
+        var src = Ctx.createMediaStreamSource(s);
+        analyser = Ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        buf = new Float32Array(analyser.fftSize);
+        src.connect(analyser);
+        running = true;
+        startBtn.disabled = true; stopBtn.disabled = false;
+        statusEl.className = 'status ok'; statusEl.textContent = t('listening');
+        loop();
+      }).catch(function(err){
+        statusEl.className = 'status err';
+        statusEl.textContent = t('mic_err') + (err && err.name === 'NotAllowedError' ? t('denied') : (err && err.message ? err.message : 'unknown'));
+      });
+    }
+
+    function stop(){
+      running = false;
+      if(rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+      if(stream){ stream.getTracks().forEach(function(tr){ tr.stop(); }); stream = null; }
+      startBtn.disabled = false; stopBtn.disabled = true;
+      statusEl.className = 'status'; statusEl.textContent = t('status_idle');
+      noteEl.textContent = '--'; noteEl.className = 'note idle';
+      centsEl.textContent = t('tap_start'); freqEl.innerHTML = '&nbsp;'; markerEl.style.left = '50%'; markerEl.className = 'marker';
+    }
+
+    function playTone(){
+      var Ctx = getCtx(); if(!Ctx){ return; }
+      if(Ctx.state === 'suspended'){ Ctx.resume().catch(function(){}); }
+      var o = Ctx.createOscillator(), g = Ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = getA4();
+      g.gain.setValueAtTime(0.0001, Ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.25, Ctx.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, Ctx.currentTime + 0.6);
+      o.connect(g); g.connect(Ctx.destination);
+      o.start(); o.stop(Ctx.currentTime + 0.62);
+    }
+
+    startBtn.addEventListener('click', start);
+    stopBtn.addEventListener('click', stop);
+    toneBtn.addEventListener('click', playTone);
+    a4Input.addEventListener('change', function(){ if(running){ /* next frame picks up new A4 */ } });
+    manualInput.addEventListener('input', function(){
+      var f = parseFloat(manualInput.value);
+      if(f > 0){ setReadout(CORE.noteFromFreq(f, getA4()), getA4()); }
+      else { setReadout(null); }
+    });
+
+    langBtn.addEventListener('click', function(){
+      lang = (lang === 'zh') ? 'en' : 'zh';
+      try{ localStorage.setItem('nano-lang', lang); }catch(e){}
+      langBtn.textContent = (lang === 'zh') ? 'EN' : '中文';
+      applyI18n(document);
+      // re-render dynamic status that depends on language
+      if(!running){ statusEl.textContent = t('status_idle'); centsEl.textContent = t('tap_start'); }
+    });
+
+    // init
+    langBtn.textContent = (lang === 'zh') ? 'EN' : '中文';
+    applyI18n(document);
+    window.__TunerForge__ = CORE;
+  })();
+}
+</script>
+</body>
+</html>
