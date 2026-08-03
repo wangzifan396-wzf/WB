@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>SortForge — 排序工具</title>
-<meta property="og:title" content="SortForge">
-<meta property="og:description" content="行排序：按字典序或数值排序，支持倒序、去重与随机打乱（Fisher–Yates），等价于 sort/uniq/shuf 的离线版。">
+<title>RotForge — 字符密码</title>
+<meta property="og:title" content="RotForge">
+<meta property="og:description" content="经典字符密码：ROT13、Atbash 与可调位移的凯撒密码，仅变换字母、保留大小写与其余字符，离线加密备忘。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="行排序：按字典序或数值排序，支持倒序、去重与随机打乱（Fisher–Yates），等价于 sort/uniq/shuf 的离线版。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="经典字符密码：ROT13、Atbash 与可调位移的凯撒密码，仅变换字母、保留大小写与其余字符，离线加密备忘。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,23 +99,20 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>SortForge</h1>
-      <p class="sub" data-i18n="sub">排序 / 去重 / 打乱 · 单文件 · 零依赖 · 本地优先</p>
+      <h1>RotForge</h1>
+      <p class="sub" data-i18n="sub">ROT13 / Atbash / 凯撒 · 单文件 · 零依赖 · 本地优先</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
-  <textarea id="src" rows="9" spellcheck="false" data-i18n-ph="ph_src">banana
-apple
-cherry
-apple</textarea>
-  <div class="row">
-    <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="num"> 数值排序</label>
-    <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="rev"> 倒序</label>
-    <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="uniq"> 去重</label>
+  <textarea id="src" rows="6" spellcheck="false" data-i18n-ph="ph_src">Hello, World!</textarea>
+  <div class="seg" id="mode">
+    <button data-m="rot13" class="active">ROT13</button>
+    <button data-m="atbash">Atbash</button>
+    <button data-m="caesar">凯撒(位移)</button>
   </div>
-  <div class="row"><button id="go">排序</button><button class="ghost" id="copy">复制</button></div>
+  <div id="shiftrow" style="display:none" class="grid"><div><label>位移量</label><input type="number" id="shift" value="3"></div></div>
+  <div class="row"><button id="go">转换</button><button class="ghost" id="copy">复制</button></div>
   <div class="err" id="err"></div>
-  <div class="sec">输出</div>
   <div class="out" id="out"></div>
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
@@ -127,27 +124,27 @@ apple</textarea>
 </div>
 <script>
 (function(){
-  function cmp(a,b,numeric){ if(numeric){ var x=parseFloat(a),y=parseFloat(b); if(!isNaN(x)&&!isNaN(y)) return x-y; } return a<b?-1:(a>b?1:0); }
-  function sortLines(text,opts){ opts=opts||{}; text=String(text==null?'':text);
-    var lines=text.split(/\r\n|\r|\n/); lines=lines.filter(function(l,i,a){ return !(i===a.length-1 && l===''); });
-    var arr=lines.slice();
-    if(opts.shuffle){ for(var i=arr.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=arr[i];arr[i]=arr[j];arr[j]=t; } }
-    else { arr.sort(function(a,b){ return cmp(a,b,opts.numeric)*(opts.reverse?-1:1); }); }
-    if(opts.unique){ var seen={},out=[]; arr.forEach(function(l){ if(!seen[l]){seen[l]=1;out.push(l);} }); arr=out; }
-    return {value:arr.join('\n')}; }
-  var API={sortLines:sortLines};
+  function shift(s,n){ n=((n%26)+26)%26;
+    return String(s).replace(/[a-z]/gi,function(c){ var base=c<='Z'?65:97; var code=c.charCodeAt(0)-base; code=(code+n)%26; return String.fromCharCode(base+code); }); }
+  function rot13(s){ return shift(s,13); }
+  function atbash(s){ return String(s).replace(/[a-z]/gi,function(c){ var base=c<='Z'?65:97; var code=c.charCodeAt(0)-base; return String.fromCharCode(base+(25-code)); }); }
+  var API={caesar:shift,rot13:rot13,atbash:atbash};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
-  if(typeof window!=='undefined')window.__SortForge__=API;
+  if(typeof window!=='undefined')window.__RotForge__=API;
 })();
 </script>
 <script>
 (function(){
-  var P=window.__SortForge__;
-  var src=document.getElementById('src'), num=document.getElementById('num'), rev=document.getElementById('rev'), uniq=document.getElementById('uniq'), out=document.getElementById('out'), err=document.getElementById('err');
-  function go(){ err.textContent=''; var r=P.sortLines(src.value,{numeric:num.checked,reverse:rev.checked,unique:uniq.checked}); if(r.error){err.textContent=r.error;out.textContent='';return;} out.textContent=r.value; }
+  var P=window.__RotForge__;
+  var src=document.getElementById('src'), out=document.getElementById('out'), err=document.getElementById('err'), shift=document.getElementById('shift'), shiftrow=document.getElementById('shiftrow');
+  var mode='rot13'; var seg=document.getElementById('mode');
+  function applyMode(){ shiftrow.style.display = mode==='caesar'?'flex':'none'; }
+  seg.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;mode=b.getAttribute('data-m');[].forEach.call(seg.children,function(x){x.classList.remove('active');});b.classList.add('active');applyMode();go();});
+  function go(){ err.textContent=''; var r= mode==='rot13'? P.rot13(src.value) : mode==='atbash'? P.atbash(src.value) : P.caesar(src.value, parseInt(shift.value||'0',10)||0);
+    out.textContent=r.value; }
   document.getElementById('go').addEventListener('click', go);
   document.getElementById('copy').addEventListener('click', function(){ if(out.textContent){navigator.clipboard.writeText(out.textContent); if(window.nanoToast)window.nanoToast('已复制');} });
-  go();
+  applyMode(); go();
 })();
 </script>
 <div id="nanoToast" role="status" aria-live="polite"></div>
@@ -160,7 +157,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed", "ph_src": "Paste multi-line text", "sub": "sort/dedupe/shuffle · single-file", "title": "SortForge — sort tool"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "ph_src": "在此粘贴多行文本", "sub": "排序 / 去重 / 打乱 · 单文件 · 零依赖 · 本地优先", "title": "SortForge — 排序工具"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed", "ph_src": "Paste text here", "sub": "ROT13/Atbash/Caesar · single-file", "title": "RotForge — ciphers"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "ph_src": "在此粘贴文本", "sub": "ROT13 / Atbash / 凯撒 · 单文件 · 零依赖 · 本地优先", "title": "RotForge — 字符密码"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

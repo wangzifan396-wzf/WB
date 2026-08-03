@@ -1,14 +1,26 @@
 # SortForge
 
-排序算法观察站 —— 单文件、零依赖、本地优先。五大经典排序逐帧留痕，比较 / 移动次数一键横评，讲课与刷题的直觉神器。
+行排序：按字典序或数值排序，支持倒序、去重与随机打乱（Fisher–Yates），等价于 sort/uniq/shuf 的离线版。
 
-- `stSort(arr, alg)`：bubble / insertion / selection / quick(Lomuto) / merge，输出 sorted + comparisons + moves + frames（快照轨迹，输入不可变）。
-- 冒泡带提前退出（已序数组仅 n-1 次比较 0 移动）；选择排序恒 n(n-1)/2 次比较。
-- `stCompare(arr)`：五算法同数据横评。
-- `stSvg(frames)`：排序前后柱状对比 SVG。
+- 单文件 HTML，零依赖，打开即用
+- 数据全程留在本机，不上传任何服务器
+- 支持 PWA 安装与离线使用
+
+## 在线使用
+
+https://wangzifan396-wzf.github.io/WB/tools/SortForge/
+
+## 本地运行
+
+直接用浏览器打开 `index.html` 即可。
 
 ## 测试
+
+```bash
+node _test.js   # 内核纯函数断言
+node smoke.js   # jsdom 冒烟测试
 ```
-node _test.js
-node smoke.js
-```
+
+## 工具矩阵
+
+浏览全部工具：https://wangzifan396-wzf.github.io/WB/

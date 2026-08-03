@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>SortForge — 排序工具</title>
-<meta property="og:title" content="SortForge">
-<meta property="og:description" content="行排序：按字典序或数值排序，支持倒序、去重与随机打乱（Fisher–Yates），等价于 sort/uniq/shuf 的离线版。">
+<title>QuerystringForge — 查询串</title>
+<meta property="og:title" content="QuerystringForge">
+<meta property="og:description" content="URL 查询串解析与构建：把 a=1&b=2 解析为对象（支持重复键为数组、自动解码），或把对象还原为排序后的查询串。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="行排序：按字典序或数值排序，支持倒序、去重与随机打乱（Fisher–Yates），等价于 sort/uniq/shuf 的离线版。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="URL 查询串解析与构建：把 a=1&b=2 解析为对象（支持重复键为数组、自动解码），或把对象还原为排序后的查询串。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,23 +99,18 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>SortForge</h1>
-      <p class="sub" data-i18n="sub">排序 / 去重 / 打乱 · 单文件 · 零依赖 · 本地优先</p>
+      <h1>QuerystringForge</h1>
+      <p class="sub" data-i18n="sub">查询串 解析 / 构建 · 单文件 · 零依赖 · 本地优先</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
-  <textarea id="src" rows="9" spellcheck="false" data-i18n-ph="ph_src">banana
-apple
-cherry
-apple</textarea>
-  <div class="row">
-    <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="num"> 数值排序</label>
-    <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="rev"> 倒序</label>
-    <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="uniq"> 去重</label>
+  <textarea id="src" rows="6" spellcheck="false" data-i18n-ph="ph_src">?a=1&b=2&name=%E4%B8%AD</textarea>
+  <div class="seg" id="mode">
+    <button data-m="parse" class="active">解析 → 对象</button>
+    <button data-m="build">对象 → 查询串</button>
   </div>
-  <div class="row"><button id="go">排序</button><button class="ghost" id="copy">复制</button></div>
+  <div class="row"><button id="go">处理</button></div>
   <div class="err" id="err"></div>
-  <div class="sec">输出</div>
   <div class="out" id="out"></div>
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
@@ -127,26 +122,41 @@ apple</textarea>
 </div>
 <script>
 (function(){
-  function cmp(a,b,numeric){ if(numeric){ var x=parseFloat(a),y=parseFloat(b); if(!isNaN(x)&&!isNaN(y)) return x-y; } return a<b?-1:(a>b?1:0); }
-  function sortLines(text,opts){ opts=opts||{}; text=String(text==null?'':text);
-    var lines=text.split(/\r\n|\r|\n/); lines=lines.filter(function(l,i,a){ return !(i===a.length-1 && l===''); });
-    var arr=lines.slice();
-    if(opts.shuffle){ for(var i=arr.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=arr[i];arr[i]=arr[j];arr[j]=t; } }
-    else { arr.sort(function(a,b){ return cmp(a,b,opts.numeric)*(opts.reverse?-1:1); }); }
-    if(opts.unique){ var seen={},out=[]; arr.forEach(function(l){ if(!seen[l]){seen[l]=1;out.push(l);} }); arr=out; }
-    return {value:arr.join('\n')}; }
-  var API={sortLines:sortLines};
+  function parse(qs){
+    qs=String(qs==null?'':qs).replace(/^\?/,'');
+    var out={}; if(qs==='') return {value:out};
+    qs.split('&').forEach(function(pair){ if(pair==='')return; var i=pair.indexOf('='); var k,v;
+      if(i<0){k=pair;v='';} else {k=pair.slice(0,i);v=pair.slice(i+1);}
+      k=decodeURIComponent(k.replace(/\+/g,' ')); v=decodeURIComponent(v.replace(/\+/g,' '));
+      if(out.hasOwnProperty(k)){ if(!Array.isArray(out[k])) out[k]=[out[k]]; out[k].push(v); } else out[k]=v; });
+    return {value:out};
+  }
+  function build(obj){
+    if(obj==null||typeof obj!=='object') return {error:'需为对象'};
+    var parts=[];
+    Object.keys(obj).forEach(function(k){ var v=obj[k];
+      if(Array.isArray(v)) v.forEach(function(x){ parts.push(encodeURIComponent(k)+'='+encodeURIComponent(x)); });
+      else parts.push(encodeURIComponent(k)+'='+encodeURIComponent(v)); });
+    return {value:parts.join('&')};
+  }
+  function sort(qs){ var o=parse(qs).value; var keys=Object.keys(o).sort(); var parts=[];
+    keys.forEach(function(k){ var v=o[k]; if(Array.isArray(v)) v.forEach(function(x){parts.push(encodeURIComponent(k)+'='+encodeURIComponent(x));}); else parts.push(encodeURIComponent(k)+'='+encodeURIComponent(v)); });
+    return {value:parts.join('&')}; }
+  var API={parse:parse,build:build,sort:sort};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
-  if(typeof window!=='undefined')window.__SortForge__=API;
+  if(typeof window!=='undefined')window.__QuerystringForge__=API;
 })();
 </script>
 <script>
 (function(){
-  var P=window.__SortForge__;
-  var src=document.getElementById('src'), num=document.getElementById('num'), rev=document.getElementById('rev'), uniq=document.getElementById('uniq'), out=document.getElementById('out'), err=document.getElementById('err');
-  function go(){ err.textContent=''; var r=P.sortLines(src.value,{numeric:num.checked,reverse:rev.checked,unique:uniq.checked}); if(r.error){err.textContent=r.error;out.textContent='';return;} out.textContent=r.value; }
+  var P=window.__QuerystringForge__;
+  var src=document.getElementById('src'), out=document.getElementById('out'), err=document.getElementById('err');
+  var mode='parse'; var seg=document.getElementById('mode');
+  seg.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;mode=b.getAttribute('data-m');[].forEach.call(seg.children,function(x){x.classList.remove('active');});b.classList.add('active');go();});
+  function go(){ err.textContent=''; var r;
+    if(mode==='parse'){ r=P.parse(src.value); if(r.error){err.textContent=r.error;out.textContent='';return;} out.textContent=JSON.stringify(r.value,null,2); }
+    else { var o; try{ o=JSON.parse(src.value); }catch(e){ err.textContent='JSON 解析失败: '+e.message; out.textContent=''; return; } r=P.build(o); if(r.error){err.textContent=r.error;out.textContent='';return;} out.textContent=r.value; } }
   document.getElementById('go').addEventListener('click', go);
-  document.getElementById('copy').addEventListener('click', function(){ if(out.textContent){navigator.clipboard.writeText(out.textContent); if(window.nanoToast)window.nanoToast('已复制');} });
   go();
 })();
 </script>
@@ -160,7 +170,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed", "ph_src": "Paste multi-line text", "sub": "sort/dedupe/shuffle · single-file", "title": "SortForge — sort tool"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "ph_src": "在此粘贴多行文本", "sub": "排序 / 去重 / 打乱 · 单文件 · 零依赖 · 本地优先", "title": "SortForge — 排序工具"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed", "ph_src": "Paste query string or JSON", "sub": "query string parse/build · single-file", "title": "QuerystringForge — query string"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "ph_src": "在此粘贴查询串或 JSON 对象", "sub": "查询串 解析 / 构建 · 单文件 · 零依赖 · 本地优先", "title": "QuerystringForge — 查询串"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

@@ -1,6 +1,6 @@
-# SqlFmtForge
+# PercentForge
 
-SQL 美化：大写关键字，并在 SELECT/FROM/WHERE/JOIN 等子句前换行缩进，保留字符串与注释，离线整理查询。
+百分比计算：求 X 的 P%、A 占 B 的百分比、变化率与差异百分比，结果保留两位小数，离线速算。
 
 - 单文件 HTML，零依赖，打开即用
 - 数据全程留在本机，不上传任何服务器
@@ -8,7 +8,7 @@ SQL 美化：大写关键字，并在 SELECT/FROM/WHERE/JOIN 等子句前换行�
 
 ## 在线使用
 
-https://wangzifan396-wzf.github.io/WB/tools/SqlFmtForge/
+https://wangzifan396-wzf.github.io/WB/tools/PercentForge/
 
 ## 本地运行
 

@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>SortForge — 排序工具</title>
-<meta property="og:title" content="SortForge">
-<meta property="og:description" content="行排序：按字典序或数值排序，支持倒序、去重与随机打乱（Fisher–Yates），等价于 sort/uniq/shuf 的离线版。">
+<title>BigintForge — 大整数计算</title>
+<meta property="og:title" content="BigintForge">
+<meta property="og:description" content="任意精度整数计算：加、减、乘、整除、取模与幂运算，基于 BigInt，处理远超 Number 安全范围的大数，离线可用。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="行排序：按字典序或数值排序，支持倒序、去重与随机打乱（Fisher–Yates），等价于 sort/uniq/shuf 的离线版。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="任意精度整数计算：加、减、乘、整除、取模与幂运算，基于 BigInt，处理远超 Number 安全范围的大数，离线可用。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,21 +99,17 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>SortForge</h1>
-      <p class="sub" data-i18n="sub">排序 / 去重 / 打乱 · 单文件 · 零依赖 · 本地优先</p>
+      <h1>BigintForge</h1>
+      <p class="sub" data-i18n="sub">大整数 加减乘除幂 · 单文件 · 零依赖 · 本地优先</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
-  <textarea id="src" rows="9" spellcheck="false" data-i18n-ph="ph_src">banana
-apple
-cherry
-apple</textarea>
-  <div class="row">
-    <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="num"> 数值排序</label>
-    <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="rev"> 倒序</label>
-    <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="uniq"> 去重</label>
+  <div class="grid">
+    <div><label>操作数 A</label><input type="text" id="a" value="100000000000000000000"></div>
+    <div><label>操作数 B</label><input type="text" id="b" value="2"></div>
+    <div><label>运算</label><select id="op"><option value="+">+ 加</option><option value="-">- 减</option><option value="*">* 乘</option><option value="/">/ 整除</option><option value="%">% 取模</option><option value="**">** 幂</option></select></div>
   </div>
-  <div class="row"><button id="go">排序</button><button class="ghost" id="copy">复制</button></div>
+  <div class="row"><button id="go">计算</button><button class="ghost" id="copy">复制</button></div>
   <div class="err" id="err"></div>
   <div class="sec">输出</div>
   <div class="out" id="out"></div>
@@ -127,24 +123,21 @@ apple</textarea>
 </div>
 <script>
 (function(){
-  function cmp(a,b,numeric){ if(numeric){ var x=parseFloat(a),y=parseFloat(b); if(!isNaN(x)&&!isNaN(y)) return x-y; } return a<b?-1:(a>b?1:0); }
-  function sortLines(text,opts){ opts=opts||{}; text=String(text==null?'':text);
-    var lines=text.split(/\r\n|\r|\n/); lines=lines.filter(function(l,i,a){ return !(i===a.length-1 && l===''); });
-    var arr=lines.slice();
-    if(opts.shuffle){ for(var i=arr.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=arr[i];arr[i]=arr[j];arr[j]=t; } }
-    else { arr.sort(function(a,b){ return cmp(a,b,opts.numeric)*(opts.reverse?-1:1); }); }
-    if(opts.unique){ var seen={},out=[]; arr.forEach(function(l){ if(!seen[l]){seen[l]=1;out.push(l);} }); arr=out; }
-    return {value:arr.join('\n')}; }
-  var API={sortLines:sortLines};
+  function calc(a,b,op){ try{ var x=BigInt(a), y=BigInt(b); var r;
+    switch(op){ case '+': r=x+y; break; case '-': r=x-y; break; case '*': r=x*y; break;
+      case '/': if(y===0n) return {error:'除以零'}; r=x/y; break; case '%': if(y===0n) return {error:'除以零'}; r=x%y; break;
+      case '**': if(y<0n) return {error:'不支持负指数'}; r=x**y; break; default: return {error:'未知运算'}; }
+    return {value:r.toString()}; } catch(e){ return {error:'无效整数: '+e.message}; } }
+  var API={calc:calc};
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
-  if(typeof window!=='undefined')window.__SortForge__=API;
+  if(typeof window!=='undefined')window.__BigintForge__=API;
 })();
 </script>
 <script>
 (function(){
-  var P=window.__SortForge__;
-  var src=document.getElementById('src'), num=document.getElementById('num'), rev=document.getElementById('rev'), uniq=document.getElementById('uniq'), out=document.getElementById('out'), err=document.getElementById('err');
-  function go(){ err.textContent=''; var r=P.sortLines(src.value,{numeric:num.checked,reverse:rev.checked,unique:uniq.checked}); if(r.error){err.textContent=r.error;out.textContent='';return;} out.textContent=r.value; }
+  var P=window.__BigintForge__;
+  var a=document.getElementById('a'), b=document.getElementById('b'), op=document.getElementById('op'), out=document.getElementById('out'), err=document.getElementById('err');
+  function go(){ err.textContent=''; var r=P.calc(a.value,b.value,op.value); if(r.error){err.textContent=r.error;out.textContent='';return;} out.textContent=r.value; }
   document.getElementById('go').addEventListener('click', go);
   document.getElementById('copy').addEventListener('click', function(){ if(out.textContent){navigator.clipboard.writeText(out.textContent); if(window.nanoToast)window.nanoToast('已复制');} });
   go();
@@ -160,7 +153,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed", "ph_src": "Paste multi-line text", "sub": "sort/dedupe/shuffle · single-file", "title": "SortForge — sort tool"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "ph_src": "在此粘贴多行文本", "sub": "排序 / 去重 / 打乱 · 单文件 · 零依赖 · 本地优先", "title": "SortForge — 排序工具"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed", "sub": "big integer arithmetic · single-file", "title": "BigintForge — big integer"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "大整数 加减乘除幂 · 单文件 · 零依赖 · 本地优先", "title": "BigintForge — 大整数计算"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

@@ -6,8 +6,8 @@ const vc=new VirtualConsole();
 vc.on('jsdomError', function(e){ errors.push((e&&e.message)||String(e)); });
 const dom=new JSDOM(html,{runScripts:'dangerously',resources:'usable',pretendToBeVisual:true, url:'https://example.com/', virtualConsole:vc});
 const w=dom.window;
-if(!w.__SqlFmtForge__){ console.error('pure missing'); process.exit(1); }
-if(w.document.body.innerHTML.indexOf('SqlFmtForge')<0){ console.error('initial output missing'); process.exit(1); }
+if(!w.__QuerystringForge__){ console.error('pure missing'); process.exit(1); }
+if(w.document.body.innerHTML.indexOf('QuerystringForge')<0){ console.error('initial output missing'); process.exit(1); }
 // 捕获 UI 运行时错误（ReferenceError/TypeError 等真实代码缺陷）。
 // jsdom 无 WebCrypto，crypto 类工具在 init 阶段会抛 subtle/generateKey 类错误，属环境限制，放行。
 setTimeout(function(){

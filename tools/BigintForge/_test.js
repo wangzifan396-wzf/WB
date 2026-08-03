@@ -1,0 +1,14 @@
+const fs=require('fs'),path=require('path');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
+const kernel=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
+const mo={exports:{}};new Function('module','exports',kernel)(mo,mo.exports);
+const C=mo.exports;let pass=0,fail=0;
+function ok(n,c){if(c)pass++;else{fail++;console.error('FAIL '+n);}}
+ok('mul', C.calc('100000000000000000000','2','*').value==='200000000000000000000');
+ok('div', C.calc('10','3','/').value==='3');
+ok('mod', C.calc('10','3','%').value==='1');
+ok('pow', C.calc('2','10','**').value==='1024');
+ok('neg', C.calc('-5','3','+').value==='-2');
+ok('zdiv', !!C.calc('1','0','/').error);
+ok('bad', !!C.calc('x','1','+').error);
+console.log((fail?'FAIL':'PASS')+' BigintForge '+pass+'/'+(pass+fail));process.exit(fail?1:0);

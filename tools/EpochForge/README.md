@@ -1,6 +1,6 @@
-# SqlFmtForge
+# EpochForge
 
-SQL 美化：大写关键字，并在 SELECT/FROM/WHERE/JOIN 等子句前换行缩进，保留字符串与注释，离线整理查询。
+Unix 时间戳与日期互转：支持秒/毫秒，输出标准 UTC 时间，时区无关，方便调试日志与接口时间字段。
 
 - 单文件 HTML，零依赖，打开即用
 - 数据全程留在本机，不上传任何服务器
@@ -8,7 +8,7 @@ SQL 美化：大写关键字，并在 SELECT/FROM/WHERE/JOIN 等子句前换行�
 
 ## 在线使用
 
-https://wangzifan396-wzf.github.io/WB/tools/SqlFmtForge/
+https://wangzifan396-wzf.github.io/WB/tools/EpochForge/
 
 ## 本地运行
 
