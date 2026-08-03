@@ -1,0 +1,26 @@
+# FortuneForge
+
+签文生成：点击“拆一枚签”，从 20 条中文好运签中随机抽取一句——宜忌、鼓励与小确幸，做每日仪式感或纯粹图个乐随手可用。
+
+- 单文件 HTML，零依赖，打开即用
+- 数据全程留在本机，不上传任何服务器
+- 支持 PWA 安装与离线使用
+
+## 在线使用
+
+https://wangzifan396-wzf.github.io/WB/tools/FortuneForge/
+
+## 本地运行
+
+直接用浏览器打开 `index.html` 即可。
+
+## 测试
+
+```bash
+node _test.js   # 内核纯函数断言
+node smoke.js   # jsdom 冒烟测试
+```
+
+## 工具矩阵
+
+浏览全部工具：https://wangzifan396-wzf.github.io/WB/
