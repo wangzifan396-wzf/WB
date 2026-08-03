@@ -151,6 +151,8 @@
   .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
   .search .si{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:16px}
   .filters{display:flex;gap:8px;flex-wrap:wrap}
+  .result-count{margin:-12px 0 18px;font-size:13px;color:var(--text-3);font-weight:500}
+  .result-count b{color:var(--text);font-weight:700}
   .chip{padding:9px 15px;border-radius:999px;border:1px solid var(--border);background:var(--surface);
     color:var(--text-2);font-size:13px;font-weight:600;cursor:pointer;transition:all .18s ease;white-space:nowrap}
   .chip:hover{border-color:var(--accent);color:var(--text)}
@@ -336,6 +338,7 @@
         <input type="text" id="search" placeholder="搜索工具… 试试 regex / json / 颜色 / 压缩 / 图表" autocomplete="off">
       </div>
       <div class="filters" id="filters"></div>
+      <div class="result-count" id="resultCount"></div>
     </div>
     <div class="grid" id="grid"></div>
   </div>
@@ -457,6 +460,7 @@
     "btn_demo":{zh:"在线试用",en:"Live Demo"},
     "btn_src":{zh:"源码",en:"Source"},
     "no_result":{zh:"没有匹配的工具，换个关键词试试 🔍",en:"No matching tools — try another keyword 🔍"},
+    "result_count":{zh:"共 <b>{n}</b> 个工具",en:"<b>{n}</b> tools"},
     "cta_title":{zh:"把你下一个小工具，交给 nano-tools",en:"Your next tiny tool, from nano-tools"},
     "cta_desc":{zh:"510 款工具全部收在一个仓库里，开源、零依赖、本地优先。",en:"510 tools, all in a single repo. Open-source, zero-dep, local-first."},
     "wb_badge":{zh:"★ 聚合工作台",en:"★ Unified Workbench"},
@@ -4949,7 +4953,9 @@
   TOOLS.forEach(function(t){ if(CATS.indexOf(t.cat)<0) CATS.push(t.cat); });
 
   var $ = function(s,el){return (el||document).querySelector(s);};
-  var state = {q:"", cat:"全部", flag:false, fav:false};
+  var state = {q:"", cat:"全部", flag:false, fav:false, recent:false};
+  // 最近新增：批六三 + 批六四 共 24 个工具（用于"最近新增"快捷筛选）
+  var RECENT_IDS = {"AffineForge":1,"Base91Forge":1,"BsonForge":1,"ConventionalForge":1,"Crc64Forge":1,"EnigmaForge":1,"FnvForge":1,"Json5Forge":1,"RailFenceForge":1,"Sm3Forge":1,"Sm4Forge":1,"XorForge":1,"BitwiseForge":1,"CombinatForge":1,"EqualizerForge":1,"GeometryForge":1,"GraphemeForge":1,"LatexForge":1,"LogicForge":1,"ProbForge":1,"ReadmeForge":1,"SignForge":1,"TranslitForge":1,"VigenereForge":1};
   var LANG = (function(){ try{return localStorage.getItem("nano-lang")||"zh";}catch(e){return "zh";} })();
   var FLAG_IDS = {"DrawForge":1,"GraphForge":1,"APIForge":1,"ChatForge":1,"SQLForge":1,"DeckForge":1,"QRForge":1,"VaultForge":1,"MindForge":1,"SnipForge":1,"PlanForge":1,"FontForge":1,"ImageForge":1,"AudioForge":1,"A11yForge":1,"PromptForge":1,"PDFForge":1,"TableForge":1,"CVForge":1,"KanbanForge":1,"InvoiceForge":1,"UuidForge":1,"SubnetForge":1,"UrlForge":1,"YamlForge":1,"AuthForge":1,"CryptoForge":1,"BarcodeForge":1,"CsvForge":1,"CipherForge":1,"AsciiForge":1,"TypeForge":1,"DiffForge":1,"ShotForge":1,"TotpForge":1,"HexForge":1,"BookForge":1,"StatusForge":1,"EmojiForge":1,"WordForge":1,"StructForge":1,"SlugForge":1,"GlobForge":1,"RomanForge":1,"TempForge":1,"MathForge":1,"MimeForge":1,"MorseForge":1,"KeyForge":1,"LuhnForge":1,"DiagramForge":1,"CodeForge":1,"PixelForge":1,"GIFForge":1,"MeshForge":1,"RegexForge":1,"WhiteboardForge":1,"SchemaForge":1,"ChartForge":1,"BeautifyForge":1,"SheetForge":1,"TypingForge":1,"DateForge":1,"SemverForge":1,"HabitForge":1,"JsonPathForge":1,"NginxForge":1,"ColorBlindForge":1,"CronForge":1,"JwtForge":1,"SnowflakeForge":1,"PunyForge":1,"ChangelogForge":1,"ULIDForge":1,"PasswordForge":1,"NumeralForge":1,"SparkForge":1,"FigletForge":1,"HtmlEntityForge":1,"UtmForge":1,"InterestForge":1,"MailForge":1,"HashForge":1,"BackoffForge":1,"UnitForge":1,"ReadForge":1,"RateForge":1,"BloomForge":1,"HashRingForge":1,"LzwForge":1,"VectorForge":1,"TopoForge":1,"FuzzyForge":1,"PivotForge":1,"MarkdownForge":1,"PercentileForge":1,"HmacForge":1,"MerkleForge":1,"GeoForge":1,"CuckooForge":1,"TokenForge":1,"SecretForge":1,"HllForge":1,"SketchForge":1,"TrieForge":1,"LruForge":1,"UnionForge":1,"BitsetForge":1,"BreakerForge":1,"ArgForge":1,"HuffmanForge":1,"CrcForge":1,"Base58Forge":1,"MatrixForge":1,"TomlForge":1,"HeapForge":1,"DijkstraForge":1,"AhoForge":1,"QsForge":1,"IniForge":1,"Sha3Forge":1,"Base64Forge":1,"MsgpackForge":1,"PrngForge":1,"KmpForge":1,"TarjanForge":1,"ExprForge":1,"FenwickForge":1,"XxhashForge":1,"LinearForge":1,"MurmurForge":1,"Base32Forge":1,"VarintForge":1,"GeohashForge":1,"BenchForge":1,"DistForge":1,"MinhashForge":1,"SimhashForge":1,"BktreeForge":1,"SkipForge":1,"AstarForge":1,"SegmentForge":1,"AvlForge":1,"RabinForge":1,"IntervalForge":1,"CombForge":1,"EloForge":1,"Base85Forge":1,"SoundexForge":1,"StateForge":1,"MindMapForge":1,"WordCloudForge":1,"SequenceForge":1,"GanttForge":1,"LifeForge":1,"SortForge":1,"MazeForge":1,"NqueenForge":1,"StegForge":1,"FractalForge":1,"TuringForge":1,"LsystemForge":1,"SudokuForge":1,"GomokuForge":1,"NoiseForge":1,"BezierForge":1,"JsonGraphForge":1,"RegexRailForge":1,"TetrisForge":1,"SnakeForge":1,"TokenizeForge":1,"BoidsForge":1,"RaycastForge":1,"PendulumForge":1,"QuadtreeForge":1,"TspForge":1,"KnapsackForge":1,"DitherForge":1,"SpiroForge":1,"ChordForge":1,"VoronoiForge":1,"HarmonographForge":1,"ClothForge":1,"WaveForge":1,"SandForge":1,"ReactionForge":1,"MinesweeperForge":1,"2048Forge":1,"SokobanForge":1,"PaletteForge":1,"ImgConvertForge":1,"SigForge":1,"ClipForge":1,"OgForge":1,"BrailleForge":1,"LangtonForge":1,"JuliaForge":1,"WordleForge":1,"ParticleForge":1,"MetronomeForge":1,"ArchForge":1,"DagForge":1,"DocxForge":1,"XlsxForge":1,"PomodoroForge":1,"TraceForge":1,"MarkovForge":1,"WfcForge":1,"PlotForge":1,"TimelineForge":1,"StatForge":1,"LoanForge":1,"SplitForge":1,"BmiForge":1,"StrengthForge":1,"HashIdForge":1,"WorldClockForge":1,"CountdownForge":1,"RecipeForge":1,"ExpenseForge":1,"TimestampForge":1,"PassgenForge":1,"AgeForge":1,"MacForge":1,"NanoidForge":1,"SitemapForge":1,"WordCountForge":1,"SqlFmtForge":1,"CalorieForge":1,"StopwatchForge":1,"SrtForge":1,"JsonSchemaForge":1,"HttpStatusForge":1,"AnsiForge":1,"FrontmatterForge":1,"PhoneForge":1,"IbanForge":1,"PaceForge":1,"KeycodeForge":1,"RobotsForge":1,"ChefForge":1,"AttentionForge":1,"DbmlForge":1,"FlamegraphForge":1,"HeatmapForge":1,"TreeForge":1,"JsonLdForge":1,"DmarcForge":1,"GraphqlForge":1,"LlmCostForge":1,"SeoForge":1,"JsonDiffForge":1,"RegexExplainForge":1,"TreemapForge":1,"SvgOptForge":1,"SpfForge":1,"DkimForge":1,"CorsForge":1,"HttpHeadersForge":1,"ColorContrastForge":1,"PngForge":1,"EasingForge":1,"GridForge":1,"RateLimitForge":1,"SqlExplainForge":1,"LzStringForge":1,"IcoForge":1,"SvgPathForge":1,"JsonPointerForge":1,"AsciiTableForge":1,"McpForge":1,"RagForge":1,"AgentSchemaForge":1,"DnsForge":1,"HttpCacheForge":1,"TlsForge":1,"CspForge":1,"SriForge":1,"BlurhashForge":1,"NdjsonForge":1,"EvalForge":1,"PromptDiffForge":1,"WebhookForge":1,"OpenapiForge":1,"ProtoForge":1,"DepGraphForge":1,"SankeyForge":1,"WaterfallForge":1,"RadarForge":1,"CalendarHeatForge":1,"PkceForge":1,"RssForge":1,"IcsForge":1,"K8sForge":1,"PromQLForge":1,"WAFForge":1,"JqForge":1,"FlexboxForge":1,"ShadowForge":1,"PemForge":1,"HtaccessForge":1,"WebSocketForge":1,"SseForge":1,"MqttForge":1,"SdpForge":1,"KeypairForge":1,"SshForge":1,"JwkForge":1,"JwsForge":1,"TldrForge":1,"Pbkdf2Forge":1,"SpectroForge":1,"CarbonForge":1,"SamlForge":1,"OtpForge":1,"CborForge":1,"CvssForge":1,"SbomForge":1,"TerraformForge":1,"ActionsForge":1,"LogqlForge":1,"WasmForge":1,"AvroForge":1,"OtelForge":1,"CircuitForge":1,"BalancerForge":1,"SloForge":1,"QueueForge":1,"GrpcForge":1,"AsyncapiForge":1,"OauthForge":1,"TimeoutForge":1,"PitchForge":1,"MidiForge":1,"BpmForge":1,"ArpeggioForge":1,"SynthForge":1,"DrumForge":1,"TunerForge":1,"ElfForge":1,"BencodeForge":1,"Asn1Forge":1,"PeForge":1,"PlistForge":1,"NmeaForge":1,"ModbusForge":1,"HammingForge":1,"BwtForge":1,"ScaleForge":1,"DtmfForge":1,"LambdaForge":1,"VcardForge":1};
   var FAV_KEY = "nano-favs";
@@ -4959,19 +4965,42 @@
 
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 
-  // 过滤逻辑（纯函数，可测）
+  // 过滤 + 相关性评分（纯函数，可测）
+  function scoreTool(t, toks){
+    var name = (t.name||"").toLowerCase();
+    var tags = (t.tags||[]).join(" ").toLowerCase();
+    var desc = ((t.desc||"")+" "+(t.cat||"")).toLowerCase();
+    var total = 0;
+    for(var i=0;i<toks.length;i++){
+      var tk = toks[i], hit = 0;
+      if(name.indexOf(tk)===0) hit += 8;        // 名称前缀命中（最强）
+      else if(name.indexOf(tk)>=0) hit += 5;     // 名称包含
+      if(tags.indexOf(tk)>=0) hit += 3;          // 标签命中
+      if(desc.indexOf(tk)>=0) hit += 1;          // 描述/分类命中
+      if(hit===0) return -1;                      // 任一 token 完全未命中 -> 排除
+      total += hit;
+    }
+    return total;
+  }
   function filterTools(list, q, cat, opts){
     opts = opts||{};
     q = (q||"").trim().toLowerCase();
+    var toks = q ? q.split(/\s+/).filter(Boolean) : [];
     var favs = getFavs();
-    return list.filter(function(t){
-      if(cat && cat!=="全部" && t.cat!==cat) return false;
-      if(opts.flag && !FLAG_IDS[t.id]) return false;
-      if(opts.fav && favs.indexOf(t.id)<0) return false;
-      if(!q) return true;
-      var hay = (t.name+" "+t.desc+" "+t.cat+" "+(t.tags||[]).join(" ")).toLowerCase();
-      return hay.indexOf(q)>=0;
+    var out = [];
+    list.forEach(function(t){
+      if(cat && cat!=="全部" && t.cat!==cat) return;
+      if(opts.flag && !FLAG_IDS[t.id]) return;
+      if(opts.fav && favs.indexOf(t.id)<0) return;
+      if(opts.recent && !RECENT_IDS[t.id]) return;
+      var sc = toks.length ? scoreTool(t, toks) : 0;
+      if(sc < 0) return;
+      out.push({t:t, sc:sc});
     });
+    if(toks.length){
+      out.sort(function(a,b){ return b.sc - a.sc || (a.t.name||"").localeCompare(b.t.name||""); });
+    }
+    return out.map(function(o){ return o.t; });
   }
 
   function renderStats(){
@@ -4998,12 +5027,15 @@
     }).join("");
     html += '<button class="chip'+(state.flag?' active':'')+'" data-toggle="flag">'+(LANG==="en"?"Flagships":"旗舰")+'</button>';
     html += '<button class="chip'+(state.fav?' active':'')+'" data-toggle="fav">'+(LANG==="en"?"★ Saved":"★ 收藏")+'</button>';
+    html += '<button class="chip'+(state.recent?' active':'')+'" data-toggle="recent">'+(LANG==="en"?"New":"最近新增")+'</button>';
     el.innerHTML = html;
   }
 
   function renderGrid(){
     var el = $("#grid"); if(!el) return;
-    var list = filterTools(TOOLS, state.q, state.cat, {flag:state.flag, fav:state.fav});
+    var list = filterTools(TOOLS, state.q, state.cat, {flag:state.flag, fav:state.fav, recent:state.recent});
+    var rc = $("#resultCount");
+    if(rc) rc.innerHTML = (I18N["result_count"] && I18N["result_count"][LANG] || "{n} 个工具").replace("{n}", list.length);
     if(!list.length){
       el.innerHTML = '<div class="no-result">'+I18N["no_result"][LANG]+'</div>';
       return;
@@ -5024,7 +5056,7 @@
           '<div class="card-h"><h3>'+esc(t.name)+'</h3><div class="cat">'+esc(cat)+'</div></div>'+
         '</div>'+
         '<p>'+esc(desc)+'</p>'+
-        '<div class="tags">'+t.tags.map(function(x){return '<span class="tag">'+esc(x)+'</span>';}).join("")+'</div>'+
+        '<div class="tags">'+(t.tags||[]).map(function(x){return '<span class="tag">'+esc(x)+'</span>';}).join("")+'</div>'+
         '<div class="card-actions">'+
           '<a class="btn primary" href="'+demo+'" target="_blank" rel="noopener">'+I18N["btn_demo"][LANG]+'</a>'+
           '<a class="btn" href="'+src+'" target="_blank" rel="noopener">'+I18N["btn_src"][LANG]+'</a>'+
@@ -5091,6 +5123,7 @@
       var b = e.target.closest(".chip"); if(!b) return;
       if(b.getAttribute("data-toggle")==="flag"){ state.flag=!state.flag; renderFilters(); renderGrid(); return; }
       if(b.getAttribute("data-toggle")==="fav"){ state.fav=!state.fav; renderFilters(); renderGrid(); return; }
+      if(b.getAttribute("data-toggle")==="recent"){ state.recent=!state.recent; renderFilters(); renderGrid(); return; }
       state.cat = b.getAttribute("data-cat");
       renderFilters(); renderGrid();
     });
