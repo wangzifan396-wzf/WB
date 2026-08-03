@@ -46,6 +46,13 @@ if (T && E && I) {
   // ICONS uses lowercase slug keys (documented dual convention, see task #35),
   // so strict id alignment / count comparison is unreliable here — we only
   // require it to parse (done above) and be non-empty.
+  // HOWEVER: every tool's icon field MUST resolve to an ICONS key, otherwise the
+  // card renders with a blank icon. That is a real, user-visible defect, so we
+  // enforce it strictly.
+  const iKeys = new Set([...I.matchAll(/^\s*["']?([A-Za-z0-9_]+)["']?\s*:/gm)].map(m => m[1]));
+  const iconPairs = [...T.matchAll(/id:"([^"]+)"[^}]*?icon:"([^"]+)"/g)];
+  const missI = iconPairs.filter(m => !iKeys.has(m[2])).map(m => m[1] + ' (icon="' + m[2] + '")');
+  if (missI.length) errs.push('TOOLS icons with no ICONS key: ' + missI.join(', '));
 
   // Hardcoded "N 个单文件" count must match real tool-dir count.
   const toolsDir = path.join(ROOT, 'tools');
