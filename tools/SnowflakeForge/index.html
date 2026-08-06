@@ -4,233 +4,205 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>SnowflakeForge — 离线雪花 ID 解析器：64 位分布式 ID 解码为时间/机器/序列，支持自定义纪元</title>
+<title>雪花 ID 生成 / 解析</title>
 <meta property="og:title" content="SnowflakeForge">
-<meta property="og:description" content="离线雪花 ID 解析器：64 位分布式 ID 解码为时间/机器/序列，支持自定义纪元">
+<meta property="og:description" content="按 Twitter 雪花算法（41 位时间 + 数据中心 + 工作节点 + 序列）编码/解码分布式唯一 ID。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="离线雪花 ID 解析器：64 位分布式 ID 解码为时间/机器/序列，支持自定义纪元 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="按 Twitter 雪花算法（41 位时间 + 数据中心 + 工作节点 + 序列）编码/解码分布式唯一 ID。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-<link rel="manifest" href="./manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <style>
-
 :root{
   --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
   --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
-  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE;
-}
-*{box-sizing:border-box}
-body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
-     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh}
-.app{width:100%;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
-h1{font-size:19px;margin:0 0 4px}
-.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
-label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
-input[type=text],input[type=number],textarea,select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
-     color:var(--fg);padding:10px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-input[type=number]{max-width:140px}
-textarea{resize:vertical}
-.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
-button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:14px}
-button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
-.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;
-     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:44px}
-.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
-.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
-.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
-.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
-footer{margin-top:20px;color:var(--dim);font-size:12px}
-a{color:var(--info);text-decoration:none}
-.flag-ok{color:var(--ok)} .flag-bad{color:var(--warn)} .flag-info{color:var(--info)}
-@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
-
-
-/* nano-polish:v1 */
-:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px;border-radius:4px}
-a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px}
-#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:#1A1B1E;color:#fff;border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:9px 16px;font-size:13px;line-height:1.4;letter-spacing:.01em;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
-#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
-#nanoToast.bad{border-color:rgba(239,68,68,.55)}
-@media (prefers-reduced-motion:reduce){#nanoToast{transition:none}}
-/* ardot-polish:begin v1 */
-/* Ardot 设计令牌精修层：大圆角 + 扩散有色阴影 + 内层 hairline + 触感反馈 */
-:root{
-  --r-lg:20px; --r-md:14px; --r-sm:10px;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
   --hair:inset 0 1px 0 rgba(255,255,255,.05);
   --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
   --glow:0 10px 40px -20px rgba(94,106,210,.55);
 }
-body{-webkit-font-smoothing:antialiased}
-.app{border-radius:var(--r-lg);box-shadow:var(--hair),var(--lift),var(--glow)}
-h1{letter-spacing:-.02em;font-weight:650}
-.sec,.tile h3{letter-spacing:-.01em}
-textarea,input[type=text],input[type=number],input[type=search],select{
-  border-radius:var(--r-sm);box-shadow:inset 0 1px 2px rgba(0,0,0,.25);
-  transition:border-color .16s ease,box-shadow .16s ease}
-textarea:focus,input[type=text]:focus,input[type=number]:focus,input[type=search]:focus,select:focus{
-  box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
-button{border-radius:var(--r-sm);letter-spacing:-.01em;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
-  transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
-button:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
 button:active{transform:translateY(1px) scale(.988)}
-button:disabled{box-shadow:none;opacity:.45}
-button.ghost,#langBtn{box-shadow:none}
-button.ghost:hover,#langBtn:hover{background:rgba(255,255,255,.03);box-shadow:none;filter:none}
-#langBtn{border-radius:999px}
-.seg{border-radius:var(--r-sm);box-shadow:var(--hair)}
-.seg button{border-radius:0;box-shadow:none}
-.seg button:hover{background:rgba(255,255,255,.04);box-shadow:none;filter:none}
-.seg button.active{box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
 .seg button:active{transform:none}
-.tile{border-radius:var(--r-md);box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);
-  transition:border-color .18s ease,box-shadow .18s ease}
-.tile:hover{box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
-.out{border-radius:var(--r-md);box-shadow:inset 0 1px 3px rgba(0,0,0,.35)}
-:focus-visible{outline:2px solid var(--accent,#5E6AD2);outline-offset:2px;border-radius:4px}
-@media (prefers-reduced-motion: reduce){
-  .app,.tile,button,textarea,input,select{transition:none!important}
-  button:active{transform:none}
-}
-/* ardot-polish:end v1 */
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
 <div class="app">
-  <h1>SnowflakeForge</h1>
-  <p class="sub">离线雪花 ID 解析器：64 位分布式 ID 解码为时间/机器/序列，支持自定义纪元 · 单文件 · 零依赖 · 本地优先</p>
+  <div class="hd">
+    <div>
+      <h1>SnowflakeForge</h1>
+      <p class="sub" data-i18n="sub">填写字段编码为雪花 ID，或粘贴 ID 解析。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
 
-<label for="sid">Snowflake ID（十进制整数）</label>
-<input id="sid" type="text" value="136838093572534272" placeholder="如 136838093572534272">
-<label for="sepoch">纪元时间戳(ms)，留空=Twitter 默认 1288834974657</label>
-<input id="sepoch" type="number" value="1288834974657" placeholder="1288834974657">
-<div class="row">
-  <button id="run">解析 ID</button>
-  <button id="copy" class="ghost">复制结果</button>
-  <button id="clear" class="ghost">清空</button>
+<div class="grid">
+  <div><label>时间戳(ms)</label><input type="text" id="ts" value="1700000000000"></div>
+  <div><label>数据中心(0-31)</label><input type="text" id="dc" value="1"></div>
+  <div><label>工作节点(0-31)</label><input type="text" id="wk" value="2"></div>
+  <div><label>序列号(0-4095)</label><input type="text" id="sq" value="3"></div>
 </div>
-<label>编码（可选）：用给定时间戳+机器位合成 ID</label>
-<div class="row">
-  <input id="sts" type="text" placeholder="时间戳ms" style="max-width:170px">
-  <input id="sdc" type="number" placeholder="数据中心" style="max-width:90px">
-  <input id="swk" type="number" placeholder="节点" style="max-width:90px">
-  <input id="sseq" type="number" placeholder="序列" style="max-width:90px">
-  <button id="gen" class="ghost">生成</button>
-</div>
-<div class="err" id="err"></div>
-<label>输出</label>
-<div class="out" id="out" aria-live="polite">解析结果会显示在这里</div>
-<script>
-function sfParse(idStr, opts){
-  opts = opts || {};
-  var epoch = (opts.epoch !== undefined) ? Number(opts.epoch) : 1288834974657;
-  if(typeof idStr !== 'string') idStr = String(idStr);
-  idStr = idStr.trim();
-  if(!/^[0-9]+$/.test(idStr)) return {error:'ID 必须为非负整数'};
-  var bi;
-  try { bi = BigInt(idStr); } catch(e){ return {error:'ID 解析失败'}; }
-  var SEQ_BITS=12n, MACHINE_BITS=10n, TS_BITS=41n;
-  var seqMask=(1n<<SEQ_BITS)-1n;
-  var machineMask=(1n<<MACHINE_BITS)-1n;
-  var sequence=Number(bi & seqMask);
-  var machine=Number((bi >> SEQ_BITS) & machineMask);
-  var dcBits = (opts.datacenterBits !== undefined) ? Number(opts.datacenterBits) : 5;
-  var workerBits = 10 - dcBits;
-  var datacenterId = (machine >> workerBits) & ((1 << dcBits) - 1);
-  var workerId = machine & ((1 << workerBits) - 1);
-  var ts = Number((bi >> (SEQ_BITS + MACHINE_BITS)) & ((1n<<TS_BITS)-1n));
-  var ms = ts + epoch;
-  var date = new Date(ms);
-  return { id:idStr, timestamp:ms, date:isNaN(date.getTime())?null:date.toISOString(),
-           machineId:machine, datacenterId:datacenterId, workerId:workerId,
-           sequence:sequence, epoch:epoch, error:null };
-}
-function sfCompose(o){
-  o = o || {};
-  var epoch = (o.epoch !== undefined) ? Number(o.epoch) : 1288834974657;
-  var offset = Math.floor(Number(o.timestamp)) - epoch;
-  if(offset < 0) return {error:'timestamp 早于 epoch'};
-  var dcBits = (o.datacenterBits !== undefined) ? Number(o.datacenterBits) : 5;
-  var workerBits = 10 - dcBits;
-  var machine = (BigInt(o.datacenterId||0) << BigInt(workerBits)) | BigInt(o.workerId||0);
-  var id = (BigInt(offset) << 22n) | (machine << 12n) | BigInt(o.sequence||0);
-  return { id:id.toString(), error:null };
-}
-function sfIsValid(idStr){ return typeof idStr==='string' && /^[0-9]+$/.test(idStr.trim()) && idStr.trim().length>0; }
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { parse:sfParse, compose:sfCompose, isValid:sfIsValid, epochDefault:1288834974657 };
-}
-if (typeof window !== 'undefined') {
-  window.SnowflakeForgePure = { parse:sfParse, compose:sfCompose, isValid:sfIsValid };
-}
-</script>
-<script>
-if (typeof window !== 'undefined') {
-  (function(){
-    var $ = function(id){ return document.getElementById(id); };
-    var P = window.SnowflakeForgePure;
-    function copyText(t){
-      if(navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t);
-      else { var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select();
-             try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
-    }
-    function run(){
-      $('err').textContent='';
-      try {
-        var epoch = $('sepoch').value.trim()==='' ? 1288834974657 : Number($('sepoch').value);
-        var r = P.parse($('sid').value.trim(), {epoch:epoch});
-        if(r.error){ $('out').textContent='错误：'+r.error; return; }
-        var lines=[];
-        lines.push('ID:        ' + r.id);
-        lines.push('时间(ms):  ' + r.timestamp);
-        lines.push('日期:      ' + r.date);
-        lines.push('机器ID:    ' + r.machineId + '  (数据中心 ' + r.datacenterId + ' / 节点 ' + r.workerId + ')');
-        lines.push('序列号:    ' + r.sequence);
-        lines.push('纪元:      ' + r.epoch);
-        $('out').textContent = lines.join('\n');
-      } catch(e){ $('err').textContent=e.message; }
-    }
-    function gen(){
-      $('err').textContent='';
-      try {
-        var epoch = $('sepoch').value.trim()==='' ? 1288834974657 : Number($('sepoch').value);
-        var r = P.compose({timestamp:Number($('sts').value), datacenterId:Number($('sdc').value||0),
-                           workerId:Number($('swk').value||0), sequence:Number($('sseq').value||0), epoch:epoch});
-        if(r.error){ $('out').textContent='错误：'+r.error; return; }
-        $('sid').value = r.id;
-        $('out').textContent = '生成 ID: ' + r.id;
-      } catch(e){ $('err').textContent=e.message; }
-    }
-    $('run').addEventListener('click', run);
-    $('gen').addEventListener('click', gen);
-    $('copy').addEventListener('click', function(){ copyText($('out').textContent); });
-    $('clear').addEventListener('click', function(){ $('sid').value=''; $('out').textContent='解析结果会显示在这里'; });
-  })();
-}
-</script>
+<button id="enc">编码为雪花 ID</button>
+<label>雪花 ID（用于解析）</label>
+<input type="text" id="idstr">
+<button id="dec" class="ghost">解析 ID</button>
+<div id="out" class="out">编码或解析结果将显示在这里</div>
 
-  <div class="badges" id="badges">
-    <span class="badge">零依赖</span>
-    <span class="badge">离线可用</span>
-    <span class="badge">数据不出本机</span>
-    <span class="badge flag">旗舰</span>
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
   </div>
   <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部工具 &rarr;</a></footer>
 </div>
 <script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+
+var SNOWFLAKE_EPOCH = 1288834974657;
+function snowEncode(ts, dc, worker, seq, epoch){
+  epoch = epoch || SNOWFLAKE_EPOCH;
+  var E = BigInt(epoch), T = BigInt(ts), D = BigInt(dc), W = BigInt(worker), S = BigInt(seq);
+  var id = (T - E) << 22n;
+  id |= (D & 31n) << 17n;
+  id |= (W & 31n) << 12n;
+  id |= (S & 4095n);
+  return id.toString();
 }
+function snowDecode(idStr, epoch){
+  epoch = epoch || SNOWFLAKE_EPOCH;
+  var id = BigInt(idStr);
+  var seq = Number(id & 4095n);
+  var worker = Number((id >> 12n) & 31n);
+  var dc = Number((id >> 17n) & 31n);
+  var ts = Number((id >> 22n) & 0x1FFFFFFFFFFn) + epoch;
+  return { timestamp: ts, datacenter: dc, worker: worker, sequence: seq };
+}
+var EXPORTS = { SNOWFLAKE_EPOCH: SNOWFLAKE_EPOCH, snowEncode: snowEncode, snowDecode: snowDecode };
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
+if (typeof window !== 'undefined') { window.SnowflakeForgePure = EXPORTS; }
+
 </script>
-<!-- nano-polish:toast -->
+<script>
+
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var A = window.SnowflakeForgePure;
+  $("enc").addEventListener("click", function(){
+    var id = A.snowEncode(parseInt($("ts").value,10), parseInt($("dc").value,10), parseInt($("wk").value,10), parseInt($("sq").value,10));
+    $("idstr").value = id;
+    $("out").textContent = "雪花 ID: " + id;
+  });
+  $("dec").addEventListener("click", function(){
+    var d = A.snowDecode($("idstr").value.trim());
+    $("out").textContent = "时间戳(ms): " + d.timestamp + "\n数据中心: " + d.datacenter + "\n工作节点: " + d.worker + "\n序列号: " + d.sequence;
+  });
+})();
+
+</script>
 <div id="nanoToast" role="status" aria-live="polite"></div>
-<script data-nano-polish>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
 (function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
-function zh(){try{var l=localStorage.getItem('nano-lang')||document.documentElement.lang||'zh';return String(l).indexOf('en')!==0;}catch(e){return true;}}
 function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
 window.nanoToast=show;
-try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);nc.writeText=function(s){return ow(s).then(function(r){show(zh()?'已复制':'Copied');return r;},function(e){show(zh()?'复制失败':'Copy failed',1);throw e;});};}}catch(e){}
-try{if(document.execCommand){var oe=document.execCommand.bind(document);document.execCommand=function(c){var r=oe.apply(null,arguments);if(String(c).toLowerCase()==='copy'){show(r?(zh()?'已复制':'Copied'):(zh()?'复制失败':'Copy failed'),!r);}return r;};}}catch(e){}
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "填写字段编码为雪花 ID，或粘贴 ID 解析。", "title": "雪花 ID 生成 / 解析"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
 })();
 </script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </body>
 </html>

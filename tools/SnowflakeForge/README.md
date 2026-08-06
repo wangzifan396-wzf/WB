@@ -1,10 +1,26 @@
 # SnowflakeForge
 
-离线雪花 ID（Snowflake）解析器 · 单文件 · 零依赖 · 本地优先。
+按 Twitter 雪花算法（41 位时间 + 数据中心 + 工作节点 + 序列）编码/解码分布式唯一 ID。
 
-## 功能
-- 将 64 位分布式 ID 解码为：时间戳（ms）、日期、机器位（数据中心 / 工作节点）、序列号
-- 按位还原标准 Twitter 布局（41 位时间 | 10 位机器 | 12 位序列），支持自定义纪元
-- 反向合成：给定时间戳 + 机器位 + 序列号生成 ID，用于验证与时间溯源
+- 单文件 HTML，零依赖，打开即用
+- 数据全程留在本机，不上传任何服务器
+- 支持 PWA 安装与离线使用
 
-纯函数：`parse` / `compose` / `isValid` —— 见 `_test.js`。
+## 在线使用
+
+https://wangzifan396-wzf.github.io/WB/tools/SnowflakeForge/
+
+## 本地运行
+
+直接用浏览器打开 `index.html` 即可。
+
+## 测试
+
+```bash
+node _test.js   # 内核纯函数断言
+node smoke.js   # jsdom 冒烟测试
+```
+
+## 工具矩阵
+
+浏览全部工具：https://wangzifan396-wzf.github.io/WB/
