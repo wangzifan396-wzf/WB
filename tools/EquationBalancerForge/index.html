@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>化学方程式配平器</title>
+<meta property="og:title" content="EquationBalancerForge">
+<meta property="og:description" content="基于原子矩阵有理数零空间，自动给出最小整数配平系数，支持氧化还原复杂方程。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="基于原子矩阵有理数零空间，自动给出最小整数配平系数，支持氧化还原复杂方程。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
+  --hair:inset 0 1px 0 rgba(255,255,255,.05);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
+  --glow:0 10px 40px -20px rgba(94,106,210,.55);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+button:active{transform:translateY(1px) scale(.988)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>EquationBalancerForge</h1>
+      <p class="sub" data-i18n="sub">输入未配平方程式，如 H2 + O2 -> H2O。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+<label data-i18n="lab_eq">未配平方程式（如 H2 + O2 -> H2O）</label>
+<input type="text" id="eq" value="H2 + O2 -> H2O" data-i18n-ph="ph_eq">
+<button id="go">配平</button>
+<div id="out" class="out">输入方程式后点击配平</div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部工具 &rarr;</a></footer>
+</div>
+<script>
+
+function parseCounts(form){
+  form=String(form).replace(/[\s·×*]/g,'.');
+  var i=0, n=form.length;
+  function readFactor(){
+    var map={};
+    while(i<n){
+      var c=form[i];
+      if(c==='('){ i++; var g=readFactor();
+        var num=1; if(i<n && /[0-9]/.test(form[i])){num=0;while(i<n&&/[0-9]/.test(form[i])){num=num*10+(form[i].charCodeAt(0)-48);i++;}}
+        for(var k in g) map[k]=(map[k]||0)+g[k]*num;
+        continue;
+      }
+      if(c===')'){ i++; break; }
+      if(c==='.'){ i++;
+        var mult=1; if(i<n && /[0-9]/.test(form[i])){mult=0;while(i<n&&/[0-9]/.test(form[i])){mult=mult*10+(form[i].charCodeAt(0)-48);i++;}}
+        var rest=readFactor();
+        for(var k in rest) map[k]=(map[k]||0)+rest[k]*mult;
+        break;
+      }
+      if(/[A-Z]/.test(c)){
+        var sym=c; i++;
+        while(i<n && /[a-z]/.test(form[i])){ sym+=form[i]; i++; }
+        var cnt=1; if(i<n && /[0-9]/.test(form[i])){cnt=0;while(i<n&&/[0-9]/.test(form[i])){cnt=cnt*10+(form[i].charCodeAt(0)-48);i++;}}
+        map[sym]=(map[sym]||0)+cnt;
+        continue;
+      }
+      i++;
+    }
+    return map;
+  }
+  return readFactor();
+}
+
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function lcm(a,b){ if(a===0||b===0) return 0; return Math.abs(a*b)/gcd(a,b); }
+function F(n,d){ if(d===undefined)d=1; if(d<0){n=-n;d=-d;} var g=gcd(Math.abs(n),Math.abs(d))||1; return [n/g,d/g]; }
+function fadd(a,b){ return F(a[0]*b[1]+b[0]*a[1], a[1]*b[1]); }
+function fmul(a,b){ return F(a[0]*b[0], a[1]*b[1]); }
+function fneg(a){ return [-a[0],a[1]]; }
+function fdiv(a,b){ return F(a[0]*b[1], a[1]*b[0]); }
+// 有理数 RREF
+function rref(A, cols){
+  var M=A.map(function(r){return r.slice();}); var row=0;
+  for(var col=0; col<cols && row<M.length; col++){
+    var piv=-1; for(var r=row;r<M.length;r++){ if(M[r][col][0]!==0){piv=r;break;} }
+    if(piv<0) continue;
+    var tmp=M[row];M[row]=M[piv];M[piv]=tmp;
+    var pv=M[row][col]; for(var c=0;c<cols;c++) M[row][c]=fdiv(M[row][c],pv);
+    for(var r2=0;r2<M.length;r2++){ if(r2===row) continue; var f=M[r2][col]; if(f[0]===0) continue;
+      for(var c2=0;c2<cols;c2++) M[r2][c2]=fadd(M[r2][c2], fmul(fneg(f), M[row][c2])); }
+    row++;
+  }
+  return M;
+}
+function nullBasis(M, cols){
+  var R=rref(M, cols); var pivCol=[];
+  for(var r=0;r<R.length;r++){ for(var c=0;c<cols;c++){ if(R[r][c][0]===1 && R[r][c][1]===1){ pivCol[r]=c; break; } } }
+  var basis=[];
+  for(var j=0;j<cols;j++){
+    var isFree=true; for(var r=0;r<R.length;r++){ if(pivCol[r]===j){isFree=false;break;} }
+    if(!isFree) continue;
+    var v=new Array(cols); for(var c=0;c<cols;c++) v[c]=F(0,1);
+    v[j]=F(1,1);
+    for(var r=0;r<R.length;r++){ if(pivCol[r]!==undefined){ v[pivCol[r]]=fneg(R[r][j]); } }
+    basis.push(v);
+  }
+  return basis;
+}
+function fracToInts(v){
+  var L=1; for(var i=0;i<v.length;i++) L=lcm(L, v[i][1]);
+  var ints=[]; for(var i=0;i<v.length;i++) ints.push(v[i][0]*L/v[i][1]);
+  // 使首项为正
+  var first=0; while(first<ints.length && ints[first]===0) first++;
+  if(first<ints.length && ints[first]<0){ for(var i=0;i<ints.length;i++) ints[i]=-ints[i]; }
+  var g=0; for(var i=0;i<ints.length;i++) g=gcd(g,Math.abs(ints[i]));
+  if(g>1){ for(var i=0;i<ints.length;i++) ints[i]=ints[i]/g; }
+  return ints;
+}
+function balance(eq){
+  var sides=eq.split(/\s*(?:->|→|=)\s*/); if(sides.length!==2) return {error:"需写成 A + B -> C + D"};
+  function species(s){ return s.split('+').map(function(p){ p=p.replace(/^\s*\d+\s*/,'').trim(); return p; }).filter(Boolean); }
+  var R=species(sides[0]), P=species(sides[1]);
+  var all=R.concat(P);
+  var elemSet={}; all.forEach(function(sp){ var c=parseCounts(sp); for(var k in c) elemSet[k]=1; });
+  var elems=Object.keys(elemSet);
+  // 矩阵 elems × species；反应物列为 +，产物列为 -
+  var M=elems.map(function(e){
+    var row=all.map(function(sp){ var c=parseCounts(sp); return F(c[e]||0,1); });
+    for(var i=R.length;i<all.length;i++) row[i]=fneg(row[i]);
+    return row;
+  });
+  var basis=nullBasis(M, all.length);
+  if(basis.length===0) return {error:"无法配平（可能已配平或矛盾）"};
+  var ints;
+  if(basis.length===1){ ints=fracToInts(basis[0]); }
+  else {
+    // 多维零空间：搜索小整数组合使全为正
+    var best=null;
+    var lim=6;
+    (function combine(idx, acc){
+      if(idx===basis.length){ var sum=new Array(all.length); for(var i=0;i<all.length;i++) sum[i]=F(0,1);
+        for(var k=0;k<acc.length;k++){ for(var i=0;i<all.length;i++) sum[i]=fadd(sum[i], fmul(F(acc[k],1), basis[k][i])); }
+        var allPos=true; for(var i=0;i<all.length;i++){ if(sum[i][0]<=0){allPos=false;break;} }
+        if(allPos){ var ii=fracToInts(sum); var mx=Math.max.apply(null, ii.map(Math.abs));
+          if(!best || mx<best.mx) best={ints:ii, mx:mx}; }
+        return;
+      }
+      for(var w=1;w<=lim;w++){ acc.push(w); combine(idx+1,acc); acc.pop(); }
+    })(0,[]);
+    if(!best) ints=fracToInts(basis[0]); else ints=best.ints;
+  }
+  // 组装字符串
+  function sideStr(arr, off){ return arr.map(function(sp,i){ var c=ints[off+i]; return (c===1?"":c)+" "+sp; }).join(" + "); }
+  return {ok:true, coeffs:ints, text: sideStr(R,0)+" -> "+sideStr(P,R.length)};
+}
+var EXPORTS={balance:balance, parseCounts:parseCounts};
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
+if (typeof window !== 'undefined') { window.EquationBalancerForgePure = EXPORTS; }
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  $("go").addEventListener("click", function(){
+    var r=window.EquationBalancerForgePure.balance($("eq").value.trim());
+    if(r.error){ $("out").textContent="⚠ "+r.error; return; }
+    $("out").textContent="配平结果：\n"+r.text+"\n\n系数："+r.coeffs.join("  ");
+  });
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "输入未配平方程式，如 H2 + O2 -> H2O。", "title": "化学方程式配平器"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>
