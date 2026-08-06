@@ -1,6 +1,6 @@
-# SokobanForge
+# RegionalForge
 
-推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。
+地区指示符（Regional Indicator）生成器：把 A–Z 转成对应的地区指示符号，两个字母连写即组成国旗 emoji（FR → 🇫🇷、JP → 🇯🇵）。纯本地、零依赖。
 
 - 单文件 HTML，零依赖，打开即用
 - 数据全程留在本机，不上传任何服务器
@@ -8,7 +8,7 @@
 
 ## 在线使用
 
-https://wangzifan396-wzf.github.io/WB/tools/SokobanForge/
+https://wangzifan396-wzf.github.io/WB/tools/RegionalForge/
 
 ## 本地运行
 

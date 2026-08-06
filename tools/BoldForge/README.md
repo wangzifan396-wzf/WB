@@ -1,6 +1,6 @@
-# SokobanForge
+# BoldForge
 
-推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。
+数学粗体（Mathematical Bold）生成器：把字母、数字转成 Unicode 数学字母数字符号粗体（𝐁𝐨𝐥𝐝 123），适合标题、公式、突出显示。纯本地、零依赖。
 
 - 单文件 HTML，零依赖，打开即用
 - 数据全程留在本机，不上传任何服务器
@@ -8,7 +8,7 @@
 
 ## 在线使用
 
-https://wangzifan396-wzf.github.io/WB/tools/SokobanForge/
+https://wangzifan396-wzf.github.io/WB/tools/BoldForge/
 
 ## 本地运行
 

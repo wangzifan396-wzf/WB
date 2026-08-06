@@ -1,6 +1,6 @@
-# SokobanForge
+# SlidingPuzzleForge
 
-推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。
+数字华容道（15-Puzzle）滑块拼图：点击与空格相邻的数字方块滑动，把 1–15 按顺序复原，空格回到右下角。保证可解，纯本地、零依赖。
 
 - 单文件 HTML，零依赖，打开即用
 - 数据全程留在本机，不上传任何服务器
@@ -8,7 +8,7 @@
 
 ## 在线使用
 
-https://wangzifan396-wzf.github.io/WB/tools/SokobanForge/
+https://wangzifan396-wzf.github.io/WB/tools/SlidingPuzzleForge/
 
 ## 本地运行
 

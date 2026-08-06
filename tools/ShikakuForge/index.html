@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>SokobanForge — 推箱子（Sokoban）益智游戏</title>
-<meta property="og:title" content="SokobanForge">
-<meta property="og:description" content="推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。">
+<title>ShikakuForge — 四角（Shikaku）矩形分割谜题</title>
+<meta property="og:title" content="ShikakuForge">
+<meta property="og:description" content="四角（Shikaku）谜题：把 N×N 网格划分成若干矩形，使每个带数字的格子恰好位于一个面积为该数字的矩形中。内置题目生成与答案显示，纯本地、零依赖。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="四角（Shikaku）谜题：把 N×N 网格划分成若干矩形，使每个带数字的格子恰好位于一个面积为该数字的矩形中。内置题目生成与答案显示，纯本地、零依赖。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,18 +99,16 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>SokobanForge</h1>
-      <p class="sub" data-i18n="sub">推箱子 · 益智 · 单文件 · 零依赖</p>
+      <h1>ShikakuForge</h1>
+      <p class="sub" data-i18n="sub">四角 · 逻辑 · 单文件 · 零依赖</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
-<div class="sec">推箱子（Sokoban）：把所有箱子推到目标点（用方向键或按钮移动）</div>
-<div class="row"><button id="prev">上一关</button><button id="next">下一关</button><button id="reset">重置</button></div>
-<div id="board" style="margin-top:12px;font:22px/1 ui-monospace,monospace;white-space:pre"></div>
+<div class="sec">四角（Shikaku / 矩形分割）：把网格分割成若干矩形，每格数字 = 该矩形面积</div>
+<div class="row"><button id="new">新题目</button><button id="solve" class="ghost">显示答案</button></div>
+<div id="board" style="margin-top:12px;display:grid;gap:2px"></div>
 <div class="err" id="err"></div>
-<div class="out" id="out" aria-live="polite">用方向键 / WASD 或下方按钮推箱子到目标点</div>
-<div class="row"><button id="U">↑</button></div>
-<div class="row"><button id="L">←</button><button id="D">↓</button><button id="R">→</button></div>
+<div class="out" id="out" aria-live="polite">点“新题目”生成一道四角分割谜题</div>
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
     <span class="badge" data-i18n="b2">离线可用</span>
@@ -121,50 +119,39 @@ a{color:var(--info);text-decoration:none}
 </div>
 <script>
 
-function sbParse(rows){ var grid=[]; var player=null, boxes=[], goals=[]; for(var y=0;y<rows.length;y++){ var row=[]; for(var x=0;x<rows[y].length;x++){ var ch=rows[y][x]; row.push(ch==='#'?'#':' '); if(ch==='@') player=[x,y]; if(ch==='$') boxes.push([x,y]); if(ch==='.') goals.push([x,y]); if(ch==='*'){ boxes.push([x,y]); goals.push([x,y]); } if(ch==='+'){ player=[x,y]; goals.push([x,y]); } } grid.push(row); } return {grid:grid, player:player, boxes:boxes, goals:goals, w:rows[0].length, h:rows.length}; }
-function sbKey(a){ return a[0]+','+a[1]; }
-function sbMove(st, dir){ var dx={'U':[0,-1],'D':[0,1],'L':[-1,0],'R':[1,0]}[dir]; if(!dx) return st; var nx=st.player[0]+dx[0], ny=st.player[1]+dx[1]; if(ny<0||nx<0||ny>=st.h||nx>=st.w) return st; if(st.grid[ny][nx]==='#') return st; var bi=-1; for(var i=0;i<st.boxes.length;i++) if(st.boxes[i][0]===nx&&st.boxes[i][1]===ny) bi=i; if(bi>=0){ var bx=nx+dx[0], by=ny+dx[1]; if(by<0||bx<0||by>=st.h||bx>=st.w) return st; if(st.grid[by][bx]==='#') return st; for(var j=0;j<st.boxes.length;j++) if(st.boxes[j][0]===bx&&st.boxes[j][1]===by) return st; var nb=st.boxes.slice(); nb[bi]=[bx,by]; return {grid:st.grid, player:[nx,ny], boxes:nb, goals:st.goals, w:st.w, h:st.h}; } return {grid:st.grid, player:[nx,ny], boxes:st.boxes, goals:st.goals, w:st.w, h:st.h}; }
-function sbWon(st){ var g={}; st.goals.forEach(function(p){ g[sbKey(p)]=1; }); return st.boxes.every(function(b){ return g[sbKey(b)]; }); }
-var EXPORTS={sbParse:sbParse, sbMove:sbMove, sbWon:sbWon};
+function _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }
+function _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }
+function _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+function _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }
+function _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }
+
+function shGen(n, seed){ var rnd=_rng(seed); var rects=[];
+  function split(x,y,w,h){ if(w===1&&h===1){ rects.push({x:x,y:y,w:w,h:h}); return; } if(w>=h&&w>1){ var cut=1+Math.floor(rnd()*(w-1)); split(x,y,cut,h); split(x+cut,y,w-cut,h); } else if(h>1){ var cut=1+Math.floor(rnd()*(h-1)); split(x,y,w,cut); split(x,y+cut,w,h-cut); } else { rects.push({x:x,y:y,w:w,h:h}); } }
+  split(0,0,n,n);
+  rects.forEach(function(r){ r.area=r.w*r.h; r.cx=r.x+Math.floor(rnd()*r.w); r.cy=r.y+Math.floor(rnd()*r.h); });
+  return {n:n, rects:rects};
+}
+function shSolve(puz){ return puz.rects; }
+var EXPORTS={shGen:shGen, shSolve:shSolve};
 
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
-if (typeof window !== 'undefined') { window.SokobanForgePure = EXPORTS; }
+if (typeof window !== 'undefined') { window.ShikakuForgePure = EXPORTS; }
 
 </script>
 <script>
 
 if (typeof window !== 'undefined') { (function(){
-  var $=function(id){return document.getElementById(id);}; var P=window.SokobanForgePure; var LV=[
- ["#####",
-  "#@$.#",
-  "#####"],
- ["########",
-  "#      #",
-  "# .$@  #",
-  "#  $ . #",
-  "#      #",
-  "########"],
- ["#########",
-  "#   #   #",
-  "# $ # . #",
-  "# @ $ . #",
-  "# $ # . #",
-  "#   #   #",
-  "#########"]
-];
-  var idx=0, st=null;
-  function status(){ $('out').textContent = P.sbWon(st)? '🎉 过关！' : '继续推箱子'; }
-  function render(){ if(!st) return; var g=st.grid.map(function(row){return row.slice();}); st.boxes.forEach(function(b){ g[b[1]][b[0]]='$'; }); st.goals.forEach(function(p){ if(g[p[1]][p[0]]!=='$') g[p[1]][p[0]]='.'; }); g[st.player[1]][st.player[0]]='@'; $('board').textContent=g.map(function(r){return r.join('');}).join('\n'); }
-  function load(i){ idx=(i+LV.length)%LV.length; st=P.sbParse(LV[idx]); render(); }
-  function mv(d){ st=P.sbMove(st,d); render(); status(); }
-  $('next').addEventListener('click',function(){load(idx+1);});
-  $('prev').addEventListener('click',function(){load(idx-1);});
-  $('reset').addEventListener('click',function(){load(idx);});
-  $('U').addEventListener('click',function(){mv('U');}); $('D').addEventListener('click',function(){mv('D');});
-  $('L').addEventListener('click',function(){mv('L');}); $('R').addEventListener('click',function(){mv('R');});
-  document.addEventListener('keydown',function(e){ var k={'ArrowUp':'U','ArrowDown':'D','ArrowLeft':'L','ArrowRight':'R','w':'U','s':'D','a':'L','d':'R'}[e.key]; if(k){ e.preventDefault(); mv(k); } });
-  load(0);
+  var $=function(id){return document.getElementById(id);}; var P=window.ShikakuForgePure; var cur=null, N=6;
+  function render(showSol){ var b=$('board'); b.style.gridTemplateColumns='repeat('+N+',34px)'; b.innerHTML=''; var owner={}; if(showSol){ cur.rects.forEach(function(r,ri){ for(var y=r.y;y<r.y+r.h;y++) for(var x=r.x;x<r.x+r.w;x++) owner[y*N+x]=ri; }); }
+    for(var y=0;y<N;y++) for(var x=0;x<N;x++){ var d=document.createElement('div'); d.style.cssText='width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);font:15px/1 ui-monospace,monospace;color:var(--fg)';
+      if(showSol){ d.style.border='2px solid var(--accent)'; d.textContent=cur.rects[owner[y*N+x]].area; }
+      b.appendChild(d); }
+  }
+  function gen(silent){ cur=P.shGen(N,(Math.random()*1e9)|0); render(false); if(!silent) $('out').textContent='已生成，每格数字=所在矩形面积，把网格分成对应矩形'; }
+  $('new').addEventListener('click',function(){gen(false);});
+  $('solve').addEventListener('click',function(){ if(!cur) return; render(true); $('out').textContent='已显示答案'; });
+  gen(true);
 })(); }
 
 </script>
@@ -178,7 +165,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "推箱子 · 益智 · 单文件 · 零依赖", "title": "SokobanForge — 推箱子（Sokoban）益智游戏"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "四角 · 逻辑 · 单文件 · 零依赖", "title": "ShikakuForge — 四角（Shikaku）矩形分割谜题"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

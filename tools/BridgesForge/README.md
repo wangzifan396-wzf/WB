@@ -1,6 +1,6 @@
-# SokobanForge
+# BridgesForge
 
-推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。
+搭桥（Hashiwokakero）谜题：在网格里连接所有小岛，每座岛连出的桥数必须等于岛上的点数，且桥与桥不能交叉。内置题目生成与答案显示，纯本地、零依赖。
 
 - 单文件 HTML，零依赖，打开即用
 - 数据全程留在本机，不上传任何服务器
@@ -8,7 +8,7 @@
 
 ## 在线使用
 
-https://wangzifan396-wzf.github.io/WB/tools/SokobanForge/
+https://wangzifan396-wzf.github.io/WB/tools/BridgesForge/
 
 ## 本地运行
 

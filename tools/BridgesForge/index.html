@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>SokobanForge — 推箱子（Sokoban）益智游戏</title>
-<meta property="og:title" content="SokobanForge">
-<meta property="og:description" content="推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。">
+<title>BridgesForge — 搭桥（Hashiwokakero）谜题</title>
+<meta property="og:title" content="BridgesForge">
+<meta property="og:description" content="搭桥（Hashiwokakero）谜题：在网格里连接所有小岛，每座岛连出的桥数必须等于岛上的点数，且桥与桥不能交叉。内置题目生成与答案显示，纯本地、零依赖。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="搭桥（Hashiwokakero）谜题：在网格里连接所有小岛，每座岛连出的桥数必须等于岛上的点数，且桥与桥不能交叉。内置题目生成与答案显示，纯本地、零依赖。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,18 +99,16 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>SokobanForge</h1>
-      <p class="sub" data-i18n="sub">推箱子 · 益智 · 单文件 · 零依赖</p>
+      <h1>BridgesForge</h1>
+      <p class="sub" data-i18n="sub">搭桥 · 逻辑 · 单文件 · 零依赖</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
-<div class="sec">推箱子（Sokoban）：把所有箱子推到目标点（用方向键或按钮移动）</div>
-<div class="row"><button id="prev">上一关</button><button id="next">下一关</button><button id="reset">重置</button></div>
-<div id="board" style="margin-top:12px;font:22px/1 ui-monospace,monospace;white-space:pre"></div>
+<div class="sec">搭桥（Hashiwokakero）：连接所有小岛，每岛桥梁数 = 岛上数字，桥不能交叉</div>
+<div class="row"><button id="new">新题目</button><button id="solve" class="ghost">显示答案</button></div>
+<svg id="board" style="margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:10px"></svg>
 <div class="err" id="err"></div>
-<div class="out" id="out" aria-live="polite">用方向键 / WASD 或下方按钮推箱子到目标点</div>
-<div class="row"><button id="U">↑</button></div>
-<div class="row"><button id="L">←</button><button id="D">↓</button><button id="R">→</button></div>
+<div class="out" id="out" aria-live="polite">点“新题目”生成一道搭桥谜题</div>
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
     <span class="badge" data-i18n="b2">离线可用</span>
@@ -121,50 +119,46 @@ a{color:var(--info);text-decoration:none}
 </div>
 <script>
 
-function sbParse(rows){ var grid=[]; var player=null, boxes=[], goals=[]; for(var y=0;y<rows.length;y++){ var row=[]; for(var x=0;x<rows[y].length;x++){ var ch=rows[y][x]; row.push(ch==='#'?'#':' '); if(ch==='@') player=[x,y]; if(ch==='$') boxes.push([x,y]); if(ch==='.') goals.push([x,y]); if(ch==='*'){ boxes.push([x,y]); goals.push([x,y]); } if(ch==='+'){ player=[x,y]; goals.push([x,y]); } } grid.push(row); } return {grid:grid, player:player, boxes:boxes, goals:goals, w:rows[0].length, h:rows.length}; }
-function sbKey(a){ return a[0]+','+a[1]; }
-function sbMove(st, dir){ var dx={'U':[0,-1],'D':[0,1],'L':[-1,0],'R':[1,0]}[dir]; if(!dx) return st; var nx=st.player[0]+dx[0], ny=st.player[1]+dx[1]; if(ny<0||nx<0||ny>=st.h||nx>=st.w) return st; if(st.grid[ny][nx]==='#') return st; var bi=-1; for(var i=0;i<st.boxes.length;i++) if(st.boxes[i][0]===nx&&st.boxes[i][1]===ny) bi=i; if(bi>=0){ var bx=nx+dx[0], by=ny+dx[1]; if(by<0||bx<0||by>=st.h||bx>=st.w) return st; if(st.grid[by][bx]==='#') return st; for(var j=0;j<st.boxes.length;j++) if(st.boxes[j][0]===bx&&st.boxes[j][1]===by) return st; var nb=st.boxes.slice(); nb[bi]=[bx,by]; return {grid:st.grid, player:[nx,ny], boxes:nb, goals:st.goals, w:st.w, h:st.h}; } return {grid:st.grid, player:[nx,ny], boxes:st.boxes, goals:st.goals, w:st.w, h:st.h}; }
-function sbWon(st){ var g={}; st.goals.forEach(function(p){ g[sbKey(p)]=1; }); return st.boxes.every(function(b){ return g[sbKey(b)]; }); }
-var EXPORTS={sbParse:sbParse, sbMove:sbMove, sbWon:sbWon};
+function _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }
+function _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }
+function _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+function _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }
+function _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }
+
+function brGen(n, w, h, seed){ for(var attempt=0; attempt<80; attempt++){ var rnd=_rng((seed>>>0)+attempt*2654435761);
+  var islands=[]; var tries=0; while(islands.length<n && tries<3000){ tries++; var x=Math.floor(rnd()*w), y=Math.floor(rnd()*h); if(!islands.some(function(p){return p.x===x&&p.y===y;})) islands.push({x:x,y:y}); }
+  if(islands.length<n) continue;
+  function between(a,b,c){ return (a<c&&c<b)||(b<c&&c<a); }
+  var adj=[]; for(var i=0;i<n;i++) adj.push([]);
+  for(var i=0;i<n;i++) for(var j=i+1;j<n;j++){ var A=islands[i],B=islands[j]; if(A.y===B.y){ var lo=Math.min(A.x,B.x), hi=Math.max(A.x,B.x); var blk=islands.some(function(p,k){ return k!==i&&k!==j && p.y===A.y && between(lo,hi,p.x); }); if(!blk) adj[i].push(j); } else if(A.x===B.x){ var lo=Math.min(A.y,B.y), hi=Math.max(A.y,B.y); var blk=islands.some(function(p,k){ return k!==i&&k!==j && p.x===A.x && between(lo,hi,p.y); }); if(!blk) adj[i].push(j); } }
+  var visited=[], edges=[], parent=[]; for(var i=0;i<n;i++) visited.push(false);
+  function dfs(u){ visited[u]=true; var nb=adj[u].slice(); for(var k=nb.length-1;k>0;k--){ var j=Math.floor(rnd()*(k+1)); var t=nb[k];nb[k]=nb[j];nb[j]=t; } for(var q=0;q<nb.length;q++){ var v=nb[q]; if(!visited[v]){ edges.push([u,v]); dfs(v); } } }
+  if(adj[0].length===0) continue; dfs(0);
+  if(!visited.every(function(v){return v;})) continue;
+  var deg=[]; for(var i=0;i<n;i++) deg.push(0); edges.forEach(function(e){ deg[e[0]]++; deg[e[1]]++; });
+  return {islands:islands, edges:edges, clues:deg, w:w, h:h};
+ } return null;
+}
+var EXPORTS={brGen:brGen};
 
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
-if (typeof window !== 'undefined') { window.SokobanForgePure = EXPORTS; }
+if (typeof window !== 'undefined') { window.BridgesForgePure = EXPORTS; }
 
 </script>
 <script>
 
 if (typeof window !== 'undefined') { (function(){
-  var $=function(id){return document.getElementById(id);}; var P=window.SokobanForgePure; var LV=[
- ["#####",
-  "#@$.#",
-  "#####"],
- ["########",
-  "#      #",
-  "# .$@  #",
-  "#  $ . #",
-  "#      #",
-  "########"],
- ["#########",
-  "#   #   #",
-  "# $ # . #",
-  "# @ $ . #",
-  "# $ # . #",
-  "#   #   #",
-  "#########"]
-];
-  var idx=0, st=null;
-  function status(){ $('out').textContent = P.sbWon(st)? '🎉 过关！' : '继续推箱子'; }
-  function render(){ if(!st) return; var g=st.grid.map(function(row){return row.slice();}); st.boxes.forEach(function(b){ g[b[1]][b[0]]='$'; }); st.goals.forEach(function(p){ if(g[p[1]][p[0]]!=='$') g[p[1]][p[0]]='.'; }); g[st.player[1]][st.player[0]]='@'; $('board').textContent=g.map(function(r){return r.join('');}).join('\n'); }
-  function load(i){ idx=(i+LV.length)%LV.length; st=P.sbParse(LV[idx]); render(); }
-  function mv(d){ st=P.sbMove(st,d); render(); status(); }
-  $('next').addEventListener('click',function(){load(idx+1);});
-  $('prev').addEventListener('click',function(){load(idx-1);});
-  $('reset').addEventListener('click',function(){load(idx);});
-  $('U').addEventListener('click',function(){mv('U');}); $('D').addEventListener('click',function(){mv('D');});
-  $('L').addEventListener('click',function(){mv('L');}); $('R').addEventListener('click',function(){mv('R');});
-  document.addEventListener('keydown',function(e){ var k={'ArrowUp':'U','ArrowDown':'D','ArrowLeft':'L','ArrowRight':'R','w':'U','s':'D','a':'L','d':'R'}[e.key]; if(k){ e.preventDefault(); mv(k); } });
-  load(0);
+  var $=function(id){return document.getElementById(id);}; var P=window.BridgesForgePure; var cur=null; var W=6,H=6, cell=46, pad=20;
+  function render(showSol){ var svg=$('board'); svg.setAttribute('width', W*cell+pad*2); svg.setAttribute('height', H*cell+pad*2); var s='';
+    if(showSol && cur){ cur.edges.forEach(function(e){ var a=cur.islands[e[0]], b=cur.islands[e[1]]; var x1=pad+a.x*cell, y1=pad+a.y*cell, x2=pad+b.x*cell, y2=pad+b.y*cell; s+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--ok)" stroke-width="3"/>'; }); }
+    if(cur){ cur.islands.forEach(function(p,i){ var cx=pad+p.x*cell, cy=pad+p.y*cell; s+='<circle cx="'+cx+'" cy="'+cy+'" r="15" fill="var(--accent)"/>'; s+='<text x="'+cx+'" y="'+(cy+5)+'" text-anchor="middle" fill="#fff" font-size="14" font-family="ui-monospace,monospace">'+cur.clues[i]+'</text>'; }); }
+    svg.innerHTML=s;
+  }
+  function gen(silent){ var c=null, t=0; while(!c && t<400){ c=P.brGen(8, W, H, (Math.random()*1e9)|0); t++; } cur=c; if(!cur){ if(!silent) $('out').textContent='生成失败，重试'; return; } render(false); if(!silent) $('out').textContent='已生成，数字=该岛需连出的桥数'; }
+  $('new').addEventListener('click',function(){gen(false);});
+  $('solve').addEventListener('click',function(){ if(!cur) return; render(true); $('out').textContent='已显示答案'; });
+  gen(true);
 })(); }
 
 </script>
@@ -178,7 +172,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "推箱子 · 益智 · 单文件 · 零依赖", "title": "SokobanForge — 推箱子（Sokoban）益智游戏"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "搭桥 · 逻辑 · 单文件 · 零依赖", "title": "BridgesForge — 搭桥（Hashiwokakero）谜题"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

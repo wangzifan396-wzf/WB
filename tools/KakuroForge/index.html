@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>SokobanForge — 推箱子（Sokoban）益智游戏</title>
-<meta property="og:title" content="SokobanForge">
-<meta property="og:description" content="推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。">
+<title>KakuroForge — 数和（Kakuro / Cross-Sums）谜题</title>
+<meta property="og:title" content="KakuroForge">
+<meta property="og:description" content="数和（Kakuro，又称 Cross-Sums）谜题：在白色格子里填 1–9，每个横段 / 竖段数字不重复，边缘数字是该段之和。内置题目生成与答案显示，纯本地、零依赖。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="数和（Kakuro，又称 Cross-Sums）谜题：在白色格子里填 1–9，每个横段 / 竖段数字不重复，边缘数字是该段之和。内置题目生成与答案显示，纯本地、零依赖。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,18 +99,16 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>SokobanForge</h1>
-      <p class="sub" data-i18n="sub">推箱子 · 益智 · 单文件 · 零依赖</p>
+      <h1>KakuroForge</h1>
+      <p class="sub" data-i18n="sub">数和 · 逻辑 · 单文件 · 零依赖</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
-<div class="sec">推箱子（Sokoban）：把所有箱子推到目标点（用方向键或按钮移动）</div>
-<div class="row"><button id="prev">上一关</button><button id="next">下一关</button><button id="reset">重置</button></div>
-<div id="board" style="margin-top:12px;font:22px/1 ui-monospace,monospace;white-space:pre"></div>
+<div class="sec">数和（Kakuro / Cross-Sums）：每行每列填 1–9 不重复，边缘数字是所在段之和</div>
+<div class="row"><button id="new">新题目</button><button id="solve" class="ghost">显示答案</button></div>
+<div id="board" style="margin-top:12px"></div>
 <div class="err" id="err"></div>
-<div class="out" id="out" aria-live="polite">用方向键 / WASD 或下方按钮推箱子到目标点</div>
-<div class="row"><button id="U">↑</button></div>
-<div class="row"><button id="L">←</button><button id="D">↓</button><button id="R">→</button></div>
+<div class="out" id="out" aria-live="polite">点“新题目”生成一道数和谜题</div>
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
     <span class="badge" data-i18n="b2">离线可用</span>
@@ -121,50 +119,55 @@ a{color:var(--info);text-decoration:none}
 </div>
 <script>
 
-function sbParse(rows){ var grid=[]; var player=null, boxes=[], goals=[]; for(var y=0;y<rows.length;y++){ var row=[]; for(var x=0;x<rows[y].length;x++){ var ch=rows[y][x]; row.push(ch==='#'?'#':' '); if(ch==='@') player=[x,y]; if(ch==='$') boxes.push([x,y]); if(ch==='.') goals.push([x,y]); if(ch==='*'){ boxes.push([x,y]); goals.push([x,y]); } if(ch==='+'){ player=[x,y]; goals.push([x,y]); } } grid.push(row); } return {grid:grid, player:player, boxes:boxes, goals:goals, w:rows[0].length, h:rows.length}; }
-function sbKey(a){ return a[0]+','+a[1]; }
-function sbMove(st, dir){ var dx={'U':[0,-1],'D':[0,1],'L':[-1,0],'R':[1,0]}[dir]; if(!dx) return st; var nx=st.player[0]+dx[0], ny=st.player[1]+dx[1]; if(ny<0||nx<0||ny>=st.h||nx>=st.w) return st; if(st.grid[ny][nx]==='#') return st; var bi=-1; for(var i=0;i<st.boxes.length;i++) if(st.boxes[i][0]===nx&&st.boxes[i][1]===ny) bi=i; if(bi>=0){ var bx=nx+dx[0], by=ny+dx[1]; if(by<0||bx<0||by>=st.h||bx>=st.w) return st; if(st.grid[by][bx]==='#') return st; for(var j=0;j<st.boxes.length;j++) if(st.boxes[j][0]===bx&&st.boxes[j][1]===by) return st; var nb=st.boxes.slice(); nb[bi]=[bx,by]; return {grid:st.grid, player:[nx,ny], boxes:nb, goals:st.goals, w:st.w, h:st.h}; } return {grid:st.grid, player:[nx,ny], boxes:st.boxes, goals:st.goals, w:st.w, h:st.h}; }
-function sbWon(st){ var g={}; st.goals.forEach(function(p){ g[sbKey(p)]=1; }); return st.boxes.every(function(b){ return g[sbKey(b)]; }); }
-var EXPORTS={sbParse:sbParse, sbMove:sbMove, sbWon:sbWon};
+function _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }
+function _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }
+function _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+function _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }
+function _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }
+
+var KK_MASK=[
+ [0,1,1,1,0],
+ [1,1,1,1,1],
+ [1,1,0,1,1],
+ [1,1,1,1,1],
+ [0,1,1,1,0]
+];
+function kkRuns(mask){ var runs=[]; var h=mask.length, w=mask[0].length;
+  for(var y=0;y<h;y++){ var run=[]; for(var x=0;x<w;x++){ if(mask[y][x]) run.push([x,y]); else { if(run.length>1) runs.push({cells:run.slice(),horiz:true}); run=[]; } } if(run.length>1) runs.push({cells:run.slice(),horiz:true}); }
+  for(var x=0;x<w;x++){ var run2=[]; for(var y=0;y<h;y++){ if(mask[y][x]) run2.push([x,y]); else { if(run2.length>1) runs.push({cells:run2.slice(),horiz:false}); run2=[]; } } if(run2.length>1) runs.push({cells:run2.slice(),horiz:false}); }
+  return runs;
+}
+function kkGen(seed){ var rnd=_rng(seed); var mask=KK_MASK; var runs=kkRuns(mask); var cells=[]; for(var y=0;y<5;y++) for(var x=0;x<5;x++) if(mask[y][x]) cells.push([x,y]); var sol={};
+  function ok(x,y,v){ for(var i=0;i<runs.length;i++){ var r=runs[i]; if(!r.cells.some(function(c){return c[0]===x&&c[1]===y;})) continue; for(var j=0;j<r.cells.length;j++){ var cx=r.cells[j][0], cy=r.cells[j][1]; if(cx===x&&cy===y) break; var k=cx+','+cy; if(sol[k]!==undefined && sol[k]===v) return false; } } return true; }
+  function fill(i){ if(i===cells.length) return true; var x=cells[i][0], y=cells[i][1]; var vals=[1,2,3,4,5,6,7,8,9]; for(var k=vals.length-1;k>0;k--){ var j=Math.floor(rnd()*(k+1)); var t=vals[k];vals[k]=vals[j];vals[j]=t; } for(var q=0;q<9;q++){ var v=vals[q]; if(ok(x,y,v)){ sol[x+','+y]=v; if(fill(i+1)) return true; sol[x+','+y]=undefined; } } return false; }
+  if(!fill(0)) return null;
+  var clues=runs.map(function(r){ var sum=0; r.cells.forEach(function(c){ sum+=sol[c[0]+','+c[1]]; }); return sum; });
+  return {mask:mask, runs:runs, clues:clues, solution:sol};
+}
+function kkSolve(puz){ return puz.solution; }
+var EXPORTS={kkGen:kkGen, kkSolve:kkSolve, kkRuns:kkRuns};
 
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
-if (typeof window !== 'undefined') { window.SokobanForgePure = EXPORTS; }
+if (typeof window !== 'undefined') { window.KakuroForgePure = EXPORTS; }
 
 </script>
 <script>
 
 if (typeof window !== 'undefined') { (function(){
-  var $=function(id){return document.getElementById(id);}; var P=window.SokobanForgePure; var LV=[
- ["#####",
-  "#@$.#",
-  "#####"],
- ["########",
-  "#      #",
-  "# .$@  #",
-  "#  $ . #",
-  "#      #",
-  "########"],
- ["#########",
-  "#   #   #",
-  "# $ # . #",
-  "# @ $ . #",
-  "# $ # . #",
-  "#   #   #",
-  "#########"]
-];
-  var idx=0, st=null;
-  function status(){ $('out').textContent = P.sbWon(st)? '🎉 过关！' : '继续推箱子'; }
-  function render(){ if(!st) return; var g=st.grid.map(function(row){return row.slice();}); st.boxes.forEach(function(b){ g[b[1]][b[0]]='$'; }); st.goals.forEach(function(p){ if(g[p[1]][p[0]]!=='$') g[p[1]][p[0]]='.'; }); g[st.player[1]][st.player[0]]='@'; $('board').textContent=g.map(function(r){return r.join('');}).join('\n'); }
-  function load(i){ idx=(i+LV.length)%LV.length; st=P.sbParse(LV[idx]); render(); }
-  function mv(d){ st=P.sbMove(st,d); render(); status(); }
-  $('next').addEventListener('click',function(){load(idx+1);});
-  $('prev').addEventListener('click',function(){load(idx-1);});
-  $('reset').addEventListener('click',function(){load(idx);});
-  $('U').addEventListener('click',function(){mv('U');}); $('D').addEventListener('click',function(){mv('D');});
-  $('L').addEventListener('click',function(){mv('L');}); $('R').addEventListener('click',function(){mv('R');});
-  document.addEventListener('keydown',function(e){ var k={'ArrowUp':'U','ArrowDown':'D','ArrowLeft':'L','ArrowRight':'R','w':'U','s':'D','a':'L','d':'R'}[e.key]; if(k){ e.preventDefault(); mv(k); } });
-  load(0);
+  var $=function(id){return document.getElementById(id);}; var P=window.KakuroForgePure; var cur=null;
+  function render(g, clues){ var b=$('board'); var tbl=document.createElement('table'); tbl.style.borderCollapse='collapse'; var mask=cur.mask; var N=5;
+    for(var y=0;y<N;y++){ var tr=document.createElement('tr'); for(var x=0;x<N;x++){ var td=document.createElement('td'); td.style.cssText='width:44px;height:44px;text-align:center;vertical-align:middle;border:1px solid var(--line);font:14px/1.2 ui-monospace,monospace;color:var(--fg);background:'+(mask[y][x]? 'var(--surface)':'var(--bg)');
+      if(mask[y][x]){ td.textContent = g? g[x+','+y] : ''; }
+      tr.appendChild(td); } tbl.appendChild(tr); }
+    // clues (top-left of each run)
+    if(clues){ cur.runs.forEach(function(r,idx){ var c=r.cells[0]; var td=tbl.rows[c[1]].cells[c[0]]; if(r.horiz) td.style.borderTop='3px solid var(--accent)'; else td.style.borderLeft='3px solid var(--accent)'; td.title='clue '+(r.horiz?'→ ':'↓ ')+clues[idx]; }); }
+    b.innerHTML=''; b.appendChild(tbl);
+  }
+  function gen(silent){ var c=null, t=0; while(!c && t<400){ c=P.kkGen((Math.random()*1e9)|0); t++; } cur=c; if(!cur){ if(!silent) $('out').textContent='生成失败，重试'; return; } render(null, cur.clues); if(!silent) $('out').textContent='已生成，带色边为线索（横→ / 竖↓）'; }
+  $('new').addEventListener('click',function(){gen(false);});
+  $('solve').addEventListener('click',function(){ if(!cur) return; render(cur.solution, cur.clues); $('out').textContent='已显示答案'; });
+  gen(true);
 })(); }
 
 </script>
@@ -178,7 +181,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "推箱子 · 益智 · 单文件 · 零依赖", "title": "SokobanForge — 推箱子（Sokoban）益智游戏"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "数和 · 逻辑 · 单文件 · 零依赖", "title": "KakuroForge — 数和（Kakuro / Cross-Sums）谜题"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

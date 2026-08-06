@@ -1,6 +1,6 @@
-# SokobanForge
+# OldMaidForge
 
-推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。
+老处女（Old Maid）纸牌游戏：发牌后自动弃掉所有对子，轮流从对方抽牌、再弃对子，最后拿着孤张 Q 的人输。内置发牌、配对、抽牌逻辑，纯本地、零依赖。
 
 - 单文件 HTML，零依赖，打开即用
 - 数据全程留在本机，不上传任何服务器
@@ -8,7 +8,7 @@
 
 ## 在线使用
 
-https://wangzifan396-wzf.github.io/WB/tools/SokobanForge/
+https://wangzifan396-wzf.github.io/WB/tools/OldMaidForge/
 
 ## 本地运行
 

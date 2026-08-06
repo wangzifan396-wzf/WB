@@ -1,6 +1,6 @@
-# SokobanForge
+# WarForge
 
-推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。
+战争（War）纸牌游戏：双方各发 26 张，每轮亮顶牌比大小，大者收两张；平局则“开战”追加筹码。内置确定性发牌与对战逻辑，纯本地、零依赖。
 
 - 单文件 HTML，零依赖，打开即用
 - 数据全程留在本机，不上传任何服务器
@@ -8,7 +8,7 @@
 
 ## 在线使用
 
-https://wangzifan396-wzf.github.io/WB/tools/SokobanForge/
+https://wangzifan396-wzf.github.io/WB/tools/WarForge/
 
 ## 本地运行
 

@@ -1,6 +1,6 @@
-# SokobanForge
+# WordSearchForge
 
-推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。
+单词搜索（Word Search）生成器：把一组单词以横、竖、斜、正反向藏进 N×N 字母矩阵，剩余格子用随机字母填充。适合做游戏、课堂活动。纯本地、零依赖。
 
 - 单文件 HTML，零依赖，打开即用
 - 数据全程留在本机，不上传任何服务器
@@ -8,7 +8,7 @@
 
 ## 在线使用
 
-https://wangzifan396-wzf.github.io/WB/tools/SokobanForge/
+https://wangzifan396-wzf.github.io/WB/tools/WordSearchForge/
 
 ## 本地运行
 

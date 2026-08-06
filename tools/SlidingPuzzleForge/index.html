@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>SokobanForge — 推箱子（Sokoban）益智游戏</title>
-<meta property="og:title" content="SokobanForge">
-<meta property="og:description" content="推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。">
+<title>SlidingPuzzleForge — 数字华容道（15-Puzzle）滑块拼图</title>
+<meta property="og:title" content="SlidingPuzzleForge">
+<meta property="og:description" content="数字华容道（15-Puzzle）滑块拼图：点击与空格相邻的数字方块滑动，把 1–15 按顺序复原，空格回到右下角。保证可解，纯本地、零依赖。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="推箱子（Sokoban）经典益智游戏：用方向键 / WASD 把每个箱子推到目标点（.）。内置多关卡、可重置、可切换。纯本地、零依赖。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="数字华容道（15-Puzzle）滑块拼图：点击与空格相邻的数字方块滑动，把 1–15 按顺序复原，空格回到右下角。保证可解，纯本地、零依赖。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,18 +99,16 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>SokobanForge</h1>
-      <p class="sub" data-i18n="sub">推箱子 · 益智 · 单文件 · 零依赖</p>
+      <h1>SlidingPuzzleForge</h1>
+      <p class="sub" data-i18n="sub">数字华容道 · 拼图 · 单文件 · 零依赖</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
-<div class="sec">推箱子（Sokoban）：把所有箱子推到目标点（用方向键或按钮移动）</div>
-<div class="row"><button id="prev">上一关</button><button id="next">下一关</button><button id="reset">重置</button></div>
-<div id="board" style="margin-top:12px;font:22px/1 ui-monospace,monospace;white-space:pre"></div>
+<div class="sec">数字华容道（15-Puzzle）：把打乱的数字方块滑回 1→15 顺序，空格在右下角</div>
+<div class="row"><button id="new">新游戏</button></div>
+<div id="board" style="margin-top:12px;display:grid;gap:6px"></div>
 <div class="err" id="err"></div>
-<div class="out" id="out" aria-live="polite">用方向键 / WASD 或下方按钮推箱子到目标点</div>
-<div class="row"><button id="U">↑</button></div>
-<div class="row"><button id="L">←</button><button id="D">↓</button><button id="R">→</button></div>
+<div class="out" id="out" aria-live="polite">点“新游戏”洗牌，把数字按顺序滑回</div>
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
     <span class="badge" data-i18n="b2">离线可用</span>
@@ -121,50 +119,37 @@ a{color:var(--info);text-decoration:none}
 </div>
 <script>
 
-function sbParse(rows){ var grid=[]; var player=null, boxes=[], goals=[]; for(var y=0;y<rows.length;y++){ var row=[]; for(var x=0;x<rows[y].length;x++){ var ch=rows[y][x]; row.push(ch==='#'?'#':' '); if(ch==='@') player=[x,y]; if(ch==='$') boxes.push([x,y]); if(ch==='.') goals.push([x,y]); if(ch==='*'){ boxes.push([x,y]); goals.push([x,y]); } if(ch==='+'){ player=[x,y]; goals.push([x,y]); } } grid.push(row); } return {grid:grid, player:player, boxes:boxes, goals:goals, w:rows[0].length, h:rows.length}; }
-function sbKey(a){ return a[0]+','+a[1]; }
-function sbMove(st, dir){ var dx={'U':[0,-1],'D':[0,1],'L':[-1,0],'R':[1,0]}[dir]; if(!dx) return st; var nx=st.player[0]+dx[0], ny=st.player[1]+dx[1]; if(ny<0||nx<0||ny>=st.h||nx>=st.w) return st; if(st.grid[ny][nx]==='#') return st; var bi=-1; for(var i=0;i<st.boxes.length;i++) if(st.boxes[i][0]===nx&&st.boxes[i][1]===ny) bi=i; if(bi>=0){ var bx=nx+dx[0], by=ny+dx[1]; if(by<0||bx<0||by>=st.h||bx>=st.w) return st; if(st.grid[by][bx]==='#') return st; for(var j=0;j<st.boxes.length;j++) if(st.boxes[j][0]===bx&&st.boxes[j][1]===by) return st; var nb=st.boxes.slice(); nb[bi]=[bx,by]; return {grid:st.grid, player:[nx,ny], boxes:nb, goals:st.goals, w:st.w, h:st.h}; } return {grid:st.grid, player:[nx,ny], boxes:st.boxes, goals:st.goals, w:st.w, h:st.h}; }
-function sbWon(st){ var g={}; st.goals.forEach(function(p){ g[sbKey(p)]=1; }); return st.boxes.every(function(b){ return g[sbKey(b)]; }); }
-var EXPORTS={sbParse:sbParse, sbMove:sbMove, sbWon:sbWon};
+function _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }
+function _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }
+function _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+function _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }
+function _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }
+
+function spSolved(n){ var a=[]; for(var i=0;i<n*n-1;i++) a.push(i+1); a.push(0); return a; }
+function spSolvedChk(b){ for(var i=0;i<b.length-1;i++) if(b[i]!==i+1) return false; return b[b.length-1]===0; }
+function spBlank(b){ return b.indexOf(0); }
+function spMove(b,i){ var n=Math.round(Math.sqrt(b.length)); var blank=spBlank(b); var bi=blank%n, bj=(blank/n)|0, ii=i%n, ij=(i/n)|0; if(Math.abs(bi-ii)+Math.abs(bj-ij)!==1) return null; var nb=b.slice(); nb[blank]=b[i]; nb[i]=0; return nb; }
+function spShuffle(rnd,n){ var b=spSolved(n); var blank=spBlank(b); var steps=n*n*40; for(var s=0;s<steps;s++){ var bi=blank%n, bj=(blank/n)|0; var opts=[]; if(bj>0)opts.push(blank-n); if(bj<n-1)opts.push(blank+n); if(bi>0)opts.push(blank-1); if(bi<n-1)opts.push(blank+1); var pick=opts[Math.floor(rnd()*opts.length)]; b[blank]=b[pick]; b[pick]=0; blank=pick; } if(spSolvedChk(b)){ for(var k=0;k<4;k++){ var bj2=(blank/n)|0, bi2=blank%n, o2=[]; if(bj2>0)o2.push(blank-n); if(bj2<n-1)o2.push(blank+n); if(bi2>0)o2.push(blank-1); if(bi2<n-1)o2.push(blank+1); var p2=o2[Math.floor(rnd()*o2.length)]; b[blank]=b[p2]; b[p2]=0; blank=p2; } } return b; }
+var EXPORTS={spSolved:spSolved, spSolvedChk:spSolvedChk, spBlank:spBlank, spMove:spMove, spShuffle:spShuffle, _rng:_rng};
 
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
-if (typeof window !== 'undefined') { window.SokobanForgePure = EXPORTS; }
+if (typeof window !== 'undefined') { window.SlidingPuzzleForgePure = EXPORTS; }
 
 </script>
 <script>
 
 if (typeof window !== 'undefined') { (function(){
-  var $=function(id){return document.getElementById(id);}; var P=window.SokobanForgePure; var LV=[
- ["#####",
-  "#@$.#",
-  "#####"],
- ["########",
-  "#      #",
-  "# .$@  #",
-  "#  $ . #",
-  "#      #",
-  "########"],
- ["#########",
-  "#   #   #",
-  "# $ # . #",
-  "# @ $ . #",
-  "# $ # . #",
-  "#   #   #",
-  "#########"]
-];
-  var idx=0, st=null;
-  function status(){ $('out').textContent = P.sbWon(st)? '🎉 过关！' : '继续推箱子'; }
-  function render(){ if(!st) return; var g=st.grid.map(function(row){return row.slice();}); st.boxes.forEach(function(b){ g[b[1]][b[0]]='$'; }); st.goals.forEach(function(p){ if(g[p[1]][p[0]]!=='$') g[p[1]][p[0]]='.'; }); g[st.player[1]][st.player[0]]='@'; $('board').textContent=g.map(function(r){return r.join('');}).join('\n'); }
-  function load(i){ idx=(i+LV.length)%LV.length; st=P.sbParse(LV[idx]); render(); }
-  function mv(d){ st=P.sbMove(st,d); render(); status(); }
-  $('next').addEventListener('click',function(){load(idx+1);});
-  $('prev').addEventListener('click',function(){load(idx-1);});
-  $('reset').addEventListener('click',function(){load(idx);});
-  $('U').addEventListener('click',function(){mv('U');}); $('D').addEventListener('click',function(){mv('D');});
-  $('L').addEventListener('click',function(){mv('L');}); $('R').addEventListener('click',function(){mv('R');});
-  document.addEventListener('keydown',function(e){ var k={'ArrowUp':'U','ArrowDown':'D','ArrowLeft':'L','ArrowRight':'R','w':'U','s':'D','a':'L','d':'R'}[e.key]; if(k){ e.preventDefault(); mv(k); } });
-  load(0);
+  var $=function(id){return document.getElementById(id);}; var P=window.SlidingPuzzleForgePure; var N=4, b=null;
+  function render(silent){ if(!b) return; var g=$('board'); g.style.gridTemplateColumns='repeat('+N+',52px)'; g.innerHTML='';
+    for(var i=0;i<b.length;i++){ var v=b[i]; var d=document.createElement('div'); d.style.cssText='width:52px;height:52px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);font:20px/1 ui-monospace,monospace;color:var(--fg);cursor:'+(v?'pointer':'default')+';background:'+(v?'var(--card)':'transparent')+';border-radius:8px';
+      d.textContent=v?v:''; if(v){ d.addEventListener('click',(function(idx){ return function(){ var nb=P.spMove(b,idx); if(nb){ b=nb; render(); status(); } }; })(i)); } g.appendChild(d); }
+    if(!silent) status();
+  }
+  function status(){ if(P.spSolvedChk(b)){ $('out').textContent='🎉 恭喜，拼图完成！'; } else { $('out').textContent='点数字方块滑动到空位，复原 1–'+(N*N-1)+' 顺序'; } }
+  function reset(silent){ b=P.spShuffle(Math.random, N); render(silent); }
+  $('new').addEventListener('click',function(){reset(false);});
+  reset(true);
 })(); }
 
 </script>
@@ -178,7 +163,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "推箱子 · 益智 · 单文件 · 零依赖", "title": "SokobanForge — 推箱子（Sokoban）益智游戏"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "数字华容道 · 拼图 · 单文件 · 零依赖", "title": "SlidingPuzzleForge — 数字华容道（15-Puzzle）滑块拼图"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}
