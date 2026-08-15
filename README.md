@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1034-5E6AD2?style=flat-square" alt="1034 Tools">
+  <img src="https://img.shields.io/badge/tools-1046-5E6AD2?style=flat-square" alt="1046 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1034 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1046 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1034 个工具目录
+│   └── ...             # 共 1046 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1034 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1046 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -512,6 +512,18 @@ WB/
 | [MatrixInverseForge](https://wangzifan396-wzf.github.io/WB/tools/MatrixInverseForge/) | 数学工具 | 矩阵求逆：2×2 / 3×3 伴随矩阵法求逆与行列式。 |
 | [TaxBracketForge](https://wangzifan396-wzf.github.io/WB/tools/TaxBracketForge/) | 财务工具 | 累进税表：分段税率算应纳税额、边际与平均税率。 |
 | [ExchangeForge](https://wangzifan396-wzf.github.io/WB/tools/ExchangeForge/) | 财务工具 | 汇率换算：多币种交叉汇率与费用后的实得金额。 |
+| [ReadingForge](https://wangzifan396-wzf.github.io/WB/tools/ReadingForge/) | 教育工具 | 阅读时间估算：按字数与 WPM 估算阅读耗时与页数。 |
+| [VocabularyForge](https://wangzifan396-wzf.github.io/WB/tools/VocabularyForge/) | 教育工具 | 英语词汇卡：内置词库随机抽词，中英文互答练习。 |
+| [SentenceForge](https://wangzifan396-wzf.github.io/WB/tools/SentenceForge/) | 教育工具 | 单词乱序重组：可复现随机种子，用于拼写与记忆训练。 |
+| [GrammarForge2](https://wangzifan396-wzf.github.io/WB/tools/GrammarForge2/) | 教育工具 | 英语语法选择题：内置题库即时判分。 |
+| [SlopeForge](https://wangzifan396-wzf.github.io/WB/tools/SlopeForge/) | 数学工具 | 两点斜率与直线：斜率、方程、距离与中点（含垂直线）。 |
+| [CircleForge](https://wangzifan396-wzf.github.io/WB/tools/CircleForge/) | 数学工具 | 圆的几何量：面积、周长、扇形面积与弧长。 |
+| [AngleForge](https://wangzifan396-wzf.github.io/WB/tools/AngleForge/) | 数学工具 | 角度换算：度↔弧度、余角、补角、三角形第三角。 |
+| [PolygonForge](https://wangzifan396-wzf.github.io/WB/tools/PolygonForge/) | 数学工具 | 正多边形几何：内角和、内角、外角、周长与面积。 |
+| [BoyleForge](https://wangzifan396-wzf.github.io/WB/tools/BoyleForge/) | 科学工具 | 玻意耳定律：恒温 P₁V₁=P₂V₂ 求压强或体积变化。 |
+| [ChargeForge](https://wangzifan396-wzf.github.io/WB/tools/ChargeForge/) | 科学工具 | 电量换算：由 Q=It 在电量、电流、时间间互算。 |
+| [VoltageForge](https://wangzifan396-wzf.github.io/WB/tools/VoltageForge/) | 科学工具 | 电压/电流/电阻：欧姆定律 V=IR 互算，并算功率 P=VI。 |
+| [SleepCycleForge](https://wangzifan396-wzf.github.io/WB/tools/SleepCycleForge/) | 健康工具 | 睡眠周期：按 90 分钟周期算经历周期数与推荐起床点。 |
 
 ## 快速使用
 
@@ -524,7 +536,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1034 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1046 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
