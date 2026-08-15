@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-380-5E6AD2?style=flat-square" alt="380 Tools">
+  <img src="https://img.shields.io/badge/tools-962-5E6AD2?style=flat-square" alt="962 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**380 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（其中 332 款旗舰 ⭐，覆盖 16 个分类）。
+**962 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 380 个工具目录
+│   └── ...             # 共 962 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（380 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 962 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -428,6 +428,19 @@ WB/
 | [OauthForge](https://wangzifan396-wzf.github.io/WB/tools/OauthForge/) ⭐ | 安全工具 | OAuth 2.1 体检台：粘贴授权请求 URL，逐项校验 response_type、redirect_uri、state 与 scope，用内置纯 JS SHA-256 真实计算并验证 PKCE 的 code_challenge（S256），解析令牌响应与 JWT 载荷（不验签）检查 alg=none 与过期，并按客户端类型推荐合规流程。排查登录集成、评审授权安全，零依赖、离线可用。 |
 | [TimeoutForge](https://wangzifan396-wzf.github.io/WB/tools/TimeoutForge/) ⭐ | 开发辅助 | 超时预算规划器：按行录入调用链每一跳的超时、P99 延迟、重试次数与退避间隔，逐层核对是否存在下游超时大于上游的倒挂，计算最坏耗时与重试放大倍数，自顶向下分配超时预算，并按 P99 反推推荐超时值，同时给出 Google SRE 重试预算与对冲请求建议。治理级联超时、防重试风暴，零依赖、离线可用。 |
 
+| [FlashcardForge](https://wangzifan396-wzf.github.io/WB/tools/FlashcardForge/) | 教育工具 | 把任意「正面||背面」文本变成可点击翻转的复习闪卡，支持乱序与本地保存。 |
+| [SpellBeeForge](https://wangzifan396-wzf.github.io/WB/tools/SpellBeeForge/) | 教育工具 | 给出中文含义，练习英文拼写并即时校验。 |
+| [AnagramForge](https://wangzifan396-wzf.github.io/WB/tools/AnagramForge/) | 文本处理 | 输入单词，从内置词库找出所有变位词（字母重排）。 |
+| [EchoForge](https://wangzifan396-wzf.github.io/WB/tools/EchoForge/) | 音频工具 | 为上传的音频添加可调节延迟与衰减的回声，离线处理并导出 WAV。 |
+| [ReverbForge](https://wangzifan396-wzf.github.io/WB/tools/ReverbForge/) | 音频工具 | 用合成脉冲响应为音频添加空间混响，离线卷积并导出 WAV。 |
+| [MockupForge](https://wangzifan396-wzf.github.io/WB/tools/MockupForge/) | 设计工具 | 给截图套上手机/平板/笔记本/桌面设备外框，一键导出 PNG。 |
+| [PosterForge](https://wangzifan396-wzf.github.io/WB/tools/PosterForge/) | 设计工具 | 输入标题与点缀色，离线生成简洁海报并导出 PNG。 |
+| [GravityForge](https://wangzifan396-wzf.github.io/WB/tools/GravityForge/) | 科学工具 | 计算两物体引力、星球表面重力、近地轨道速度与跨星球体重。 |
+| [MetaphorForge](https://wangzifan396-wzf.github.io/WB/tools/MetaphorForge/) | 创意工具 | 随机组合生成富有诗意的隐喻句，可复现。 |
+| [LimerickForge](https://wangzifan396-wzf.github.io/WB/tools/LimerickForge/) | 创意工具 | 生成五句打油诗，结构工整、可复现。 |
+| [FableForge](https://wangzifan396-wzf.github.io/WB/tools/FableForge/) | 创意工具 | 生成带寓意的短篇寓言，动物与场景随机组合。 |
+| [BlessingForge](https://wangzifan396-wzf.github.io/WB/tools/BlessingForge/) | 创意工具 | 随机组合生成温暖的中文祝福语，可复现。 |
+
 ## 快速使用
 
 1. **在线用**：打开 [门户](https://wangzifan396-wzf.github.io/WB/)，点任意工具卡即达。
@@ -439,7 +452,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 本 README 由 `gen_wb_readme.py` 从门户的 `TOOLS` 数组自动生成，计数不会漂移。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 962 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
