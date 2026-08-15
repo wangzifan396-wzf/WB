@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<link rel="icon" href="favicon.svg">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SwatchForge · 探索式调色板生成器</title>
+<meta property="og:image" content="og.svg">
+<meta name="description" content="单文件、零依赖、本地优先的探索式调色板生成器：空格随机、锁定心仪色块，一键导出 CSS Variables / SCSS / Tailwind / JSON。打开即用，数据不上传。" />
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#08090A">
+<style>
+  :root{
+    --bg:#08090A; --surface:#101113; --surface2:#15171a; --line:#1C1D1F; --line2:#26282b;
+    --text:#E6E7E9; --muted:#9A9DA3; --accent:#5e6ad2; --accent2:#8A93F2; --danger:#FF7AB6;
+    --mono:Cascadia Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+  }
+  [data-theme="light"]{ --bg:#F7F8FA; --surface:#FFFFFF; --surface2:#F0F1F4; --line:#E3E5E9; --line2:#D4D7DD; --text:#1B1C1E; --muted:#62656B; --accent:#5e6ad2; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column}
+  header{position:sticky;top:0;z-index:20;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--surface) 85%,transparent);backdrop-filter:blur(10px)}
+  .bar{display:flex;align-items:center;gap:12px;max-width:1180px;margin:0 auto;padding:12px 18px}
+  .brand{font-weight:700;font-size:17px;display:flex;align-items:center;gap:9px}
+  .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#FF7AB6,#5e6ad2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:12px;font-family:var(--mono)}
+  .brand small{color:var(--muted);font-weight:500;font-size:12px}
+  .spacer{flex:1}
+  .iconbtn{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:.15s;text-decoration:none}
+  .iconbtn:hover{border-color:var(--accent);transform:translateY(-1px)}
+  main{flex:1;display:grid;grid-template-columns:300px 1fr;grid-template-areas:"controls palette" "export palette" "fav fav";gap:16px;padding:16px;max-width:1180px;margin:0 auto;width:100%}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .controls{grid-area:controls}.palette-wrap{grid-area:palette;padding:0;overflow:hidden}
+  .export{grid-area:export}.favorites{grid-area:fav}
+  .ptitle{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+  .phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .phead .ptitle{margin-bottom:0}
+  .field{margin-bottom:14px}
+  .field.row{display:flex;gap:8px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .cin{display:flex;gap:8px;align-items:center}
+  .cin input[type=color]{width:44px;height:36px;padding:0;border:1px solid var(--line);border-radius:9px;background:transparent;cursor:pointer}
+  .cin input[type=text]{flex:1;padding:8px 11px;border-radius:9px;background:var(--surface2);border:1px solid var(--line);color:var(--text);font-family:var(--mono);font-size:13px}
+  .cin input[type=text]:focus{outline:none;border-color:var(--accent)}
+  select,.btn{width:100%;padding:9px 11px;border-radius:9px;background:var(--surface2);border:1px solid var(--line);color:var(--text);font-size:13px;font-family:var(--sans);cursor:pointer;transition:.15s}
+  select:focus{outline:none;border-color:var(--accent)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:500}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{filter:brightness(1.1)}
+  .btn.ghost{background:transparent}
+  .btn.ghost:hover{color:var(--danger);border-color:var(--danger)}
+  .btn.small{width:auto;padding:5px 11px;font-size:12px}
+  .hint{font-size:12px;color:var(--muted);line-height:1.7}
+  kbd{font-family:var(--mono);font-size:11px;padding:1px 6px;background:var(--surface2);border:1px solid var(--line);border-radius:5px}
+  .palette{display:flex;flex-direction:column;height:100%;min-height:460px}
+  .swatch{flex:1;display:flex;align-items:flex-end;justify-content:space-between;padding:18px;cursor:pointer;position:relative;transition:flex .3s ease;overflow:hidden}
+  .swatch:hover{flex:1.15}
+  .sw-info{display:flex;flex-direction:column;gap:2px}
+  .sw-hex{font-family:var(--mono);font-size:15px;font-weight:600;letter-spacing:.5px}
+  .sw-rgb{font-family:var(--mono);font-size:11px;opacity:.75}
+  .sw-actions{display:flex;gap:6px;opacity:0;transition:.15s}
+  .swatch:hover .sw-actions{opacity:1}
+  .sw-btn{width:30px;height:30px;border-radius:8px;border:1px solid currentColor;background:transparent;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
+  .sw-btn:hover{background:currentColor}
+  .swatch.locked::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 12px,rgba(0,0,0,.06) 12px,rgba(0,0,0,.06) 24px);pointer-events:none}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .tab{padding:5px 11px;font-size:12px;border-radius:7px;border:1px solid var(--line);background:var(--surface2);color:var(--muted);cursor:pointer;transition:.15s}
+  .tab.active{background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);border-color:var(--accent)}
+  .export-body pre{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:13px;overflow:auto;max-height:230px;margin-bottom:10px}
+  .export-body code{font-family:var(--mono);font-size:12.5px;color:var(--text);white-space:pre}
+  .export-actions{display:flex;align-items:center;gap:12px}
+  .export-actions .btn{width:auto}
+  .copy-status{font-size:12px;color:var(--accent);opacity:0;transition:.2s}
+  .copy-status.show{opacity:1}
+  .fav-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .fav-item{border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;transition:.15s}
+  .fav-item:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .fav-strip{display:flex;height:42px}
+  .fav-strip i{flex:1;display:block}
+  .fav-meta{padding:7px 9px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+  .fav-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px}
+  .fav-del:hover{color:var(--danger)}
+  .empty{font-size:12.5px;color:var(--muted);padding:6px 0}
+  footer{text-align:center;padding:14px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)}
+  footer a{color:var(--muted);text-decoration:none}
+  footer a:hover{color:var(--accent)}
+  @media (max-width:900px){ main{grid-template-columns:1fr;grid-template-areas:"controls" "palette" "export" "fav"} .palette{min-height:320px} }
+  @media (max-width:560px){ .bar{padding:10px 14px} .brand small{display:none} main{padding:12px;gap:12px} .swatch{padding:13px} .sw-hex{font-size:13px} }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <div class="brand"><span class="logo">SF</span>SwatchForge <small>探索式调色板生成器</small></div>
+  <div class="spacer"></div>
+  <button id="themeToggle" class="iconbtn" title="切换主题" aria-label="切换主题">🌙</button>
+  <a class="iconbtn" href="../../index.html" title="返回工具门户">⌂</a>
+</div></header>
+
+<main>
+  <section class="panel controls">
+    <h2 class="ptitle">生成器</h2>
+    <div class="field">
+      <label for="baseColor">基础色</label>
+      <div class="cin">
+        <input type="color" id="baseColor" value="#5e6ad2" />
+        <input type="text" id="baseHex" value="#5e6ad2" maxlength="7" spellcheck="false" />
+      </div>
+    </div>
+    <div class="field">
+      <label for="harmonyRule">和谐规则</label>
+      <select id="harmonyRule"></select>
+    </div>
+    <div class="field row">
+      <button id="randomBtn" class="btn primary">🎲 随机生成</button>
+      <button id="saveBtn" class="btn">★ 收藏</button>
+    </div>
+    <p class="hint">点击色块复制色值；按 <kbd>空格</kbd> 随机探索；🔒 锁定的色块在随机时保持不变。</p>
+  </section>
+
+  <section class="panel palette-wrap"><div id="palette" class="palette" aria-label="调色板"></div></section>
+
+  <section class="panel export">
+    <div class="phead"><h2 class="ptitle">导出</h2><div id="formatTabs" class="tabs" role="tablist"></div></div>
+    <div class="export-body">
+      <pre><code id="exportOutput"></code></pre>
+      <div class="export-actions">
+        <button id="copyExport" class="btn">复制代码</button>
+        <span id="copyStatus" class="copy-status"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel favorites">
+    <div class="phead"><h2 class="ptitle">收藏（本地存储）</h2><button id="clearFav" class="btn ghost small">清空</button></div>
+    <div id="favList" class="fav-list"></div>
+    <p id="favEmpty" class="empty">暂无收藏，点击「收藏」保存喜欢的调色板。</p>
+  </section>
+</main>
+
+<footer><span>SwatchForge · nano-tools · 单文件零依赖 · <a href="https://github.com/wangzifan396-wzf/WB" target="_blank" rel="noopener">GitHub</a></span></footer>
+
+<script>
+/*! SwatchForge — 探索式调色板生成器（单文件、零依赖、本地优先）
+    纯函数：Color（色彩理论 + 和谐规则）与 Exporter（多格式导出）；
+    副作用交互渲染在下方 IIFE 中，互不掺杂，便于 headless 测试。 */
+var Color = {
+  hexToRgb: function (hex) {
+    if (typeof hex !== 'string') return null;
+    var h = hex.trim().replace(/^#/, '');
+    if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+    var num = parseInt(h, 16);
+    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+  },
+  rgbToHex: function (rgb) {
+    function to(v) { var n = Math.max(0, Math.min(255, Math.round(v))); return n.toString(16).padStart(2, '0'); }
+    return '#' + to(rgb.r) + to(rgb.g) + to(rgb.b);
+  },
+  rgbToHsl: function (rgb) {
+    var r = rgb.r / 255, g = rgb.g / 255, b = rgb.b / 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), h = 0, s = 0, l = (max + min) / 2, d = max - min;
+    if (d !== 0) {
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h *= 60;
+    }
+    return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+  },
+  hslToRgb: function (hsl) {
+    var h = ((hsl.h % 360) + 360) % 360 / 360;
+    var s = Math.max(0, Math.min(100, hsl.s)) / 100;
+    var l = Math.max(0, Math.min(100, hsl.l)) / 100;
+    var r, g, b;
+    if (s === 0) { r = g = b = l; }
+    else {
+      function hue2rgb(p, q, t) {
+        if (t < 0) t += 1; if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      }
+      var q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1 / 3);
+    }
+    return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+  },
+  hexToHsl: function (hex) { var rgb = Color.hexToRgb(hex); return rgb ? Color.rgbToHsl(rgb) : null; },
+  hslToHex: function (hsl) { return Color.rgbToHex(Color.hslToRgb(hsl)); },
+  relativeLuminance: function (hex) {
+    var rgb = Color.hexToRgb(hex); if (!rgb) return 0;
+    function linear(v) { var c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    return 0.2126 * linear(rgb.r) + 0.7152 * linear(rgb.g) + 0.0722 * linear(rgb.b);
+  },
+  readableText: function (hex) { return Color.relativeLuminance(hex) > 0.45 ? '#0a0a0a' : '#ffffff'; },
+  randomHex: function () { return '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0'); },
+  generate: function (baseHex, rule) {
+    var hsl = Color.hexToHsl(baseHex); if (!hsl) return [baseHex];
+    var h = hsl.h, s = hsl.s, l = hsl.l;
+    var rules = {
+      analogous: function () {
+        return [Color.hslToHex({ h: h - 60, s: s, l: l }), Color.hslToHex({ h: h - 30, s: s, l: l }), baseHex, Color.hslToHex({ h: h + 30, s: s, l: l }), Color.hslToHex({ h: h + 60, s: s, l: l })];
+      },
+      monochromatic: function () {
+        return [Color.hslToHex({ h: h, s: s, l: Math.max(10, l - 30) }), Color.hslToHex({ h: h, s: s, l: Math.max(15, l - 15) }), baseHex, Color.hslToHex({ h: h, s: s, l: Math.min(90, l + 15) }), Color.hslToHex({ h: h, s: s, l: Math.min(95, l + 30) })];
+      },
+      triadic: function () {
+        return [baseHex, Color.hslToHex({ h: h + 120, s: s, l: l }), Color.hslToHex({ h: h - 120, s: s, l: l }), Color.hslToHex({ h: h + 60, s: s * 0.6, l: Math.min(90, l + 20) }), Color.hslToHex({ h: h - 60, s: s * 0.6, l: Math.max(15, l - 15) })];
+      },
+      complementary: function () {
+        return [Color.hslToHex({ h: h, s: s, l: Math.max(15, l - 15) }), baseHex, Color.hslToHex({ h: h, s: s * 0.5, l: Math.min(92, l + 25) }), Color.hslToHex({ h: h + 180, s: s, l: l }), Color.hslToHex({ h: h + 180, s: s, l: Math.max(15, l - 15) })];
+      },
+      tetradic: function () {
+        return [baseHex, Color.hslToHex({ h: h + 90, s: s, l: l }), Color.hslToHex({ h: h + 180, s: s, l: l }), Color.hslToHex({ h: h + 270, s: s, l: l }), Color.hslToHex({ h: h, s: s * 0.4, l: Math.min(92, l + 25) })];
+      },
+      'split-complementary': function () {
+        return [baseHex, Color.hslToHex({ h: h + 150, s: s, l: l }), Color.hslToHex({ h: h + 210, s: s, l: l }), Color.hslToHex({ h: h, s: s * 0.4, l: Math.min(92, l + 20) }), Color.hslToHex({ h: h + 180, s: s * 0.6, l: Math.max(20, l - 10) })];
+      }
+    };
+    return (rules[rule] || rules.analogous)();
+  },
+  RULES: [
+    { id: 'analogous', label: '类比色' },
+    { id: 'monochromatic', label: '单色' },
+    { id: 'triadic', label: '三元色' },
+    { id: 'complementary', label: '互补色' },
+    { id: 'tetradic', label: '四元色' },
+    { id: 'split-complementary', label: '分裂互补' }
+  ]
+};
+
+var Exporter = {
+  toCSSVariables: function (palette, name) {
+    name = name || 'color';
+    return ':root {\n' + palette.map(function (c, i) { return '  --' + name + '-' + (i + 1) + ': ' + c + ';'; }).join('\n') + '\n}';
+  },
+  toSCSS: function (palette, name) {
+    name = name || 'color';
+    return palette.map(function (c, i) { return '$' + name + '-' + (i + 1) + ': ' + c + ';'; }).join('\n');
+  },
+  toTailwind: function (palette, name) {
+    name = name || 'palette';
+    var obj = {}; palette.forEach(function (c, i) { obj[i + 1] = c; });
+    return '// tailwind.config.js\nmodule.exports = {\n  theme: {\n    extend: {\n      colors: {\n        ' + name + ': ' + JSON.stringify(obj, null, 6).replace(/\n/g, '\n  ') + ',\n      },\n    },\n  },\n};';
+  },
+  toJSON: function (palette) { return JSON.stringify({ palette: palette }, null, 2); },
+  toHexList: function (palette) { return palette.join('\n'); },
+  FORMATS: [
+    { id: 'css', label: 'CSS Variables', lang: 'css' },
+    { id: 'scss', label: 'SCSS', lang: 'scss' },
+    { id: 'tailwind', label: 'Tailwind', lang: 'javascript' },
+    { id: 'json', label: 'JSON', lang: 'json' },
+    { id: 'hex', label: 'HEX 列表', lang: 'text' }
+  ],
+  render: function (format, palette, name) {
+    switch (format) {
+      case 'css': return this.toCSSVariables(palette, name);
+      case 'scss': return this.toSCSS(palette, name);
+      case 'tailwind': return this.toTailwind(palette, name);
+      case 'json': return this.toJSON(palette);
+      case 'hex': return this.toHexList(palette);
+      default: return '';
+    }
+  }
+};
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { Color: Color, Exporter: Exporter };
+
+(function () {
+  'use strict';
+  var STORAGE_KEY = 'swatchforge:favorites';
+  var THEME_KEY = 'swatchforge:theme';
+  var state = { base: '#5e6ad2', rule: 'analogous', palette: [], locked: [false, false, false, false, false], format: 'css', name: 'palette' };
+
+  function $(sel) { return document.querySelector(sel); }
+
+  function init() {
+    var sel = $('#harmonyRule');
+    sel.innerHTML = Color.RULES.map(function (r) { return '<option value="' + r.id + '">' + r.label + '</option>'; }).join('');
+    sel.value = state.rule;
+    var tabs = $('#formatTabs');
+    tabs.innerHTML = Exporter.FORMATS.map(function (f) { return '<button class="tab" data-fmt="' + f.id + '">' + f.label + '</button>'; }).join('');
+    tabs.querySelector('.tab').classList.add('active');
+    bind();
+    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+    generate();
+    renderFavorites();
+  }
+
+  function generate() {
+    var full = Color.generate(state.base, state.rule);
+    state.palette = full.map(function (c, i) { return (state.locked[i] && state.palette[i]) ? state.palette[i] : c; });
+    renderPalette(); renderExport();
+  }
+
+  function randomize() {
+    state.base = Color.randomHex();
+    $('#baseColor').value = state.base;
+    $('#baseHex').value = state.base;
+    generate();
+  }
+
+  function renderPalette() {
+    $('#palette').innerHTML = state.palette.map(function (hex, i) {
+      var rgb = Color.hexToRgb(hex), text = Color.readableText(hex), locked = state.locked[i];
+      return '<div class="swatch' + (locked ? ' locked' : '') + '" style="background:' + hex + ';color:' + text + '" data-index="' + i + '">' +
+        '<div class="sw-info"><span class="sw-hex">' + hex.toUpperCase() + '</span><span class="sw-rgb">rgb(' + rgb.r + ', ' + rgb.g + ', ' + rgb.b + ')</span></div>' +
+        '<div class="sw-actions">' +
+        '<button class="sw-btn" data-act="lock" title="' + (locked ? '解锁' : '锁定') + '">' + (locked ? '🔒' : '🔓') + '</button>' +
+        '<button class="sw-btn" data-act="copy" title="复制色值">📋</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  function renderExport() { $('#exportOutput').textContent = Exporter.render(state.format, state.palette, state.name); }
+
+  function bind() {
+    $('#baseColor').addEventListener('input', function (e) {
+      state.base = e.target.value; $('#baseHex').value = e.target.value; generate();
+    });
+    $('#baseHex').addEventListener('input', function (e) {
+      var v = e.target.value.trim(); if (v.charAt(0) !== '#') v = '#' + v;
+      if (Color.hexToRgb(v)) { state.base = v; $('#baseColor').value = v; generate(); }
+    });
+    $('#harmonyRule').addEventListener('change', function (e) { state.rule = e.target.value; generate(); });
+    $('#randomBtn').addEventListener('click', randomize);
+    $('#saveBtn').addEventListener('click', saveFavorite);
+    $('#clearFav').addEventListener('click', function () {
+      if (!getFavorites().length) return;
+      localStorage.removeItem(STORAGE_KEY); renderFavorites();
+    });
+    $('#palette').addEventListener('click', function (e) {
+      var sw = e.target.closest('.swatch'); if (!sw) return;
+      var i = +sw.dataset.index, actBtn = e.target.closest('[data-act]');
+      if (actBtn) {
+        if (actBtn.dataset.act === 'lock') { state.locked[i] = !state.locked[i]; renderPalette(); }
+        else copyText(state.palette[i]);
+        return;
+      }
+      copyText(state.palette[i]);
+    });
+    $('#formatTabs').addEventListener('click', function (e) {
+      var tab = e.target.closest('.tab'); if (!tab) return;
+      document.querySelectorAll('#formatTabs .tab').forEach(function (t) { t.classList.remove('active'); });
+      tab.classList.add('active'); state.format = tab.dataset.fmt; renderExport();
+    });
+    $('#copyExport').addEventListener('click', function () { copyText($('#exportOutput').textContent, true); });
+    $('#themeToggle').addEventListener('click', function () {
+      var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem(THEME_KEY, next); applyTheme(next);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.code === 'Space' && !/input|textarea|select/i.test(e.target.tagName)) { e.preventDefault(); randomize(); }
+    });
+  }
+
+  function copyText(text, isExport) {
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (err) {}
+      ta.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(fallback);
+    } else fallback();
+    if (isExport) {
+      var s = $('#copyStatus'); s.textContent = '已复制 ✓'; s.classList.add('show');
+      setTimeout(function () { s.classList.remove('show'); }, 1500);
+    }
+  }
+
+  function getFavorites() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; }
+  }
+
+  function saveFavorite() {
+    var list = getFavorites();
+    list.unshift({ id: Date.now(), base: state.base, rule: state.rule, palette: state.palette.slice() });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, 30)));
+    renderFavorites();
+    var btn = $('#saveBtn'), old = btn.textContent;
+    btn.textContent = '已收藏 ✓';
+    setTimeout(function () { btn.textContent = old; }, 1200);
+  }
+
+  function renderFavorites() {
+    var list = getFavorites(), wrap = $('#favList'), empty = $('#favEmpty');
+    if (!list.length) { wrap.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    wrap.innerHTML = list.map(function (f) {
+      return '<div class="fav-item" data-id="' + f.id + '"><div class="fav-strip">' +
+        f.palette.map(function (c) { return '<i style="background:' + c + '"></i>'; }).join('') +
+        '</div><div class="fav-meta"><span>' + f.palette[0].toUpperCase() + '</span>' +
+        '<button class="fav-del" data-del="' + f.id + '" title="删除">✕</button></div></div>';
+    }).join('');
+    wrap.querySelectorAll('.fav-item').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        if (e.target.closest('[data-del]')) return;
+        var f = list.filter(function (x) { return x.id === +el.dataset.id; })[0];
+        if (!f) return;
+        state.base = f.base; state.rule = f.rule; state.locked = [false, false, false, false, false];
+        $('#baseColor').value = f.base; $('#baseHex').value = f.base; $('#harmonyRule').value = f.rule;
+        generate();
+      });
+    });
+    wrap.querySelectorAll('[data-del]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var next = getFavorites().filter(function (x) { return x.id !== +btn.dataset.del; });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        renderFavorites();
+      });
+    });
+  }
+
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    $('#themeToggle').textContent = t === 'dark' ? '🌙' : '☀️';
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+<script>
+/* PWA：离线缓存本工具命名空间（与其他 nano-tools 互不影响） */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  navigator.serviceWorker.register('./sw.js').catch(function () {});
+}
+</script>
+</body>
+</html>
