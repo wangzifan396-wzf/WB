@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-974-5E6AD2?style=flat-square" alt="974 Tools">
+  <img src="https://img.shields.io/badge/tools-986-5E6AD2?style=flat-square" alt="986 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**974 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**986 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 974 个工具目录
+│   └── ...             # 共 986 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 974 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 986 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -452,6 +452,18 @@ WB/
 | [SalaryForge](https://wangzifan396-wzf.github.io/WB/tools/SalaryForge/) | 财务工具 | 月薪计算器：累进个税、五险一金估算，算清到手工资。 |
 | [InvestmentForge](https://wangzifan396-wzf.github.io/WB/tools/InvestmentForge/) | 财务工具 | 投资复利计算器：定投/一次性投入的未来值与增长表。 |
 | [GratuityForge](https://wangzifan396-wzf.github.io/WB/tools/GratuityForge/) | 财务工具 | 离职补偿（N+1）计算器：按司龄分段（前 5 年 21 天/年、其后 30 天/年）算补偿月数。 |
+| [GeoQuizForge](https://wangzifan396-wzf.github.io/WB/tools/GeoQuizForge/) | 教育工具 | 地理测验：看国家答首都、看首都答国家、看国旗答国家，内置国题库，计分乱序。 |
+| [TimesTableForge](https://wangzifan396-wzf.github.io/WB/tools/TimesTableForge/) | 教育工具 | 口算练习：加减乘除按难度出题，计时正确率并回顾错题。 |
+| [MistakeBookForge](https://wangzifan396-wzf.github.io/WB/tools/MistakeBookForge/) | 教育工具 | 错题本：记录题目与错答，按标签分类，本地保存可删除与复习。 |
+| [ConjugateForge](https://wangzifan396-wzf.github.io/WB/tools/ConjugateForge/) | 教育工具 | 英语不规则动词变位练习：内置词库，随机抽测过去式/过去分词。 |
+| [FormulaForge](https://wangzifan396-wzf.github.io/WB/tools/FormulaForge/) | 教育工具 | 数学/物理公式速查：面积体积速度三角函数等，离线内置库分类检索。 |
+| [GrammarForge](https://wangzifan396-wzf.github.io/WB/tools/GrammarForge/) | 教育工具 | 英语语法练习：冠词/时态/单复数选择题，内置题库即时判分解析。 |
+| [DictationForge](https://wangzifan396-wzf.github.io/WB/tools/DictationForge/) | 教育工具 | 听写练习：浏览器朗读英文单词，用户输入校对，内置词库可复现。 |
+| [CodeQuizForge](https://wangzifan396-wzf.github.io/WB/tools/CodeQuizForge/) | 教育工具 | 编程/CS 概念测验：算法/网络/数据库等，内置题库随机抽题判分。 |
+| [ConstForge](https://wangzifan396-wzf.github.io/WB/tools/ConstForge/) | 科学工具 | 物理/数学/天文常数速查：符号数值单位，离线内置库。 |
+| [ComboForge](https://wangzifan396-wzf.github.io/WB/tools/ComboForge/) | 数学工具 | 排列组合与概率：阶乘、排列、组合数与二项分布概率。 |
+| [SeriesForge](https://wangzifan396-wzf.github.io/WB/tools/SeriesForge/) | 数学工具 | 数列求和：等差/等比数列通项与前 n 项和。 |
+| [RandomForge](https://wangzifan396-wzf.github.io/WB/tools/RandomForge/) | 实用计算 | 随机工具：随机整数、名单抽奖、掷骰子，可复现种子。 |
 
 ## 快速使用
 
@@ -464,7 +476,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 974 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 986 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
