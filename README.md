@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-998-5E6AD2?style=flat-square" alt="998 Tools">
+  <img src="https://img.shields.io/badge/tools-1010-5E6AD2?style=flat-square" alt="1010 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**998 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1010 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 998 个工具目录
+│   └── ...             # 共 1010 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 998 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1010 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -476,6 +476,18 @@ WB/
 | [WaterForge](https://wangzifan396-wzf.github.io/WB/tools/WaterForge/) | 健康工具 | 饮水目标：按体重与活动量估算每日饮水与杯数。 |
 | [KarnaughForge](https://wangzifan396-wzf.github.io/WB/tools/KarnaughForge/) | 数学工具 | 卡诺图化简：Quine-McCluskey 算法化简布尔最小项。 |
 | [TruthTableForge](https://wangzifan396-wzf.github.io/WB/tools/TruthTableForge/) | 数学工具 | 真值表：布尔表达式生成完整真值表。 |
+| [Ipv6Forge](https://wangzifan396-wzf.github.io/WB/tools/Ipv6Forge/) | 网络 | IPv6 解析：压缩/展开、前缀长度、地址类型判定（环回/链路本地/唯一本地/多播）。 |
+| [MacGeneratorForge](https://wangzifan396-wzf.github.io/WB/tools/MacGeneratorForge/) | 网络 | MAC 生成：随机 / EUI-64 / 指定 OUI，大小写与分隔符可选。 |
+| [IpRangeForge](https://wangzifan396-wzf.github.io/WB/tools/IpRangeForge/) | 网络 | IP 范围：起止地址、可用数量、是否包含、按段拆分。 |
+| [OhmsForge](https://wangzifan396-wzf.github.io/WB/tools/OhmsForge/) | 实用计算 | 欧姆定律：电压 / 电流 / 电阻 / 功率，任意三个求第四个。 |
+| [IdealGasForge](https://wangzifan396-wzf.github.io/WB/tools/IdealGasForge/) | 科学工具 | 理想气体：PV=nRT，求压强 / 体积 / 温度 / 摩尔数。 |
+| [GcdForge](https://wangzifan396-wzf.github.io/WB/tools/GcdForge/) | 数学工具 | 最大公约数与最小公倍数：多整数 GCD / LCM。 |
+| [StatsForge](https://wangzifan396-wzf.github.io/WB/tools/StatsForge/) | 数学工具 | 描述统计：均值 / 中位数 / 众数 / 方差 / 标准差 / 极差 / 求和。 |
+| [ShapeForge](https://wangzifan396-wzf.github.io/WB/tools/ShapeForge/) | 数学工具 | 面积周长：矩形 / 正方形 / 圆 / 三角形 / 梯形 / 椭圆 / 正多边形。 |
+| [AmortizeForge](https://wangzifan396-wzf.github.io/WB/tools/AmortizeForge/) | 财务工具 | 等额本息：月供、总利息、本金利息逐期拆分表。 |
+| [SavingsForge](https://wangzifan396-wzf.github.io/WB/tools/SavingsForge/) | 财务工具 | 储蓄目标：定期定额未来值、达成目标所需月数。 |
+| [ReturnForge](https://wangzifan396-wzf.github.io/WB/tools/ReturnForge/) | 财务工具 | 投资回报：ROI、回本周期、盈亏平衡点与毛利率。 |
+| [BmiCalcForge](https://wangzifan396-wzf.github.io/WB/tools/BmiCalcForge/) | 健康工具 | BMI 计算：按身高体重算 BMI 并给健康区间判定。 |
 
 ## 快速使用
 
@@ -488,7 +500,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 998 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1010 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
