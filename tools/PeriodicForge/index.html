@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PeriodicForge — 元素周期表速查</title>
+<meta property="og:title" content="元素周期表">
+<meta property="og:description" content="离线查阅全 118 种元素的符号、中文名、相对原子质量与类别。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="离线查阅全 118 种元素的符号、中文名、相对原子质量与类别。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
+  --hair:inset 0 1px 0 rgba(255,255,255,.05);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
+  --glow:0 10px 40px -20px rgba(94,106,210,.55);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+button:active{transform:translateY(1px) scale(.988)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>元素周期表</h1>
+      <p class="sub" data-i18n="sub">元素周期表速查，离线。</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+<label>PeriodicForge · 元素周期表速查（离线，全 118 元素）</label>
+<label>查询（元素符号 / 中文名 / 原子序数）</label><input id="q" type="text" value="Fe" />
+<button id="go">查询</button>
+<div id="out" class="out">—</div>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部工具 &rarr;</a></footer>
+</div>
+<script>
+
+var E=[
+[1,"H","氢",1.008],[2,"He","氦",4.0026],[3,"Li","锂",6.94],[4,"Be","铍",9.0122],[5,"B","硼",10.81],
+[6,"C","碳",12.011],[7,"N","氮",14.007],[8,"O","氧",15.999],[9,"F","氟",18.998],[10,"Ne","氖",20.180],
+[11,"Na","钠",22.990],[12,"Mg","镁",24.305],[13,"Al","铝",26.982],[14,"Si","硅",28.085],[15,"P","磷",30.974],
+[16,"S","硫",32.06],[17,"Cl","氯",35.45],[18,"Ar","氩",39.948],[19,"K","钾",39.098],[20,"Ca","钙",40.078],
+[21,"Sc","钪",44.956],[22,"Ti","钛",47.867],[23,"V","钒",50.942],[24,"Cr","铬",51.996],[25,"Mn","锰",54.938],
+[26,"Fe","铁",55.845],[27,"Co","钴",58.933],[28,"Ni","镍",58.693],[29,"Cu","铜",63.546],[30,"Zn","锌",65.38],
+[31,"Ga","镓",69.723],[32,"Ge","锗",72.630],[33,"As","砷",74.922],[34,"Se","硒",78.971],[35,"Br","溴",79.904],
+[36,"Kr","氪",83.798],[37,"Rb","铷",85.468],[38,"Sr","锶",87.62],[39,"Y","钇",88.906],[40,"Zr","锆",91.224],
+[41,"Nb","铌",92.906],[42,"Mo","钼",95.95],[43,"Tc","锝",98],[44,"Ru","钌",101.07],[45,"Rh","铑",102.91],
+[46,"Pd","钯",106.42],[47,"Ag","银",107.87],[48,"Cd","镉",112.41],[49,"In","铟",114.82],[50,"Sn","锡",118.71],
+[51,"Sb","锑",121.76],[52,"Te","碲",127.60],[53,"I","碘",126.90],[54,"Xe","氙",131.29],[55,"Cs","铯",132.91],
+[56,"Ba","钡",137.33],[57,"La","镧",138.91],[58,"Ce","铈",140.12],[59,"Pr","镨",140.91],[60,"Nd","钕",144.24],
+[61,"Pm","钷",145],[62,"Sm","钐",150.36],[63,"Eu","铕",151.96],[64,"Gd","钆",157.25],[65,"Tb","铽",158.93],
+[66,"Dy","镝",162.50],[67,"Ho","钬",164.93],[68,"Er","铒",167.26],[69,"Tm","铥",168.93],[70,"Yb","镱",173.05],
+[71,"Lu","镥",174.97],[72,"Hf","铪",178.49],[73,"Ta","钽",180.95],[74,"W","钨",183.84],[75,"Re","铼",186.21],
+[76,"Os","锇",190.23],[77,"Ir","铱",192.22],[78,"Pt","铂",195.08],[79,"Au","金",196.97],[80,"Hg","汞",200.59],
+[81,"Tl","铊",204.38],[82,"Pb","铅",207.2],[83,"Bi","铋",208.98],[84,"Po","钋",209],[85,"At","砹",210],
+[86,"Rn","氡",222],[87,"Fr","钫",223],[88,"Ra","镭",226],[89,"Ac","锕",227],[90,"Th","钍",232.04],
+[91,"Pa","镤",231.04],[92,"U","铀",238.03],[93,"Np","镎",237],[94,"Pu","钚",244],[95,"Am","镅",243],
+[96,"Cm","锔",247],[97,"Bk","锫",247],[98,"Cf","锎",251],[99,"Es","锿",252],[100,"Fm","镄",257],
+[101,"Md","钔",258],[102,"No","锘",259],[103,"Lr","铹",266],[104,"Rf","𬬻",267],[105,"Db","𬭛",268],
+[106,"Sg","𬭳",269],[107,"Bh","𬭛",270],[108,"Hs","𬭛",269],[109,"Mt","鿏",278],[110,"Ds","𫟼",281],
+[111,"Rg","𬬭",282],[112,"Cn","鿔",285],[113,"Nh","鿭",286],[114,"Fl","𫓧",289],[115,"Mc","镆",290],
+[116,"Lv","𫟷",293],[117,"Ts","鿬",294],[118,"Og","鿫",294]
+];
+var ALKALI="Li Na K Rb Cs Fr",ALKALINE="Be Mg Ca Sr Ba Ra",NOBLE="He Ne Ar Kr Xe Rn Og",
+HALOGEN="F Cl Br I At Ts",METALLOID="B Si Ge As Sb Te Po",NONMETAL="H C N O P S Se",
+LAN="La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu",ACT="Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr",
+TRANS="Sc Ti V Cr Mn Fe Co Ni Cu Zn Y Zr Nb Mo Tc Ru Rh Pd Ag Cd Hf Ta W Re Os Ir Pt Au Hg Rf Db Sg Bh Hs Mt Ds Rg Cn";
+function categoryOf(sym){
+  if(ALKALI.indexOf(sym)>=0)return "碱金属"; if(ALKALINE.indexOf(sym)>=0)return "碱土金属";
+  if(NOBLE.indexOf(sym)>=0)return "稀有气体"; if(HALOGEN.indexOf(sym)>=0)return "卤素";
+  if(METALLOID.indexOf(sym)>=0)return "准金属"; if(NONMETAL.indexOf(sym)>=0)return "非金属";
+  if(LAN.indexOf(sym)>=0)return "镧系"; if(ACT.indexOf(sym)>=0)return "锕系";
+  if(TRANS.indexOf(sym)>=0)return "过渡金属"; return "其他金属";
+}
+function byNum(n){ for(var i=0;i<E.length;i++) if(E[i][0]===n) return {num:E[i][0],sym:E[i][1],zh:E[i][2],mass:E[i][3],cat:categoryOf(E[i][1])}; return null; }
+function bySym(s){ s=(s||'').trim(); for(var i=0;i<E.length;i++) if(E[i][1].toLowerCase()===s.toLowerCase()) return {num:E[i][0],sym:E[i][1],zh:E[i][2],mass:E[i][3],cat:categoryOf(E[i][1])}; return null; }
+function search(q){ q=(q||'').trim().toLowerCase(); var r=[]; for(var i=0;i<E.length;i++){ var e=E[i]; if(String(e[0])===q||e[1].toLowerCase()===q||e[2].indexOf(q)>=0) r.push({num:e[0],sym:e[1],zh:e[2],mass:e[3],cat:categoryOf(e[1])}); } return r; }
+var EXPORTS={E:E,byNum:byNum,bySym:bySym,search:search,categoryOf:categoryOf};
+
+
+function rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
+if (typeof window !== 'undefined') { window.PeriodicForgePure = EXPORTS; }
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var A=window.PeriodicForgePure;
+  function row(e){ return e.num+' '+e.sym+' '+e.zh+' · 相对原子质量 '+e.mass+' · '+e.cat; }
+  function run(){ var r=A.search($("q").value); if(!r.length){$("out").textContent='未找到';return;}
+    if(r.length===1)$("out").textContent=row(r[0]); else $("out").textContent=r.slice(0,20).map(row).join('\n'); }
+  $("go").addEventListener('click',run);run();
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "元素周期表速查，离线。", "title": "PeriodicForge — 元素周期表速查"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

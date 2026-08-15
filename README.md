@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1059-5E6AD2?style=flat-square" alt="1059 Tools">
+  <img src="https://img.shields.io/badge/tools-1071-5E6AD2?style=flat-square" alt="1071 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1059 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1071 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1059 个工具目录
+│   └── ...             # 共 1071 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1059 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1071 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -71,6 +71,18 @@ WB/
 | [EntropyForge](https://wangzifan396-wzf.github.io/WB/tools/EntropyForge/) | 安全工具 | 密码熵估算：按字符池与长度算熵（bits）并给出强度评级。 |
 | [RatioForge](https://wangzifan396-wzf.github.io/WB/tools/RatioForge/) | 数学工具 | 比值化简/比例换算/识别最接近屏幕比例。 |
 | [PercentageForge](https://wangzifan396-wzf.github.io/WB/tools/PercentageForge/) | 实用计算 | 百分比计算：求值/增减/相对变化/占比。 |
+| [PeriodicForge](https://wangzifan396-wzf.github.io/WB/tools/PeriodicForge/) | 教育工具 | 元素周期表速查：离线查阅全 118 种元素的符号、中文名、相对原子质量与类别。 |
+| [MoleForge](https://wangzifan396-wzf.github.io/WB/tools/MoleForge/) | 科学工具 | 摩尔质量与换算：由化学式算摩尔质量，克/摩尔/分子数互转。 |
+| [PeriodForge](https://wangzifan396-wzf.github.io/WB/tools/PeriodForge/) | 健康工具 | 月经周期预测：按上次月经首日与周期长度预测经期与易孕期。 |
+| [HydrationForge](https://wangzifan396-wzf.github.io/WB/tools/HydrationForge/) | 健康工具 | 每日饮水量估算：按体重、运动量与气候估算建议饮水量。 |
+| [NoteForge](https://wangzifan396-wzf.github.io/WB/tools/NoteForge/) | 音频工具 | 音名↔频率互转：十二平均律（A4=440Hz）。 |
+| [TodoForge](https://wangzifan396-wzf.github.io/WB/tools/TodoForge/) | 实用计算 | 本地待办清单：localStorage 持久化，增删改与筛选。 |
+| [NotesForge](https://wangzifan396-wzf.github.io/WB/tools/NotesForge/) | 实用计算 | 本地 Markdown 笔记：轻量 MD→HTML 预览，localStorage 保存。 |
+| [IpCalcForge](https://wangzifan396-wzf.github.io/WB/tools/IpCalcForge/) | 网络 | IPv4/CIDR 子网计算：网络/广播地址、可用范围、掩码与主机数。 |
+| [EmiForge](https://wangzifan396-wzf.github.io/WB/tools/EmiForge/) | 财务工具 | 等额本息贷款计算：月供与摊销表，支持零利率。 |
+| [ResizeForge](https://wangzifan396-wzf.github.io/WB/tools/ResizeForge/) | 图像工具 | 图片缩放：客户端 canvas，按比例/定宽/定高/最长边，导出 PNG。 |
+| [TokenizerForge](https://wangzifan396-wzf.github.io/WB/tools/TokenizerForge/) | AI 工具 | BPE 分词器演示：训练合并规则并编码/解码还原。 |
+| [SpecificHeatForge](https://wangzifan396-wzf.github.io/WB/tools/SpecificHeatForge/) | 科学工具 | 比热热量计算：Q=mcΔT，内置常见物质比热表。 |
 | [HashKit](https://wangzifan396-wzf.github.io/WB/tools/HashKit/) | 编码加密 | 编码与哈希工具箱：Base64/URL/HTML 编解码、SHA 哈希、JWT 解码、UUID 与密码生成。 |
 | [JsonForge](https://wangzifan396-wzf.github.io/WB/tools/JsonForge/) | 文本处理 | JSON 工作台：格式化 / 压缩 / 校验、转 TypeScript 类型、JSONPath 查询、树形浏览。 |
 | [RESTKit](https://wangzifan396-wzf.github.io/WB/tools/RESTKit/) | 开发辅助 | 离线 REST 客户端：请求构建、查询参数 / 头 / Body、Bearer/Basic 鉴权、响应计时与历史记录。 |
@@ -549,7 +561,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1059 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1071 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
