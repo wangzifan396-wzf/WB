@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>WordfreqForge — 词频统计</title>
-<meta property="og:title" content="WordfreqForge">
-<meta property="og:description" content="词频 / 字频统计：按词或按字符统计出现次数并降序排列，支持只显示前 N，便于文本分析与关键词提取。">
+<title>ExtractLinksForge</title>
+<meta property="og:title" content="链接提取器">
+<meta property="og:description" content="从文本提取 URL 与邮箱">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="词频 / 字频统计：按词或按字符统计出现次数并降序排列，支持只显示前 N，便于文本分析与关键词提取。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="从文本提取 URL 与邮箱 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,20 +99,18 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>WordfreqForge</h1>
-      <p class="sub" data-i18n="sub">词频 / 字频 统计 · 单文件 · 零依赖 · 本地优先</p>
+      <h1>链接提取器</h1>
+      <p class="sub" data-i18n="sub">文本处理</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
-  <textarea id="src" rows="9" spellcheck="false" data-i18n-ph="ph_src">the cat sat on the mat the cat slept</textarea>
-  <div class="seg" id="mode">
-    <button data-m="word" class="active">按词</button>
-    <button data-m="char">按字符</button>
-  </div>
-  <div class="grid"><div><label>仅显示前 N（留空全部）</label><input type="number" id="top" placeholder="全部" min="1"></div></div>
-  <div class="row"><button id="go">统计</button></div>
-  <div class="err" id="err"></div>
-  <div class="out" id="out"></div>
+
+<label>ExtractLinksForge · 从文本提取链接（离线）</label>
+<label>输入文本</label><textarea id="in" rows="5">访问 https://a.com 与 http://b.org/p?q=1 了解详情，或邮件 x@y.com。</textarea>
+<label>提取类型</label><select id="kind"><option value="url">URL</option><option value="email">邮箱</option><option value="both">两者</option></select>
+<button id="go">提取</button>
+<div class="out" id="out">—</div>
+
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
     <span class="badge" data-i18n="b2">离线可用</span>
@@ -122,32 +120,40 @@ a{color:var(--info);text-decoration:none}
   <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部工具 &rarr;</a></footer>
 </div>
 <script>
-(function(){
-  function freq(text, mode, top){
-    text=String(text==null?'':text); var map={}, out=[];
-    if(mode==='char'){ for(var i=0;i<text.length;i++){ var c=text[i]; if(/\s/.test(c)) continue; map[c]=(map[c]||0)+1; } }
-    else { var words=text.toLowerCase().match(/[a-z0-9\u00c0-\uFFFF]+/gi)||[]; words.forEach(function(w){ map[w]=(map[w]||0)+1; }); }
-    Object.keys(map).forEach(function(k){ out.push({token:k,count:map[k]}); });
-    out.sort(function(a,b){ return b.count-a.count || (a.token<b.token?-1:1); });
-    if(top) out=out.slice(0,top);
-    return {value:out};
-  }
-  var API={freq:freq};
-  if(typeof module!=='undefined'&&module.exports)module.exports=API;
-  if(typeof window!=='undefined')window.__WordfreqForge__=API;
-})();
+
+function extract(text){
+  if(!text) return [];
+  var re=/https?:\/\/[^\s<>"'\)\]]+/gi;
+  var m, out=[];
+  while((m=re.exec(text))!==null){ out.push(m[0]); }
+  return out;
+}
+function extractEmails(text){
+  if(!text) return [];
+  var re=/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+  var m,out=[]; while((m=re.exec(text))!==null) out.push(m[0]);
+  return out;
+}
+var EXPORTS={extract:extract, extractEmails:extractEmails};
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
+if (typeof window !== 'undefined') { window.ExtractLinksForgePure = EXPORTS; }
+
 </script>
 <script>
+
 (function(){
-  var P=window.__WordfreqForge__;
-  var src=document.getElementById('src'), out=document.getElementById('out'), err=document.getElementById('err'), top=document.getElementById('top');
-  var mode='word'; var seg=document.getElementById('mode');
-  seg.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;mode=b.getAttribute('data-m');[].forEach.call(seg.children,function(x){x.classList.remove('active');});b.classList.add('active');go();});
-  function go(){ err.textContent=''; var t=top.value? parseInt(top.value,10):0; var r=P.freq(src.value, mode, t); if(r.error){err.textContent=r.error;out.textContent='';return;}
-    out.textContent=r.value.map(function(x){return x.token+'  '+x.count;}).join('\n'); }
-  document.getElementById('go').addEventListener('click', go);
-  go();
+  var $=function(id){return document.getElementById(id);};
+  var A=window.ExtractLinksForgePure;
+  function run(){ try{
+    var k=$("kind").value, t=$("in").value, res=[];
+    if(k==='url'||k==='both') res=res.concat(A.extract(t));
+    if(k==='email'||k==='both') res=res.concat(A.extractEmails(t));
+    $("out").textContent= res.length? res.join('\n') : '(无)';
+  }catch(e){ $("out").textContent='错误: '+e.message; } }
+  $("go").addEventListener('click',run); run();
 })();
+
 </script>
 <div id="nanoToast" role="status" aria-live="polite"></div>
 <script>
@@ -159,7 +165,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed", "ph_src": "Paste text here", "sub": "word/char frequency · single-file", "title": "WordfreqForge — word frequency"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "ph_src": "在此粘贴文本", "sub": "词频 / 字频 统计 · 单文件 · 零依赖 · 本地优先", "title": "WordfreqForge — 词频统计"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "文本处理", "title": "ExtractLinksForge"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

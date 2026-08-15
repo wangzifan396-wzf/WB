@@ -2,9 +2,9 @@
    注意：全矩阵托管在同一个 GitHub Pages origin，CacheStorage 按 origin 共享，
    因此 activate 阶段只能淘汰「本工具命名空间」下的历史版本；若像单仓项目那样
    caches.delete 掉所有非自身 key，会连带清空同域其他工具的离线缓存。 */
-var SCOPE = 'nano:wordfreqforge';
+var SCOPE = 'nano:extractlinksforge';
 var CACHE = SCOPE + ':v2';
-var LEGACY = ['nano-v1', 'wordfreqforge-v1'];
+var LEGACY = ['nano-v1', 'extractlinksforge-v1'];
 var ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'og.svg'];
 
 self.addEventListener('install', function (e) {
