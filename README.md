@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1010-5E6AD2?style=flat-square" alt="1010 Tools">
+  <img src="https://img.shields.io/badge/tools-1022-5E6AD2?style=flat-square" alt="1022 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1010 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1022 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1010 个工具目录
+│   └── ...             # 共 1022 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1010 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1022 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -488,6 +488,18 @@ WB/
 | [SavingsForge](https://wangzifan396-wzf.github.io/WB/tools/SavingsForge/) | 财务工具 | 储蓄目标：定期定额未来值、达成目标所需月数。 |
 | [ReturnForge](https://wangzifan396-wzf.github.io/WB/tools/ReturnForge/) | 财务工具 | 投资回报：ROI、回本周期、盈亏平衡点与毛利率。 |
 | [BmiCalcForge](https://wangzifan396-wzf.github.io/WB/tools/BmiCalcForge/) | 健康工具 | BMI 计算：按身高体重算 BMI 并给健康区间判定。 |
+| [DecayForge](https://wangzifan396-wzf.github.io/WB/tools/DecayForge/) | 科学工具 | 放射性衰变：半衰期、剩余比例、衰变常数与年代测定。 |
+| [PhotonForge](https://wangzifan396-wzf.github.io/WB/tools/PhotonForge/) | 科学工具 | 波与光子：由 c=λν 与 E=hν 在波长 / 频率 / 光子能量间互算。 |
+| [MolarForge](https://wangzifan396-wzf.github.io/WB/tools/MolarForge/) | 科学工具 | 溶液浓度：摩尔浓度、质量浓度、质量分数、稀释与当量换算。 |
+| [BodyMassForge](https://wangzifan396-wzf.github.io/WB/tools/BodyMassForge/) | 健康工具 | 理想体重：Devine/Hamwi/Robinson/Miller 四公式估算。 |
+| [PulseForge](https://wangzifan396-wzf.github.io/WB/tools/PulseForge/) | 健康工具 | 最大心率与心率区间：按比例算训练区间。 |
+| [FactorizeForge](https://wangzifan396-wzf.github.io/WB/tools/FactorizeForge/) | 数学工具 | 质因数分解：整数质因数分解与因数枚举。 |
+| [PascalForge](https://wangzifan396-wzf.github.io/WB/tools/PascalForge/) | 数学工具 | 组合数与杨辉三角：C(n,k)、阶乘与帕斯卡三角。 |
+| [Complex2Forge](https://wangzifan396-wzf.github.io/WB/tools/Complex2Forge/) | 数学工具 | 复数运算：加减乘除、模、辐角、共轭与极坐标。 |
+| [RootForge](https://wangzifan396-wzf.github.io/WB/tools/RootForge/) | 数学工具 | 方程求根：牛顿法解一元方程、平方根与 n 次方根。 |
+| [DebtForge](https://wangzifan396-wzf.github.io/WB/tools/DebtForge/) | 财务工具 | 债务雪崩：固定还款月数与逐期本金利息摊还表。 |
+| [AprForge](https://wangzifan396-wzf.github.io/WB/tools/AprForge/) | 财务工具 | 真实年化 (APR/APY)：由手续费率或月费率折算真实年利率。 |
+| [LeaseForge](https://wangzifan396-wzf.github.io/WB/tools/LeaseForge/) | 财务工具 | 租赁测算：等额本息租金、总租金与利息成本。 |
 
 ## 快速使用
 
@@ -500,7 +512,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1010 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1022 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
