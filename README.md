@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-962-5E6AD2?style=flat-square" alt="962 Tools">
+  <img src="https://img.shields.io/badge/tools-974-5E6AD2?style=flat-square" alt="974 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**962 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**974 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 962 个工具目录
+│   └── ...             # 共 974 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 962 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 974 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -440,6 +440,18 @@ WB/
 | [LimerickForge](https://wangzifan396-wzf.github.io/WB/tools/LimerickForge/) | 创意工具 | 生成五句打油诗，结构工整、可复现。 |
 | [FableForge](https://wangzifan396-wzf.github.io/WB/tools/FableForge/) | 创意工具 | 生成带寓意的短篇寓言，动物与场景随机组合。 |
 | [BlessingForge](https://wangzifan396-wzf.github.io/WB/tools/BlessingForge/) | 创意工具 | 随机组合生成温暖的中文祝福语，可复现。 |
+| [QuizForge](https://wangzifan396-wzf.github.io/WB/tools/QuizForge/) | 教育工具 | 把「题干||选项A||选项B…||答案」文本变成可判分的测验，支持乱序与本地保存。 |
+| [VocabForge](https://wangzifan396-wzf.github.io/WB/tools/VocabForge/) | 教育工具 | 词汇卡：录入「单词||释义」，随机抽测、拼写与选择双模式、本地保存。 |
+| [LearnForge](https://wangzifan396-wzf.github.io/WB/tools/LearnForge/) | 教育工具 | 间隔重复学习器：六档间隔盒子（0/1/3/7/16/30 天）自动推进，到期提醒，离线可用。 |
+| [MathQuizForge](https://wangzifan396-wzf.github.io/WB/tools/MathQuizForge/) | 教育工具 | 生成可复现的四则运算与方程练习题及答案，可调难度与数量。 |
+| [TypeScaleForge](https://wangzifan396-wzf.github.io/WB/tools/TypeScaleForge/) | 设计工具 | 排版比例标尺：黄金比/小调三度等经典比例一键生成字号阶梯，实时预览。 |
+| [LogoForge](https://wangzifan396-wzf.github.io/WB/tools/LogoForge/) | 设计工具 | 文字 Logo 工作台：选字体风格、字距与配色，离线生成可复制/下载的 SVG。 |
+| [PaletteFromImgForge](https://wangzifan396-wzf.github.io/WB/tools/PaletteFromImgForge/) | 设计工具 | 从图片取色板：中位切分算法抽主色，离线处理、不传服务器。 |
+| [EquationForge](https://wangzifan396-wzf.github.io/WB/tools/EquationForge/) | 数学工具 | 解一元一次方程与一元二次方程，给出判别式与步骤。 |
+| [ModForge](https://wangzifan396-wzf.github.io/WB/tools/ModForge/) | 数学工具 | 模运算工具箱：模逆、模幂与中国剩余定理（CRT）求解。 |
+| [SalaryForge](https://wangzifan396-wzf.github.io/WB/tools/SalaryForge/) | 财务工具 | 月薪计算器：累进个税、五险一金估算，算清到手工资。 |
+| [InvestmentForge](https://wangzifan396-wzf.github.io/WB/tools/InvestmentForge/) | 财务工具 | 投资复利计算器：定投/一次性投入的未来值与增长表。 |
+| [GratuityForge](https://wangzifan396-wzf.github.io/WB/tools/GratuityForge/) | 财务工具 | 离职补偿（N+1）计算器：按司龄分段（前 5 年 21 天/年、其后 30 天/年）算补偿月数。 |
 
 ## 快速使用
 
@@ -452,7 +464,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 962 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 974 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
