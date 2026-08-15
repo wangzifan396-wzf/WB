@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-986-5E6AD2?style=flat-square" alt="986 Tools">
+  <img src="https://img.shields.io/badge/tools-998-5E6AD2?style=flat-square" alt="998 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**986 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**998 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 986 个工具目录
+│   └── ...             # 共 998 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 986 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 998 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -464,6 +464,18 @@ WB/
 | [ComboForge](https://wangzifan396-wzf.github.io/WB/tools/ComboForge/) | 数学工具 | 排列组合与概率：阶乘、排列、组合数与二项分布概率。 |
 | [SeriesForge](https://wangzifan396-wzf.github.io/WB/tools/SeriesForge/) | 数学工具 | 数列求和：等差/等比数列通项与前 n 项和。 |
 | [RandomForge](https://wangzifan396-wzf.github.io/WB/tools/RandomForge/) | 实用计算 | 随机工具：随机整数、名单抽奖、掷骰子，可复现种子。 |
+| [IpConvForge](https://wangzifan396-wzf.github.io/WB/tools/IpConvForge/) | 网络 | IPv4 进制转换：点分/整数/二进制/十六进制互转，判定类别与作用域。 |
+| [PortForge](https://wangzifan396-wzf.github.io/WB/tools/PortForge/) | 网络 | 端口速查：35 个知名 TCP/UDP 端口，按端口号或服务名搜索、按协议过滤。 |
+| [CidrForge](https://wangzifan396-wzf.github.io/WB/tools/CidrForge/) | 网络 | CIDR 计算：网络/广播地址、掩码、通配符、可用主机范围与数量。 |
+| [VlsmForge](https://wangzifan396-wzf.github.io/WB/tools/VlsmForge/) | 网络 | VLSM 划分：按主机需求（从大到小）变长子网划分。 |
+| [BandwidthForge](https://wangzifan396-wzf.github.io/WB/tools/BandwidthForge/) | 网络 | 传输估算：文件大小与网速估算传输耗时。 |
+| [StudyPlanForge](https://wangzifan396-wzf.github.io/WB/tools/StudyPlanForge/) | 教育工具 | 学习计划：目标日倒计时与每日轮转科目排期。 |
+| [SpellForge](https://wangzifan396-wzf.github.io/WB/tools/SpellForge/) | 教育工具 | 拼写测验：中英词义提示练英文拼写，内置词库。 |
+| [ScoreForge](https://wangzifan396-wzf.github.io/WB/tools/ScoreForge/) | 教育工具 | 成绩统计：数量/总分/平均分/最高最低/及格率/加权。 |
+| [MoleculeForge](https://wangzifan396-wzf.github.io/WB/tools/MoleculeForge/) | 科学工具 | 分子量：解析化学式按元素周期表算摩尔质量。 |
+| [WaterForge](https://wangzifan396-wzf.github.io/WB/tools/WaterForge/) | 健康工具 | 饮水目标：按体重与活动量估算每日饮水与杯数。 |
+| [KarnaughForge](https://wangzifan396-wzf.github.io/WB/tools/KarnaughForge/) | 数学工具 | 卡诺图化简：Quine-McCluskey 算法化简布尔最小项。 |
+| [TruthTableForge](https://wangzifan396-wzf.github.io/WB/tools/TruthTableForge/) | 数学工具 | 真值表：布尔表达式生成完整真值表。 |
 
 ## 快速使用
 
@@ -476,7 +488,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 986 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 998 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
