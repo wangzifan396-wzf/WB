@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1022-5E6AD2?style=flat-square" alt="1022 Tools">
+  <img src="https://img.shields.io/badge/tools-1034-5E6AD2?style=flat-square" alt="1034 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1022 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1034 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1022 个工具目录
+│   └── ...             # 共 1034 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1022 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1034 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -500,6 +500,18 @@ WB/
 | [DebtForge](https://wangzifan396-wzf.github.io/WB/tools/DebtForge/) | 财务工具 | 债务雪崩：固定还款月数与逐期本金利息摊还表。 |
 | [AprForge](https://wangzifan396-wzf.github.io/WB/tools/AprForge/) | 财务工具 | 真实年化 (APR/APY)：由手续费率或月费率折算真实年利率。 |
 | [LeaseForge](https://wangzifan396-wzf.github.io/WB/tools/LeaseForge/) | 财务工具 | 租赁测算：等额本息租金、总租金与利息成本。 |
+| [HexIpForge](https://wangzifan396-wzf.github.io/WB/tools/HexIpForge/) | 网络工具 | IPv4 十六进制/十进制/点分互转（0x01020304 ↔ 1.2.3.4）。 |
+| [ReactanceForge](https://wangzifan396-wzf.github.io/WB/tools/ReactanceForge/) | 实用计算 | 感抗/容抗/阻抗：由频率与 L/C 算电抗与阻抗模。 |
+| [RefractionForge](https://wangzifan396-wzf.github.io/WB/tools/RefractionForge/) | 科学工具 | 折射：由斯涅尔定律算折射角与全反射临界角。 |
+| [SoundForge](https://wangzifan396-wzf.github.io/WB/tools/SoundForge/) | 科学工具 | 声速与分贝：温度声速、声强级 dB 与距离衰减。 |
+| [MetabolismForge](https://wangzifan396-wzf.github.io/WB/tools/MetabolismForge/) | 健康工具 | 基础/总代谢 (BMR/TDEE)：Mifflin-St Jeor 公式估算每日消耗。 |
+| [DueDateForge](https://wangzifan396-wzf.github.io/WB/tools/DueDateForge/) | 健康工具 | 预产期与孕周：内格勒法则与受孕日倒推。 |
+| [StepForge](https://wangzifan396-wzf.github.io/WB/tools/StepForge/) | 健康工具 | 步数目标：距离/步幅估算步数与日常活动量。 |
+| [LinearEqForge](https://wangzifan396-wzf.github.io/WB/tools/LinearEqForge/) | 数学工具 | 一次方程组：克莱姆法则解 2×2 / 3×3 线性方程组。 |
+| [LogForge](https://wangzifan396-wzf.github.io/WB/tools/LogForge/) | 数学工具 | 对数：常用/自然/任意底对数与换底，幂与根反算。 |
+| [MatrixInverseForge](https://wangzifan396-wzf.github.io/WB/tools/MatrixInverseForge/) | 数学工具 | 矩阵求逆：2×2 / 3×3 伴随矩阵法求逆与行列式。 |
+| [TaxBracketForge](https://wangzifan396-wzf.github.io/WB/tools/TaxBracketForge/) | 财务工具 | 累进税表：分段税率算应纳税额、边际与平均税率。 |
+| [ExchangeForge](https://wangzifan396-wzf.github.io/WB/tools/ExchangeForge/) | 财务工具 | 汇率换算：多币种交叉汇率与费用后的实得金额。 |
 
 ## 快速使用
 
@@ -512,7 +524,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1022 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1034 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
