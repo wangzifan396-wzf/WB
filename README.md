@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1120-5E6AD2?style=flat-square" alt="1120 Tools">
+  <img src="https://img.shields.io/badge/tools-1132-5E6AD2?style=flat-square" alt="1132 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1120 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1132 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1120 个工具目录
+│   └── ...             # 共 1132 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1120 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1132 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -603,6 +603,18 @@ WB/
 | [ChargeForge](https://wangzifan396-wzf.github.io/WB/tools/ChargeForge/) | 科学工具 | 电量换算：由 Q=It 在电量、电流、时间间互算。 |
 | [VoltageForge](https://wangzifan396-wzf.github.io/WB/tools/VoltageForge/) | 科学工具 | 电压/电流/电阻：欧姆定律 V=IR 互算，并算功率 P=VI。 |
 | [SleepCycleForge](https://wangzifan396-wzf.github.io/WB/tools/SleepCycleForge/) | 健康工具 | 睡眠周期：按 90 分钟周期算经历周期数与推荐起床点。 |
+| [EisenhowerForge](https://wangzifan396-wzf.github.io/WB/tools/EisenhowerForge/) | 效率工具 | 艾森豪威尔优先级矩阵：按紧急/重要自动归类任务到四象限。 |
+| [BillSplitForge](https://wangzifan396-wzf.github.io/WB/tools/BillSplitForge/) | 财务工具 | 账单分摊：含小费与税的人均分摊计算。 |
+| [MatrixCalcForge](https://wangzifan396-wzf.github.io/WB/tools/MatrixCalcForge/) | 数学工具 | 矩阵运算：加/减/乘/转置/行列式/求逆。 |
+| [HeartRateZoneForge](https://wangzifan396-wzf.github.io/WB/tools/HeartRateZoneForge/) | 健康工具 | 心率训练区间：按 Karvonen 公式算五档区间。 |
+| [BoxPlotForge](https://wangzifan396-wzf.github.io/WB/tools/BoxPlotForge/) | 可视化 | 箱线图统计：四分位/须/离群点计算与可视化。 |
+| [MacAddrForge](https://wangzifan396-wzf.github.io/WB/tools/MacAddrForge/) | 网络 | MAC 地址：生成/校验/多格式转换。 |
+| [UaParseForge](https://wangzifan396-wzf.github.io/WB/tools/UaParseForge/) | 网络 | User-Agent 解析：浏览器/系统/设备/内核。 |
+| [PeriodicQuizForge](https://wangzifan396-wzf.github.io/WB/tools/PeriodicQuizForge/) | 教育工具 | 元素周期表小测验：符号/名称/序数互测。 |
+| [RandomColorForge](https://wangzifan396-wzf.github.io/WB/tools/RandomColorForge/) | 设计工具 | 随机无障碍配色：对比度达标的配色方案。 |
+| [TextRepeatForge](https://wangzifan396-wzf.github.io/WB/tools/TextRepeatForge/) | 文本处理 | 文本重复拼接：按次数与分隔符重复文本。 |
+| [TempoForge](https://wangzifan396-wzf.github.io/WB/tools/TempoForge/) | 音频工具 | 节拍/音符时值：BPM 换算音符时长。 |
+| [ReynoldsForge](https://wangzifan396-wzf.github.io/WB/tools/ReynoldsForge/) | 科学工具 | 雷诺数：按密度/流速/黏度算雷诺数与流态。 |
 
 ## 快速使用
 
@@ -615,7 +627,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1120 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1132 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
