@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1083-5E6AD2?style=flat-square" alt="1083 Tools">
+  <img src="https://img.shields.io/badge/tools-1095-5E6AD2?style=flat-square" alt="1095 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1083 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1095 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1083 个工具目录
+│   └── ...             # 共 1095 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1083 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1095 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -95,6 +95,18 @@ WB/
 | [ChordFinderForge](https://wangzifan396-wzf.github.io/WB/tools/ChordFinderForge/) | 音频工具 | 和弦组成音：由根音与类型给出组成音（大/小/七/挂四）。 |
 | [CaffeineForge](https://wangzifan396-wzf.github.io/WB/tools/CaffeineForge/) | 健康工具 | 咖啡因浓度：按半衰期估算体内剩余量，支持多剂量。 |
 | [NavyBodyFatForge](https://wangzifan396-wzf.github.io/WB/tools/NavyBodyFatForge/) | 健康工具 | 美国海军法体脂率：由围度按男/女不同公式估算。 |
+| [ContrastForge](https://wangzifan396-wzf.github.io/WB/tools/ContrastForge/) | 设计工具 | WCAG 颜色对比度检查：判定 AA/AAA，并模拟三类色盲效果。 |
+| [ByteForge](https://wangzifan396-wzf.github.io/WB/tools/ByteForge/) | 实用计算 | 数据存储单位换算：B/KB/MB/GB/TB/PB 与 KiB/MiB 互转，提供人类可读格式。 |
+| [ImageCompressForge](https://wangzifan396-wzf.github.io/WB/tools/ImageCompressForge/) | 图像工具 | 图片质量压缩：canvas 重新编码 JPEG/WebP/PNG，可调最长边与质量。 |
+| [MetaPreviewForge](https://wangzifan396-wzf.github.io/WB/tools/MetaPreviewForge/) | 开发辅助 | SEO / 社交预览：解析 title/description/OG/Twitter 标签并预览卡片。 |
+| [YamlLintForge](https://wangzifan396-wzf.github.io/WB/tools/YamlLintForge/) | 开发辅助 | YAML 校验与格式化：解析嵌套映射/序列，校验结构并写回。 |
+| [HiraganaForge](https://wangzifan396-wzf.github.io/WB/tools/HiraganaForge/) | 教育工具 | 平假名练习：五十音随机抽题与四选一测验，可计正确率。 |
+| [KatakanaForge](https://wangzifan396-wzf.github.io/WB/tools/KatakanaForge/) | 教育工具 | 片假名练习：五十音随机抽题与四选一测验，可计正确率。 |
+| [AudioMixForge](https://wangzifan396-wzf.github.io/WB/tools/AudioMixForge/) | 音频工具 | 混音两个音频：求和采样并归一化，支持独立增益。 |
+| [AudioFadeForge](https://wangzifan396-wzf.github.io/WB/tools/AudioFadeForge/) | 音频工具 | 音频淡入淡出：对采样应用线性包络。 |
+| [SoftmaxForge](https://wangzifan396-wzf.github.io/WB/tools/SoftmaxForge/) | AI 工具 | softmax/top-k/top-p 采样演示：概率分布与可复现采样。 |
+| [BookmarkForge](https://wangzifan396-wzf.github.io/WB/tools/BookmarkForge/) | 效率工具 | 本地链接管理：标签与搜索，localStorage 持久化。 |
+| [StereoMonoForge](https://wangzifan396-wzf.github.io/WB/tools/StereoMonoForge/) | 音频工具 | 立体声↔单声道：交错采样互转。 |
 | [HashKit](https://wangzifan396-wzf.github.io/WB/tools/HashKit/) | 编码加密 | 编码与哈希工具箱：Base64/URL/HTML 编解码、SHA 哈希、JWT 解码、UUID 与密码生成。 |
 | [JsonForge](https://wangzifan396-wzf.github.io/WB/tools/JsonForge/) | 文本处理 | JSON 工作台：格式化 / 压缩 / 校验、转 TypeScript 类型、JSONPath 查询、树形浏览。 |
 | [RESTKit](https://wangzifan396-wzf.github.io/WB/tools/RESTKit/) | 开发辅助 | 离线 REST 客户端：请求构建、查询参数 / 头 / Body、Bearer/Basic 鉴权、响应计时与历史记录。 |
@@ -573,7 +585,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1083 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1095 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
