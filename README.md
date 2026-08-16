@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1132-5E6AD2?style=flat-square" alt="1132 Tools">
+  <img src="https://img.shields.io/badge/tools-1144-5E6AD2?style=flat-square" alt="1144 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1132 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1144 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1132 个工具目录
+│   └── ...             # 共 1144 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1132 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1144 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -615,6 +615,18 @@ WB/
 | [TextRepeatForge](https://wangzifan396-wzf.github.io/WB/tools/TextRepeatForge/) | 文本处理 | 文本重复拼接：按次数与分隔符重复文本。 |
 | [TempoForge](https://wangzifan396-wzf.github.io/WB/tools/TempoForge/) | 音频工具 | 节拍/音符时值：BPM 换算音符时长。 |
 | [ReynoldsForge](https://wangzifan396-wzf.github.io/WB/tools/ReynoldsForge/) | 科学工具 | 雷诺数：按密度/流速/黏度算雷诺数与流态。 |
+| [PixelArtForge](https://wangzifan396-wzf.github.io/WB/tools/PixelArtForge/) | 创意工具 | 像素画编辑器：网格绘制并导出 PNG。 |
+| [SpiralArtForge](https://wangzifan396-wzf.github.io/WB/tools/SpiralArtForge/) | 创意工具 | 参数化生成螺旋与玫瑰线艺术图。 |
+| [GradientTextForge](https://wangzifan396-wzf.github.io/WB/tools/GradientTextForge/) | 设计工具 | 渐变填充文字效果生成与配色。 |
+| [BabyGrowthForge](https://wangzifan396-wzf.github.io/WB/tools/BabyGrowthForge/) | 健康工具 | 按简化 WHO 曲线评估婴儿体重百分位。 |
+| [VaccineForge](https://wangzifan396-wzf.github.io/WB/tools/VaccineForge/) | 健康工具 | 按出生日期生成接种计划与状态。 |
+| [MarketCapForge](https://wangzifan396-wzf.github.io/WB/tools/MarketCapForge/) | 财务工具 | 由单价/流通量算市值、FDV 与持仓价值。 |
+| [RateCardForge](https://wangzifan396-wzf.github.io/WB/tools/RateCardForge/) | 财务工具 | 按交付物/时长/加项估算视频制作报价。 |
+| [UpscaleForge](https://wangzifan396-wzf.github.io/WB/tools/UpscaleForge/) | 图像工具 | 最近邻/双线性放大图片并预览。 |
+| [SafeZoneForge](https://wangzifan396-wzf.github.io/WB/tools/SafeZoneForge/) | 图像工具 | 按平台预设绘制视频安全区叠加。 |
+| [ZonePlanForge](https://wangzifan396-wzf.github.io/WB/tools/ZonePlanForge/) | 效率工具 | 求多时区工作时段重叠窗口。 |
+| [StoryboardForge](https://wangzifan396-wzf.github.io/WB/tools/StoryboardForge/) | 创意工具 | 逐镜规划时长与景别并预览。 |
+| [ScriptTimerForge](https://wangzifan396-wzf.github.io/WB/tools/ScriptTimerForge/) | 音频工具 | 按词数/语速估算脚本朗读时长。 |
 
 ## 快速使用
 
@@ -627,7 +639,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1132 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1144 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
