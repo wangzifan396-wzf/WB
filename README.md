@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1071-5E6AD2?style=flat-square" alt="1071 Tools">
+  <img src="https://img.shields.io/badge/tools-1083-5E6AD2?style=flat-square" alt="1083 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1071 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1083 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1071 个工具目录
+│   └── ...             # 共 1083 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1071 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1083 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -83,6 +83,18 @@ WB/
 | [ResizeForge](https://wangzifan396-wzf.github.io/WB/tools/ResizeForge/) | 图像工具 | 图片缩放：客户端 canvas，按比例/定宽/定高/最长边，导出 PNG。 |
 | [TokenizerForge](https://wangzifan396-wzf.github.io/WB/tools/TokenizerForge/) | AI 工具 | BPE 分词器演示：训练合并规则并编码/解码还原。 |
 | [SpecificHeatForge](https://wangzifan396-wzf.github.io/WB/tools/SpecificHeatForge/) | 科学工具 | 比热热量计算：Q=mcΔT，内置常见物质比热表。 |
+| [ThumbForge](https://wangzifan396-wzf.github.io/WB/tools/ThumbForge/) | 图像工具 | 图片缩略图：客户端 canvas 按最长边等比缩放，导出 PNG。 |
+| [ImgToAsciiForge](https://wangzifan396-wzf.github.io/WB/tools/ImgToAsciiForge/) | 图像工具 | 图片转 ASCII 艺术字：按亮度映射字符，可调列数与反相。 |
+| [WpmForge](https://wangzifan396-wzf.github.io/WB/tools/WpmForge/) | 教育工具 | 打字速度测试：按正确字符算 WPM 与准确率。 |
+| [AbacusForge](https://wangzifan396-wzf.github.io/WB/tools/AbacusForge/) | 教育工具 | 算盘式练习：数位拆解与进位感知的加减乘除。 |
+| [EmbedForge](https://wangzifan396-wzf.github.io/WB/tools/EmbedForge/) | AI 工具 | 文本余弦相似度：词袋向量演示两段文本相似度。 |
+| [MarkovGenForge](https://wangzifan396-wzf.github.io/WB/tools/MarkovGenForge/) | AI 工具 | 马尔可夫链文本生成：训练 n 阶转移，可复现随机种子。 |
+| [CalendarForge](https://wangzifan396-wzf.github.io/WB/tools/CalendarForge/) | 效率工具 | 日期计算：相差天数、星期、加减天数与当月天数。 |
+| [CounterForge](https://wangzifan396-wzf.github.io/WB/tools/CounterForge/) | 效率工具 | 多计数器：增删改与合计，localStorage 持久化。 |
+| [MetroForge](https://wangzifan396-wzf.github.io/WB/tools/MetroForge/) | 音频工具 | BPM 节拍器：Web Audio 按 BPM 输出节拍声，标注速度术语。 |
+| [ChordFinderForge](https://wangzifan396-wzf.github.io/WB/tools/ChordFinderForge/) | 音频工具 | 和弦组成音：由根音与类型给出组成音（大/小/七/挂四）。 |
+| [CaffeineForge](https://wangzifan396-wzf.github.io/WB/tools/CaffeineForge/) | 健康工具 | 咖啡因浓度：按半衰期估算体内剩余量，支持多剂量。 |
+| [NavyBodyFatForge](https://wangzifan396-wzf.github.io/WB/tools/NavyBodyFatForge/) | 健康工具 | 美国海军法体脂率：由围度按男/女不同公式估算。 |
 | [HashKit](https://wangzifan396-wzf.github.io/WB/tools/HashKit/) | 编码加密 | 编码与哈希工具箱：Base64/URL/HTML 编解码、SHA 哈希、JWT 解码、UUID 与密码生成。 |
 | [JsonForge](https://wangzifan396-wzf.github.io/WB/tools/JsonForge/) | 文本处理 | JSON 工作台：格式化 / 压缩 / 校验、转 TypeScript 类型、JSONPath 查询、树形浏览。 |
 | [RESTKit](https://wangzifan396-wzf.github.io/WB/tools/RESTKit/) | 开发辅助 | 离线 REST 客户端：请求构建、查询参数 / 头 / Body、Bearer/Basic 鉴权、响应计时与历史记录。 |
@@ -561,7 +573,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1071 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1083 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
