@@ -561,7 +561,7 @@ WB/
 | [DebtForge](https://wangzifan396-wzf.github.io/WB/tools/DebtForge/) | 财务工具 | 债务雪崩：固定还款月数与逐期本金利息摊还表。 |
 | [AprForge](https://wangzifan396-wzf.github.io/WB/tools/AprForge/) | 财务工具 | 真实年化 (APR/APY)：由手续费率或月费率折算真实年利率。 |
 | [LeaseForge](https://wangzifan396-wzf.github.io/WB/tools/LeaseForge/) | 财务工具 | 租赁测算：等额本息租金、总租金与利息成本。 |
-| [HexIpForge](https://wangzifan396-wzf.github.io/WB/tools/HexIpForge/) | 网络工具 | IPv4 十六进制/十进制/点分互转（0x01020304 ↔ 1.2.3.4）。 |
+| [HexIpForge](https://wangzifan396-wzf.github.io/WB/tools/HexIpForge/) | 网络 | IPv4 十六进制/十进制/点分互转（0x01020304 ↔ 1.2.3.4）。 |
 | [ReactanceForge](https://wangzifan396-wzf.github.io/WB/tools/ReactanceForge/) | 实用计算 | 感抗/容抗/阻抗：由频率与 L/C 算电抗与阻抗模。 |
 | [RefractionForge](https://wangzifan396-wzf.github.io/WB/tools/RefractionForge/) | 科学工具 | 折射：由斯涅尔定律算折射角与全反射临界角。 |
 | [SoundForge](https://wangzifan396-wzf.github.io/WB/tools/SoundForge/) | 科学工具 | 声速与分贝：温度声速、声强级 dB 与距离衰减。 |
