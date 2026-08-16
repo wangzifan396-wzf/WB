@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1156-5E6AD2?style=flat-square" alt="1156 Tools">
+  <img src="https://img.shields.io/badge/tools-1168-5E6AD2?style=flat-square" alt="1168 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1156 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1168 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1156 个工具目录
+│   └── ...             # 共 1168 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1156 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1168 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -58,6 +58,18 @@ WB/
 | [UniConvert](https://wangzifan396-wzf.github.io/WB/tools/UniConvert/) | 实用计算 | 12 类万能单位换算：长度、重量、温度、数据、时间、货币格式等，实时联动。 |
 | [SnapCompress](https://wangzifan396-wzf.github.io/WB/tools/SnapCompress/) | 图像工具 | 纯 Canvas 图片压缩：JPEG/PNG/WebP、质量与最大宽度可调、压缩前后实时对比。 |
 | [PalettePro](https://wangzifan396-wzf.github.io/WB/tools/PalettePro/) | 设计工具 | 颜色 / 配色工作台：WCAG 对比度检测、和谐配色生成、渐变构造、取色板管理。 |
+| [SubscriptionForge](https://wangzifan396-wzf.github.io/WB/tools/SubscriptionForge/) | 财务工具 | 汇总多项订阅的月/年总成本，支持混合月付与年付。 |
+| [DividendForge](https://wangzifan396-wzf.github.io/WB/tools/DividendForge/) | 财务工具 | 按持仓市值与股息率估算年度股息收入，或反算股息率。 |
+| [DepreciationForge](https://wangzifan396-wzf.github.io/WB/tools/DepreciationForge/) | 财务工具 | 直线法/年数总和法/双倍余额递减法计算资产折旧。 |
+| [DayOfWeekForge](https://wangzifan396-wzf.github.io/WB/tools/DayOfWeekForge/) | 实用计算 | 计算任意日期是星期几。 |
+| [DaysUntilForge](https://wangzifan396-wzf.github.io/WB/tools/DaysUntilForge/) | 实用计算 | 计算两个日期之间相隔的天数。 |
+| [ElectricityForge](https://wangzifan396-wzf.github.io/WB/tools/ElectricityForge/) | 实用计算 | 按功率、使用时长与电价估算设备或多设备电费。 |
+| [GlasgowForge](https://wangzifan396-wzf.github.io/WB/tools/GlasgowForge/) | 健康工具 | 按眼/语言/运动三项评分汇总 GCS 昏迷评分并分级。 |
+| [Spo2Forge](https://wangzifan396-wzf.github.io/WB/tools/Spo2Forge/) | 健康工具 | 根据 SpO2 数值评估低氧程度并提示是否需补氧。 |
+| [AcrosticForge](https://wangzifan396-wzf.github.io/WB/tools/AcrosticForge/) | 创意工具 | 按输入关键字逐字生成藏头诗句。 |
+| [CoverForge](https://wangzifan396-wzf.github.io/WB/tools/CoverForge/) | 创意工具 | 按岗位与经历生成多版求职信。 |
+| [TfidfForge](https://wangzifan396-wzf.github.io/WB/tools/TfidfForge/) | 文本处理 | 对文档集计算词频逆文档频率（TF-IDF）。 |
+| [CpsForge](https://wangzifan396-wzf.github.io/WB/tools/CpsForge/) | 游戏 | 在限定时间内点击并统计 CPS（每秒点击数）。 |
 | [MeetingCostForge](https://wangzifan396-wzf.github.io/WB/tools/MeetingCostForge/) | 财务工具 | 按参会者时薪与会议时长估算会议成本与年化开销。 |
 | [SunriseForge](https://wangzifan396-wzf.github.io/WB/tools/SunriseForge/) | 实用计算 | 基于 NOAA 近似算法计算任意地点日期的日出日落与正午。 |
 | [WeekNumberForge](https://wangzifan396-wzf.github.io/WB/tools/WeekNumberForge/) | 实用计算 | 计算任意日期的 ISO 8601 年份与周数及星期。 |
@@ -651,7 +663,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1156 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1168 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
