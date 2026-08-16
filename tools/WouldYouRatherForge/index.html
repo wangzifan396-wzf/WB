@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>WouldYouRatherForge</title>
+<title>WouldYouRatherForge — 二选一</title>
 <meta property="og:title" content="二选一">
-<meta property="og:description" content="二选一趣味话题">
+<meta property="og:description" content="灵魂二选一，含投票统计，离线。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="二选一趣味话题 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="灵魂二选一，含投票统计，离线。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -100,15 +100,17 @@ a{color:var(--info);text-decoration:none}
   <div class="hd">
     <div>
       <h1>二选一</h1>
-      <p class="sub" data-i18n="sub">创意工具</p>
+      <p class="sub" data-i18n="sub">创意工具：二选一抉择。</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
 
-<label>WouldYouRatherForge · 二选一（离线）</label>
-<label>随机种子</label><input id="seed" type="number" value="5" />
-<button id="go">出题</button>
-<div class="out" id="out">—</div>
+<label>WouldYouRatherForge · 二选一（离线，含投票统计）</label>
+<div class="row">
+  <button id="o1" class="big">A</button>
+  <button id="o2" class="big">B</button>
+</div>
+<div class="row"><button id="next" class="ghost">换一组</button><span class="badge flag" id="t">A 0 · B 0 （共 0 票）</span></div>
 
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
@@ -120,11 +122,20 @@ a{color:var(--info);text-decoration:none}
 </div>
 <script>
 
-function rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+var PAIRS=[
+ ['成为隐身人','拥有飞行能力'],['永远不用睡觉','永远不用吃饭'],
+ ['能读懂别人心思','让别人读懂你心思'],['拥有时光机','拥有传送门'],
+ ['长生不老','一夜暴富'],['失忆重新开始','预知未来但无法改变'],
+ ['成为亿万富翁但孤独','平凡但被深爱'],['环游世界','安居一隅'],
+ ['拥有绝对理性','拥有无限共情'],['记得一切','忘记痛苦'],
+ ['被所有人喜欢','被一个人深爱'],['自由但贫穷','安稳但束缚']
+];
+function pick(seed){ var r=rngFactory(seed); return PAIRS[Math.floor(r()*PAIRS.length)]; }
+function tally(votes){ var a=0,b=0; votes.forEach(function(v){ if(v===0)a++; else b++; }); return {a:a,b:b}; }
+var EXPORTS={pick:pick,tally:tally,PAIRS:PAIRS};
 
-var PAIRS=[ ['成为隐身人','拥有飞行能力'], ['永远不用睡觉','永远不用吃饭'], ['能读懂别人心思','让别人读懂你心思'], ['拥有时光机','拥有传送门'], ['长生不老','一夜暴富'], ['失忆重新开始','预知未来但无法改变'], ['成为亿万富翁但孤独','平凡但被深爱'], ['环游世界','安居一隅'] ];
-function pick(seed){ var r=rngFactory(seed); var i=Math.floor(r()*PAIRS.length); return {a:PAIRS[i][0], b:PAIRS[i][1]}; }
-var EXPORTS={pick:pick, PAIRS:PAIRS};
+
+function rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
 if (typeof window !== 'undefined') { window.WouldYouRatherForgePure = EXPORTS; }
@@ -135,11 +146,12 @@ if (typeof window !== 'undefined') { window.WouldYouRatherForgePure = EXPORTS; }
 (function(){
   var $=function(id){return document.getElementById(id);};
   var A=window.WouldYouRatherForgePure;
-  function run(){ try{
-    var x=A.pick(parseInt($("seed").value,10)||1);
-    $("out").textContent='A. '+x.a+'\n  还是\nB. '+x.b+'?';
-  }catch(e){ $("out").textContent='错误: '+e.message; } }
-  $("go").addEventListener('click',run); run();
+  var cur=null, votes=[];
+  function next(){ cur=A.pick((Date.now()^(Math.random()*1e6))>>>0); $("o1").textContent=cur[0]; $("o2").textContent=cur[1]; }
+  function vote(i){ votes.push(i); var t=A.tally(votes); $("t").textContent='A '+t.a+' · B '+t.b+' （共 '+votes.length+' 票）'; }
+  $("o1").addEventListener('click',function(){vote(0);});
+  $("o2").addEventListener('click',function(){vote(1);});
+  $("next").addEventListener('click',next); next();
 })();
 
 </script>
@@ -153,7 +165,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "创意工具", "title": "WouldYouRatherForge"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "创意工具：二选一抉择。", "title": "WouldYouRatherForge — 二选一"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

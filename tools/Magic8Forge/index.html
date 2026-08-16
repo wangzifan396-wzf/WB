@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>Magic8Forge — 魔法 8 号球：摇一摇得到随机神谕回答（经典占卜玩具）</title>
-<meta property="og:title" content="Magic8Forge">
-<meta property="og:description" content="魔法 8 号球（Magic 8-Ball）：点击“摇一摇”，从 20 条经典神谕中随机抽取一句回答——肯定、否定或“再试一次”，做决定困难症或纯粹图个乐随手可用。">
+<title>Magic8Forge — 神谕球</title>
+<meta property="og:title" content="神谕球">
+<meta property="og:description" content="经典 20 答神谕球，离线。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="魔法 8 号球（Magic 8-Ball）：点击“摇一摇”，从 20 条经典神谕中随机抽取一句回答——肯定、否定或“再试一次”，做决定困难症或纯粹图个乐随手可用。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="经典 20 答神谕球，离线。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,20 +99,16 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>Magic8Forge</h1>
-      <p class="sub" data-i18n="sub">魔法 8 号球 · 单文件 · 零依赖 · 本地优先</p>
+      <h1>神谕球</h1>
+      <p class="sub" data-i18n="sub">游戏：命运神谕球。</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
 
-<label data-i18n-ph="lbl_q">在心里默问一个问题（可选填写）</label>
-<input type="text" id="q" placeholder="例如：今天会好运吗？">
-<div class="row">
-  <button id="ask">摇一摇 8 号球</button>
-  <button id="clr" class="ghost">清空</button>
-</div>
-<div class="err" id="err"></div>
-<div class="tile" id="ball" style="grid-column:1/-1;text-align:center;font-size:18px;min-height:80px;display:flex;align-items:center;justify-content:center">等待提问</div>
+<label>Magic8Forge · 神谕球（离线，经典 20 答）</label>
+<label>向命运提问</label><input id="q" type="text" placeholder="例如：今天适合摸鱼吗？"/>
+<button id="go">摇一摇</button>
+<div class="out" id="out">—</div>
 
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
@@ -124,10 +120,14 @@ a{color:var(--info);text-decoration:none}
 </div>
 <script>
 
-var M8=['毫无疑问','绝对肯定','一定如此','你可以相信它','我看是这样','很有可能','前景不错','是的','迹象表明是','难以预测，再试一次','稍后再问','现在最好别告诉你','现在无法预测','集中精神再问一次','别指望它','我的回答是否定的','据我所知不是','前景不太乐观','非常可疑'];
-function ask(){return M8[Math.floor(Math.random()*M8.length)];}
-var EXPORTS={ask:ask,M8:M8};
+var POS=['毫无疑问','绝对肯定','一定如此','你可以相信它','我看是这样','很有可能','前景不错','是的','迹象表明是'];
+var NEU=['难以预测，再试一次','稍后再问','现在最好别告诉你','现在无法预测','集中精神再问一次'];
+var NEG=['别指望它','我的回答是否定的','据我所知不是','前景不太乐观','非常可疑','别想了'];
+function ask(seed){ var r=rngFactory(seed); var roll=r(); var pool= roll<0.5?POS : (roll<0.8?NEU:NEG); return pool[Math.floor(r()*pool.length)]; }
+var EXPORTS={ask:ask,POS:POS,NEU:NEU,NEG:NEG};
 
+
+function rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
 if (typeof window !== 'undefined') { window.Magic8ForgePure = EXPORTS; }
@@ -135,12 +135,12 @@ if (typeof window !== 'undefined') { window.Magic8ForgePure = EXPORTS; }
 </script>
 <script>
 
-if (typeof window !== 'undefined') { (function(){
+(function(){
   var $=function(id){return document.getElementById(id);};
-  var P=window.Magic8ForgePure;
-  $('ask').addEventListener('click',function(){ $('err').textContent=''; try{ $('ball').textContent='🎱 '+P.ask(); }catch(e){$('err').textContent=e.message;} });
-  $('clr').addEventListener('click',function(){$('ball').textContent='等待提问';});
-})(); }
+  var A=window.Magic8ForgePure;
+  function go(){ var q=$("q").value.trim(); if(!q){ $("out").textContent='先输入一个问题…'; return; } var a=A.ask((Date.now()^(q.length*2654435761))>>>0); $("out").textContent='🎱 '+a; }
+  $("go").addEventListener('click',go);
+})();
 
 </script>
 <div id="nanoToast" role="status" aria-live="polite"></div>
@@ -153,7 +153,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "魔法 8 号球 · 单文件 · 零依赖 · 本地优先", "title": "Magic8Forge — 魔法 8 号球：摇一摇得到随机神谕回答（经典占卜玩具）"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "游戏：命运神谕球。", "title": "Magic8Forge — 神谕球"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

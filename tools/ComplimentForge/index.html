@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>ComplimentForge · 创意</title>
+<title>ComplimentForge — 夸夸生成</title>
 <meta property="og:title" content="夸夸生成">
-<meta property="og:description" content="夸夸生成器：随机输出一句温暖的话，离线可用。">
+<meta property="og:description" content="随机夸奖短句组合，离线。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="夸夸生成器：随机输出一句温暖的话，离线可用。 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="随机夸奖短句组合，离线。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -100,13 +100,14 @@ a{color:var(--info);text-decoration:none}
   <div class="hd">
     <div>
       <h1>夸夸生成</h1>
-      <p class="sub" data-i18n="sub">创意</p>
+      <p class="sub" data-i18n="sub">创意工具：暖心夸奖生成。</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
 
-<label>夸夸生成器（离线）</label>
-<button id="go">来一句</button>
+<label>ComplimentForge · 夸夸生成器（离线，随机组合）</label>
+<label>生成条数</label><input id="n" type="number" value="5" min="1" max="20"/>
+<button id="go">生成</button>
 <div class="out" id="out">—</div>
 
   <div class="badges">
@@ -119,11 +120,15 @@ a{color:var(--info);text-decoration:none}
 </div>
 <script>
 
-function rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+var OPEN=['你','今天的你','认真起来的你','温柔的你','努力的你'];
+var MID=['的想法比代码还优雅','笑起来很好看','存在让世界更亮了一点','好奇心是你的超能力','坚持正在悄悄开花'];
+var TAIL=['。','，值得被好好对待。','，已经做得足够好了。','，有人因为你而安心。'];
+function make(seed){ var r=rngFactory(seed); var o=OPEN[Math.floor(r()*OPEN.length)]; var m=MID[Math.floor(r()*MID.length)]; var t=TAIL[Math.floor(r()*TAIL.length)]; return o+m+t; }
+function batch(seed,n){ n=n||5; var out=[]; for(var i=0;i<n;i++) out.push(make(seed+i*104729)); return out; }
+var EXPORTS={make:make,batch:batch,OPEN:OPEN,MID:MID,TAIL:TAIL};
 
-var BANK=['你的想法比代码还优雅。','今天也要温柔地对待自己。','你认真的样子很好看。','世界因你的存在更亮了一点。','你已经做得足够好了。','你的好奇心是你的超能力。','慢一点也没关系。','你值得所有的好事情。','你的坚持正在开花。','有人因为你而安心。'];
-function generate(seed){ var r=rngFactory(seed); return BANK[Math.floor(r()*BANK.length)]; }
-var EXPORTS={generate:generate, BANK:BANK};
+
+function rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
 if (typeof window !== 'undefined') { window.ComplimentForgePure = EXPORTS; }
@@ -131,8 +136,12 @@ if (typeof window !== 'undefined') { window.ComplimentForgePure = EXPORTS; }
 </script>
 <script>
 
-(function(){var $=function(id){return document.getElementById(id);};var A=window.ComplimentForgePure;
-$("go").addEventListener('click',function(){$("out").textContent=A.generate(Math.floor(Math.random()*1e9));});})();
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var A=window.ComplimentForgePure;
+  function go(){ var n=Math.max(1,Math.min(20,parseInt($("n").value,10)||5)); var arr=A.batch((Date.now()>>>0),n); $("out").innerHTML=arr.map(function(x){return '<div>· '+x+'</div>';}).join(''); }
+  $("go").addEventListener('click',go); go();
+})();
 
 </script>
 <div id="nanoToast" role="status" aria-live="polite"></div>
@@ -145,7 +154,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "创意", "title": "ComplimentForge · 创意"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "创意工具：暖心夸奖生成。", "title": "ComplimentForge — 夸夸生成"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}

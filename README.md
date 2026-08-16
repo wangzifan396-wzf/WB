@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1119-5E6AD2?style=flat-square" alt="1119 Tools">
+  <img src="https://img.shields.io/badge/tools-1113-5E6AD2?style=flat-square" alt="1113 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1119 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1113 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1119 个工具目录
+│   └── ...             # 共 1113 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1119 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1113 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -262,7 +262,6 @@ WB/
 | [SplitForge](https://wangzifan396-wzf.github.io/WB/tools/SplitForge/) ⭐ | 实用计算 | 聚餐 AA 分摊：逐条录入账单，自动加计小费/税费/折扣，按人数均摊出每人应付，离线可用。 |
 | [BmiForge](https://wangzifan396-wzf.github.io/WB/tools/BmiForge/) ⭐ | 实用计算 | BMI 与健康区间：输入身高体重得 BMI 与中国成人标准分级，并给出健康体重范围与体脂率估算，离线可用。 |
 | [StrengthForge](https://wangzifan396-wzf.github.io/WB/tools/StrengthForge/) ⭐ | 安全工具 | 密码强度估计：按字符集熵估算强度等级与暴力破解耗时，识别常见弱口令与模式，离线可用。 |
-| [HashIdForge](https://wangzifan396-wzf.github.io/WB/tools/HashIdForge/) ⭐ | 编码加密 | 哈希类型识别：根据长度、字符集与特征前缀判断 md5/sha 系列/bcrypt/argon2/ntlm 等，离线可用。 |
 | [WorldClockForge](https://wangzifan396-wzf.github.io/WB/tools/WorldClockForge/) ⭐ | 实用计算 | 世界时钟：并排显示多个时区当前时间，自动算时差，基于 Intl 离线可用。 |
 | [CountdownForge](https://wangzifan396-wzf.github.io/WB/tools/CountdownForge/) ⭐ | 实用计算 | 多倒计时：添加多个目标时刻，实时显示剩余天/时/分/秒，本地保存，离线可用。 |
 | [RecipeForge](https://wangzifan396-wzf.github.io/WB/tools/RecipeForge/) ⭐ | 效率工具 | 食谱管理：录入配料一键按份量缩放，本地保存多个食谱，离线可用。 |
@@ -609,7 +608,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1119 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1113 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 

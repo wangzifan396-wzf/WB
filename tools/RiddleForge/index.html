@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0A0B">
-<title>RiddleForge</title>
-<meta property="og:title" content="谜语生成">
-<meta property="og:description" content="随机谜语与答案">
+<title>RiddleForge — 猜谜游戏</title>
+<meta property="og:title" content="猜谜游戏">
+<meta property="og:description" content="随机谜语与答案，含计分。单文件·零依赖·本地优先。">
 <meta property="og:image" content="./og.png">
-<meta name="description" content="随机谜语与答案 · 单文件 · 零依赖 · 本地优先">
+<meta name="description" content="随机谜语与答案，含计分。单文件·零依赖·本地优先。 · 单文件 · 零依赖 · 本地优先">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
@@ -99,16 +99,17 @@ a{color:var(--info);text-decoration:none}
 <div class="app">
   <div class="hd">
     <div>
-      <h1>谜语生成</h1>
-      <p class="sub" data-i18n="sub">创意工具</p>
+      <h1>猜谜游戏</h1>
+      <p class="sub" data-i18n="sub">创意工具：词语谜语，带答题计分。</p>
     </div>
     <button id="langBtn" type="button" aria-label="Switch language">EN</button>
   </div>
 
-<label>RiddleForge · 谜语生成（确定性，离线）</label>
-<label>随机种子</label><input id="seed" type="number" value="3" />
-<button id="go">出题</button>
-<div class="out" id="out">—</div>
+<label>RiddleForge · 猜谜游戏（离线，含计分）</label>
+<div class="tile"><h3>谜面</h3><div class="big" id="q">—</div></div>
+<label>你的答案</label><input id="ans" type="text" placeholder="输入答案后点「判定」"/>
+<div class="row"><button id="go">判定</button><button id="next" class="ghost">下一题</button><span class="badge flag" id="sc">0 / 0</span></div>
+<div class="out" id="fb">—</div>
 
   <div class="badges">
     <span class="badge" data-i18n="b1">零依赖</span>
@@ -120,11 +121,34 @@ a{color:var(--info);text-decoration:none}
 </div>
 <script>
 
-function rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
-
-var RIDDLES=[ {q:'什么东西越洗越脏？',a:'水'},{q:'什么布剪不断？',a:'瀑布'},{q:'什么车寸步难行？',a:'风车'},{q:'什么蛋打不烂、煮不熟、更不能吃？',a:'脸蛋'},{q:'什么动物你打死了它，却流了你的血？',a:'蚊子'},{q:'什么东西天气越热，它爬得越高？',a:'温度计'},{q:'什么人始终不敢洗澡？',a:'泥人'},{q:'什么东西明明是你的，别人却用得比你多？',a:'你的名字'} ];
+var RIDDLES=[
+ {q:'什么东西越洗越脏？',a:'水'},
+ {q:'什么布剪不断？',a:'瀑布'},
+ {q:'什么车寸步难行？',a:'风车'},
+ {q:'什么蛋打不烂、煮不熟、更不能吃？',a:'脸蛋'},
+ {q:'什么动物你打死了它，却流了你的血？',a:'蚊子'},
+ {q:'什么天气越热，它爬得越高？',a:'温度计'},
+ {q:'什么人始终不敢洗澡？',a:'泥人'},
+ {q:'什么东西明明是你的，别人却用得比你多？',a:'你的名字'},
+ {q:'什么书你不能在书店买到？',a:'遗书'},
+ {q:'什么伞永远撑不开？',a:'降落伞（不打开）'},
+ {q:'什么海没有水？',a:'人海／火海'},
+ {q:'什么帽不能戴？',a:'螺帽'},
+ {q:'什么船从来不下水？',a:'宇宙飞船'},
+ {q:'什么锁没有孔？',a:'心锁'},
+ {q:'什么桥下没有水？',a:'立交桥'},
+ {q:'什么河里没有鱼？',a:'银河'},
+ {q:'什么线可望不可即？',a:'地平线'},
+ {q:'什么门永远关不上？',a:'球门'},
+ {q:'什么光看不见？',a:'时光'},
+ {q:'什么官不拿工资？',a:'新郎官'}
+];
 function pick(seed){ var r=rngFactory(seed); var i=Math.floor(r()*RIDDLES.length); return RIDDLES[i]; }
-var EXPORTS={pick:pick, RIDDLES:RIDDLES};
+function check(riddle,ans){ return ans.replace(/\s/g,'').indexOf(riddle.a.replace(/\s/g,''))>=0; }
+var EXPORTS={pick:pick,check:check,RIDDLES:RIDDLES};
+
+
+function rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
 if (typeof window !== 'undefined') { window.RiddleForgePure = EXPORTS; }
@@ -135,11 +159,10 @@ if (typeof window !== 'undefined') { window.RiddleForgePure = EXPORTS; }
 (function(){
   var $=function(id){return document.getElementById(id);};
   var A=window.RiddleForgePure;
-  function run(){ try{
-    var x=A.pick(parseInt($("seed").value,10)||1);
-    $("out").textContent='谜面: '+x.q+'\n答案: '+x.a;
-  }catch(e){ $("out").textContent='错误: '+e.message; } }
-  $("go").addEventListener('click',run); run();
+  var score=0, total=0, cur=null;
+  function next(){ cur=A.pick((Date.now()^(Math.random()*1e6))>>>0); $("q").textContent=cur.q; $("ans").value=''; $("fb").textContent=''; $("sc").textContent=score+' / '+total; }
+  function go(){ if(!cur) return; total++; var ok=A.check(cur,$("ans").value); if(ok){score++; $("fb").textContent='✓ 答对了！'; $("fb").className='out ok';} else {$("fb").textContent='✗ 正确答案：'+cur.a; $("fb").className='out bad';} $("sc").textContent=score+' / '+total; }
+  $("go").addEventListener('click',go); $("next").addEventListener('click',next); next();
 })();
 
 </script>
@@ -153,7 +176,7 @@ try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc)
 nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
 })();
 /* ---- i18n 运行时 ---- */
-var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "创意工具", "title": "RiddleForge"}};
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "创意工具：词语谜语，带答题计分。", "title": "RiddleForge — 猜谜游戏"}};
 (function(){
   function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
   function dict(){return I18N[cur()]||I18N.zh;}
