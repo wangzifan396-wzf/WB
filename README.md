@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1107-5E6AD2?style=flat-square" alt="1107 Tools">
+  <img src="https://img.shields.io/badge/tools-1119-5E6AD2?style=flat-square" alt="1119 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1107 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1119 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1107 个工具目录
+│   └── ...             # 共 1119 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1107 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1119 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -110,15 +110,27 @@ WB/
 | [MnemonicForge](https://wangzifan396-wzf.github.io/WB/tools/MnemonicForge/) | 教育工具 | 记忆法训练：内置常见词条记忆口诀，支持首字母/谐音提取。 |
 | [PinyinForge](https://wangzifan396-wzf.github.io/WB/tools/PinyinForge/) | 教育工具 | 汉字转拼音：逐字转带声调数字的拼音，内置常用字表。 |
 | [KanjiForge](https://wangzifan396-wzf.github.io/WB/tools/KanjiForge/) | 教育工具 | 日语汉字练习：常用汉字随机抽题四选一，可计正确率。 |
+| [PolyphoneForge](https://wangzifan396-wzf.github.io/WB/tools/PolyphoneForge/) | 教育工具 | 多音字辨析：常见多音字读音与随机抽题自测。 |
+| [SynonymForge](https://wangzifan396-wzf.github.io/WB/tools/SynonymForge/) | 教育工具 | 近义反义词：查询词语近义/反义并随机抽题。 |
+| [RadicalForge](https://wangzifan396-wzf.github.io/WB/tools/RadicalForge/) | 教育工具 | 部首查字：按部首查例字、按字查部首与笔画。 |
+| [StrokeOrderForge](https://wangzifan396-wzf.github.io/WB/tools/StrokeOrderForge/) | 教育工具 | 汉字笔顺：示范字库逐笔动画演示笔顺。 |
 | [EmbeddingForge](https://wangzifan396-wzf.github.io/WB/tools/EmbeddingForge/) | AI 工具 | 词向量余弦相似度：确定性哈希向量 + 余弦近似语义接近度。 |
 | [PromptIdeaForge](https://wangzifan396-wzf.github.io/WB/tools/PromptIdeaForge/) | AI 工具 | 提示词灵感生成：组合角色/任务/格式/约束模板随机出灵感。 |
 | [PromptScoreForge](https://wangzifan396-wzf.github.io/WB/tools/PromptScoreForge/) | AI 工具 | 提示词质量评分：按长度/角色/任务/格式打分并给改进建议。 |
+| [PerplexityForge](https://wangzifan396-wzf.github.io/WB/tools/PerplexityForge/) | AI 工具 | 语言模型困惑度：一元语言模型困惑度演示。 |
+| [TokenCostForge](https://wangzifan396-wzf.github.io/WB/tools/TokenCostForge/) | AI 工具 | LLM token 成本：按主流模型单价估算 API 成本。 |
+| [KLForge](https://wangzifan396-wzf.github.io/WB/tools/KLForge/) | AI 工具 | KL 散度：计算 KL 散度、交叉熵与信息熵。 |
+| [NgramForge](https://wangzifan396-wzf.github.io/WB/tools/NgramForge/) | AI 工具 | n-gram 语言模型：训练 n-gram 并预测下一个词。 |
 | [ClipboardForge](https://wangzifan396-wzf.github.io/WB/tools/ClipboardForge/) | 效率工具 | 剪贴板历史：记录复制文本，支持搜索与删除，localStorage 持久化。 |
 | [SnippetForge](https://wangzifan396-wzf.github.io/WB/tools/SnippetForge/) | 效率工具 | 代码片段库：保存标题/语言/代码，支持搜索与按语言过滤。 |
 | [StickyNoteForge](https://wangzifan396-wzf.github.io/WB/tools/StickyNoteForge/) | 效率工具 | 便利贴：本地增删改与颜色，localStorage 持久化。 |
 | [AudioReverseForge](https://wangzifan396-wzf.github.io/WB/tools/AudioReverseForge/) | 音频工具 | 音频反向：单声道或交错立体声采样反向。 |
 | [AudioSplitForge](https://wangzifan396-wzf.github.io/WB/tools/AudioSplitForge/) | 音频工具 | 音频切片：按固定时长或静音区间切分采样。 |
 | [BinauralForge](https://wangzifan396-wzf.github.io/WB/tools/BinauralForge/) | 音频工具 | 双耳节拍：生成左右声道不同频率的音频。 |
+| [NormalizeForge](https://wangzifan396-wzf.github.io/WB/tools/NormalizeForge/) | 音频工具 | 音量归一化：peak/rms 两种归一并导出 WAV。 |
+| [TremoloForge](https://wangzifan396-wzf.github.io/WB/tools/TremoloForge/) | 音频工具 | 颤音（振幅调制）：可导出 WAV。 |
+| [ChorusForge](https://wangzifan396-wzf.github.io/WB/tools/ChorusForge/) | 音频工具 | 合唱厚度：多声部延迟合唱，可导出 WAV。 |
+| [VibratoForge](https://wangzifan396-wzf.github.io/WB/tools/VibratoForge/) | 音频工具 | 颤音（频率调制）：延迟调制颤音，可导出 WAV。 |
 | [HashKit](https://wangzifan396-wzf.github.io/WB/tools/HashKit/) | 编码加密 | 编码与哈希工具箱：Base64/URL/HTML 编解码、SHA 哈希、JWT 解码、UUID 与密码生成。 |
 | [JsonForge](https://wangzifan396-wzf.github.io/WB/tools/JsonForge/) | 文本处理 | JSON 工作台：格式化 / 压缩 / 校验、转 TypeScript 类型、JSONPath 查询、树形浏览。 |
 | [RESTKit](https://wangzifan396-wzf.github.io/WB/tools/RESTKit/) | 开发辅助 | 离线 REST 客户端：请求构建、查询参数 / 头 / Body、Bearer/Basic 鉴权、响应计时与历史记录。 |
@@ -597,7 +609,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1107 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1119 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
