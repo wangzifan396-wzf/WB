@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1113-5E6AD2?style=flat-square" alt="1113 Tools">
+  <img src="https://img.shields.io/badge/tools-1120-5E6AD2?style=flat-square" alt="1120 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1113 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1120 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1113 个工具目录
+│   └── ...             # 共 1120 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1113 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1120 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -63,6 +63,7 @@ WB/
 | [TextToSpeechForge](https://wangzifan396-wzf.github.io/WB/tools/TextToSpeechForge/) | 音频工具 | 文本转语音：Web Speech 朗读，语速/音调/语音可调并估算时长。 |
 | [XmlToJsonForge](https://wangzifan396-wzf.github.io/WB/tools/XmlToJsonForge/) | 数据工具 | XML 转 JSON：递归处理属性/嵌套/重复节点/文本。 |
 | [JsonToCsvForge](https://wangzifan396-wzf.github.io/WB/tools/JsonToCsvForge/) | 数据工具 | JSON 转 CSV：自动表头与字段转义。 |
+| [CohortForge](https://wangzifan396-wzf.github.io/WB/tools/CohortForge/) | 数据工具 | 留存队列分析：输入各队列用户数，输出留存率热力表。 |
 | [CsvSqlForge](https://wangzifan396-wzf.github.io/WB/tools/CsvSqlForge/) | 数据工具 | CSV 转 SQL：INSERT 语句，MySQL/PostgreSQL 多行合并与转义。 |
 | [JsonTypesForge](https://wangzifan396-wzf.github.io/WB/tools/JsonTypesForge/) | 开发辅助 | JSON 转类型声明：生成 TypeScript/Go/Rust/Python 类型。 |
 | [HtmlFormatForge](https://wangzifan396-wzf.github.io/WB/tools/HtmlFormatForge/) | 开发辅助 | HTML 美化/压缩：保留 pre/style/script，去注释空白。 |
@@ -80,6 +81,8 @@ WB/
 | [NotesForge](https://wangzifan396-wzf.github.io/WB/tools/NotesForge/) | 实用计算 | 本地 Markdown 笔记：轻量 MD→HTML 预览，localStorage 保存。 |
 | [IpCalcForge](https://wangzifan396-wzf.github.io/WB/tools/IpCalcForge/) | 网络 | IPv4/CIDR 子网计算：网络/广播地址、可用范围、掩码与主机数。 |
 | [EmiForge](https://wangzifan396-wzf.github.io/WB/tools/EmiForge/) | 财务工具 | 等额本息贷款计算：月供与摊销表，支持零利率。 |
+| [ChurnForge](https://wangzifan396-wzf.github.io/WB/tools/ChurnForge/) | 财务工具 | 客户流失率：计算月/年化流失率与留存率。 |
+| [LtvForge](https://wangzifan396-wzf.github.io/WB/tools/LtvForge/) | 财务工具 | 客户生命周期价值：按 ARPU/毛利率/流失率估算 LTV 与 LTV:CAC。 |
 | [ResizeForge](https://wangzifan396-wzf.github.io/WB/tools/ResizeForge/) | 图像工具 | 图片缩放：客户端 canvas，按比例/定宽/定高/最长边，导出 PNG。 |
 | [TokenizerForge](https://wangzifan396-wzf.github.io/WB/tools/TokenizerForge/) | AI 工具 | BPE 分词器演示：训练合并规则并编码/解码还原。 |
 | [SpecificHeatForge](https://wangzifan396-wzf.github.io/WB/tools/SpecificHeatForge/) | 科学工具 | 比热热量计算：Q=mcΔT，内置常见物质比热表。 |
@@ -95,6 +98,7 @@ WB/
 | [ChordFinderForge](https://wangzifan396-wzf.github.io/WB/tools/ChordFinderForge/) | 音频工具 | 和弦组成音：由根音与类型给出组成音（大/小/七/挂四）。 |
 | [CaffeineForge](https://wangzifan396-wzf.github.io/WB/tools/CaffeineForge/) | 健康工具 | 咖啡因浓度：按半衰期估算体内剩余量，支持多剂量。 |
 | [NavyBodyFatForge](https://wangzifan396-wzf.github.io/WB/tools/NavyBodyFatForge/) | 健康工具 | 美国海军法体脂率：由围度按男/女不同公式估算。 |
+| [ApgarForge](https://wangzifan396-wzf.github.io/WB/tools/ApgarForge/) | 健康工具 | 新生儿 Apgar 评分：五项各 0–2，自动求和与判读。 |
 | [ContrastForge](https://wangzifan396-wzf.github.io/WB/tools/ContrastForge/) | 设计工具 | WCAG 颜色对比度检查：判定 AA/AAA，并模拟三类色盲效果。 |
 | [ByteForge](https://wangzifan396-wzf.github.io/WB/tools/ByteForge/) | 实用计算 | 数据存储单位换算：B/KB/MB/GB/TB/PB 与 KiB/MiB 互转，提供人类可读格式。 |
 | [ImageCompressForge](https://wangzifan396-wzf.github.io/WB/tools/ImageCompressForge/) | 图像工具 | 图片质量压缩：canvas 重新编码 JPEG/WebP/PNG，可调最长边与质量。 |
@@ -114,6 +118,7 @@ WB/
 | [SynonymForge](https://wangzifan396-wzf.github.io/WB/tools/SynonymForge/) | 教育工具 | 近义反义词：查询词语近义/反义并随机抽题。 |
 | [RadicalForge](https://wangzifan396-wzf.github.io/WB/tools/RadicalForge/) | 教育工具 | 部首查字：按部首查例字、按字查部首与笔画。 |
 | [StrokeOrderForge](https://wangzifan396-wzf.github.io/WB/tools/StrokeOrderForge/) | 教育工具 | 汉字笔顺：示范字库逐笔动画演示笔顺。 |
+| [UnitCircleForge](https://wangzifan396-wzf.github.io/WB/tools/UnitCircleForge/) | 教育工具 | 单位圆三角函数：角度转 sin/cos/tan 并可视化坐标点。 |
 | [EmbeddingForge](https://wangzifan396-wzf.github.io/WB/tools/EmbeddingForge/) | AI 工具 | 词向量余弦相似度：确定性哈希向量 + 余弦近似语义接近度。 |
 | [PromptIdeaForge](https://wangzifan396-wzf.github.io/WB/tools/PromptIdeaForge/) | AI 工具 | 提示词灵感生成：组合角色/任务/格式/约束模板随机出灵感。 |
 | [PromptScoreForge](https://wangzifan396-wzf.github.io/WB/tools/PromptScoreForge/) | AI 工具 | 提示词质量评分：按长度/角色/任务/格式打分并给改进建议。 |
@@ -131,6 +136,7 @@ WB/
 | [TremoloForge](https://wangzifan396-wzf.github.io/WB/tools/TremoloForge/) | 音频工具 | 颤音（振幅调制）：可导出 WAV。 |
 | [ChorusForge](https://wangzifan396-wzf.github.io/WB/tools/ChorusForge/) | 音频工具 | 合唱厚度：多声部延迟合唱，可导出 WAV。 |
 | [VibratoForge](https://wangzifan396-wzf.github.io/WB/tools/VibratoForge/) | 音频工具 | 颤音（频率调制）：延迟调制颤音，可导出 WAV。 |
+| [SofiForge](https://wangzifan396-wzf.github.io/WB/tools/SofiForge/) | 音频工具 | 信噪比 SNR：信号加噪并测算 SNR(dB)，含波形预览。 |
 | [HashKit](https://wangzifan396-wzf.github.io/WB/tools/HashKit/) | 编码加密 | 编码与哈希工具箱：Base64/URL/HTML 编解码、SHA 哈希、JWT 解码、UUID 与密码生成。 |
 | [JsonForge](https://wangzifan396-wzf.github.io/WB/tools/JsonForge/) | 文本处理 | JSON 工作台：格式化 / 压缩 / 校验、转 TypeScript 类型、JSONPath 查询、树形浏览。 |
 | [RESTKit](https://wangzifan396-wzf.github.io/WB/tools/RESTKit/) | 开发辅助 | 离线 REST 客户端：请求构建、查询参数 / 头 / Body、Bearer/Basic 鉴权、响应计时与历史记录。 |
@@ -148,6 +154,7 @@ WB/
 | [ChangelogForge](https://wangzifan396-wzf.github.io/WB/tools/ChangelogForge/) ⭐ | 开发辅助 | Conventional Commits 解析：提交信息分组生成 CHANGELOG，breaking/feat/fix 自动推断下一个 SemVer 版本。 |
 | [ULIDForge](https://wangzifan396-wzf.github.io/WB/tools/ULIDForge/) ⭐ | 编码加密 | ULID 生成与解码：Crockford Base32，48 位毫秒时间戳 + 80 位随机，可排序、可校验、可反解时间。 |
 | [PasswordForge](https://wangzifan396-wzf.github.io/WB/tools/PasswordForge/) ⭐ | 安全工具 | 安全口令生成器：可配字符集、避开易混字符（Il1O0o）、每类至少含一个，实时熵估计。 |
+| [BackupCodeForge](https://wangzifan396-wzf.github.io/WB/tools/BackupCodeForge/) | 安全工具 | 2FA 备份码生成：可复现随机种子，批量导出。 |
 | [NumeralForge](https://wangzifan396-wzf.github.io/WB/tools/NumeralForge/) ⭐ | 实用计算 | 数字转英文单词与人民币大写金额，支持负数与小数。 |
 | [SparkForge](https://wangzifan396-wzf.github.io/WB/tools/SparkForge/) ⭐ | 可视化 | 数据序列一键生成 SVG 迷你折线图与柱状图，纯函数返回 SVG 字符串。 |
 | [FigletForge](https://wangzifan396-wzf.github.io/WB/tools/FigletForge/) ⭐ | 文本处理 | 文本转 ASCII 方块艺术字，内置字体、可自定义填充字符与间距。 |
@@ -608,7 +615,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1113 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1120 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
