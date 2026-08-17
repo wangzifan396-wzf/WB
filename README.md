@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1180-5E6AD2?style=flat-square" alt="1180 Tools">
+  <img src="https://img.shields.io/badge/tools-1192-5E6AD2?style=flat-square" alt="1192 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1180 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1192 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1180 个工具目录
+│   └── ...             # 共 1192 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1180 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1192 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -663,6 +663,18 @@ WB/
 | [CalorieBurnForge](https://wangzifan396-wzf.github.io/WB/tools/CalorieBurnForge/) | 健康工具 | 按 MET 值、体重与时长估算某项活动的热量消耗。 |
 | [RhymeForge](https://wangzifan396-wzf.github.io/WB/tools/RhymeForge/) | 创意工具 | 从词池中按尾音匹配押韵词。 |
 | [ScreenTimeForge](https://wangzifan396-wzf.github.io/WB/tools/ScreenTimeForge/) | 效率工具 | 本地记录每日屏幕时间并计算均值与累计。 |
+| [SipForge](https://wangzifan396-wzf.github.io/WB/tools/SipForge/) | 财务工具 | 按每月定投、年化收益与年限估算投资未来值，离线。 |
+| [TimeCalcForge](https://wangzifan396-wzf.github.io/WB/tools/TimeCalcForge/) | 实用计算 | 对 HH:MM 时间做加减或求两时间差，离线。 |
+| [VectorDotForge](https://wangzifan396-wzf.github.io/WB/tools/VectorDotForge/) | 数学工具 | 计算等长向量的点积、模长与夹角，离线。 |
+| [Rule72Forge](https://wangzifan396-wzf.github.io/WB/tools/Rule72Forge/) | 财务工具 | 用 72/69.3 法则与精确值估算资产翻倍年限，离线。 |
+| [LoanPayoffForge](https://wangzifan396-wzf.github.io/WB/tools/LoanPayoffForge/) | 财务工具 | 对比标准月供与每月多还的省息与缩短期数，离线。 |
+| [ReverseTextForge](https://wangzifan396-wzf.github.io/WB/tools/ReverseTextForge/) | 文本处理 | 按码点（兼容 emoji）或按单词反转文本，离线。 |
+| [WhrForge](https://wangzifan396-wzf.github.io/WB/tools/WhrForge/) | 健康工具 | 按腰围臀围与性别计算腰臀比并评估风险，离线。 |
+| [GuessForge](https://wangzifan396-wzf.github.io/WB/tools/GuessForge/) | 游戏 | 1–100 猜数字游戏，提示太高/太低，离线。 |
+| [ZodiacForge](https://wangzifan396-wzf.github.io/WB/tools/ZodiacForge/) | 创意工具 | 按年份推算生肖与五行，离线。 |
+| [BloodTypeForge](https://wangzifan396-wzf.github.io/WB/tools/BloodTypeForge/) | 健康工具 | 按 ABO 与 Rh 判定供血者→受血者是否相容，离线。 |
+| [PregnancyWeekForge](https://wangzifan396-wzf.github.io/WB/tools/PregnancyWeekForge/) | 健康工具 | 按末次月经推算孕周、孕期阶段与预产期，离线。 |
+| [FlipTextForge](https://wangzifan396-wzf.github.io/WB/tools/FlipTextForge/) | 文本处理 | 将文本映射为上下颠倒字形并整体倒序，离线。 |
 
 ## 快速使用
 
@@ -675,7 +687,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1180 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1192 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
