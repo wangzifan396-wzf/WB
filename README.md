@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1168-5E6AD2?style=flat-square" alt="1168 Tools">
+  <img src="https://img.shields.io/badge/tools-1180-5E6AD2?style=flat-square" alt="1180 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1168 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1180 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1168 个工具目录
+│   └── ...             # 共 1180 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1168 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1180 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -651,6 +651,18 @@ WB/
 | [ZonePlanForge](https://wangzifan396-wzf.github.io/WB/tools/ZonePlanForge/) | 效率工具 | 求多时区工作时段重叠窗口。 |
 | [StoryboardForge](https://wangzifan396-wzf.github.io/WB/tools/StoryboardForge/) | 创意工具 | 逐镜规划时长与景别并预览。 |
 | [ScriptTimerForge](https://wangzifan396-wzf.github.io/WB/tools/ScriptTimerForge/) | 音频工具 | 按词数/语速估算脚本朗读时长。 |
+| [FuelCostForge](https://wangzifan396-wzf.github.io/WB/tools/FuelCostForge/) | 实用计算 | 按里程、油耗与油价估算燃油费用，可选往返。 |
+| [CommissionForge](https://wangzifan396-wzf.github.io/WB/tools/CommissionForge/) | 财务工具 | 按销售额与可配置阶梯费率计算销售提成。 |
+| [RentVsBuyForge](https://wangzifan396-wzf.github.io/WB/tools/RentVsBuyForge/) | 财务工具 | 用可配置假设对比 30 年买房与租房的净财富。 |
+| [ConcreteForge](https://wangzifan396-wzf.github.io/WB/tools/ConcreteForge/) | 实用计算 | 按长宽厚与损耗估算混凝土体积、袋数与重量。 |
+| [HeatIndexForge](https://wangzifan396-wzf.github.io/WB/tools/HeatIndexForge/) | 科学工具 | 由温度与湿度计算炎热指数（体感温度）并分级。 |
+| [MoonPhaseForge](https://wangzifan396-wzf.github.io/WB/tools/MoonPhaseForge/) | 科学工具 | 计算任意公历日期的月相、照亮比例与名称。 |
+| [CrossForge](https://wangzifan396-wzf.github.io/WB/tools/CrossForge/) | 数学工具 | 计算两个三维向量的叉积及其模长。 |
+| [ExpectedValueForge](https://wangzifan396-wzf.github.io/WB/tools/ExpectedValueForge/) | 数学工具 | 计算离散随机变量的期望值与方差。 |
+| [OddsForge](https://wangzifan396-wzf.github.io/WB/tools/OddsForge/) | 游戏 | 在十进制/分数/美式赔率之间互转并给出隐含概率。 |
+| [CalorieBurnForge](https://wangzifan396-wzf.github.io/WB/tools/CalorieBurnForge/) | 健康工具 | 按 MET 值、体重与时长估算某项活动的热量消耗。 |
+| [RhymeForge](https://wangzifan396-wzf.github.io/WB/tools/RhymeForge/) | 创意工具 | 从词池中按尾音匹配押韵词。 |
+| [ScreenTimeForge](https://wangzifan396-wzf.github.io/WB/tools/ScreenTimeForge/) | 效率工具 | 本地记录每日屏幕时间并计算均值与累计。 |
 
 ## 快速使用
 
@@ -663,7 +675,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1168 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1180 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
