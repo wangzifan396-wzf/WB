@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1240-5E6AD2?style=flat-square" alt="1240 Tools">
+  <img src="https://img.shields.io/badge/tools-1252-5E6AD2?style=flat-square" alt="1252 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1240 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1252 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1240 个工具目录
+│   └── ...             # 共 1252 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1240 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1252 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -723,6 +723,18 @@ WB/
 | [BondPricingForge](https://wangzifan396-wzf.github.io/WB/tools/BondPricingForge/) | 财务工具 | 债券定价：按票面/付息/到期/收益率算债券价格与久期。 |
 | [SpacingScaleForge](https://wangzifan396-wzf.github.io/WB/tools/SpacingScaleForge/) | 设计工具 | 间距刻度：生成 4/8 倍数间距系统与 CSS 变量，统一排版节奏。 |
 | [TapGameForge](https://wangzifan396-wzf.github.io/WB/tools/TapGameForge/) | 游戏 | 反应连点：反应速度测试与 5 秒连点挑战小游戏，离线。 |
+| [TempConvertForge](https://wangzifan396-wzf.github.io/WB/tools/TempConvertForge/) | 实用计算 | 温度换算：摄氏度/华氏度/开尔文互转，离线。 |
+| [HookesForge](https://wangzifan396-wzf.github.io/WB/tools/HookesForge/) | 科学工具 | 胡克定律：由 k 与形变量求弹力与弹性势能，离线。 |
+| [BernoulliForge](https://wangzifan396-wzf.github.io/WB/tools/BernoulliForge/) | 科学工具 | 伯努利方程：由速度/高度变化求压强，离线。 |
+| [LeverForge](https://wangzifan396-wzf.github.io/WB/tools/LeverForge/) | 科学工具 | 杠杆平衡：由动力臂/阻力臂求阻力并判断省力费力，离线。 |
+| [CoupletForge](https://wangzifan396-wzf.github.io/WB/tools/CoupletForge/) | 创意工具 | 对联生成：从内置对联库随机生成上下联与横批，离线。 |
+| [BodyTempForge](https://wangzifan396-wzf.github.io/WB/tools/BodyTempForge/) | 健康工具 | 体温判断：按年龄判断体温是否正常/发热/高热，离线（非医疗建议）。 |
+| [SleepTimeForge](https://wangzifan396-wzf.github.io/WB/tools/SleepTimeForge/) | 健康工具 | 睡眠时长：由就寝/起床时间算睡眠时长并给质量建议，离线。 |
+| [TimeBlockForge](https://wangzifan396-wzf.github.io/WB/tools/TimeBlockForge/) | 效率工具 | 时间块：解析每日时间块并汇总时长，离线。 |
+| [WorkTimerForge](https://wangzifan396-wzf.github.io/WB/tools/WorkTimerForge/) | 效率工具 | 工作计时：开始/分段记录工作时间并汇总，离线。 |
+| [FontPreviewForge](https://wangzifan396-wzf.github.io/WB/tools/FontPreviewForge/) | 设计工具 | 字体预览：多字体并排预览同一段文字，离线。 |
+| [GridOverlayForge](https://wangzifan396-wzf.github.io/WB/tools/GridOverlayForge/) | 设计工具 | 网格叠加：生成列网格宽度与起点规格并预览，离线。 |
+| [LudoForge](https://wangzifan396-wzf.github.io/WB/tools/LudoForge/) | 游戏 | 飞行棋：掷骰前进、踩中送回、先到终点者胜的小游戏，离线。 |
 
 ## 快速使用
 
@@ -735,7 +747,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1240 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1252 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
