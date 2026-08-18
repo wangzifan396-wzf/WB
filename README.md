@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1228-5E6AD2?style=flat-square" alt="1228 Tools">
+  <img src="https://img.shields.io/badge/tools-1240-5E6AD2?style=flat-square" alt="1240 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1228 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1240 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1228 个工具目录
+│   └── ...             # 共 1240 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1228 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1240 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -711,6 +711,18 @@ WB/
 | [PetNameForge](https://wangzifan396-wzf.github.io/WB/tools/PetNameForge/) | 创意工具 | 宠物名生成器：按狗/猫/鱼/鸟/兔风味输出主题名字候选。 |
 | [BoilingPointForge](https://wangzifan396-wzf.github.io/WB/tools/BoilingPointForge/) | 科学工具 | 沸点计算：按压强（Antoine）或海拔（气压近似）算水的沸点。 |
 | [CreditCardPayoffForge](https://wangzifan396-wzf.github.io/WB/tools/CreditCardPayoffForge/) | 财务工具 | 信用卡还清测算：复利循环算还清月数与总利息，识别最低还款永不还清。 |
+| [SummaryForge](https://wangzifan396-wzf.github.io/WB/tools/SummaryForge/) | 文本工具 | 文本摘要：按句子权重与关键词抽取要点，离线。 |
+| [CosineSimForge](https://wangzifan396-wzf.github.io/WB/tools/CosineSimForge/) | AI 工具 | 余弦相似度：计算两段文本/向量的夹角余弦，做语义相似度度量。 |
+| [QuitSmokingForge](https://wangzifan396-wzf.github.io/WB/tools/QuitSmokingForge/) | 健康工具 | 戒烟节省：按每日烟量与烟价算累计节省金额与健康改善里程碑。 |
+| [CockcroftForge](https://wangzifan396-wzf.github.io/WB/tools/CockcroftForge/) | 健康工具 | 肌酐清除率：Cockcroft-Gault 公式估算肾功能（CrCl）。 |
+| [MeldForge](https://wangzifan396-wzf.github.io/WB/tools/MeldForge/) | 健康工具 | MELD 评分：终末期肝病模型评分与分期，估算 3 月生存率。 |
+| [MeltingPointForge](https://wangzifan396-wzf.github.io/WB/tools/MeltingPointForge/) | 科学工具 | 熔点查询：常见物质熔点（及沸点对照），离线数据库。 |
+| [VaporPressureForge](https://wangzifan396-wzf.github.io/WB/tools/VaporPressureForge/) | 科学工具 | 蒸汽压：Antoine 方程算液体饱和蒸汽压，返回 mmHg/Pa。 |
+| [NpvForge](https://wangzifan396-wzf.github.io/WB/tools/NpvForge/) | 财务工具 | 净现值：NPV 现金流折现，支持不同贴现率与初始投资。 |
+| [IrrForge](https://wangzifan396-wzf.github.io/WB/tools/IrrForge/) | 财务工具 | 内部收益率：IRR 迭代求解，返回年化收益率与收敛状态。 |
+| [BondPricingForge](https://wangzifan396-wzf.github.io/WB/tools/BondPricingForge/) | 财务工具 | 债券定价：按票面/付息/到期/收益率算债券价格与久期。 |
+| [SpacingScaleForge](https://wangzifan396-wzf.github.io/WB/tools/SpacingScaleForge/) | 设计工具 | 间距刻度：生成 4/8 倍数间距系统与 CSS 变量，统一排版节奏。 |
+| [TapGameForge](https://wangzifan396-wzf.github.io/WB/tools/TapGameForge/) | 游戏 | 反应连点：反应速度测试与 5 秒连点挑战小游戏，离线。 |
 
 ## 快速使用
 
@@ -723,7 +735,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1228 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1240 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
