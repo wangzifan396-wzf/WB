@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1204-5E6AD2?style=flat-square" alt="1204 Tools">
+  <img src="https://img.shields.io/badge/tools-1216-5E6AD2?style=flat-square" alt="1216 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1204 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1216 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1204 个工具目录
+│   └── ...             # 共 1216 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1204 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1216 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -687,6 +687,18 @@ WB/
 | [SloganForge](https://wangzifan396-wzf.github.io/WB/tools/SloganForge/) | 创意工具 | 按行业/基调组合生成朗朗上口的口号标语，离线。 |
 | [PunForge](https://wangzifan396-wzf.github.io/WB/tools/PunForge/) | 创意工具 | 按关键词生成中英双关语（谐音/语义），离线。 |
 | [BorderRadiusForge](https://wangzifan396-wzf.github.io/WB/tools/BorderRadiusForge/) | 设计工具 | 生成 CSS border-radius 圆角代码并实时预览，离线。 |
+| [BubbleChartForge](https://wangzifan396-wzf.github.io/WB/tools/BubbleChartForge/) | 可视化 | 输入若干点（x、y、数值大小），生成可缩放 SVG 气泡图，离线。 |
+| [FunnelForge](https://wangzifan396-wzf.github.io/WB/tools/FunnelForge/) | 可视化 | 输入多阶段数值，生成 SVG 漏斗图，离线。 |
+| [SunburstForge](https://wangzifan396-wzf.github.io/WB/tools/SunburstForge/) | 可视化 | 输入分层占比数据，生成 SVG 旭日/环形图，离线。 |
+| [CaptionForge](https://wangzifan396-wzf.github.io/WB/tools/CaptionForge/) | 创意工具 | 按关键词/平台/语气生成社媒文案，离线。 |
+| [RapForge](https://wangzifan396-wzf.github.io/WB/tools/RapForge/) | 创意工具 | 按主题/情绪生成押韵说唱歌词，离线。 |
+| [PickupLineForge](https://wangzifan396-wzf.github.io/WB/tools/PickupLineForge/) | 创意工具 | 按风格生成幽默/文艺/土味/英文情话，离线。 |
+| [SongForge](https://wangzifan396-wzf.github.io/WB/tools/SongForge/) | 创意工具 | 按主题/情绪生成带副歌的歌词，离线。 |
+| [TransformForge](https://wangzifan396-wzf.github.io/WB/tools/TransformForge/) | 设计工具 | 生成并预览 CSS transform（translate/rotate/scale/skew），离线。 |
+| [EmojiStripForge](https://wangzifan396-wzf.github.io/WB/tools/EmojiStripForge/) | 文本处理 | 移除文本中的 emoji 与变体选择符，离线。 |
+| [DrugDoseForge](https://wangzifan396-wzf.github.io/WB/tools/DrugDoseForge/) | 健康工具 | 按体重×mg/kg 估算用药量（非医疗建议），离线。 |
+| [KeyboardForge](https://wangzifan396-wzf.github.io/WB/tools/KeyboardForge/) | 效率工具 | 按应用速查复制/粘贴/保存等快捷键，离线。 |
+| [MemoryGameForge](https://wangzifan396-wzf.github.io/WB/tools/MemoryGameForge/) | 游戏 | 翻牌配对记忆游戏，点击翻牌、计时翻回，离线。 |
 
 ## 快速使用
 
@@ -699,7 +711,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1204 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1216 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
