@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1216-5E6AD2?style=flat-square" alt="1216 Tools">
+  <img src="https://img.shields.io/badge/tools-1228-5E6AD2?style=flat-square" alt="1228 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1216 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1228 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1216 个工具目录
+│   └── ...             # 共 1228 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1216 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1228 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -699,6 +699,18 @@ WB/
 | [DrugDoseForge](https://wangzifan396-wzf.github.io/WB/tools/DrugDoseForge/) | 健康工具 | 按体重×mg/kg 估算用药量（非医疗建议），离线。 |
 | [KeyboardForge](https://wangzifan396-wzf.github.io/WB/tools/KeyboardForge/) | 效率工具 | 按应用速查复制/粘贴/保存等快捷键，离线。 |
 | [MemoryGameForge](https://wangzifan396-wzf.github.io/WB/tools/MemoryGameForge/) | 游戏 | 翻牌配对记忆游戏，点击翻牌、计时翻回，离线。 |
+| [RestReminderForge](https://wangzifan396-wzf.github.io/WB/tools/RestReminderForge/) | 效率工具 | 护眼休息提醒：20-20-20 定时节奏，自定义工作/休息时长与轮数，生成 MM:SS 计划。 |
+| [ChainOfThoughtForge](https://wangzifan396-wzf.github.io/WB/tools/ChainOfThoughtForge/) | AI 工具 | 思维链提示词生成：zeroshot/fewshot/selfconsistency 三种风格，组合任务/步骤/语言输出结构化 CoT 提示词。 |
+| [ValidatorForge](https://wangzifan396-wzf.github.io/WB/tools/ValidatorForge/) | 网络 | 格式校验器：邮箱/URL/IPv4/IPv6/MAC 地址纯正则校验，逐类给出结果。 |
+| [GlassmorphismForge](https://wangzifan396-wzf.github.io/WB/tools/GlassmorphismForge/) | 设计工具 | 毛玻璃 CSS 生成器：backdrop-filter 毛玻璃效果，实时预览可复制。 |
+| [NeumorphismForge](https://wangzifan396-wzf.github.io/WB/tools/NeumorphismForge/) | 设计工具 | 新拟态 CSS 生成器：双 box-shadow 柔和凸起/凹陷，实时预览可复制。 |
+| [CollageForge](https://wangzifan396-wzf.github.io/WB/tools/CollageForge/) | 图像工具 | 图片拼贴布局：canvas 网格拼贴坐标规划，可调列数/间距/单元尺寸并预览。 |
+| [EgfrForge](https://wangzifan396-wzf.github.io/WB/tools/EgfrForge/) | 健康工具 | eGFR 肾功能估算：CKD-EPI 2021 公式按年龄/性别/血肌酐计算并分期。 |
+| [AnionGapForge](https://wangzifan396-wzf.github.io/WB/tools/AnionGapForge/) | 健康工具 | 阴离子间隙计算：Na−(Cl+HCO3)，含解读与正常范围判定。 |
+| [ShipNameForge](https://wangzifan396-wzf.github.io/WB/tools/ShipNameForge/) | 创意工具 | 名称融合生成：将两个名字融合出候选，去重洗牌。 |
+| [PetNameForge](https://wangzifan396-wzf.github.io/WB/tools/PetNameForge/) | 创意工具 | 宠物名生成器：按狗/猫/鱼/鸟/兔风味输出主题名字候选。 |
+| [BoilingPointForge](https://wangzifan396-wzf.github.io/WB/tools/BoilingPointForge/) | 科学工具 | 沸点计算：按压强（Antoine）或海拔（气压近似）算水的沸点。 |
+| [CreditCardPayoffForge](https://wangzifan396-wzf.github.io/WB/tools/CreditCardPayoffForge/) | 财务工具 | 信用卡还清测算：复利循环算还清月数与总利息，识别最低还款永不还清。 |
 
 ## 快速使用
 
@@ -711,7 +723,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1216 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1228 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
