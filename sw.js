@@ -11,7 +11,7 @@
    注意 3：HTML 导航请求改为 network-first，保证门户内容更新即时生效，
    断网时仍回落到缓存副本。静态资源保持 cache-first。 */
 var SCOPE = 'nano:wb';
-var CACHE = SCOPE + ':v3';
+var CACHE = SCOPE + ':v4';
 var LEGACY = ['nano-v1', 'wb-v1'];
 var ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'og.svg'];
 
