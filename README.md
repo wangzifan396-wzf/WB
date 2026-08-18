@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1252-5E6AD2?style=flat-square" alt="1252 Tools">
+  <img src="https://img.shields.io/badge/tools-1262-5E6AD2?style=flat-square" alt="1262 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1252 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1262 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1252 个工具目录
+│   └── ...             # 共 1262 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1252 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1262 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -736,6 +736,17 @@ WB/
 | [GridOverlayForge](https://wangzifan396-wzf.github.io/WB/tools/GridOverlayForge/) | 设计工具 | 网格叠加：生成列网格宽度与起点规格并预览，离线。 |
 | [LudoForge](https://wangzifan396-wzf.github.io/WB/tools/LudoForge/) | 游戏 | 飞行棋：掷骰前进、踩中送回、先到终点者胜的小游戏，离线。 |
 
+| [DigitalRootForge](https://wangzifan396-wzf.github.io/WB/tools/DigitalRootForge/) | 数学工具 | 数根：反复对整数各位数字求和直到个位，并给出加法持久度，离线。 |
+| [CollatzForge](https://wangzifan396-wzf.github.io/WB/tools/CollatzForge/) | 数学工具 | 冰雹序列：对正整数反复执行偶数减半、奇数乘 3 加 1，生成收敛序列与峰值，离线。 |
+| [ArmstrongForge](https://wangzifan396-wzf.github.io/WB/tools/ArmstrongForge/) | 数学工具 | 水仙花数：判断整数是否为水仙花数，或列出指定上限内全部水仙花数，离线。 |
+| [KaprekarForge](https://wangzifan396-wzf.github.io/WB/tools/KaprekarForge/) | 数学工具 | 卡普雷卡尔：对四位数字反复做降序减升序，最多 7 步必收敛到 6174，离线。 |
+| [HappyForge](https://wangzifan396-wzf.github.io/WB/tools/HappyForge/) | 数学工具 | 快乐数：判断正整数是否为快乐数（各位平方求和最终得 1），离线。 |
+| [PerfectForge](https://wangzifan396-wzf.github.io/WB/tools/PerfectForge/) | 数学工具 | 完全数：判断整数是否为完全数，或列出指定上限内全部完全数，离线。 |
+| [TriangularForge](https://wangzifan396-wzf.github.io/WB/tools/TriangularForge/) | 数学工具 | 三角形数：计算第 k 个三角形数，或判断一个数是否为三角形数，离线。 |
+| [HarshadForge](https://wangzifan396-wzf.github.io/WB/tools/HarshadForge/) | 数学工具 | 哈什德数：判断正整数是否能被其各位数字之和整除，离线。 |
+| [VampireForge](https://wangzifan396-wzf.github.io/WB/tools/VampireForge/) | 数学工具 | 吸血鬼数：判断偶数位整数是否为吸血鬼数，或列出指定上限内全部吸血鬼数，离线。 |
+| [PigLatinForge](https://wangzifan396-wzf.github.io/WB/tools/PigLatinForge/) | 文本处理 | 猪拉丁转换：把英文文本转换为猪拉丁文（元音开头加 way，否则辅音后移加 ay），离线。 |
+
 ## 快速使用
 
 1. **在线用**：打开 [门户](https://wangzifan396-wzf.github.io/WB/)，点任意工具卡即达。
@@ -747,7 +758,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1252 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1262 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
