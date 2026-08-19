@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1262-5E6AD2?style=flat-square" alt="1262 Tools">
+  <img src="https://img.shields.io/badge/tools-1266-5E6AD2?style=flat-square" alt="1266 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1262 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1266 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1262 个工具目录
+│   └── ...             # 共 1266 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1262 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1266 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -747,6 +747,11 @@ WB/
 | [VampireForge](https://wangzifan396-wzf.github.io/WB/tools/VampireForge/) | 数学工具 | 吸血鬼数：判断偶数位整数是否为吸血鬼数，或列出指定上限内全部吸血鬼数，离线。 |
 | [PigLatinForge](https://wangzifan396-wzf.github.io/WB/tools/PigLatinForge/) | 文本处理 | 猪拉丁转换：把英文文本转换为猪拉丁文（元音开头加 way，否则辅音后移加 ay），离线。 |
 
+| [ColorPaletteAuditForge](https://wangzifan396-wzf.github.io/WB/tools/ColorPaletteAuditForge/) | 设计工具 | 调色板对比度审计：对一组颜色做 WCAG 对比度两两审计，给出 AA/AAA 判定与最差组合，离线。 |
+| [ExpenseReportForge](https://wangzifan396-wzf.github.io/WB/tools/ExpenseReportForge/) | 财务工具 | 报销报告生成：粘贴多笔支出，自动分类汇总并生成可提交的 Markdown 报销报告，离线。 |
+| [ItineraryForge](https://wangzifan396-wzf.github.io/WB/tools/ItineraryForge/) | 效率工具 | 行程与打包清单：按目的地/天数/节奏生成每日行程骨架与打包清单，离线。 |
+| [MeetingAgendaForge](https://wangzifan396-wzf.github.io/WB/tools/MeetingAgendaForge/) | 效率工具 | 会议议程生成：按议题与时长生成时间盒化议程与纪要模板，离线。 |
+
 ## 快速使用
 
 1. **在线用**：打开 [门户](https://wangzifan396-wzf.github.io/WB/)，点任意工具卡即达。
@@ -758,7 +763,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1262 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1266 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
