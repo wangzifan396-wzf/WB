@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1270-5E6AD2?style=flat-square" alt="1270 Tools">
+  <img src="https://img.shields.io/badge/tools-1276-5E6AD2?style=flat-square" alt="1276 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1270 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1276 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1270 个工具目录
+│   └── ...             # 共 1276 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1270 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1276 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -757,6 +757,13 @@ WB/
 | [StandupForge](https://wangzifan396-wzf.github.io/WB/tools/StandupForge/) | 效率工具 | 站会纪要：按昨日 / 今日 / 障碍生成格式化站会纪要，离线。 |
 | [MermaidForge](https://wangzifan396-wzf.github.io/WB/tools/MermaidForge/) | 设计工具 | Mermaid 图代码：按节点边定义生成 Mermaid 流程图 / 时序图代码，离线。 |
 
+| [UserStoryForge](https://wangzifan396-wzf.github.io/WB/tools/UserStoryForge/) | 效率工具 | 用户故事生成：按角色/诉求/收益逐条生成 INVEST 风格用户故事与验收标准，离线。 |
+| [AdrForge](https://wangzifan396-wzf.github.io/WB/tools/AdrForge/) | 效率工具 | 架构决策记录：按背景/决策/后果生成结构化 ADR 文档，离线。 |
+| [SqlToErForge](https://wangzifan396-wzf.github.io/WB/tools/SqlToErForge/) | 开发辅助 | SQL 转 ER 图：解析 CREATE TABLE 生成表关系 Mermaid ER 图代码，离线。 |
+| [RecipeScalerForge](https://wangzifan396-wzf.github.io/WB/tools/RecipeScalerForge/) | 健康工具 | 食谱缩放：按比例缩放食谱用量并换算单位，离线。 |
+| [LogAnalyzerForge](https://wangzifan396-wzf.github.io/WB/tools/LogAnalyzerForge/) | 实用计算 | 日志分析：解析访问/应用日志统计状态码、Top IP、时间分布，离线。 |
+| [TermsForge](https://wangzifan396-wzf.github.io/WB/tools/TermsForge/) | 文本处理 | 条款润色：把口语化条款改写为严谨服务条款句式，离线。 |
+
 ## 快速使用
 
 1. **在线用**：打开 [门户](https://wangzifan396-wzf.github.io/WB/)，点任意工具卡即达。
@@ -768,7 +775,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1270 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1276 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
