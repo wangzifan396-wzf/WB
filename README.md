@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1282-5E6AD2?style=flat-square" alt="1282 Tools">
+  <img src="https://img.shields.io/badge/tools-1288-5E6AD2?style=flat-square" alt="1288 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1282 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1288 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1282 个工具目录
+│   └── ...             # 共 1288 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1282 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1288 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -769,6 +769,12 @@ WB/
 | [CodeReviewForge](https://wangzifan396-wzf.github.io/WB/tools/CodeReviewForge/) | 开发辅助 | 按改动规模 / 风险 / 语言生成代码评审清单（含安全与性能门禁），离线。 |
 | [PrdForge](https://wangzifan396-wzf.github.io/WB/tools/PrdForge/) | 效率工具 | 按名称 / 用户 / 目标 / 功能点生成结构化产品需求文档（PRD），离线。 |
 | [PersonaForge](https://wangzifan396-wzf.github.io/WB/tools/PersonaForge/) | 设计工具 | 按角色 / 目标 / 痛点 / 场景生成 UX 用户画像，离线。 |
+| [LessonPlanForge](https://wangzifan396-wzf.github.io/WB/tools/LessonPlanForge/) | 教育工具 | 按学科 / 学段 / 课时 / 目标生成结构化单课教案（导入-新授-练习-小结-作业），离线。 |
+| [SyllabusForge](https://wangzifan396-wzf.github.io/WB/tools/SyllabusForge/) | 教育工具 | 按课程名 / 周数 / 目标 / 考核方式生成整期课程大纲（周次安排+考核构成），离线。 |
+| [AiAgentSpecForge](https://wangzifan396-wzf.github.io/WB/tools/AiAgentSpecForge/) | AI 工具 | 按名称 / 角色 / 模型 / 温度 / 工具 / 记忆生成智能体规格书（含 YAML 快照），离线。 |
+| [RunbookForge](https://wangzifan396-wzf.github.io/WB/tools/RunbookForge/) | 开发辅助 | 按服务名 / 故障级别 / 告警场景生成 Runbook（SLA+响应流程+场景处置+升级路径），离线。 |
+| [RetroForge](https://wangzifan396-wzf.github.io/WB/tools/RetroForge/) | 效率工具 | 按迭代名 / 形式 / 时长生成迭代回顾会议模板（议程 timebox+便签模板+行动项表），离线。 |
+| [GlossaryForge](https://wangzifan396-wzf.github.io/WB/tools/GlossaryForge/) | 文本处理 | 批量解析「术语: 定义」生成排序术语表（表格/列表），支持字母序与长度排序，离线。 |
 
 ## 快速使用
 
@@ -781,7 +787,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1282 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1288 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
