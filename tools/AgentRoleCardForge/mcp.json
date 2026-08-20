@@ -1,0 +1,26 @@
+{
+  "id": "AgentRoleCardForge",
+  "name": "agent_role_card_forge",
+  "title": "AgentRoleCardForge — 多 Agent 角色卡",
+  "description": "按团队名 + 角色清单（每行 `角色|职责|边界|交接`）生成多 Agent 团队角色卡与总览表，离线。",
+  "entry": "buildRoleCards",
+  "domFree": true,
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "team": {
+        "type": "string",
+        "description": "团队名称"
+      },
+      "agents": {
+        "type": "string",
+        "description": "角色清单，每行一条 `角色|核心职责|边界|交接`"
+      }
+    },
+    "required": [
+      "agents"
+    ]
+  },
+  "returns": "markdown 字符串（多 Agent 角色卡）",
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction parseAgents(t){\r\n  return splitLines(t).map(function(l){\r\n    var p=l.split('|').map(function(c){return c.trim();});\r\n    return {role:p[0]||'（待命名角色）', duty:p[1]||'（待补充职责）', bound:p[2]||'（待补充边界）', handoff:p[3]||'（待补充交接）'};\r\n  });\r\n}\r\nfunction buildRoleCards(o){\r\n  o=o||{};\r\n  var team=String(o.team||'').trim()||'（待命名团队）';\r\n  var agents=parseAgents(o.agents);\r\n  if(!agents.length) agents=[{role:'（示例角色）',duty:'（待补充职责）',bound:'（待补充边界）',handoff:'（待补充交接）'}];\r\n  var lines=[];\r\n  lines.push('# 多 Agent 团队角色卡：'+team);\r\n  lines.push('');\r\n  lines.push('## 团队总览');\r\n  lines.push('| 角色 | 核心职责 | 边界 | 交接 |');\r\n  lines.push('| --- | --- | --- | --- |');\r\n  agents.forEach(function(a){ lines.push('| '+a.role+' | '+a.duty+' | '+a.bound+' | '+a.handoff+' |'); });\r\n  lines.push('');\r\n  lines.push('## 角色详卡');\r\n  agents.forEach(function(a){\r\n    lines.push('### '+a.role);\r\n    lines.push('- 职责：'+a.duty);\r\n    lines.push('- 边界：'+a.bound);\r\n    lines.push('- 交接：'+a.handoff);\r\n    lines.push('');\r\n  });\r\n  return {title:team+' 角色卡', agentCount:agents.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, parseAgents:parseAgents, buildRoleCards:buildRoleCards};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.AgentRoleCardForgePure = EXPORTS; }\r\n\r\n"
+}

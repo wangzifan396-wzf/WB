@@ -1,0 +1,56 @@
+{
+  "id": "BugReportForge",
+  "name": "bug_report_forge",
+  "title": "BugReportForge — 结构化 Bug 报告",
+  "description": "按标题/严重度/环境/版本/复现步骤等生成结构化 Bug 报告，离线。",
+  "entry": "buildBugReport",
+  "domFree": true,
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "description": "缺陷标题"
+      },
+      "severity": {
+        "type": "string",
+        "enum": [
+          "严重",
+          "高",
+          "中",
+          "低"
+        ],
+        "description": "严重度"
+      },
+      "env": {
+        "type": "string",
+        "description": "环境（OS/浏览器等）"
+      },
+      "version": {
+        "type": "string",
+        "description": "版本号"
+      },
+      "steps": {
+        "type": "string",
+        "description": "复现步骤，每行一条"
+      },
+      "expected": {
+        "type": "string",
+        "description": "期望结果"
+      },
+      "actual": {
+        "type": "string",
+        "description": "实际结果"
+      },
+      "reporter": {
+        "type": "string",
+        "description": "报告人"
+      }
+    },
+    "required": [
+      "title"
+    ]
+  },
+  "returns": "markdown 字符串（Bug 报告）",
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction sevRank(s){ return ({'严重':1,'高':2,'中':3,'低':4})[s]||3; }\r\nfunction buildBugReport(o){\r\n  o=o||{};\r\n  var title=String(o.title||'').trim()||'（待填写缺陷标题）';\r\n  var severity=String(o.severity||'中').trim();\r\n  if(!{'严重':1,'高':2,'中':3,'低':4}[severity]) severity='中';\r\n  var env=String(o.env||'').trim()||'（待补充环境）';\r\n  var version=String(o.version||'').trim()||'（待补充版本）';\r\n  var steps=splitLines(o.steps);\r\n  var expected=String(o.expected||'').trim()||'（待填写期望结果）';\r\n  var actual=String(o.actual||'').trim()||'（待填写实际结果）';\r\n  var reporter=String(o.reporter||'').trim()||'（匿名）';\r\n  var lines=[];\r\n  lines.push('# Bug 报告：'+title);\r\n  lines.push('');\r\n  lines.push('- 严重度：'+severity+'（P'+sevRank(severity)+'）');\r\n  lines.push('- 环境：'+env);\r\n  lines.push('- 版本：'+version);\r\n  lines.push('- 报告人：'+reporter);\r\n  lines.push('');\r\n  lines.push('## 复现步骤');\r\n  if(steps.length){ steps.forEach(function(s,i){ lines.push((i+1)+'. '+s); }); }\r\n  else { lines.push('1. （待补充复现步骤）'); }\r\n  lines.push('');\r\n  lines.push('## 期望结果');\r\n  lines.push(expected);\r\n  lines.push('');\r\n  lines.push('## 实际结果');\r\n  lines.push(actual);\r\n  lines.push('');\r\n  lines.push('## 附加信息');\r\n  lines.push('- 是否必现：待确认');\r\n  lines.push('- 日志 / 截图：待补充');\r\n  return {title:title, severity:severity, prank:sevRank(severity), stepCount:steps.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, sevRank:sevRank, buildBugReport:buildBugReport};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BugReportForgePure = EXPORTS; }\r\n\r\n"
+}

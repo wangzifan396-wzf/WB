@@ -1,0 +1,39 @@
+{
+  "id": "LocalModelSpecForge",
+  "name": "local_model_spec_forge",
+  "title": "LocalModelSpecForge — 本地部署规格",
+  "description": "按参数量/量化/上下文窗口/显存估算本地部署占用并给可行性结论与硬件建议，离线。",
+  "entry": "buildLocalSpec",
+  "domFree": true,
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string",
+        "description": "模型名称"
+      },
+      "params": {
+        "type": "number",
+        "description": "参数量（单位 B，如 7 / 70）"
+      },
+      "quant": {
+        "type": "string",
+        "description": "量化等级，如 Q4_K_M / Q5_K_M / F16"
+      },
+      "context": {
+        "type": "integer",
+        "description": "上下文窗口 token 数"
+      },
+      "vram": {
+        "type": "number",
+        "description": "可用显存 GB"
+      }
+    },
+    "required": [
+      "params",
+      "vram"
+    ]
+  },
+  "returns": "markdown 字符串（本地部署规格与可行性结论）",
+  "core": "\r\n\r\nfunction qfactor(q){\r\n  var t={'q2_k':0.3,'q3_k':0.4,'q4_k_m':0.5,'q4_0':0.55,'q4_k_s':0.5,'q5_k_m':0.65,'q6_k':0.75,'q8_0':1.0,'f16':2.0,'fp16':2.0,'f32':4.0,'fp32':4.0};\r\n  var k=String(q||'').toLowerCase().replace(/[^a-z0-9_]/g,'');\r\n  return t[k]||0.5;\r\n}\r\nfunction buildLocalSpec(o){\r\n  o=o||{};\r\n  var model=String(o.model||'').trim()||'（待填写模型）';\r\n  var params=parseFloat(o.params); if(isNaN(params)||params<=0) params=7;\r\n  var quant=String(o.quant||'Q4_K_M').trim()||'Q4_K_M';\r\n  var ctx=parseInt(o.context,10); if(isNaN(ctx)||ctx<=0) ctx=8192;\r\n  var vram=parseFloat(o.vram); if(isNaN(vram)||vram<=0) vram=16;\r\n  var overhead=0.8;\r\n  var weights=params*qfactor(quant);\r\n  var ctxGB=ctx*params*2e-5;\r\n  var total=weights+overhead+ctxGB;\r\n  var fit= total<=vram;\r\n  var rec;\r\n  if(fit){ rec='当前 '+vram+'GB 显存可承载（估算占用 '+total.toFixed(1)+'GB，余量 '+(vram-total).toFixed(1)+'GB）。'; }\r\n  else {\r\n    var needQ=(vram-overhead-ctxGB)/params;\r\n    var sug= needQ<=0.35?'Q2_K': needQ<=0.55?'Q4_K_M': needQ<=0.75?'Q6_K':'Q8_0';\r\n    var sugCtx=Math.max(1024,Math.floor((vram-overhead-weights)/(params*2e-5)));\r\n    rec='显存不足：估算占用 '+total.toFixed(1)+'GB > '+vram+'GB。建议降到 '+sug+' 或缩短上下文至约 '+sugCtx+' tokens。';\r\n  }\r\n  var lines=[];\r\n  lines.push('# 本地模型部署规格：'+model);\r\n  lines.push('');\r\n  lines.push('## 一、配置输入');\r\n  lines.push('- 模型：'+model);\r\n  lines.push('- 参数量：'+params+'B');\r\n  lines.push('- 量化：'+quant);\r\n  lines.push('- 上下文窗口：'+ctx+' tokens');\r\n  lines.push('- 目标硬件显存：'+vram+'GB');\r\n  lines.push('');\r\n  lines.push('## 二、显存估算（启发式，仅供参考）');\r\n  lines.push('- 权重：'+weights.toFixed(1)+'GB（'+params+'B × '+qfactor(quant).toFixed(2)+' GB/B）');\r\n  lines.push('- 运行时开销：'+overhead.toFixed(1)+'GB');\r\n  lines.push('- 上下文(KV Cache)：'+ctxGB.toFixed(1)+'GB');\r\n  lines.push('- 合计：'+total.toFixed(1)+'GB');\r\n  lines.push('');\r\n  lines.push('## 三、可行性结论');\r\n  lines.push((fit?'- 状态：可部署':'- 状态：显存不足'));\r\n  lines.push('- '+rec);\r\n  lines.push('');\r\n  lines.push('## 四、硬件建议');\r\n  lines.push('- 显存 ≥ '+Math.ceil(total)+'GB（含余量）：消费级如 RTX 3060/4060(12-16G)、RTX 4080/4090(16-24G)、数据中心 A100/H100(40-80G)');\r\n  lines.push('- 内存建议 ≥ 32GB；优先 NVMe 以加速模型加载');\r\n  lines.push('- 推理运行时：llama.cpp / Ollama / LM Studio（均本地、零上传）');\r\n  return {title:model+' 部署规格', fit:fit, totalGB:total, weightsGB:weights, ctxGB:ctxGB, recommendation:rec, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={qfactor:qfactor, buildLocalSpec:buildLocalSpec};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LocalModelSpecForgePure = EXPORTS; }\r\n\r\n"
+}

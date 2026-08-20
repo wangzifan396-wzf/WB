@@ -1,0 +1,58 @@
+{
+  "id": "DatasetCardForge",
+  "name": "dataset_card_forge",
+  "title": "DatasetCardForge — 数据集卡片",
+  "description": "按名称/领域/来源/规模/格式/许可等生成 AI 数据集卡片，离线。",
+  "entry": "buildDatasetCard",
+  "domFree": true,
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "数据集名称"
+      },
+      "type": {
+        "type": "string",
+        "description": "数据类型，如 文本"
+      },
+      "domain": {
+        "type": "string",
+        "description": "领域"
+      },
+      "source": {
+        "type": "string",
+        "description": "来源"
+      },
+      "size": {
+        "type": "string",
+        "description": "规模"
+      },
+      "format": {
+        "type": "string",
+        "description": "格式"
+      },
+      "license": {
+        "type": "string",
+        "description": "许可证"
+      },
+      "summary": {
+        "type": "string",
+        "description": "描述"
+      },
+      "uses": {
+        "type": "string",
+        "description": "预期用途，每行一条"
+      },
+      "limits": {
+        "type": "string",
+        "description": "局限，每行一条"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "returns": "markdown 字符串（数据集卡片）",
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction parseKV(t){\r\n  return splitLines(t).map(function(l){\r\n    var i=l.indexOf(':'), j=l.indexOf('：');\r\n    var pos=-1; if(i>=0&&(j<0||i<j)) pos=i; else if(j>=0) pos=j;\r\n    if(pos<=0) return {k:l.trim(), v:''};\r\n    return {k:l.slice(0,pos).trim(), v:l.slice(pos+1).trim()};\r\n  }).filter(function(x){return x.k;});\r\n}\r\nfunction buildDatasetCard(o){\r\n  o=o||{};\r\n  var name=String(o.name||'').trim()||'UnnamedDataset';\r\n  var type=String(o.type||'文本').trim()||'文本';\r\n  var domain=String(o.domain||'').trim()||'（待补充领域）';\r\n  var source=String(o.source||'').trim()||'（待补充来源）';\r\n  var size=String(o.size||'').trim()||'（待补充规模）';\r\n  var fmt=String(o.format||'').trim()||'（待补充格式）';\r\n  var license=String(o.license||'').trim()||'（待补充许可证）';\r\n  var desc=String(o.summary||'').trim()||'（待补充描述）';\r\n  var uses=splitLines(o.uses); if(!uses.length) uses=['（待补充预期用途）'];\r\n  var limits=splitLines(o.limits); if(!limits.length) limits=['（待补充已知局限与偏差）'];\r\n  var bias=splitLines(o.bias); if(!bias.length) bias=['建议在发布前做代表性与偏见审计'];\r\n  var splits=parseKV(o.splits);\r\n  var lines=[];\r\n  lines.push('# 数据集卡片：'+name);\r\n  lines.push('');\r\n  lines.push('## 一、概述');\r\n  lines.push('- 类型：'+type);\r\n  lines.push('- 领域：'+domain);\r\n  lines.push('- 描述：'+desc);\r\n  lines.push('');\r\n  lines.push('## 二、预期用途');\r\n  uses.forEach(function(u){ lines.push('- '+u); });\r\n  lines.push('');\r\n  lines.push('## 三、数据构成');\r\n  lines.push('- 来源：'+source);\r\n  lines.push('- 规模：'+size);\r\n  lines.push('- 格式：'+fmt);\r\n  if(splits.length){ lines.push('- 划分：'); splits.forEach(function(s){ lines.push('  - '+s.k+'：'+s.v); }); }\r\n  lines.push('');\r\n  lines.push('## 四、许可与合规');\r\n  lines.push('- 许可证：'+license);\r\n  lines.push('- 个人信息：需确认是否含 PII，是否完成脱敏与授权');\r\n  lines.push('');\r\n  lines.push('## 五、已知局限与偏差');\r\n  limits.forEach(function(l){ lines.push('- '+l); });\r\n  lines.push('');\r\n  lines.push('## 六、质量与偏见审计');\r\n  bias.forEach(function(b){ lines.push('- '+b); });\r\n  return {title:name+' 数据集卡片', useCount:uses.length, limitCount:limits.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, parseKV:parseKV, buildDatasetCard:buildDatasetCard};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DatasetCardForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,34 @@
+{
+  "id": "CompetitiveForge",
+  "name": "competitive_forge",
+  "title": "CompetitiveForge — 竞品对比分析",
+  "description": "按自家产品/竞品/维度/矩阵生成竞品对比分析与矩阵骨架，离线。",
+  "entry": "buildCompetitive",
+  "domFree": true,
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "product": {
+        "type": "string",
+        "description": "自家产品名"
+      },
+      "competitors": {
+        "type": "string",
+        "description": "竞品名，每行一个"
+      },
+      "dimensions": {
+        "type": "string",
+        "description": "对比维度，每行一个"
+      },
+      "matrix": {
+        "type": "string",
+        "description": "对比矩阵，每行 `维度|自家|竞品1|竞品2`（| 分隔）"
+      }
+    },
+    "required": [
+      "dimensions"
+    ]
+  },
+  "returns": "markdown 字符串（竞品对比）",
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction parseMatrix(t){\r\n  return splitLines(t).map(function(l){ return l.split('|').map(function(c){return c.trim();}).filter(function(c,idx){ return idx===0 || c.length>0; }); });\r\n}\r\nfunction buildCompetitive(o){\r\n  o=o||{};\r\n  var product=String(o.product||'').trim()||'（自家产品）';\r\n  var competitors=splitLines(o.competitors);\r\n  var dims=splitLines(o.dimensions);\r\n  var rows=parseMatrix(o.matrix).filter(function(r){return r.length>=2;});\r\n  var maxCols=0; rows.forEach(function(r){ if(r.length>maxCols) maxCols=r.length; });\r\n  var compN=Math.max(0, maxCols-1, competitors.length);\r\n  var labels=[];\r\n  if(competitors.length===compN){ labels=competitors.slice(); }\r\n  else { for(var i=0;i<compN;i++){ labels.push(competitors[i]||('竞品'+(i+1))); } }\r\n  var lines=[];\r\n  lines.push('# 竞品对比分析：'+product);\r\n  lines.push('');\r\n  lines.push('## 一、对比对象');\r\n  lines.push('- 自家产品：'+product);\r\n  if(labels.length){ lines.push('- 竞品：'+labels.join('、')); }\r\n  else { lines.push('- 竞品：（待补充）'); }\r\n  lines.push('');\r\n  lines.push('## 二、对比维度');\r\n  if(dims.length){ dims.forEach(function(d){ lines.push('- '+d); }); }\r\n  else { lines.push('- （待补充对比维度，如 价格 / 功能 / 性能 / 生态）'); }\r\n  lines.push('');\r\n  if(rows.length){\r\n    lines.push('## 三、对比矩阵');\r\n    var header='| 维度 | 自家('+product+') | '+labels.join(' | ')+' |';\r\n    var sep='| --- | --- | '+labels.map(function(){return '---';}).join(' | ')+' |';\r\n    lines.push(header); lines.push(sep);\r\n    rows.forEach(function(r){\r\n      var cells=r.slice(1);\r\n      while(cells.length<labels.length){ cells.push('（待填）'); }\r\n      lines.push('| '+r[0]+' | '+cells.join(' | ')+' |');\r\n    });\r\n    lines.push('');\r\n    lines.push('## 四、结论与建议');\r\n    lines.push('- 差异化优势：（待补充）');\r\n    lines.push('- 待补齐短板：（待补充）');\r\n  } else {\r\n    lines.push('## 三、对比矩阵（骨架）');\r\n    lines.push('> 在「对比矩阵」中按「维度 | 自家 | 竞品1 | 竞品2」逐行填写，即可生成完整矩阵。');\r\n    if(dims.length){ lines.push(''); dims.forEach(function(d){ lines.push('- '+d+'：| （待填） | （待填） | （待填） |'); }); }\r\n  }\r\n  return {title:product+' 竞品对比', dimCount:dims.length, compCount:labels.length, rowCount:rows.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, parseMatrix:parseMatrix, buildCompetitive:buildCompetitive};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CompetitiveForgePure = EXPORTS; }\r\n\r\n"
+}

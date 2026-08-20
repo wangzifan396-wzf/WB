@@ -1,0 +1,30 @@
+{
+  "id": "GradingRubricForge",
+  "name": "grading_rubric_forge",
+  "title": "GradingRubricForge — 评分量规",
+  "description": "按评价任务/等级/维度(权重)生成评分量规表与占比说明，离线。",
+  "entry": "buildRubric",
+  "domFree": true,
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "task": {
+        "type": "string",
+        "description": "评价任务"
+      },
+      "levels": {
+        "type": "string",
+        "description": "等级，每行一个，如 优秀/良好/合格/不合格"
+      },
+      "dimensions": {
+        "type": "string",
+        "description": "维度与权重，每行 `维度|权重`，如 `内容|2`"
+      }
+    },
+    "required": [
+      "task"
+    ]
+  },
+  "returns": "markdown 字符串（评分量规）",
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction parseDim(t){\r\n  return splitLines(t).map(function(l){\r\n    var i=l.indexOf(':'), j=l.indexOf('：');\r\n    var pos=-1; if(i>=0&&(j<0||i<j)) pos=i; else if(j>=0) pos=j;\r\n    var w=1; var k=l;\r\n    if(pos>0){ k=l.slice(0,pos).trim(); var ws=l.slice(pos+1).trim(); var n=parseFloat(ws); if(!isNaN(n)&&n>0) w=n; }\r\n    return {k:k, w:w};\r\n  });\r\n}\r\nfunction buildRubric(o){\r\n  o=o||{};\r\n  var task=String(o.task||'').trim()||'（待填写评价任务）';\r\n  var levels=splitLines(o.levels);\r\n  if(!levels.length) levels=['优秀','良好','合格','不合格'];\r\n  var dims=parseDim(o.dimensions);\r\n  if(!dims.length) dims=[{k:'内容', w:1}];\r\n  var weightSum=0; dims.forEach(function(d){ weightSum+=d.w; });\r\n  var lvlNote={};\r\n  levels.forEach(function(lv,idx){\r\n    if(idx===0) lvlNote[lv]='（示范级）';\r\n    else if(idx===levels.length-1) lvlNote[lv]='（需重点改进）';\r\n    else lvlNote[lv]='';\r\n  });\r\n  var header='| 维度 | 权重 | '+levels.join(' | ')+' |';\r\n  var sep='| --- | --- | '+levels.map(function(){return '---';}).join(' | ')+' |';\r\n  var rows=dims.map(function(d){\r\n    var cells=levels.map(function(lv){ return '在「'+d.k+'」方面达到 '+lv+' 等级要求'+lvlNote[lv]; });\r\n    return '| '+d.k+' | '+d.w+' | '+cells.join(' | ')+' |';\r\n  });\r\n  var lines=[];\r\n  lines.push('# 评分量规：'+task);\r\n  lines.push('');\r\n  lines.push('- 评价等级：'+levels.join(' / '));\r\n  var wpct=dims.map(function(d){ return d.k+' '+Math.round(d.w/weightSum*100)+'%'; }).join('，');\r\n  lines.push('- 权重分配：'+wpct+'（合计 100%）');\r\n  lines.push('');\r\n  lines.push(header);\r\n  lines.push(sep);\r\n  rows.forEach(function(r){ lines.push(r); });\r\n  return {title:task+' 评分量规', dimCount:dims.length, levelCount:levels.length, weightSum:weightSum, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, parseDim:parseDim, buildRubric:buildRubric};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.GradingRubricForgePure = EXPORTS; }\r\n\r\n"
+}

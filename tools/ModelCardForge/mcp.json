@@ -1,0 +1,50 @@
+{
+  "id": "ModelCardForge",
+  "name": "model_card_forge",
+  "title": "ModelCardForge — 模型卡片",
+  "description": "按名称/类型/用途/局限/指标/伦理等生成 AI 模型卡片，离线。",
+  "entry": "buildModelCard",
+  "domFree": true,
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "模型名称"
+      },
+      "type": {
+        "type": "string",
+        "description": "模型类型，如 文本生成"
+      },
+      "version": {
+        "type": "string",
+        "description": "版本"
+      },
+      "uses": {
+        "type": "string",
+        "description": "预期用途，每行一条"
+      },
+      "limits": {
+        "type": "string",
+        "description": "已知局限，每行一条"
+      },
+      "metrics": {
+        "type": "string",
+        "description": "评测指标，每行 `指标:值`"
+      },
+      "ethics": {
+        "type": "string",
+        "description": "伦理注意点，每行一条"
+      },
+      "outofscope": {
+        "type": "string",
+        "description": "超出范围说明"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "returns": "markdown 字符串（模型卡片）",
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction parseKV(t){\r\n  return splitLines(t).map(function(l){\r\n    var i=l.indexOf(':'), j=l.indexOf('：');\r\n    var pos=-1; if(i>=0&&(j<0||i<j)) pos=i; else if(j>=0) pos=j;\r\n    if(pos<=0) return {k:l.trim(), v:''};\r\n    return {k:l.slice(0,pos).trim(), v:l.slice(pos+1).trim()};\r\n  }).filter(function(x){return x.k;});\r\n}\r\nfunction buildModelCard(o){\r\n  o=o||{};\r\n  var name=String(o.name||'').trim()||'UnnamedModel';\r\n  var type=String(o.type||'文本生成').trim()||'文本生成';\r\n  var version=String(o.version||'1.0').trim()||'1.0';\r\n  var uses=splitLines(o.uses); if(!uses.length) uses=['（待补充预期用途）'];\r\n  var limits=splitLines(o.limits); if(!limits.length) limits=['（待补充已知局限）'];\r\n  var metrics=parseKV(o.metrics);\r\n  var ethics=splitLines(o.ethics); if(!ethics.length) ethics=['数据来源需合规，避免包含个人隐私','输出需标注为模型生成，防止误导'];\r\n  var outof=splitLines(o.outofscope).join('；')||'（待补充）';\r\n  var lines=[];\r\n  lines.push('# 模型卡片：'+name+' v'+version);\r\n  lines.push('');\r\n  lines.push('## 一、概述');\r\n  lines.push('- 模型类型：'+type);\r\n  lines.push('- 版本：'+version);\r\n  lines.push('- 一句话描述：'+String(o.summary||'').trim()||'（待补充）');\r\n  lines.push('');\r\n  lines.push('## 二、预期用途');\r\n  lines.push('- 适用场景：'); uses.forEach(function(u){ lines.push('  - '+u); });\r\n  lines.push('- 不适用场景：'+outof);\r\n  lines.push('');\r\n  lines.push('## 三、关键指标');\r\n  if(metrics.length){ lines.push('| 指标 | 数值 |'); lines.push('| --- | --- |'); metrics.forEach(function(m){ lines.push('| '+m.k+' | '+m.v.replace(/\\|/g,'/')+' |'); }); }\r\n  else { lines.push('（暂无指标，建议补充准确率 / 延迟 / 困惑度等）'); }\r\n  lines.push('');\r\n  lines.push('## 四、伦理与安全');\r\n  ethics.forEach(function(e){ lines.push('- '+e); });\r\n  lines.push('');\r\n  lines.push('## 五、已知局限');\r\n  limits.forEach(function(l){ lines.push('- '+l); });\r\n  lines.push('');\r\n  lines.push('## 六、许可证');\r\n  lines.push('- '+(String(o.license||'').trim()||'（待补充许可证，如 MIT / Apache-2.0）'));\r\n  return {title:name+' 模型卡片', metricCount:metrics.length, useCount:uses.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, parseKV:parseKV, buildModelCard:buildModelCard};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ModelCardForgePure = EXPORTS; }\r\n\r\n"
+}
