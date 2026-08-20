@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1300-5E6AD2?style=flat-square" alt="1300 Tools">
+  <img src="https://img.shields.io/badge/tools-1304-5E6AD2?style=flat-square" alt="1304 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1300 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1304 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1300 个工具目录
+│   └── ...             # 共 1304 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1300 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1304 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -787,6 +787,10 @@ WB/
 | [BugReportForge](https://wangzifan396-wzf.github.io/WB/tools/BugReportForge/) | 开发辅助 | 按标题 / 严重度 / 环境 / 复现步骤 / 期望与实际生成标准 Bug 报告，离线。 |
 | [JdForge](https://wangzifan396-wzf.github.io/WB/tools/JdForge/) | 效率工具 | 按职位 / 团队 / 级别 / 职责 / 要求 / 福利生成结构化招聘 JD，离线。 |
 | [CompetitiveForge](https://wangzifan396-wzf.github.io/WB/tools/CompetitiveForge/) | 效率工具 | 按自家产品 / 竞品 / 维度与对比矩阵生成竞品对比分析（含骨架），离线。 |
+| [SkillSpecForge](https://wangzifan396-wzf.github.io/WB/tools/SkillSpecForge/) | AI 工具 | 生成 Claude/Gemini skill 规格：名称 / 描述 / 触发 / 步骤 / 约束，产出标准 SKILL.md（含 YAML frontmatter）。 |
+| [AgentRoleCardForge](https://wangzifan396-wzf.github.io/WB/tools/AgentRoleCardForge/) | AI 工具 | 多 Agent 团队角色卡：按角色清单生成角色卡与总览表（职责 / 边界 / 交接）。 |
+| [LocalModelSpecForge](https://wangzifan396-wzf.github.io/WB/tools/LocalModelSpecForge/) | AI 工具 | 本地模型部署规格：估算量化显存占用并给可行性结论与硬件建议。 |
+| [AgentTutorPromptForge](https://wangzifan396-wzf.github.io/WB/tools/AgentTutorPromptForge/) | 教育工具 | 苏格拉底式辅导 Agent 角色卡：按学科 / 主题 / 水平 / 风格生成提示词与角色卡。 |
 
 ## 快速使用
 
@@ -799,7 +803,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1300 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1304 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
