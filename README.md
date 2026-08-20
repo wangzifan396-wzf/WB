@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1294-5E6AD2?style=flat-square" alt="1294 Tools">
+  <img src="https://img.shields.io/badge/tools-1300-5E6AD2?style=flat-square" alt="1300 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1294 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1300 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1294 个工具目录
+│   └── ...             # 共 1300 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1294 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1300 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -781,6 +781,12 @@ WB/
 | [TestPlanForge](https://wangzifan396-wzf.github.io/WB/tools/TestPlanForge/) | 开发辅助 | 按功能 / 范围 / 层级生成测试计划（目标 / 范围 / 用例 / 环境 / 风险 / 出口准则），离线。 |
 | [ReleaseNotesForge](https://wangzifan396-wzf.github.io/WB/tools/ReleaseNotesForge/) | 效率工具 | 按版本 / 变更列表自动分类为 Added/Changed/Fixed/Deprecated/Removed/Security，离线。 |
 | [ModelCardForge](https://wangzifan396-wzf.github.io/WB/tools/ModelCardForge/) | AI 工具 | 按模型 / 类型 / 用途 / 指标 / 局限生成标准化模型卡片（含指标表与伦理安全），离线。 |
+| [DatasetCardForge](https://wangzifan396-wzf.github.io/WB/tools/DatasetCardForge/) | AI 工具 | 按名称 / 类型 / 来源 / 规模 / 许可 / 局限生成标准化数据集卡片（含构成与偏见审计），离线。 |
+| [FineTuneSpecForge](https://wangzifan396-wzf.github.io/WB/tools/FineTuneSpecForge/) | AI 工具 | 按基模 / 任务 / 数据 / 超参 / 资源生成结构化微调规格书（含风险与回滚），离线。 |
+| [GradingRubricForge](https://wangzifan396-wzf.github.io/WB/tools/GradingRubricForge/) | 教育工具 | 按评价任务 / 维度(权重) / 等级生成评分量规表（自动算权重占比），离线。 |
+| [BugReportForge](https://wangzifan396-wzf.github.io/WB/tools/BugReportForge/) | 开发辅助 | 按标题 / 严重度 / 环境 / 复现步骤 / 期望与实际生成标准 Bug 报告，离线。 |
+| [JdForge](https://wangzifan396-wzf.github.io/WB/tools/JdForge/) | 效率工具 | 按职位 / 团队 / 级别 / 职责 / 要求 / 福利生成结构化招聘 JD，离线。 |
+| [CompetitiveForge](https://wangzifan396-wzf.github.io/WB/tools/CompetitiveForge/) | 效率工具 | 按自家产品 / 竞品 / 维度与对比矩阵生成竞品对比分析（含骨架），离线。 |
 
 ## 快速使用
 
@@ -793,7 +799,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前双门禁：`audit_render.js`（渲染/语法/截断）与 `audit_matrix_v3.py`（运行时缺陷）必须 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1294 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1300 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
