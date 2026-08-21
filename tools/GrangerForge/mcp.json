@@ -1,0 +1,39 @@
+{
+  "id": "GrangerForge",
+  "name": "granger_forge",
+  "title": "GrangerForge",
+  "description": "格兰杰因果检验（滞后阶 p=1）：用 OLS 比较受限/非受限回归的残差平方和得到 F 统计量，离线精确。",
+  "entry": "granger",
+  "entries": {
+    "granger": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "y",
+        "x",
+        "p"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "y": {
+        "type": "string",
+        "description": "第 1 个参数（y）"
+      },
+      "x": {
+        "type": "string",
+        "description": "第 2 个参数（x）"
+      },
+      "p": {
+        "type": "string",
+        "description": "第 3 个参数（p）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction ols(X,Y){ var k=X[0].length; var XtX=[]; for(var i=0;i<k;i++) XtX.push(new Array(k).fill(0)); var XtY=new Array(k).fill(0); for(var r=0;r<X.length;r++){ for(var i=0;i<k;i++){ XtY[i]+=X[r][i]*Y[r]; for(var j=0;j<k;j++) XtX[i][j]+=X[r][i]*X[r][j]; } } var A=[]; for(var i=0;i<k;i++) A.push(XtX[i].slice().concat([XtY[i]])); for(var col=0;col<k;col++){ var piv=col; for(var r=col+1;r<k;r++) if(Math.abs(A[r][col])>Math.abs(A[piv][col])) piv=r; var tmp=A[col]; A[col]=A[piv]; A[piv]=tmp; var d=A[col][col]; if(Math.abs(d)<1e-12) d=1e-12; for(var j=col;j<=k;j++) A[col][j]/=d; for(var r=0;r<k;r++){ if(r!==col){ var f=A[r][col]; for(var j=col;j<=k;j++) A[r][j]-=f*A[col][j]; } } } var beta=[]; for(var i=0;i<k;i++) beta.push(A[i][k]); return beta; }\r\nfunction ssr(X,Y){ var beta=ols(X,Y); var s=0; for(var r=0;r<X.length;r++){ var pred=0; for(var i=0;i<X[r].length;i++) pred+=X[r][i]*beta[i]; var e=Y[r]-pred; s+=e*e; } return s; }\r\nfunction granger(y,x,p){ var n=y.length; if(n<2*p+1) return null; var Yr=[],Xr=[],Xu=[]; for(var t=2*p;t<n;t++){ var rowR=[1]; for(var l=1;l<=p;l++) rowR.push(y[t-l]); var rowU=rowR.slice(); for(var l=1;l<=p;l++) rowU.push(x[t-l]); Yr.push(y[t]); Xr.push(rowR); Xu.push(rowU); } var ssrR=ssr(Xr,Yr); var ssrU=ssr(Xu,Yr); var df1=p; var df2=Xr.length-Xr[0].length; var F=((ssrR-ssrU)/df1)/(ssrU/df2); return {F:F}; }\r\nvar EXPORTS={granger:granger};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.GrangerForgePure = EXPORTS; }\r\n\r\n"
+}

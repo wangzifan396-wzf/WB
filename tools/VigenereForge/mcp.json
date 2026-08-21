@@ -1,0 +1,51 @@
+{
+  "id": "VigenereForge",
+  "name": "vigenere_forge",
+  "title": "VigenereForge",
+  "description": "维吉尼亚密码：多表替换密码，密钥循环移位，可逆加解密，离线可用。",
+  "entry": "vigEnc",
+  "entries": {
+    "vigEnc": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "t",
+        "k"
+      ],
+      "fields": []
+    },
+    "vigDec": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "t",
+        "k"
+      ],
+      "fields": []
+    },
+    "vigenere": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "key",
+        "dec"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "t": {
+        "type": "string",
+        "description": "第 1 个参数（t）"
+      },
+      "k": {
+        "type": "string",
+        "description": "第 2 个参数（k）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8(str){var out=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<0x80)out.push(c);else if(c<0x800){out.push(0xC0|(c>>6),0x80|(c&0x3F));}else if(c>=0xD800&&c<=0xDBFF){var c2=str.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}else{out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));}}return out;}\r\nfunction hexToBytes(h){h=(h||'').replace(/[^0-9a-fA-F]/g,'');if(h.length%2)h='0'+h;var b=[];for(var i=0;i<h.length;i+=2)b.push(parseInt(h.substr(i,2),16));return b;}\r\nfunction bytesToHex(b){var s='';for(var i=0;i<b.length;i++)s+=('0'+b[i].toString(16)).slice(-2);return s;}\r\n\r\nfunction vigenere(text,key,dec){\r\n  var ki=0;var out='';var K=key.toUpperCase().replace(/[^A-Z]/g,'');\r\n  if(!K)throw new Error('密钥须至少含一个字母');\r\n  for(var i=0;i<text.length;i++){var c=text[i];var up=c.toUpperCase();\r\n    if(up>='A'&&up<='Z'){var shift=K.charCodeAt(ki%K.length)-65;var base=c>='a'&&c<='z'?97:65;\r\n      var p=c.charCodeAt(0)-base;var np=dec?((p-shift)%26+26)%26:(p+shift)%26;out+=String.fromCharCode(np+base);ki++;}\r\n    else out+=c;\r\n  }\r\n  return out;\r\n}\r\nfunction vigEnc(t,k){return vigenere(t,k,false);}\r\nfunction vigDec(t,k){return vigenere(t,k,true);}\r\nvar EXPORTS={vigEnc:vigEnc,vigDec:vigDec,vigenere:vigenere};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.VigenereForgePure = EXPORTS; }\r\n\r\n"
+}

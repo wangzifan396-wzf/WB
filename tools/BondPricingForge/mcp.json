@@ -1,0 +1,49 @@
+{
+  "id": "BondPricingForge",
+  "name": "bond_pricing_forge",
+  "title": "债券定价",
+  "description": "由面值/票息/YTM/期限/频率计算债券价格，离线。",
+  "entry": "bondPrice",
+  "entries": {
+    "bondPrice": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "face",
+        "couponRate",
+        "ytm",
+        "years",
+        "freq"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "face": {
+        "type": "string",
+        "description": "第 1 个参数（face）"
+      },
+      "couponRate": {
+        "type": "string",
+        "description": "第 2 个参数（couponRate）"
+      },
+      "ytm": {
+        "type": "string",
+        "description": "第 3 个参数（ytm）"
+      },
+      "years": {
+        "type": "string",
+        "description": "第 4 个参数（years）"
+      },
+      "freq": {
+        "type": "string",
+        "description": "第 5 个参数（freq）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction bondPrice(face, couponRate, ytm, years, freq){\r\n  face=(+face)||1000; couponRate=(+couponRate); if(isNaN(couponRate))couponRate=0;\r\n  ytm=(+ytm); if(isNaN(ytm))ytm=0; years=(+years)||1; freq=(+freq)||2;\r\n  if(freq<1) freq=1;\r\n  var n=Math.round(years*freq);\r\n  var periodRate=ytm/freq;\r\n  var coupon=face*couponRate/freq;\r\n  var price=0;\r\n  for(var t=1;t<=n;t++){ price+=coupon/Math.pow(1+periodRate,t); }\r\n  price+=face/Math.pow(1+periodRate,n);\r\n  price=Math.round(price*100)/100;\r\n  return {price:price, face:face, ytm:ytm, years:years, freq:freq, status:(price>face?'溢价':(price<face?'折价':'平价'))};\r\n}\r\nvar EXPORTS={bondPrice:bondPrice};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BondPricingForgePure = EXPORTS; }\r\n\r\n"
+}

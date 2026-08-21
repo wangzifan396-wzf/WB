@@ -1,0 +1,41 @@
+{
+  "id": "KarnaughForge",
+  "name": "karnaugh_forge",
+  "title": "KarnaughForge",
+  "description": "用 Quine-McCluskey 算法化简布尔最小项，输出最简与或式。",
+  "entry": "qm",
+  "entries": {
+    "qm": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "vars",
+        "minterms"
+      ],
+      "fields": []
+    },
+    "numOnes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "vars": {
+        "type": "string",
+        "description": "第 1 个参数（vars）"
+      },
+      "minterms": {
+        "type": "string",
+        "description": "第 2 个参数（minterms）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction numOnes(n){var c=0;n=n>>>0;while(n){c+=n&1;n>>>=1;}return c;}\r\nfunction makeImp(t){return {bits:t>>>0,dash:0,terms:[t>>>0],combined:false};}\r\nfunction combine(a,b){if(a.dash!==b.dash)return null;var diff=(a.bits ^ b.bits);if(numOnes(diff)!==1)return null;\r\n  var ni={bits:((a.bits & ~diff)>>>0),dash:((a.dash | diff)>>>0),terms:a.terms.concat(b.terms),combined:false};return ni;}\r\nfunction qm(vars,minterms){\r\n  var maxM=1<<vars;var m=[];var seen={};\r\n  for(var i=0;i<minterms.length;i++){var x=+minterms[i];if(x>=0&&x<maxM&&!seen[x]){seen[x]=1;m.push(x);}}\r\n  if(!m.length)return {implicants:[],expression:'0',vars:vars};\r\n  var implicants=[];m.forEach(function(t){implicants.push(makeImp(t));});\r\n  var changed=true;\r\n  while(changed){\r\n    changed=false;\r\n    var byWeight={};\r\n    implicants.forEach(function(im){ if(im.combined)return; var w=numOnes(im.bits); (byWeight[w]=byWeight[w]||[]).push(im); });\r\n    var keys=Object.keys(byWeight).map(Number).sort(function(a,b){return a-b;});\r\n    var produced={};\r\n    for(var gi=0; gi<keys.length-1; gi++){\r\n      var g1=byWeight[keys[gi]], g2=byWeight[keys[gi+1]];\r\n      g1.forEach(function(a){\r\n        if(a.combined)return;\r\n        g2.forEach(function(b){\r\n          if(b.combined)return;\r\n          var c=combine(a,b);\r\n          if(c){\r\n            var key=c.bits+'_'+c.dash;\r\n            if(!produced[key]){ produced[key]=true; implicants.push(c); }\r\n            a.combined=true; b.combined=true; changed=true;\r\n          }\r\n        });\r\n      });\r\n    }\r\n  }\r\n  var primes=implicants.filter(function(im){return !im.combined;});var pmap={},plist=[];\r\n  primes.forEach(function(im){var k=im.bits+'_'+im.dash;if(!pmap[k]){pmap[k]=1;plist.push(im);}});\r\n  var uncovered=m.slice();var selected=[];\r\n  var coverCount={};m.forEach(function(t){coverCount[t]=0;plist.forEach(function(im){if(im.terms.indexOf(t)>=0)coverCount[t]++;});});\r\n  var essential=plist.filter(function(im){return im.terms.some(function(t){return coverCount[t]===1;});});\r\n  essential.forEach(function(im){selected.push(im);im.terms.forEach(function(t){var idx=uncovered.indexOf(t);if(idx>=0)uncovered.splice(idx,1);});});\r\n  while(uncovered.length){var best=null,bestN=0;plist.forEach(function(im){var cnt=im.terms.filter(function(t){return uncovered.indexOf(t)>=0;}).length;if(cnt>bestN){bestN=cnt;best=im;}});if(!best)break;selected.push(best);best.terms.forEach(function(t){var idx=uncovered.indexOf(t);if(idx>=0)uncovered.splice(idx,1);});}\r\n  var names=['A','B','C','D','E','F'];\r\n  function toTerm(im){var s='';for(var i=vars-1;i>=0;i--){var bit=(im.bits>>i)&1;var d=(im.dash>>i)&1;if(!d){s+=(bit?names[i]:('¬'+names[i]));}}return s;}\r\n  var expr=selected.map(toTerm).sort().join(' + ');if(!expr)expr='0';\r\n  if(m.length===maxM)expr='1';\r\n  return {implicants:selected,expression:expr,vars:vars};}\r\nvar EXPORTS={qm:qm,numOnes:numOnes};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.KarnaughForgePure = EXPORTS; }\r\n\r\n"
+}

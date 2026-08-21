@@ -1,0 +1,29 @@
+{
+  "id": "CnyForge",
+  "name": "cny_forge",
+  "title": "CnyForge",
+  "description": "人民币金额转大写（壹贰叁…元角分），支持负数与两位小数，用于票据与凭证。",
+  "entry": "toUpper",
+  "entries": {
+    "toUpper": {
+      "paramStyle": "single",
+      "paramNames": [
+        "amount"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "amount": {
+        "type": "string",
+        "description": "输入（amount）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  var D='零壹贰叁肆伍陆柒捌玖', S=['','拾','佰','仟'], B=['','万','亿','兆'];\r\n  function intToCn(num){ num=String(num).replace(/^0+/,''); if(num==='') return '零';\r\n    var groups=[]; for(var i=num.length;i>0;i-=4) groups.unshift(num.slice(Math.max(0,i-4),i));\r\n    var out='';\r\n    for(var g=0;g<groups.length;g++){ var grp=groups[g], sec='', zero=false;\r\n      for(var p=0;p<grp.length;p++){ var d=+grp[p], pos=grp.length-1-p;\r\n        if(d===0){ zero=true; } else { if(zero&&sec!=='') sec+='零'; sec+=D[d]+S[pos]; zero=false; } }\r\n      if(sec!=='') out+=sec+B[groups.length-1-g];\r\n      else if(out!=='' && g<groups.length-1 && !/零$/.test(out)) out+='零';\r\n    }\r\n    return out.replace(/零+/g,'零').replace(/零$/,''); }\r\n  function toUpper(amount){ amount=String(amount).trim();\r\n    if(amount==='') return {error:'空输入'};\r\n    if(!/^-?\\d+(\\.\\d{1,2})?$/.test(amount)) return {error:'仅支持数字（最多两位小数）'};\r\n    var neg=amount[0]==='-'; if(neg) amount=amount.slice(1);\r\n    var parts=amount.split('.'), intPart=parts[0], dec=parts[1]||'';\r\n    var intCn=intToCn(intPart), res='';\r\n    if(dec===''){ res=intCn+'元整'; }\r\n    else { var jiao=dec[0]||'0', fen=dec[1]||'0'; res=intCn+'元';\r\n      if(jiao!=='0') res+=D[+jiao]+'角';\r\n      if(fen!=='0') res+=D[+fen]+'分';\r\n      if(jiao==='0'&&fen==='0') res+='整'; else if(fen==='0') res+='整'; }\r\n    return {value:(neg?'负':'')+res}; }\r\n  var API={toUpper:toUpper};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__CnyForge__=API;\r\n})();\r\n"
+}

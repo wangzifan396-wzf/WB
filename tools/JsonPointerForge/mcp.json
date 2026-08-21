@@ -1,0 +1,57 @@
+{
+  "id": "JsonPointerForge",
+  "name": "json_pointer_forge",
+  "title": "JsonPointerForge",
+  "description": "RFC 6901 JSON Pointer：按 /a/b/1 取值与赋值、~0/~1 转义处理，便于 JSON 补丁与定位，离线可用。",
+  "entry": "jpGet",
+  "entries": {
+    "jpGet": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "obj",
+        "ptr"
+      ],
+      "fields": []
+    },
+    "jpSet": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "obj",
+        "ptr",
+        "val"
+      ],
+      "fields": []
+    },
+    "jpEscape": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "jpUnescape": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "obj": {
+        "type": "string",
+        "description": "第 1 个参数（obj）"
+      },
+      "ptr": {
+        "type": "string",
+        "description": "第 2 个参数（ptr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction jpUnescape(s){ return String(s).replace(/~1/g,'/').replace(/~0/g,'~'); }\r\nfunction jpEscape(s){ return String(s).replace(/~/g,'~0').replace(/\\//g,'~1'); }\r\nfunction jpGet(obj, ptr){\r\n  if(ptr===''||ptr==='/') return obj;\r\n  var parts=ptr.split('/').slice(1).map(jpUnescape), cur=obj;\r\n  for(var i=0;i<parts.length;i++){ if(cur==null) return undefined; cur=cur[parts[i]]; }\r\n  return cur;\r\n}\r\nfunction jpSet(obj, ptr, val){\r\n  var parts=ptr.split('/').slice(1).map(jpUnescape), cur=obj;\r\n  for(var i=0;i<parts.length-1;i++){ if(cur[parts[i]]==null||typeof cur[parts[i]]!=='object') cur[parts[i]]={}; cur=cur[parts[i]]; }\r\n  cur[parts[parts.length-1]]=val; return obj;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { jpGet:jpGet, jpSet:jpSet, jpEscape:jpEscape, jpUnescape:jpUnescape }; }\r\nif (typeof window !== 'undefined') { window.JsonPointerForgePure = { jpGet:jpGet, jpSet:jpSet, jpEscape:jpEscape, jpUnescape:jpUnescape }; }\r\n\r\n"
+}

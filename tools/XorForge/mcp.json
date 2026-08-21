@@ -1,0 +1,55 @@
+{
+  "id": "XorForge",
+  "name": "xor_forge",
+  "title": "XorForge",
+  "description": "重复密钥 XOR 加解密：经典对称混淆，可指定密钥并就地加解密文本或十六进制。",
+  "entry": "xorBytes",
+  "entries": {
+    "xorBytes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "key"
+      ],
+      "fields": []
+    },
+    "hexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    },
+    "bytesToHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "utf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "key": {
+        "type": "string",
+        "description": "第 2 个参数（key）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8(str){var out=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<0x80)out.push(c);else if(c<0x800){out.push(0xC0|(c>>6),0x80|(c&0x3F));}else if(c>=0xD800&&c<=0xDBFF){var c2=str.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}else{out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));}}return out;}\r\n\r\nfunction hexToBytes(h){h=(h||'').replace(/[^0-9a-fA-F]/g,'');if(h.length%2)h='0'+h;var b=[];for(var i=0;i<h.length;i+=2)b.push(parseInt(h.substr(i,2),16));return b;}\r\nfunction bytesToHex(b){var s='';for(var i=0;i<b.length;i++)s+=('0'+b[i].toString(16)).slice(-2);return s;}\r\nfunction xorBytes(data,key){if(!key.length)throw new Error('密钥不能为空');var out=[];for(var i=0;i<data.length;i++)out.push((data[i]^key[i%key.length])&0xff);return out;}\r\nvar EXPORTS = { xorBytes:xorBytes, hexToBytes:hexToBytes, bytesToHex:bytesToHex, utf8:utf8 };\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.XorForgePure = EXPORTS; }\r\n\r\n"
+}

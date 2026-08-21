@@ -1,0 +1,39 @@
+{
+  "id": "NpvForge",
+  "name": "npv_forge",
+  "title": "净现值",
+  "description": "按折现率计算现金流序列的净现值，离线。",
+  "entry": "npv",
+  "entries": {
+    "npv": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rate",
+        "init",
+        "flows"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "rate": {
+        "type": "string",
+        "description": "第 1 个参数（rate）"
+      },
+      "init": {
+        "type": "string",
+        "description": "第 2 个参数（init）"
+      },
+      "flows": {
+        "type": "string",
+        "description": "第 3 个参数（flows）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction npv(rate, init, flows){\r\n  rate=(+rate); if(isNaN(rate)) return {error:'请输入折现率'};\r\n  init=(+init); if(isNaN(init)) init=0;\r\n  var arr=String(flows||'').trim().split(/[\\s,;]+/).filter(function(x){return x.length;}).map(function(x){var v=+x; return isNaN(v)?0:v;});\r\n  if(!arr.length) return {error:'请至少输入一期现金流'};\r\n  var v=-init;\r\n  for(var t=1;t<=arr.length;t++){ v+=arr[t-1]/Math.pow(1+rate,t); }\r\n  v=Math.round(v*100)/100;\r\n  return {npv:v, rate:rate, init:init, flows:arr, note: v>=0?'净现值为正（按该折现率可行）':'净现值为负（按该折现率不可行）'};\r\n}\r\nvar EXPORTS={npv:npv};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.NpvForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,76 @@
+{
+  "id": "TokenizeForge",
+  "name": "tokenize_forge",
+  "title": "TokenizeForge",
+  "description": "BPE 分词可视化：词频统计、相邻对计分、逐轮合并，把文本编码为子词 token。",
+  "entry": "tkWords",
+  "entries": {
+    "tkWords": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "tkPairCounts": {
+      "paramStyle": "single",
+      "paramNames": [
+        "words"
+      ],
+      "fields": []
+    },
+    "tkBestPair": {
+      "paramStyle": "single",
+      "paramNames": [
+        "counts"
+      ],
+      "fields": []
+    },
+    "tkMergeWord": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "tkTrain": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "numMerges"
+      ],
+      "fields": []
+    },
+    "tkEncodeWord": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "word",
+        "merges"
+      ],
+      "fields": []
+    },
+    "tkEncode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "merges"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction tkWords(text){ return String(text||'').trim().split(/\\s+/).filter(Boolean); }\r\nfunction tkPairCounts(words){\r\n  var c = {};\r\n  for(var i=0;i<words.length;i++){\r\n    var w = words[i];\r\n    for(var j=0;j<w.length-1;j++){\r\n      var k = w[j] + '\\u0001' + w[j+1];\r\n      c[k] = (c[k]||0) + 1;\r\n    }\r\n  }\r\n  return c;\r\n}\r\nfunction tkBestPair(counts){\r\n  var best = null, bestN = 1;\r\n  for(var k in counts){\r\n    if(counts[k] > bestN || (counts[k] === bestN && best !== null && k < best)){\r\n      best = k; bestN = counts[k];\r\n    }\r\n  }\r\n  return best ? { pair: best.split('\\u0001'), count: bestN } : null;\r\n}\r\nfunction tkMergeWord(w, a, b){\r\n  var out = [], i = 0;\r\n  while(i < w.length){\r\n    if(i < w.length-1 && w[i] === a && w[i+1] === b){ out.push(a+b); i += 2; }\r\n    else { out.push(w[i]); i++; }\r\n  }\r\n  return out;\r\n}\r\nfunction tkTrain(text, numMerges){\r\n  var words = tkWords(text).map(function(w){ return w.split(''); });\r\n  var merges = [];\r\n  for(var m=0;m<numMerges;m++){\r\n    var best = tkBestPair(tkPairCounts(words));\r\n    if(!best || best.count < 2) break;\r\n    merges.push(best.pair);\r\n    for(var i=0;i<words.length;i++) words[i] = tkMergeWord(words[i], best.pair[0], best.pair[1]);\r\n  }\r\n  return merges;\r\n}\r\nfunction tkEncodeWord(word, merges){\r\n  var w = String(word).split('');\r\n  for(var m=0;m<merges.length;m++) w = tkMergeWord(w, merges[m][0], merges[m][1]);\r\n  return w;\r\n}\r\nfunction tkEncode(text, merges){\r\n  var out = [];\r\n  var ws = tkWords(text);\r\n  for(var i=0;i<ws.length;i++) out.push(tkEncodeWord(ws[i], merges));\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tkWords:tkWords, tkPairCounts:tkPairCounts, tkBestPair:tkBestPair, tkMergeWord:tkMergeWord, tkTrain:tkTrain, tkEncodeWord:tkEncodeWord, tkEncode:tkEncode };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TokenizeForgePure = { tkWords:tkWords, tkPairCounts:tkPairCounts, tkBestPair:tkBestPair, tkMergeWord:tkMergeWord, tkTrain:tkTrain, tkEncodeWord:tkEncodeWord, tkEncode:tkEncode };\r\n}\r\n"
+}

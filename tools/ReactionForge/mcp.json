@@ -1,0 +1,55 @@
+{
+  "id": "ReactionForge",
+  "name": "reaction_forge",
+  "title": "ReactionForge",
+  "description": "反应扩散（Gray-Scott）：两种化学物质扩散与反应，自发涌现出斑点、条纹、迷宫等图灵斑图，可调参数探索，离线可用。",
+  "entry": "rdInit",
+  "entries": {
+    "rdInit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h"
+      ],
+      "fields": []
+    },
+    "rdSumB": {
+      "paramStyle": "object",
+      "paramNames": [
+        "s"
+      ],
+      "fields": [
+        "B"
+      ]
+    },
+    "rdStep": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "f",
+        "k",
+        "Da",
+        "Db",
+        "dt"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "w": {
+        "type": "string",
+        "description": "第 1 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 2 个参数（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction rdInit(w,h){ var A=new Float64Array(w*h).fill(1), B=new Float64Array(w*h); var cx=(w/2)|0, cy=(h/2)|0; for(var dy=-5;dy<=5;dy++) for(var dx=-5;dx<=5;dx++){ var x=cx+dx,y=cy+dy; if(x>=0&&x<w&&y>=0&&y<h) B[y*w+x]=1; } return {w:w,h:h,A:A,B:B}; }\r\nfunction rdSumB(s){ var t=0; for(var i=0;i<s.B.length;i++) t+=s.B[i]; return t; }\r\nfunction rdStep(s,f,k,Da,Db,dt){\r\n  var w=s.w,h=s.h,A=s.A,B=s.B,nA=new Float64Array(w*h),nB=new Float64Array(w*h);\r\n  function lap(arr,x,y){ var c=arr[y*w+x]; var l=x>0?arr[y*w+x-1]:c, r=x<w-1?arr[y*w+x+1]:c, u=y>0?arr[(y-1)*w+x]:c, d=y<h-1?arr[(y+1)*w+x]:c; return (l+r+u+d-4*c); }\r\n  for(var y=0;y<h;y++){ for(var x=0;x<w;x++){ var i=y*w+x; var a=A[i], b=B[i]; var na=a+(Da*lap(A,x,y)-a*b*b+f*(1-a))*dt; var nb=b+(Db*lap(B,x,y)+a*b*b-(k+f)*b)*dt; nA[i]=na<0?0:(na>1?1:na); nB[i]=nb<0?0:(nb>1?1:nb); } }\r\n  return {w:w,h:h,A:nA,B:nB};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { rdInit:rdInit, rdSumB:rdSumB, rdStep:rdStep };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ReactionForgePure = { rdInit:rdInit, rdSumB:rdSumB, rdStep:rdStep };\r\n}\r\n"
+}

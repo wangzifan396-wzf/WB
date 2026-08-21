@@ -1,0 +1,36 @@
+{
+  "id": "DufForge",
+  "name": "duf_forge",
+  "title": "DufForge",
+  "description": "挂载点概览：解析 df 风格的容量行，计算各挂载点的使用率并用占比条展示，快速识别空间紧张的磁盘。",
+  "entry": "table",
+  "entries": {
+    "table": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseSize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function parseSize(s){\r\n    s=String(s||'').trim();\r\n    var m=s.match(/^([\\d.]+)\\s*([KMGT]?)B?$/i);\r\n    if(!m) return parseFloat(s)||0;\r\n    var n=parseFloat(m[1]), u=m[2].toUpperCase();\r\n    var mul={'':1,'K':1024,'M':1024*1024,'G':1024*1024*1024,'T':1024*1024*1024*1024}[u]||1;\r\n    return n*mul;\r\n  }\r\n  function table(text){\r\n    var lines=String(text||'').split(/\\r?\\n/).map(function(s){return s.trim();}).filter(function(s){return s;});\r\n    var rows=[];\r\n    lines.forEach(function(l){\r\n      var p=l.split(/\\s+/); if(p.length<4) return;\r\n      var total=parseSize(p[1]), used=parseSize(p[2]), avail=parseSize(p[3]);\r\n      var pct= total? Math.round(used/total*100):0;\r\n      var n=Math.min(40,Math.max(1,Math.round(pct*40/100)));\r\n      rows.push({name:p[0], total:total, used:used, avail:avail, pct:pct, bar:'█'.repeat(n)+'░'.repeat(40-n)});\r\n    });\r\n    rows.sort(function(a,b){return b.pct-a.pct;});\r\n    return {value: rows};\r\n  }\r\n  var API={table:table, parseSize:parseSize};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__DufForge__=API;\r\n})();\r\n"
+}

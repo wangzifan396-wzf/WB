@@ -1,0 +1,130 @@
+{
+  "id": "RssForge",
+  "name": "rss_forge",
+  "title": "RssForge",
+  "description": "订阅源生成：一份条目同时导出 RSS 2.0 / Atom 1.0 / JSON Feed，XML 转义、RFC822/RFC3339 时间格式化与订阅源体检，离线可用。",
+  "entry": "buildRss",
+  "entries": {
+    "escapeXml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "parseDate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "rfc822": {
+      "paramStyle": "object",
+      "paramNames": [
+        "d"
+      ],
+      "fields": [
+        "getUTCDay",
+        "getUTCDate",
+        "getUTCMonth",
+        "getUTCFullYear",
+        "getUTCHours",
+        "getUTCMinutes",
+        "getUTCSeconds"
+      ]
+    },
+    "rfc3339": {
+      "paramStyle": "object",
+      "paramNames": [
+        "d"
+      ],
+      "fields": [
+        "getUTCFullYear",
+        "getUTCMonth",
+        "getUTCDate",
+        "getUTCHours",
+        "getUTCMinutes",
+        "getUTCSeconds"
+      ]
+    },
+    "parseItems": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "buildRss": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "feed",
+        "items"
+      ],
+      "fields": []
+    },
+    "buildAtom": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "feed",
+        "items"
+      ],
+      "fields": []
+    },
+    "buildJsonFeed": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "feed",
+        "items"
+      ],
+      "fields": []
+    },
+    "lintFeed": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "feed",
+        "items"
+      ],
+      "fields": []
+    },
+    "feedStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "items"
+      ],
+      "fields": []
+    },
+    "latestDate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "fallback"
+      ],
+      "fields": []
+    },
+    "gradeOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "score"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "feed": {
+        "type": "object",
+        "description": "第 1 个参数（feed）"
+      },
+      "items": {
+        "type": "array",
+        "description": "第 2 个参数（items）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar RS_DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];\r\nvar RS_MONS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];\r\n\r\nfunction p2(n){ return (n < 10 ? '0' : '') + n; }\r\n\r\nfunction escapeXml(s){\r\n  return String(s == null ? '' : s)\r\n    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')\r\n    .replace(/\"/g, '&quot;').replace(/'/g, '&apos;');\r\n}\r\n\r\nfunction parseDate(s){\r\n  var t = String(s == null ? '' : s).trim();\r\n  if (!t) return null;\r\n  var m = /^(\\d{4})-(\\d{2})-(\\d{2})(?:[T ](\\d{1,2}):(\\d{2})(?::(\\d{2}))?)?\\s*(Z|[+-]\\d{2}:?\\d{2})?$/.exec(t);\r\n  if (m){\r\n    var ms = Date.UTC(+m[1], (+m[2]) - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));\r\n    var tz = m[7];\r\n    if (tz && tz !== 'Z'){\r\n      var sign = tz.charAt(0) === '-' ? -1 : 1;\r\n      var digits = tz.slice(1).replace(':', '');\r\n      ms -= sign * (parseInt(digits.slice(0, 2), 10) * 60 + parseInt(digits.slice(2, 4), 10)) * 60000;\r\n    }\r\n    return new Date(ms);\r\n  }\r\n  var d = new Date(t);\r\n  return isNaN(d.getTime()) ? null : d;\r\n}\r\n\r\nfunction rfc822(d){\r\n  if (!d) return '';\r\n  return RS_DAYS[d.getUTCDay()] + ', ' + p2(d.getUTCDate()) + ' ' + RS_MONS[d.getUTCMonth()] + ' ' +\r\n         d.getUTCFullYear() + ' ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' +\r\n         p2(d.getUTCSeconds()) + ' GMT';\r\n}\r\n\r\nfunction rfc3339(d){\r\n  if (!d) return '';\r\n  return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' +\r\n         p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + 'Z';\r\n}\r\n\r\nfunction finishItem(c){\r\n  return {\r\n    title: c.title, url: c.url || '', date: c.date || '', author: c.author || '',\r\n    tags: c.tags || [], guid: c.guid || c.url || c.title,\r\n    image: c.image || '', description: c.body.join('\\n').replace(/^\\s+|\\s+$/g, '')\r\n  };\r\n}\r\n\r\nfunction parseItems(text){\r\n  var lines = String(text == null ? '' : text).split(/\\r?\\n/);\r\n  var items = [], cur = null;\r\n  for (var i = 0; i < lines.length; i++){\r\n    var ln = lines[i];\r\n    var h = /^#\\s+(.*)$/.exec(ln);\r\n    if (h){\r\n      if (cur) items.push(finishItem(cur));\r\n      cur = { title: h[1].replace(/^\\s+|\\s+$/g, ''), body: [], tags: [] };\r\n      continue;\r\n    }\r\n    if (!cur) continue;\r\n    var kv = /^\\s*(url|link|date|author|tags|guid|image)\\s*:\\s*(.*)$/i.exec(ln);\r\n    if (kv){\r\n      var k = kv[1].toLowerCase(), v = kv[2].replace(/^\\s+|\\s+$/g, '');\r\n      if (k === 'link') k = 'url';\r\n      if (k === 'tags'){\r\n        cur.tags = v ? v.split(/[,\\uFF0C]/).map(function(x){ return x.replace(/^\\s+|\\s+$/g, ''); })\r\n                        .filter(function(x){ return !!x; }) : [];\r\n      } else cur[k] = v;\r\n      continue;\r\n    }\r\n    cur.body.push(ln);\r\n  }\r\n  if (cur) items.push(finishItem(cur));\r\n  return items;\r\n}\r\n\r\nfunction latestDate(items, fallback){\r\n  var best = null;\r\n  for (var i = 0; i < items.length; i++){\r\n    var d = parseDate(items[i].date);\r\n    if (d && (!best || d.getTime() > best.getTime())) best = d;\r\n  }\r\n  return best || (fallback ? parseDate(fallback) : null);\r\n}\r\n\r\nfunction buildRss(feed, items){\r\n  feed = feed || {}; items = items || [];\r\n  var L = [];\r\n  L.push('<?xml version=\"1.0\" encoding=\"UTF-8\"?>');\r\n  L.push('<rss version=\"2.0\" xmlns:atom=\"http://www.w3.org/2005/Atom\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">');\r\n  L.push('  <channel>');\r\n  L.push('    <title>' + escapeXml(feed.title || '未命名订阅源') + '</title>');\r\n  L.push('    <link>' + escapeXml(feed.link || '') + '</link>');\r\n  L.push('    <description>' + escapeXml(feed.description || '') + '</description>');\r\n  L.push('    <language>' + escapeXml(feed.language || 'zh-CN') + '</language>');\r\n  if (feed.self) L.push('    <atom:link href=\"' + escapeXml(feed.self) + '\" rel=\"self\" type=\"application/rss+xml\"/>');\r\n  var last = latestDate(items, feed.now);\r\n  if (last) L.push('    <lastBuildDate>' + rfc822(last) + '</lastBuildDate>');\r\n  L.push('    <generator>RssForge (nano-tools)</generator>');\r\n  for (var i = 0; i < items.length; i++){\r\n    var it = items[i], d = parseDate(it.date);\r\n    L.push('    <item>');\r\n    L.push('      <title>' + escapeXml(it.title || '') + '</title>');\r\n    if (it.url) L.push('      <link>' + escapeXml(it.url) + '</link>');\r\n    var permalink = (!!it.url && it.guid === it.url) ? 'true' : 'false';\r\n    L.push('      <guid isPermaLink=\"' + permalink + '\">' + escapeXml(it.guid || '') + '</guid>');\r\n    if (d) L.push('      <pubDate>' + rfc822(d) + '</pubDate>');\r\n    if (it.author) L.push('      <dc:creator>' + escapeXml(it.author) + '</dc:creator>');\r\n    for (var t = 0; t < (it.tags || []).length; t++) L.push('      <category>' + escapeXml(it.tags[t]) + '</category>');\r\n    if (it.description) L.push('      <description>' + escapeXml(it.description) + '</description>');\r\n    L.push('    </item>');\r\n  }\r\n  L.push('  </channel>');\r\n  L.push('</rss>');\r\n  return L.join('\\n');\r\n}\r\n\r\nfunction buildAtom(feed, items){\r\n  feed = feed || {}; items = items || [];\r\n  var last = latestDate(items, feed.now);\r\n  var L = [];\r\n  L.push('<?xml version=\"1.0\" encoding=\"UTF-8\"?>');\r\n  L.push('<feed xmlns=\"http://www.w3.org/2005/Atom\" xml:lang=\"' + escapeXml(feed.language || 'zh-CN') + '\">');\r\n  L.push('  <title>' + escapeXml(feed.title || '未命名订阅源') + '</title>');\r\n  L.push('  <subtitle>' + escapeXml(feed.description || '') + '</subtitle>');\r\n  L.push('  <id>' + escapeXml(feed.self || feed.link || 'urn:rssforge:feed') + '</id>');\r\n  if (feed.link) L.push('  <link rel=\"alternate\" href=\"' + escapeXml(feed.link) + '\"/>');\r\n  if (feed.self) L.push('  <link rel=\"self\" href=\"' + escapeXml(feed.self) + '\"/>');\r\n  if (last) L.push('  <updated>' + rfc3339(last) + '</updated>');\r\n  L.push('  <generator uri=\"https://wangzifan396-wzf.github.io/WB/tools/RssForge/\">RssForge</generator>');\r\n  for (var i = 0; i < items.length; i++){\r\n    var it = items[i], d = parseDate(it.date);\r\n    L.push('  <entry>');\r\n    L.push('    <title>' + escapeXml(it.title || '') + '</title>');\r\n    L.push('    <id>' + escapeXml(it.guid || it.url || it.title || '') + '</id>');\r\n    if (it.url) L.push('    <link rel=\"alternate\" href=\"' + escapeXml(it.url) + '\"/>');\r\n    if (d) L.push('    <updated>' + rfc3339(d) + '</updated>');\r\n    if (it.author) L.push('    <author><name>' + escapeXml(it.author) + '</name></author>');\r\n    for (var t = 0; t < (it.tags || []).length; t++) L.push('    <category term=\"' + escapeXml(it.tags[t]) + '\"/>');\r\n    if (it.description) L.push('    <summary type=\"text\">' + escapeXml(it.description) + '</summary>');\r\n    L.push('  </entry>');\r\n  }\r\n  L.push('</feed>');\r\n  return L.join('\\n');\r\n}\r\n\r\nfunction buildJsonFeed(feed, items){\r\n  feed = feed || {}; items = items || [];\r\n  var out = {\r\n    version: 'https://jsonfeed.org/version/1.1',\r\n    title: feed.title || '未命名订阅源',\r\n    home_page_url: feed.link || undefined,\r\n    feed_url: feed.self || undefined,\r\n    description: feed.description || undefined,\r\n    language: feed.language || 'zh-CN',\r\n    items: []\r\n  };\r\n  for (var i = 0; i < items.length; i++){\r\n    var it = items[i], d = parseDate(it.date), row = {};\r\n    row.id = it.guid || it.url || it.title || String(i + 1);\r\n    if (it.url) row.url = it.url;\r\n    row.title = it.title || '';\r\n    if (it.description) row.content_text = it.description;\r\n    if (d) row.date_published = rfc3339(d);\r\n    if (it.author) row.authors = [{ name: it.author }];\r\n    if (it.tags && it.tags.length) row.tags = it.tags;\r\n    if (it.image) row.image = it.image;\r\n    out.items.push(row);\r\n  }\r\n  return JSON.stringify(out, null, 2);\r\n}\r\n\r\nfunction lintFeed(feed, items){\r\n  feed = feed || {}; items = items || [];\r\n  var issues = [];\r\n  if (!feed.title) issues.push({ level:'bad', msg:'订阅源缺少标题，阅读器会显示为空白源' });\r\n  if (!feed.link) issues.push({ level:'bad', msg:'缺少 channel/link，阅读器无法回跳站点主页' });\r\n  if (!feed.description) issues.push({ level:'warn', msg:'缺少订阅源简介，目录站抓取时没有摘要可展示' });\r\n  if (!feed.self) issues.push({ level:'warn', msg:'缺少 atom:link rel=\"self\"，部分阅读器无法自动发现真实地址' });\r\n  if (!items.length) issues.push({ level:'bad', msg:'没有任何条目，订阅源为空' });\r\n  if (items.length > 50) issues.push({ level:'warn', msg:'共 ' + items.length + ' 条，建议只保留最近 20–50 条以控制体积' });\r\n\r\n  var seen = {}, dupes = 0, noLink = 0, noDate = 0, shortDesc = 0, future = 0, unsorted = false;\r\n  var now = feed.now ? parseDate(feed.now) : null;\r\n  var prev = null;\r\n  for (var i = 0; i < items.length; i++){\r\n    var it = items[i];\r\n    var g = it.guid || '';\r\n    if (!g) dupes++;\r\n    else if (seen[g]) dupes++;\r\n    else seen[g] = 1;\r\n    if (!it.url) noLink++;\r\n    var d = parseDate(it.date);\r\n    if (!d) noDate++;\r\n    else {\r\n      if (now && d.getTime() > now.getTime() + 86400000) future++;\r\n      if (prev && d.getTime() > prev.getTime()) unsorted = true;\r\n      prev = d;\r\n    }\r\n    if (it.description && it.description.length < 20) shortDesc++;\r\n    if (!it.title) issues.push({ level:'bad', msg:'第 ' + (i + 1) + ' 条缺少标题' });\r\n  }\r\n  if (dupes) issues.push({ level:'bad', msg:dupes + ' 条 guid 缺失或重复，阅读器会反复推送或直接吞掉' });\r\n  if (noLink) issues.push({ level:'warn', msg:noLink + ' 条没有 link，点击标题无处可去' });\r\n  if (noDate) issues.push({ level:'warn', msg:noDate + ' 条没有日期，阅读器只能按抓取顺序排列' });\r\n  if (future) issues.push({ level:'warn', msg:future + ' 条日期在未来，部分阅读器会直接隐藏' });\r\n  if (unsorted) issues.push({ level:'warn', msg:'条目未按时间倒序排列，建议最新的放最前面' });\r\n  if (shortDesc) issues.push({ level:'warn', msg:shortDesc + ' 条摘要短于 20 字，信息量偏低' });\r\n\r\n  var score = 100;\r\n  for (var j = 0; j < issues.length; j++) score -= (issues[j].level === 'bad' ? 20 : 8);\r\n  score = Math.max(0, score);\r\n  return { issues: issues, score: score, grade: gradeOf(score) };\r\n}\r\n\r\nfunction gradeOf(score){\r\n  if (score >= 90) return 'A';\r\n  if (score >= 75) return 'B';\r\n  if (score >= 60) return 'C';\r\n  if (score >= 40) return 'D';\r\n  return 'F';\r\n}\r\n\r\nfunction feedStats(items){\r\n  items = items || [];\r\n  var dates = [], chars = 0, tagCount = {}, withLink = 0;\r\n  for (var i = 0; i < items.length; i++){\r\n    var d = parseDate(items[i].date);\r\n    if (d) dates.push(d.getTime());\r\n    chars += (items[i].description || '').length;\r\n    if (items[i].url) withLink++;\r\n    var tg = items[i].tags || [];\r\n    for (var t = 0; t < tg.length; t++) tagCount[tg[t]] = (tagCount[tg[t]] || 0) + 1;\r\n  }\r\n  dates.sort(function(a, b){ return a - b; });\r\n  var span = dates.length > 1 ? Math.round((dates[dates.length - 1] - dates[0]) / 86400000) : 0;\r\n  var topTags = Object.keys(tagCount).sort(function(a, b){\r\n    return tagCount[b] - tagCount[a] || (a < b ? -1 : 1);\r\n  }).slice(0, 8).map(function(k){ return { tag: k, n: tagCount[k] }; });\r\n  return {\r\n    count: items.length,\r\n    withLink: withLink,\r\n    avgChars: items.length ? Math.round(chars / items.length) : 0,\r\n    spanDays: span,\r\n    perWeek: span > 0 ? Math.round(items.length / (span / 7) * 10) / 10 : 0,\r\n    first: dates.length ? rfc3339(new Date(dates[0])) : '',\r\n    last: dates.length ? rfc3339(new Date(dates[dates.length - 1])) : '',\r\n    topTags: topTags\r\n  };\r\n}\r\n\r\nvar RssForgePure = {\r\n  escapeXml: escapeXml, parseDate: parseDate, rfc822: rfc822, rfc3339: rfc3339,\r\n  parseItems: parseItems, buildRss: buildRss, buildAtom: buildAtom, buildJsonFeed: buildJsonFeed,\r\n  lintFeed: lintFeed, feedStats: feedStats, latestDate: latestDate, gradeOf: gradeOf\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = RssForgePure;\r\nif (typeof window !== 'undefined') window.RssForgePure = RssForgePure;\r\n\r\n"
+}

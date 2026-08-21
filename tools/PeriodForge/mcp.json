@@ -1,0 +1,52 @@
+{
+  "id": "PeriodForge",
+  "name": "period_forge",
+  "title": "PeriodForge",
+  "description": "按上次月经首日与周期长度预测未来经期与易孕期。",
+  "entry": "predict",
+  "entries": {
+    "predict": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "startISO",
+        "cycleLen",
+        "periodLen",
+        "count"
+      ],
+      "fields": []
+    },
+    "addDays": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "iso",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "startISO": {
+        "type": "string",
+        "description": "第 1 个参数（startISO）"
+      },
+      "cycleLen": {
+        "type": "string",
+        "description": "第 2 个参数（cycleLen）"
+      },
+      "periodLen": {
+        "type": "string",
+        "description": "第 3 个参数（periodLen）"
+      },
+      "count": {
+        "type": "string",
+        "description": "第 4 个参数（count）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction addDays(iso, n){ var d=new Date(iso+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }\r\nfunction predict(startISO, cycleLen, periodLen, count){\r\n  cycleLen=cycleLen>0?cycleLen:28; periodLen=periodLen>0?periodLen:5; count=count>0?count:3;\r\n  var out=[];\r\n  for(var i=0;i<count;i++){\r\n    var s=addDays(startISO, i*cycleLen);\r\n    var e=addDays(s, periodLen-1);\r\n    var ovDay=Math.max(1, cycleLen-14); // 排卵期（距月经首日天数）\r\n    var fs=addDays(s, ovDay-6); // 易孕窗起点：排卵前 5 天\r\n    var fe=addDays(s, ovDay-1); // 排卵日\r\n    out.push({start:s,end:e,fertileStart:fs,fertileEnd:fe});\r\n  }\r\n  return out;\r\n}\r\nvar EXPORTS={predict:predict,addDays:addDays};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PeriodForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,34 @@
+{
+  "id": "IrrForge",
+  "name": "irr_forge",
+  "title": "内部收益率",
+  "description": "用二分法求内部收益率 IRR，离线。",
+  "entry": "irr",
+  "entries": {
+    "irr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "init",
+        "flows"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "init": {
+        "type": "string",
+        "description": "第 1 个参数（init）"
+      },
+      "flows": {
+        "type": "string",
+        "description": "第 2 个参数（flows）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction npvAt(rate, init, arr){ var v=-init; for(var t=1;t<=arr.length;t++){ v+=arr[t-1]/Math.pow(1+rate,t);} return v; }\r\nfunction irr(init, flows){\r\n  init=(+init); if(isNaN(init)) init=0;\r\n  var arr=String(flows||'').trim().split(/[\\s,;]+/).filter(function(x){return x.length;}).map(function(x){var v=+x; return isNaN(v)?0:v;});\r\n  if(!arr.length) return {error:'请至少输入一期现金流'};\r\n  var lo=-0.99, hi=10, fLo=npvAt(lo,init,arr), fHi=npvAt(hi,init,arr);\r\n  if(fLo*fHi>0) return {error:'在 -99%~1000% 区间无变号，无法用二分法求 IRR'};\r\n  for(var i=0;i<200;i++){ var mid=(lo+hi)/2; var fM=npvAt(mid,init,arr); if(Math.abs(fM)<1e-7) break; if(fLo*fM<0){hi=mid;fHi=fM;} else {lo=mid;fLo=fM;} }\r\n  var res=(lo+hi)/2;\r\n  return {irr:Math.round(res*10000)/10000, pct:Math.round(res*10000)/100};\r\n}\r\nvar EXPORTS={irr:irr};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.IrrForgePure = EXPORTS; }\r\n\r\n"
+}

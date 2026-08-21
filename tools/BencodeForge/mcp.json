@@ -1,0 +1,60 @@
+{
+  "id": "BencodeForge",
+  "name": "bencode_forge",
+  "title": "BencodeForge",
+  "description": "Bencode 解码器：解析 BitTorrent 的 bencoding，把字典/列表/整数/字符串还原成可读结构并高亮类型，反向把 JSON 编码回 bencode，校验嵌套深度与字符串长度前缀。处理种子元数据、调试 tracker 通信，零依赖、离线可用。",
+  "entry": "decode",
+  "entries": {
+    "decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "val"
+      ],
+      "fields": []
+    },
+    "toPlain": {
+      "paramStyle": "object",
+      "paramNames": [
+        "node"
+      ],
+      "fields": [
+        "t",
+        "v"
+      ]
+    },
+    "summary": {
+      "paramStyle": "single",
+      "paramNames": [
+        "node"
+      ],
+      "fields": []
+    },
+    "toBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "输入（input）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  /* bencode: i<int>e / <len>:<bytes> / l...e / d...e\r\n     字节串按 UTF-8 尝试解码，失败或含控制字符时降级为 <hex:...> 表示。 */\r\n\r\n  function toBytes(s){\r\n    if(s instanceof Uint8Array) return s;\r\n    var str=String(s), out=[], i, c;\r\n    for(i=0;i<str.length;i++){\r\n      c=str.charCodeAt(i);\r\n      if(c<0x80) out.push(c);\r\n      else if(c<0x800){ out.push(0xC0|c>>6, 0x80|c&63); }\r\n      else if(c>=0xD800 && c<0xDC00 && i+1<str.length){\r\n        var c2=str.charCodeAt(i+1), cp=0x10000+((c-0xD800)<<10)+(c2-0xDC00); i++;\r\n        out.push(0xF0|cp>>18, 0x80|cp>>12&63, 0x80|cp>>6&63, 0x80|cp&63);\r\n      } else { out.push(0xE0|c>>12, 0x80|c>>6&63, 0x80|c&63); }\r\n    }\r\n    return new Uint8Array(out);\r\n  }\r\n  function utf8(b){\r\n    var s='', i=0, c;\r\n    while(i<b.length){\r\n      c=b[i];\r\n      if(c<0x80){ s+=String.fromCharCode(c); i++; }\r\n      else if(c>=0xC0 && c<0xE0 && i+1<b.length){ s+=String.fromCharCode((c&31)<<6|b[i+1]&63); i+=2; }\r\n      else if(c>=0xE0 && c<0xF0 && i+2<b.length){ s+=String.fromCharCode((c&15)<<12|(b[i+1]&63)<<6|b[i+2]&63); i+=3; }\r\n      else if(c>=0xF0 && i+3<b.length){\r\n        var cp=((c&7)<<18|(b[i+1]&63)<<12|(b[i+2]&63)<<6|b[i+3]&63)-0x10000;\r\n        s+=String.fromCharCode(0xD800+(cp>>10), 0xDC00+(cp&1023)); i+=4;\r\n      } else return null;\r\n    }\r\n    return s;\r\n  }\r\n  function printable(b){\r\n    for(var i=0;i<b.length;i++){ if(b[i]<0x09 || (b[i]>0x0D && b[i]<0x20)) return false; }\r\n    var s=utf8(b);\r\n    return s===null ? false : s;\r\n  }\r\n  function toHex(b){ var o=''; for(var i=0;i<b.length;i++){var x=b[i].toString(16); o+= x.length<2?'0'+x:x;} return o; }\r\n\r\n  function decode(input){\r\n    var b = toBytes(input), pos = 0, MAXDEPTH = 64;\r\n\r\n    function err(m){ throw new Error(m + '（偏移 ' + pos + '）'); }\r\n    function readInt(stop){\r\n      var s = '';\r\n      while(pos < b.length && b[pos] !== stop){ s += String.fromCharCode(b[pos]); pos++; }\r\n      if(pos >= b.length) err('缺少终止符 \"' + String.fromCharCode(stop) + '\"');\r\n      pos++;\r\n      if(!/^-?\\d+$/.test(s)) err('非法整数 \"' + s + '\"');\r\n      if(/^-0$/.test(s)) err('不允许 -0');\r\n      if(/^0\\d/.test(s) || /^-0\\d/.test(s)) err('整数不允许前导零 \"' + s + '\"');\r\n      return parseInt(s, 10);\r\n    }\r\n    function parse(depth){\r\n      if(depth > MAXDEPTH) err('嵌套过深（>' + MAXDEPTH + '）');\r\n      if(pos >= b.length) err('数据意外结束');\r\n      var ch = b[pos];\r\n      if(ch === 0x69){ pos++; return {t:'int', v:readInt(0x65)}; }               // 'i'\r\n      if(ch === 0x6C){ pos++;                                                     // 'l'\r\n        var arr=[];\r\n        while(pos<b.length && b[pos]!==0x65) arr.push(parse(depth+1));\r\n        if(pos>=b.length) err('列表缺少 \"e\"');\r\n        pos++; return {t:'list', v:arr};\r\n      }\r\n      if(ch === 0x64){ pos++;                                                     // 'd'\r\n        var d=[], prev=null;\r\n        while(pos<b.length && b[pos]!==0x65){\r\n          var k = parse(depth+1);\r\n          if(k.t!=='str') err('字典键必须是字符串');\r\n          if(prev!==null && k.raw < prev) err('字典键未按字节序升序：\"'+k.v+'\" 在 \"'+prev+'\" 之后');\r\n          prev = k.raw;\r\n          if(pos>=b.length || b[pos]===0x65) err('字典键 \"'+k.v+'\" 缺少值');\r\n          d.push([k, parse(depth+1)]);\r\n        }\r\n        if(pos>=b.length) err('字典缺少 \"e\"');\r\n        pos++; return {t:'dict', v:d};\r\n      }\r\n      if(ch>=0x30 && ch<=0x39){                                                   // 数字 -> 字符串\r\n        var n = readInt(0x3A);\r\n        if(n < 0) err('字符串长度为负');\r\n        if(pos + n > b.length) err('字符串长度 '+n+' 超出剩余字节 '+(b.length-pos));\r\n        var slice = b.subarray(pos, pos+n); pos += n;\r\n        var p = printable(slice);\r\n        return {t:'str', v: p===false ? '<hex:'+toHex(slice)+'>' : p, raw: toHex(slice), bin: p===false, len:n};\r\n      }\r\n      err('未知类型标记 \"'+String.fromCharCode(ch)+'\"');\r\n    }\r\n    try{\r\n      var v = parse(0);\r\n      if(pos !== b.length) return {value:null, error:'尾部有 '+(b.length-pos)+' 字节未消费（偏移 '+pos+'）'};\r\n      return {value:v, error:''};\r\n    }catch(e){ return {value:null, error:e.message}; }\r\n  }\r\n\r\n  function toPlain(node){\r\n    if(!node) return null;\r\n    if(node.t==='int') return node.v;\r\n    if(node.t==='str') return node.v;\r\n    if(node.t==='list'){ var a=[]; for(var i=0;i<node.v.length;i++) a.push(toPlain(node.v[i])); return a; }\r\n    var o={}; for(var j=0;j<node.v.length;j++) o[node.v[j][0].v]=toPlain(node.v[j][1]); return o;\r\n  }\r\n\r\n  function encode(val){\r\n    var parts = [];\r\n    function put(s){ parts.push(s); }\r\n    function walk(v, depth){\r\n      if(depth > 64) throw new Error('嵌套过深');\r\n      if(typeof v === 'number'){\r\n        if(!isFinite(v) || Math.floor(v)!==v) throw new Error('bencode 只支持整数，收到 '+v);\r\n        put('i'+v+'e'); return;\r\n      }\r\n      if(typeof v === 'string'){ var by=toBytes(v); put(by.length+':'+v); return; }\r\n      if(v instanceof Array){ put('l'); for(var i=0;i<v.length;i++) walk(v[i], depth+1); put('e'); return; }\r\n      if(v && typeof v === 'object'){\r\n        var ks = Object.keys(v).sort();\r\n        put('d');\r\n        for(var j=0;j<ks.length;j++){ put(toBytes(ks[j]).length+':'+ks[j]); walk(v[ks[j]], depth+1); }\r\n        put('e'); return;\r\n      }\r\n      throw new Error('不支持的类型：'+(v===null?'null':typeof v));\r\n    }\r\n    try{ walk(val, 0); return {value:parts.join(''), error:''}; }\r\n    catch(e){ return {value:null, error:e.message}; }\r\n  }\r\n\r\n  function summary(node){\r\n    var s={int:0,str:0,list:0,dict:0,bytes:0};\r\n    (function w(n){\r\n      if(!n) return;\r\n      s[n.t]=(s[n.t]||0)+1;\r\n      if(n.t==='str') s.bytes += (n.len||0);\r\n      if(n.t==='list'){ for(var i=0;i<n.v.length;i++) w(n.v[i]); }\r\n      if(n.t==='dict'){ for(var j=0;j<n.v.length;j++){ w(n.v[j][0]); w(n.v[j][1]); } }\r\n    })(node);\r\n    return s;\r\n  }\r\n\r\n  var API={decode:decode, encode:encode, toPlain:toPlain, summary:summary, toBytes:toBytes};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__BencodeForge__=API;\r\n})();\r\n\r\n"
+}

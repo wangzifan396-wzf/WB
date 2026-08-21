@@ -1,0 +1,37 @@
+{
+  "id": "AhoForge",
+  "name": "aho_forge",
+  "title": "AhoForge",
+  "description": "Aho-Corasick 多模式匹配：一次扫描命中多串（含重叠）。",
+  "entry": "ahoBuild",
+  "entries": {
+    "ahoBuild": {
+      "paramStyle": "single",
+      "paramNames": [
+        "patterns"
+      ],
+      "fields": []
+    },
+    "ahoFind": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "root"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "patterns": {
+        "type": "string",
+        "description": "输入（patterns）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction ahoBuild(patterns){\r\n  var root={children:{}, fail:null, out:[]};\r\n  patterns.forEach(function(p, idx){\r\n    if(p.length===0) return;\r\n    var node=root;\r\n    for(var i=0;i<p.length;i++){\r\n      var c=p[i];\r\n      if(!node.children[c]) node.children[c]={children:{}, fail:null, out:[]};\r\n      node=node.children[c];\r\n    }\r\n    node.out.push({pattern:p, index:idx});\r\n  });\r\n  var queue=[];\r\n  for(var key in root.children){ var ch=root.children[key]; ch.fail=root; queue.push(ch); }\r\n  while(queue.length){\r\n    var cur=queue.shift();\r\n    for(var k in cur.children){\r\n      var child=cur.children[k];\r\n      var f=cur.fail;\r\n      while(f!==null && !f.children[k]) f=f.fail;\r\n      child.fail = f!==null ? f.children[k] : root;\r\n      child.out = child.out.concat(child.fail.out);\r\n      queue.push(child);\r\n    }\r\n  }\r\n  return root;\r\n}\r\nfunction ahoFind(text, root){\r\n  var res=[];\r\n  var node=root;\r\n  for(var i=0;i<text.length;i++){\r\n    var c=text[i];\r\n    while(node!==null && !node.children[c]) node=node.fail;\r\n    if(node===null) node=root;\r\n    node = node.children[c] || root;\r\n    for(var j=0;j<node.out.length;j++){\r\n      var o=node.out[j];\r\n      res.push({pattern:o.pattern, index:i - o.pattern.length + 1});\r\n    }\r\n  }\r\n  return res;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { ahoBuild:ahoBuild, ahoFind:ahoFind };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.AhoForgePure = { ahoBuild:ahoBuild, ahoFind:ahoFind };\r\n}\r\n"
+}

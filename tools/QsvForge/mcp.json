@@ -1,0 +1,37 @@
+{
+  "id": "QsvForge",
+  "name": "qsv_forge",
+  "title": "QsvForge",
+  "description": "像 qsv 一样用 SQL 查询 CSV：SELECT 列、WHERE（= != > < >= <= LIKE CONTAINS，支持 AND）、ORDER BY、LIMIT，全部在浏览器内完成。",
+  "entry": "parseCsv",
+  "entries": {
+    "parseCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "runSql": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "sql"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function parseCsv(text){\r\n    text=String(text).replace(/\\r\\n/g,'\\n').replace(/\\r/g,'\\n');\r\n    var rows=[], row=[], f='', q=false, i=0;\r\n    while(i<text.length){ var c=text[i];\r\n      if(q){ if(c==='\"'){ if(text[i+1]==='\"'){f+='\"';i++;} else q=false; } else f+=c; }\r\n      else { if(c==='\"') q=true; else if(c===','){ row.push(f); f=''; } else if(c==='\\n'){ row.push(f); rows.push(row); row=[]; f=''; } else f+=c; }\r\n      i++; }\r\n    if(f.length||row.length){ row.push(f); rows.push(row); }\r\n    while(rows.length && rows[rows.length-1].length===1 && rows[rows.length-1][0]==='') rows.pop();\r\n    if(!rows.length) return {value:{columns:[],rows:[]}};\r\n    var cols=rows[0], data=rows.slice(1).map(function(r){ var o={}; for(var k=0;k<cols.length;k++) o[cols[k]]=r[k]!==undefined?r[k]:''; return o; });\r\n    return {value:{columns:cols, rows:data}};\r\n  }\r\n  function splitWhere(s){ return s.split(/\\s+and\\s+/i).map(function(p){\r\n    var m=p.match(/(\\w+)\\s*(=|!=|<>|>=|<=|>|<|like|contains)\\s*('([^']*)'|\"([^\"]*)\"|([\\w.\\-]+))/i);\r\n    if(!m) return {col:'',op:'=',val:''}; return {col:m[1], op:m[2].toLowerCase(), val:m[4]||m[5]||m[6]||''}; }); }\r\n  function runSql(text, sql){\r\n    var p=parseCsv(text); sql=String(sql||'').replace(/;+\\s*$/,'');\r\n    var m=sql.match(/select\\s+(.+?)\\s+from\\s+\\w+/i); if(!m) return {error:'仅支持 SELECT ... FROM t'};\r\n    var sel=m[1].trim();\r\n    var rest=sql.slice(sql.toLowerCase().indexOf('from')+4).replace(/^\\s*\\w+/,'');\r\n    var where='', order='', limit=0;\r\n    var wm=rest.match(/where\\s+(.*?)(?:\\s+order\\s+by|\\s+limit|$)/is); if(wm) where=wm[1].trim();\r\n    var om=rest.match(/order\\s+by\\s+(\\w+)\\s*(asc|desc)?/i); if(om) order=om[1]+' '+(om[2]||'asc');\r\n    var lm=rest.match(/limit\\s+(\\d+)/i); if(lm) limit=+lm[1];\r\n    var cols = sel==='*'? p.value.columns : sel.split(',').map(function(s){return s.trim();});\r\n    var rows=p.value.rows;\r\n    if(where){ var conds=splitWhere(where);\r\n      rows=rows.filter(function(r){ return conds.every(function(c){ var v=r[c.col]; var cv=c.val;\r\n        if(c.op==='like'||c.op==='contains') return String(v).toLowerCase().indexOf(cv.toLowerCase())>=0;\r\n        if(c.op==='=') return String(v)===cv;\r\n        if(c.op==='!='||c.op==='<>') return String(v)!==cv;\r\n        var a=parseFloat(v), b=parseFloat(cv);\r\n        if(c.op==='>')return a>b; if(c.op==='<')return a<b; if(c.op==='>=')return a>=b; if(c.op==='<=')return a<=b; return false; }); }); }\r\n    if(order){ var pa=order.split(' '), col=pa[0], dir=(pa[1]&&pa[1].toLowerCase()==='desc')?-1:1;\r\n      rows=rows.slice().sort(function(x,y){ var a=x[col],b=y[col]; if(a===b)return 0; if(a===undefined)return 1; if(b===undefined)return -1; return (a<b?-1:1)*dir; }); }\r\n    if(limit) rows=rows.slice(0,limit);\r\n    return {value:{columns:cols, rows:rows}};\r\n  }\r\n  var API={parseCsv:parseCsv, runSql:runSql};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__QsvForge__=API;\r\n})();\r\n"
+}

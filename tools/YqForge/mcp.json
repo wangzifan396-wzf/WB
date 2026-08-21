@@ -1,0 +1,43 @@
+{
+  "id": "YqForge",
+  "name": "yq_forge",
+  "title": "YqForge",
+  "description": "YAML 与 JSON 互转：粘贴 YAML 解析为结构化 JSON，或把 JSON 美化导出为 YAML，支持嵌套映射、序列与标量，离线转换。",
+  "entry": "toJson",
+  "entries": {
+    "toJson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "yamlText"
+      ],
+      "fields": []
+    },
+    "toYaml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "jsonText"
+      ],
+      "fields": []
+    },
+    "parseYaml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "yamlText": {
+        "type": "string",
+        "description": "输入（yamlText）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function scalar(s){\r\n    s=String(s).trim();\r\n    if(s===''||s==='~'||s==='null'||s==='Null'||s==='NULL') return null;\r\n    if(s==='true'||s==='True'||s==='TRUE') return true;\r\n    if(s==='false'||s==='False'||s==='FALSE') return false;\r\n    if((s[0]==='\"'&&s.slice(-1)==='\"')||(s[0]===\"'\"&&s.slice(-1)===\"'\")) return s.slice(1,-1);\r\n    if(/^-?\\d+$/.test(s)) return parseInt(s,10);\r\n    if(/^-?\\d*\\.\\d+$/.test(s)) return parseFloat(s);\r\n    return s;\r\n  }\r\n  function inline(s){\r\n    s=String(s).trim();\r\n    if(s[0]==='['){\r\n      var inner=s.slice(1,s.length-1).trim();\r\n      if(inner==='') return [];\r\n      return inner.split(',').map(function(x){return scalar(x);});\r\n    }\r\n    if(s[0]==='{'){\r\n      var inner=s.slice(1,s.length-1).trim(); var o={};\r\n      if(inner!=='') inner.split(',').forEach(function(p){\r\n        var ci=p.indexOf(':'); if(ci<0) return;\r\n        var k=p.slice(0,ci).trim(), v=p.slice(ci+1).trim(); o[scalar(k)]=scalar(v);\r\n      });\r\n      return o;\r\n    }\r\n    return scalar(s);\r\n  }\r\n  function parseYaml(text){\r\n    var raw=String(text).replace(/\\r/g,'').split('\\n');\r\n    var lines=[];\r\n    for(var k=0;k<raw.length;k++){ var ln=raw[k].replace(/\\t/g,'  '); var tr=ln.trim();\r\n      if(tr===''||tr[0]==='#') continue;\r\n      var ind=ln.length-ln.replace(/^ +/,'').length; lines.push({indent:ind,text:tr}); }\r\n    var pos=0;\r\n    function parseMap(indent){\r\n      var obj={};\r\n      while(pos<lines.length && lines[pos].indent===indent && lines[pos].text[0]!=='-'){\r\n        var line=lines[pos].text, ci=line.indexOf(':'); if(ci<0){pos++;continue;}\r\n        var key=line.slice(0,ci).trim(), val=line.slice(ci+1).trim(); pos++;\r\n        if(val===''){\r\n          if(pos<lines.length && lines[pos].indent>indent){ obj[scalar(key)]=parseNode(lines[pos].indent); }\r\n          else obj[scalar(key)]=null;\r\n        } else obj[scalar(key)]=inline(val);\r\n      }\r\n      return obj;\r\n    }\r\n    function parseSeq(indent){\r\n      var arr=[]; var dash=lines[pos].indent;\r\n      while(pos<lines.length && lines[pos].indent===dash && lines[pos].text[0]==='-'){\r\n        var t=lines[pos].text.slice(1).trim(); pos++;\r\n        if(t===''){ arr.push(parseNode(indent+1)); }\r\n        else if(t.indexOf(':')>=0 && /^[A-Za-z0-9_\\- ]+?:/.test(t)){\r\n          pos--; lines[pos].text=t; arr.push(parseMap(indent+2<lines[pos].indent?indent+2:indent+2));\r\n        } else arr.push(inline(t));\r\n      }\r\n      return arr;\r\n    }\r\n    function parseNode(indent){\r\n      if(pos>=lines.length) return null;\r\n      if(lines[pos].text[0]==='-') return parseSeq(lines[pos].indent);\r\n      return parseMap(indent);\r\n    }\r\n    return parseNode(0);\r\n  }\r\n  function toJson(yamlText){\r\n    try{ var v=parseYaml(yamlText); return {value:JSON.stringify(v,null,2)}; }\r\n    catch(e){ return {error:'YAML 解析失败: '+e.message}; }\r\n  }\r\n  function yamlVal(v,ind){\r\n    var pad=new Array(ind+1).join('  ');\r\n    if(v===null||v===undefined) return 'null';\r\n    if(typeof v==='boolean'||typeof v==='number') return String(v);\r\n    if(typeof v==='string'){\r\n      if(/[:#\\-?\\[\\]\\{\\},&*!|>'\"%@`\\n]/.test(v)||v===''||/^\\s|\\s$/.test(v)) return '\"'+v.replace(/\"/g,'\\\\\"')+'\"';\r\n      return v;\r\n    }\r\n    if(Array.isArray(v)){\r\n      if(v.length===0) return '[]';\r\n      return '[\\n'+v.map(function(x){return pad+'  - '+yamlVal(x,ind+1).replace(/^\\n+/,'');}).join('\\n')+'\\n'+pad+']';\r\n    }\r\n    if(typeof v==='object'){\r\n      var ks=Object.keys(v); if(ks.length===0) return '{}';\r\n      return ks.map(function(k){ return pad+k+': '+yamlVal(v[k],ind); }).join('\\n');\r\n    }\r\n    return String(v);\r\n  }\r\n  function toYaml(jsonText){\r\n    try{ var v=JSON.parse(jsonText); return {value:yamlVal(v,0)}; }\r\n    catch(e){ return {error:'JSON 解析失败: '+e.message}; }\r\n  }\r\n  var API={toJson:toJson,toYaml:toYaml,parseYaml:parseYaml};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__YqForge__=API;\r\n})();\r\n"
+}

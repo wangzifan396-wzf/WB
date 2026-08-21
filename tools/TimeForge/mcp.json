@@ -1,0 +1,98 @@
+{
+  "id": "TimeForge",
+  "name": "time_forge",
+  "title": "TimeForge",
+  "description": "时间工具箱：Unix 时间戳 ⇄ 日期互转（自动识别秒/毫秒），6 时区对照，日期差与人性化时长计算。",
+  "entry": "normalizeTimestamp",
+  "entries": {
+    "normalizeTimestamp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "pad2": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "formatInZone": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ms",
+        "offsetMinutes"
+      ],
+      "fields": []
+    },
+    "weekdayInZone": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ms",
+        "offsetMinutes"
+      ],
+      "fields": []
+    },
+    "isoInZone": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ms",
+        "offsetMinutes"
+      ],
+      "fields": []
+    },
+    "parseDateTimeInZone": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "offsetMinutes"
+      ],
+      "fields": []
+    },
+    "dateDiff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "msA",
+        "msB"
+      ],
+      "fields": []
+    },
+    "humanizeDuration": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ms"
+      ],
+      "fields": []
+    },
+    "isLeapYear": {
+      "paramStyle": "single",
+      "paramNames": [
+        "y"
+      ],
+      "fields": []
+    },
+    "daysInMonth": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "y",
+        "m"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "输入（input）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ================= TimeForge pure functions (top-level, testable) ================= */\r\nfunction normalizeTimestamp(input){\r\n  var s=String(input==null?'':input).trim();\r\n  if(!/^-?\\d+$/.test(s)) return null;\r\n  var n=Number(s);\r\n  if(!isFinite(n)) return null;\r\n  var abs=Math.abs(n);\r\n  if(abs>=1e15) return null;                     // too large even for ms\r\n  if(abs>=1e11) return { ms:n, unit:'ms' };      // 12+ digits → ms\r\n  return { ms:n*1000, unit:'s' };                // else seconds\r\n}\r\nfunction pad2(n){ return (n<10?'0':'')+n; }\r\nfunction formatInZone(ms, offsetMinutes){\r\n  var d=new Date(ms + offsetMinutes*60000);\r\n  return d.getUTCFullYear()+'-'+pad2(d.getUTCMonth()+1)+'-'+pad2(d.getUTCDate())\r\n    +' '+pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes())+':'+pad2(d.getUTCSeconds());\r\n}\r\nfunction weekdayInZone(ms, offsetMinutes){\r\n  var names=['周日','周一','周二','周三','周四','周五','周六'];\r\n  return names[new Date(ms + offsetMinutes*60000).getUTCDay()];\r\n}\r\nfunction isoInZone(ms, offsetMinutes){\r\n  var sign=offsetMinutes>=0?'+':'-';\r\n  var a=Math.abs(offsetMinutes);\r\n  var tz=sign+pad2(Math.floor(a/60))+':'+pad2(a%60);\r\n  return formatInZone(ms,offsetMinutes).replace(' ','T')+tz;\r\n}\r\nfunction parseDateTimeInZone(str, offsetMinutes){\r\n  var m=String(str==null?'':str).trim().match(/^(\\d{4})-(\\d{2})-(\\d{2})[T ](\\d{2}):(\\d{2})(?::(\\d{2}))?$/);\r\n  if(!m) return null;\r\n  var utc=Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));\r\n  return utc - offsetMinutes*60000;\r\n}\r\nfunction dateDiff(msA, msB){\r\n  var delta=Math.abs(msB-msA);\r\n  var sec=Math.floor(delta/1000);\r\n  return {\r\n    totalMs:delta,\r\n    totalSeconds:sec,\r\n    totalMinutes:Math.floor(sec/60),\r\n    totalHours:Math.floor(sec/3600),\r\n    totalDays:Math.floor(sec/86400),\r\n    days:Math.floor(sec/86400),\r\n    hours:Math.floor(sec%86400/3600),\r\n    minutes:Math.floor(sec%3600/60),\r\n    seconds:sec%60\r\n  };\r\n}\r\nfunction humanizeDuration(ms){\r\n  var sec=Math.floor(Math.abs(ms)/1000);\r\n  if(sec<1) return '不到 1 秒';\r\n  var d=Math.floor(sec/86400), h=Math.floor(sec%86400/3600), m=Math.floor(sec%3600/60), s=sec%60;\r\n  var parts=[];\r\n  if(d) parts.push(d+' 天');\r\n  if(h) parts.push(h+' 小时');\r\n  if(m) parts.push(m+' 分');\r\n  if(s&&!d) parts.push(s+' 秒');\r\n  return parts.slice(0,3).join(' ');\r\n}\r\nfunction isLeapYear(y){\r\n  return (y%4===0&&y%100!==0)||y%400===0;\r\n}\r\nfunction daysInMonth(y,m){\r\n  return [31,isLeapYear(y)?29:28,31,30,31,30,31,31,30,31,30,31][m-1];\r\n}\r\nvar ZONES=[\r\n  { name:'北京 / 上海 (UTC+8)', offset:480 },\r\n  { name:'UTC', offset:0 },\r\n  { name:'东京 (UTC+9)', offset:540 },\r\n  { name:'伦敦 (UTC+0/夏令+1)', offset:0 },\r\n  { name:'纽约 (UTC-5/夏令-4)', offset:-300 },\r\n  { name:'洛杉矶 (UTC-8/夏令-7)', offset:-480 }\r\n];\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { normalizeTimestamp:normalizeTimestamp, pad2:pad2, formatInZone:formatInZone,\r\n    weekdayInZone:weekdayInZone, isoInZone:isoInZone, parseDateTimeInZone:parseDateTimeInZone,\r\n    dateDiff:dateDiff, humanizeDuration:humanizeDuration, isLeapYear:isLeapYear, daysInMonth:daysInMonth, ZONES:ZONES };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TimeForgePure = { normalizeTimestamp:normalizeTimestamp, pad2:pad2, formatInZone:formatInZone,\r\n    weekdayInZone:weekdayInZone, isoInZone:isoInZone, parseDateTimeInZone:parseDateTimeInZone,\r\n    dateDiff:dateDiff, humanizeDuration:humanizeDuration, isLeapYear:isLeapYear, daysInMonth:daysInMonth, ZONES:ZONES };\r\n}\r\n"
+}

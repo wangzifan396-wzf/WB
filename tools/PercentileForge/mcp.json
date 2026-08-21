@@ -1,0 +1,66 @@
+{
+  "id": "PercentileForge",
+  "name": "percentile_forge",
+  "title": "PercentileForge",
+  "description": "延迟分位数分析器：p50/p90/p95/p99 插值 + 标准差 + ASCII 直方图。",
+  "entry": "parseNums",
+  "entries": {
+    "parseNums": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "percentile": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "arr",
+        "p"
+      ],
+      "fields": []
+    },
+    "mean": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "stddev": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "summary": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "histogram": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "arr",
+        "buckets"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction parseNums(s){\r\n  var parts=String(s||'').trim().split(/[,\\s]+/).filter(function(x){return x.length;});\r\n  if(!parts.length) return { value:null, error:'\\u6837\\u672c\\u4e3a\\u7a7a' };\r\n  var out=[];\r\n  for(var i=0;i<parts.length;i++){\r\n    var n=Number(parts[i]);\r\n    if(!isFinite(n)) return { value:null, error:'\\u975e\\u6cd5\\u6570\\u5b57: '+parts[i] };\r\n    out.push(n);\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nfunction percentile(arr, p){\r\n  if(!arr.length) throw new Error('EMPTY');\r\n  if(p<0||p>100) throw new Error('P_RANGE');\r\n  var a=arr.slice().sort(function(x,y){return x-y;});\r\n  if(a.length===1) return a[0];\r\n  var idx=(p/100)*(a.length-1);\r\n  var lo=Math.floor(idx), hi=Math.ceil(idx);\r\n  if(lo===hi) return a[lo];\r\n  return a[lo]+(a[hi]-a[lo])*(idx-lo);\r\n}\r\nfunction mean(arr){\r\n  if(!arr.length) throw new Error('EMPTY');\r\n  return arr.reduce(function(a,b){return a+b;},0)/arr.length;\r\n}\r\nfunction stddev(arr){\r\n  if(arr.length<2) return 0;\r\n  var m=mean(arr);\r\n  return Math.sqrt(arr.reduce(function(s,x){return s+(x-m)*(x-m);},0)/(arr.length-1));\r\n}\r\nfunction summary(arr){\r\n  return { count:arr.length, min:Math.min.apply(null,arr), max:Math.max.apply(null,arr),\r\n    mean:mean(arr), stddev:stddev(arr),\r\n    p50:percentile(arr,50), p90:percentile(arr,90), p95:percentile(arr,95), p99:percentile(arr,99) };\r\n}\r\nfunction histogram(arr, buckets){\r\n  buckets=buckets||8;\r\n  var mn=Math.min.apply(null,arr), mx=Math.max.apply(null,arr);\r\n  var w=(mx-mn)/buckets || 1;\r\n  var out=[];\r\n  for(var i=0;i<buckets;i++) out.push({ from:mn+i*w, to:mn+(i+1)*w, count:0 });\r\n  arr.forEach(function(x){\r\n    var i=Math.min(buckets-1, Math.floor((x-mn)/w));\r\n    out[i].count++;\r\n  });\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parseNums:parseNums, percentile:percentile, mean:mean, stddev:stddev,\r\n    summary:summary, histogram:histogram };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.PercentileForgePure = { parseNums:parseNums, percentile:percentile, mean:mean, stddev:stddev,\r\n    summary:summary, histogram:histogram };\r\n}\r\n"
+}

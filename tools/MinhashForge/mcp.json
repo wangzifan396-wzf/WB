@@ -1,0 +1,76 @@
+{
+  "id": "MinhashForge",
+  "name": "minhash_forge",
+  "title": "MinhashForge",
+  "description": "MinHash 签名 + Jaccard 估计：文档去重的核心草图。",
+  "entry": "mhFnv1a",
+  "entries": {
+    "mhFnv1a": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "seed"
+      ],
+      "fields": []
+    },
+    "mhShingles": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "k"
+      ],
+      "fields": []
+    },
+    "mhJaccard": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "setA",
+        "setB"
+      ],
+      "fields": []
+    },
+    "mhSignature": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "set",
+        "numHashes"
+      ],
+      "fields": []
+    },
+    "mhEstimate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sigA",
+        "sigB"
+      ],
+      "fields": []
+    },
+    "mhCompare": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "textA",
+        "textB",
+        "k",
+        "numHashes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "第 1 个参数（str）"
+      },
+      "seed": {
+        "type": "number",
+        "description": "第 2 个参数（seed）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction mhFnv1a(str, seed){\r\n  var h=(0x811c9dc5 ^ (seed||0))>>>0;\r\n  for(var i=0;i<str.length;i++){\r\n    h=(h^str.charCodeAt(i))>>>0;\r\n    h=(h+((h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24)))>>>0;\r\n  }\r\n  return h>>>0;\r\n}\r\nfunction mhShingles(text, k){\r\n  var s=String(text).toLowerCase().replace(/\\s+/g,' ').trim();\r\n  var kk=Math.max(1, Math.floor(k||3));\r\n  var set={};\r\n  if(s.length<kk){ if(s) set[s]=true; return set; }\r\n  for(var i=0;i+kk<=s.length;i++) set[s.substr(i,kk)]=true;\r\n  return set;\r\n}\r\nfunction mhJaccard(setA, setB){\r\n  var inter=0, uni=0, g;\r\n  for(g in setA){ uni++; if(setB[g]) inter++; }\r\n  for(g in setB){ if(!setA[g]) uni++; }\r\n  return uni===0?1:inter/uni;\r\n}\r\nfunction mhSignature(set, numHashes){\r\n  var n=Math.max(1, Math.floor(numHashes||128));\r\n  var sig=new Array(n).fill(0xffffffff);\r\n  var g;\r\n  for(g in set){\r\n    for(var i=0;i<n;i++){\r\n      var h=mhFnv1a(g, i*0x9e3779b9>>>0);\r\n      if(h<sig[i]) sig[i]=h;\r\n    }\r\n  }\r\n  return sig;\r\n}\r\nfunction mhEstimate(sigA, sigB){\r\n  if(!sigA||!sigB||sigA.length!==sigB.length||sigA.length===0)\r\n    return { value:null, error:'签名长度不一致或为空' };\r\n  var eq=0;\r\n  for(var i=0;i<sigA.length;i++) if(sigA[i]===sigB[i]) eq++;\r\n  return { value:eq/sigA.length, error:null };\r\n}\r\nfunction mhCompare(textA, textB, k, numHashes){\r\n  var sa=mhShingles(textA,k), sb=mhShingles(textB,k);\r\n  var exact=mhJaccard(sa,sb);\r\n  var est=mhEstimate(mhSignature(sa,numHashes), mhSignature(sb,numHashes));\r\n  if(est.error) return { value:null, error:est.error };\r\n  return { value:{ exact:exact, estimate:est.value,\r\n    shinglesA:Object.keys(sa).length, shinglesB:Object.keys(sb).length }, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { mhFnv1a:mhFnv1a, mhShingles:mhShingles, mhJaccard:mhJaccard,\r\n    mhSignature:mhSignature, mhEstimate:mhEstimate, mhCompare:mhCompare };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MinhashForgePure = { mhFnv1a:mhFnv1a, mhShingles:mhShingles, mhJaccard:mhJaccard,\r\n    mhSignature:mhSignature, mhEstimate:mhEstimate, mhCompare:mhCompare };\r\n}\r\n"
+}

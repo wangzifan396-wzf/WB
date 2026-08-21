@@ -1,0 +1,51 @@
+{
+  "id": "OldMaidForge",
+  "name": "old_maid_forge",
+  "title": "OldMaidForge",
+  "description": "老处女（Old Maid）纸牌游戏：发牌后自动弃掉所有对子，轮流从对方抽牌、再弃对子，最后拿着孤张 Q 的人输。",
+  "entry": "omDeal",
+  "entries": {
+    "omDeal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rnd"
+      ],
+      "fields": []
+    },
+    "omReducePairs": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hand"
+      ],
+      "fields": []
+    },
+    "omHas": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "hand",
+        "rank"
+      ],
+      "fields": []
+    },
+    "_rng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "rnd": {
+        "type": "string",
+        "description": "输入（rnd）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }\r\nfunction _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }\r\nfunction _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nfunction _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }\r\n\r\nfunction omDeal(rnd){ var deck=_mkDeck().filter(function(c){ return !(c.r==='Q'&&c.s==='C'); }); deck=_shuffle(deck, rnd); var p1=deck.slice(0,17), p2=deck.slice(17,34), pool=deck.slice(34); return {p1:omReducePairs(p1), p2:omReducePairs(p2), pool:pool, maid:'Q♣'}; }\r\nfunction omReducePairs(hand){ var cnt={}; hand.forEach(function(c){ cnt[c.r]=(cnt[c.r]||0)+1; }); var out=[]; for(var r in cnt){ var n=cnt[r], rem=n%2; for(var i=0;i<rem;i++) out.push({r:r}); } return out; }\r\nfunction omHas(hand, rank){ return hand.some(function(c){return c.r===rank;}); }\r\nvar EXPORTS={omDeal:omDeal, omReducePairs:omReducePairs, omHas:omHas, _rng:_rng};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.OldMaidForgePure = EXPORTS; }\r\n\r\n"
+}

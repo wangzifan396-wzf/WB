@@ -1,0 +1,50 @@
+{
+  "id": "XxhashForge",
+  "name": "xxhash_forge",
+  "title": "XxhashForge",
+  "description": "xxHash32 快速哈希：官方向量验证，种子可调，非加密校验。",
+  "entry": "xxhash32",
+  "entries": {
+    "xxhash32": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "seed"
+      ],
+      "fields": []
+    },
+    "xxhash32Hex": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "seed"
+      ],
+      "fields": []
+    },
+    "xxhash32Bytes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "第 1 个参数（str）"
+      },
+      "seed": {
+        "type": "string",
+        "description": "第 2 个参数（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar _P1=2654435761, _P2=2246822519, _P3=3266489917, _P4=668265263, _P5=374761393;\r\nfunction _rotl(x,r){ return ((x<<r)|(x>>>(32-r)))>>>0; }\r\nfunction xxUtf8(str){\r\n  var out=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.codePointAt(i);\r\n    if(c>0xFFFF) i++;\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xC0|(c>>6),0x80|(c&63)); }\r\n    else if(c<0x10000){ out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63)); }\r\n    else { out.push(0xF0|(c>>18),0x80|((c>>12)&63),0x80|((c>>6)&63),0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction _u32(bytes,i){\r\n  return (bytes[i]|(bytes[i+1]<<8)|(bytes[i+2]<<16)|(bytes[i+3]<<24))>>>0;\r\n}\r\nfunction xxhash32Bytes(bytes, seed){\r\n  seed=(seed||0)>>>0;\r\n  var len=bytes.length, i=0, h;\r\n  if(len>=16){\r\n    var v1=(seed+_P1+_P2)>>>0, v2=(seed+_P2)>>>0, v3=seed>>>0, v4=(seed-_P1)>>>0;\r\n    while(i<=len-16){\r\n      v1=Math.imul(_rotl((v1+Math.imul(_u32(bytes,i),_P2))>>>0,13),_P1)>>>0; i+=4;\r\n      v2=Math.imul(_rotl((v2+Math.imul(_u32(bytes,i),_P2))>>>0,13),_P1)>>>0; i+=4;\r\n      v3=Math.imul(_rotl((v3+Math.imul(_u32(bytes,i),_P2))>>>0,13),_P1)>>>0; i+=4;\r\n      v4=Math.imul(_rotl((v4+Math.imul(_u32(bytes,i),_P2))>>>0,13),_P1)>>>0; i+=4;\r\n    }\r\n    h=(_rotl(v1,1)+_rotl(v2,7)+_rotl(v3,12)+_rotl(v4,18))>>>0;\r\n  } else {\r\n    h=(seed+_P5)>>>0;\r\n  }\r\n  h=(h+len)>>>0;\r\n  while(i<=len-4){\r\n    h=(h+Math.imul(_u32(bytes,i),_P3))>>>0;\r\n    h=Math.imul(_rotl(h,17),_P4)>>>0;\r\n    i+=4;\r\n  }\r\n  while(i<len){\r\n    h=(h+Math.imul(bytes[i],_P5))>>>0;\r\n    h=Math.imul(_rotl(h,11),_P1)>>>0;\r\n    i++;\r\n  }\r\n  h^=h>>>15; h=Math.imul(h,_P2)>>>0;\r\n  h^=h>>>13; h=Math.imul(h,_P3)>>>0;\r\n  h^=h>>>16;\r\n  return h>>>0;\r\n}\r\nfunction xxhash32(str, seed){ return xxhash32Bytes(xxUtf8(str), seed); }\r\nfunction xxhash32Hex(str, seed){\r\n  var h=xxhash32(str, seed).toString(16);\r\n  while(h.length<8) h='0'+h;\r\n  return h;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { xxhash32:xxhash32, xxhash32Hex:xxhash32Hex, xxhash32Bytes:xxhash32Bytes, xxUtf8:xxUtf8 };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.XxhashForgePure = { xxhash32:xxhash32, xxhash32Hex:xxhash32Hex, xxhash32Bytes:xxhash32Bytes };\r\n}\r\n"
+}

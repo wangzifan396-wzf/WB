@@ -1,0 +1,43 @@
+{
+  "id": "MarkdownForge",
+  "name": "markdown_forge",
+  "title": "MarkdownForge",
+  "description": "Markdown 转 HTML 编译器：标题/列表/代码块/引用/链接，转义防注入。",
+  "entry": "mdToHtml",
+  "entries": {
+    "mdToHtml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "md"
+      ],
+      "fields": []
+    },
+    "inlineMd": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "escapeHtml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "md": {
+        "type": "string",
+        "description": "输入（md）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction escapeHtml(s){\r\n  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');\r\n}\r\nfunction inlineMd(s){\r\n  s=escapeHtml(s);\r\n  s=s.replace(/`([^`]+)`/g, function(_,c){ return '<code>'+c+'</code>'; });\r\n  s=s.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');\r\n  s=s.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');\r\n  s=s.replace(/\\[([^\\]]+)\\]\\(([^)\\s]+)\\)/g, '<a href=\"$2\">$1</a>');\r\n  return s;\r\n}\r\nfunction mdToHtml(md){\r\n  var lines=String(md||'').split(/\\r?\\n/);\r\n  var out=[], i=0;\r\n  while(i<lines.length){\r\n    var ln=lines[i];\r\n    if(/^```/.test(ln)){\r\n      var code=[]; i++;\r\n      while(i<lines.length && !/^```/.test(lines[i])){ code.push(lines[i]); i++; }\r\n      i++;\r\n      out.push('<pre><code>'+escapeHtml(code.join('\\n'))+'</code></pre>');\r\n      continue;\r\n    }\r\n    var h=ln.match(/^(#{1,6})\\s+(.*)$/);\r\n    if(h){ var l=h[1].length; out.push('<h'+l+'>'+inlineMd(h[2])+'</h'+l+'>'); i++; continue; }\r\n    if(/^(?:---+|\\*\\*\\*+)\\s*$/.test(ln)){ out.push('<hr>'); i++; continue; }\r\n    if(/^>\\s?/.test(ln)){\r\n      var bq=[];\r\n      while(i<lines.length && /^>\\s?/.test(lines[i])){ bq.push(lines[i].replace(/^>\\s?/,'')); i++; }\r\n      out.push('<blockquote>'+inlineMd(bq.join(' '))+'</blockquote>');\r\n      continue;\r\n    }\r\n    if(/^[-*+]\\s+/.test(ln)){\r\n      var ul=[];\r\n      while(i<lines.length && /^[-*+]\\s+/.test(lines[i])){ ul.push('<li>'+inlineMd(lines[i].replace(/^[-*+]\\s+/,''))+'</li>'); i++; }\r\n      out.push('<ul>'+ul.join('')+'</ul>');\r\n      continue;\r\n    }\r\n    if(/^\\d+\\.\\s+/.test(ln)){\r\n      var ol=[];\r\n      while(i<lines.length && /^\\d+\\.\\s+/.test(lines[i])){ ol.push('<li>'+inlineMd(lines[i].replace(/^\\d+\\.\\s+/,''))+'</li>'); i++; }\r\n      out.push('<ol>'+ol.join('')+'</ol>');\r\n      continue;\r\n    }\r\n    if(!ln.trim()){ i++; continue; }\r\n    var p=[ln];\r\n    i++;\r\n    while(i<lines.length && lines[i].trim() && !/^(#{1,6}\\s|>|[-*+]\\s|\\d+\\.\\s|```|---)/.test(lines[i])){ p.push(lines[i]); i++; }\r\n    out.push('<p>'+inlineMd(p.join(' '))+'</p>');\r\n  }\r\n  return out.join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { mdToHtml:mdToHtml, inlineMd:inlineMd, escapeHtml:escapeHtml };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MarkdownForgePure = { mdToHtml:mdToHtml, inlineMd:inlineMd, escapeHtml:escapeHtml };\r\n}\r\n"
+}

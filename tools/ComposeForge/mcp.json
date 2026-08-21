@@ -1,0 +1,44 @@
+{
+  "id": "ComposeForge",
+  "name": "compose_forge",
+  "title": "ComposeForge",
+  "description": "docker run 命令与 docker-compose.yml 双向互转：解析 -p/-v/-e/--label/--cap-add/--restart 等常见参数生成服务定义，也能把 compose 服务还原成一行 docker run 命令。",
+  "entry": "tokenize",
+  "entries": {
+    "tokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "runToCompose": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cmd",
+        "opt"
+      ],
+      "fields": []
+    },
+    "composeToRun": {
+      "paramStyle": "single",
+      "paramNames": [
+        "yamlText"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function tokenize(s){\r\n    s=String(s||'').replace(/\\\\\\r?\\n/g,' ');\r\n    var out=[],cur='',q=null,has=false;\r\n    for(var i=0;i<s.length;i++){\r\n      var c=s[i];\r\n      if(q){ if(c===q){q=null;} else {cur+=c;} continue; }\r\n      if(c==='\"'||c===\"'\"){ q=c; has=true; continue; }\r\n      if(/\\s/.test(c)){ if(cur||has){out.push(cur);cur='';has=false;} continue; }\r\n      cur+=c;\r\n    }\r\n    if(cur||has)out.push(cur);\r\n    return out;\r\n  }\r\n  var LIST={'-p':'ports','--publish':'ports','-v':'volumes','--volume':'volumes','--mount':'volumes',\r\n            '-e':'environment','--env':'environment','-l':'labels','--label':'labels',\r\n            '--device':'devices','--add-host':'extra_hosts','--dns':'dns','--cap-add':'cap_add',\r\n            '--cap-drop':'cap_drop','--expose':'expose','--link':'links','--tmpfs':'tmpfs',\r\n            '--security-opt':'security_opt','--sysctl':'sysctls','--network':'networks','--net':'networks'};\r\n  var SCALAR={'--name':'container_name','--restart':'restart','-w':'working_dir','--workdir':'working_dir',\r\n              '--entrypoint':'entrypoint','-u':'user','--user':'user','--hostname':'hostname',\r\n              '-m':'mem_limit','--memory':'mem_limit','--cpus':'cpus','--shm-size':'shm_size',\r\n              '--pid':'pid','--ipc':'ipc','--stop-signal':'stop_signal','--domainname':'domainname'};\r\n  var BOOL={'--privileged':'privileged','--init':'init','--read-only':'read_only'};\r\n  var IGNORE={'-d':1,'--detach':1,'--rm':1,'-i':1,'-t':1,'-it':1,'-ti':1,'--tty':1,'--interactive':1};\r\n\r\n  function need(f){ return LIST[f]!=null||SCALAR[f]!=null; }\r\n\r\n  function runToCompose(cmd,opt){\r\n    opt=opt||{};\r\n    var tk=tokenize(cmd);\r\n    if(!tk.length) return {error:'请输入 docker run 命令'};\r\n    var i=0;\r\n    if(tk[0]==='docker') i++;\r\n    if(tk[i]==='container') i++;\r\n    if(tk[i]==='run') i++; else if(tk[0]==='docker') return {error:'仅支持 docker run 命令'};\r\n    var svc={},image=null,args=[],warn=[];\r\n    for(;i<tk.length;i++){\r\n      var t=tk[i];\r\n      if(image!=null){ args.push(t); continue; }\r\n      if(t.charAt(0)!=='-'){ image=t; continue; }\r\n      var flag=t,val=null,eq=t.indexOf('=');\r\n      if(eq>0&&t.charAt(1)==='-'){ flag=t.slice(0,eq); val=t.slice(eq+1); }\r\n      if(IGNORE[flag]!=null&&val==null){ continue; }\r\n      if(BOOL[flag]!=null){ svc[BOOL[flag]]=true; continue; }\r\n      if(need(flag)){\r\n        if(val==null){ val=tk[++i]; }\r\n        if(val==null){ warn.push(flag+' 缺少取值'); continue; }\r\n        if(LIST[flag]!=null){ var k=LIST[flag]; (svc[k]=svc[k]||[]).push(val); }\r\n        else { svc[SCALAR[flag]]=val; }\r\n        continue;\r\n      }\r\n      warn.push('未识别参数 '+flag+'（已忽略）');\r\n    }\r\n    if(!image) return {error:'未找到镜像名'};\r\n    var name=opt.service||svc.container_name||image.split('/').pop().split(':')[0].replace(/[^a-zA-Z0-9_-]/g,'')||'app';\r\n    var yaml='services:\\n  '+name+':\\n    image: '+image+'\\n';\r\n    var order=['container_name','restart','entrypoint','user','working_dir','hostname','domainname',\r\n               'mem_limit','cpus','shm_size','pid','ipc','stop_signal','privileged','init','read_only'];\r\n    for(var oi=0;oi<order.length;oi++){\r\n      var ok2=order[oi];\r\n      if(svc[ok2]!=null) yaml+='    '+ok2+': '+fmt(svc[ok2])+'\\n';\r\n    }\r\n    var lists=['ports','volumes','environment','labels','devices','extra_hosts','dns','cap_add',\r\n               'cap_drop','expose','links','tmpfs','security_opt','sysctls','networks'];\r\n    for(var li=0;li<lists.length;li++){\r\n      var lk=lists[li];\r\n      if(!svc[lk]) continue;\r\n      yaml+='    '+lk+':\\n';\r\n      for(var vi=0;vi<svc[lk].length;vi++) yaml+='      - '+quote(svc[lk][vi])+'\\n';\r\n    }\r\n    if(args.length) yaml+='    command: '+quote(args.join(' '))+'\\n';\r\n    return {value:{yaml:yaml,service:name,image:image,warn:warn}};\r\n  }\r\n  function fmt(v){ if(v===true) return 'true'; return quote(String(v)); }\r\n  function quote(s){\r\n    s=String(s);\r\n    if(/^[A-Za-z0-9_./:@=-]+$/.test(s)&&!/^\\d+:\\d+$/.test(s)&&!/^\\d+$/.test(s)) return s;\r\n    return '\"'+s.replace(/\"/g,'\\\\\"')+'\"';\r\n  }\r\n\r\n  function unq(s){\r\n    s=String(s).trim();\r\n    if((s.charAt(0)==='\"'&&s.slice(-1)==='\"')||(s.charAt(0)===\"'\"&&s.slice(-1)===\"'\")) return s.slice(1,-1);\r\n    return s;\r\n  }\r\n  function composeToRun(yamlText){\r\n    var lines=String(yamlText||'').split(/\\r?\\n/),si=-1;\r\n    for(var i=0;i<lines.length;i++){ if(/^\\s*services\\s*:\\s*$/.test(lines[i])){ si=i; break; } }\r\n    if(si<0) return {error:'未找到 services: 段'};\r\n    var name=null,base=0,svc={},key=null;\r\n    for(var j=si+1;j<lines.length;j++){\r\n      var ln=lines[j];\r\n      if(!ln.trim()||/^\\s*#/.test(ln)) continue;\r\n      var ind=ln.length-ln.replace(/^\\s+/,'').length;\r\n      var body=ln.trim();\r\n      if(name==null){\r\n        if(/:$/.test(body)){ name=body.slice(0,-1).trim(); base=ind; }\r\n        continue;\r\n      }\r\n      if(ind<=base){ break; }\r\n      if(body.charAt(0)==='-'){\r\n        if(key) (svc[key]=svc[key]||[]).push(unq(body.slice(1).trim()));\r\n        continue;\r\n      }\r\n      var m=body.match(/^([A-Za-z0-9_]+)\\s*:\\s*(.*)$/);\r\n      if(!m) continue;\r\n      key=m[1];\r\n      if(m[2]==='') { svc[key]=[]; } else { svc[key]=unq(m[2]); key=null; }\r\n    }\r\n    if(name==null) return {error:'services 下没有服务'};\r\n    if(!svc.image) return {error:'服务 '+name+' 缺少 image'};\r\n    var out=['docker run'];\r\n    out.push('-d');\r\n    if(svc.container_name) out.push('--name '+svc.container_name);\r\n    var map={ports:'-p',volumes:'-v',environment:'-e',labels:'--label',devices:'--device',\r\n             extra_hosts:'--add-host',dns:'--dns',cap_add:'--cap-add',cap_drop:'--cap-drop',\r\n             expose:'--expose',links:'--link',tmpfs:'--tmpfs',security_opt:'--security-opt',\r\n             sysctls:'--sysctl',networks:'--network'};\r\n    for(var mk in map){ if(!Array.isArray(svc[mk])) continue;\r\n      for(var q=0;q<svc[mk].length;q++) out.push(map[mk]+' '+sh(svc[mk][q])); }\r\n    var sc={restart:'--restart',working_dir:'-w',user:'-u',hostname:'--hostname',\r\n            mem_limit:'-m',cpus:'--cpus',shm_size:'--shm-size',pid:'--pid',ipc:'--ipc',\r\n            entrypoint:'--entrypoint',stop_signal:'--stop-signal'};\r\n    for(var sk in sc){ if(typeof svc[sk]==='string') out.push(sc[sk]+' '+sh(svc[sk])); }\r\n    if(svc.privileged==='true') out.push('--privileged');\r\n    if(svc.init==='true') out.push('--init');\r\n    if(svc.read_only==='true') out.push('--read-only');\r\n    out.push(svc.image);\r\n    if(typeof svc.command==='string'&&svc.command) out.push(svc.command);\r\n    return {value:{cmd:out.join(' '),service:name}};\r\n  }\r\n  function sh(s){ return /[\\s\"'$]/.test(s)?(\"'\"+String(s).replace(/'/g,\"'\\\\''\")+\"'\"):s; }\r\n\r\n  var API={tokenize:tokenize,runToCompose:runToCompose,composeToRun:composeToRun};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__ComposeForge__=API;\r\n})();\r\n\r\n"
+}

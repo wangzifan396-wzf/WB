@@ -1,0 +1,45 @@
+{
+  "id": "ColorPaletteForge",
+  "name": "color_palette_forge",
+  "title": "ColorPaletteForge",
+  "description": "调色板生成：基于基色 HSL 生成互补 / 类似 / 三角 / 分裂互补配色方案，离线可用。",
+  "entry": "palettes",
+  "entries": {
+    "palettes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hex"
+      ],
+      "fields": []
+    },
+    "hslToHex": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "h",
+        "s",
+        "l"
+      ],
+      "fields": []
+    },
+    "fromHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hex"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "hex": {
+        "type": "string",
+        "description": "输入（hex）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction hslToHex(h,s,l){ s/=100; l/=100; var c=(1-Math.abs(2*l-1))*s; var x=c*(1-Math.abs((h/60)%2-1)); var mm=l-c/2; var r,g,b;\r\n  if(h<60){r=c;g=x;b=0;} else if(h<120){r=x;g=c;b=0;} else if(h<180){r=0;g=c;b=x;} else if(h<240){r=0;g=x;b=c;}\r\n  else if(h<300){r=x;g=0;b=c;} else {r=c;g=0;b=x;}\r\n  function hx(v){var t=Math.round((v+mm)*255).toString(16); return t.length===1?'0'+t:t;} return '#'+hx(r)+hx(g)+hx(b); }\r\nfunction fromHex(hex){ hex=hex.replace('#',''); var r=parseInt(hex.substr(0,2),16),g=parseInt(hex.substr(2,2),16),b=parseInt(hex.substr(4,2),16);\r\n  var r1=r/255,g1=g/255,b1=b/255; var max=Math.max(r1,g1,b1),min=Math.min(r1,g1,b1); var l=(max+min)/2; var s=0,h=0;\r\n  if(max!==min){ var d=max-min; s=l>0.5?d/(2-max-min):d/(max+min);\r\n    if(max===r1) h=(g1-b1)/d+(g1<b1?6:0); else if(max===g1) h=(b1-r1)/d+2; else h=(r1-g1)/d+4; h*=60; }\r\n  return {h:Math.round(h),s:Math.round(s*100),l:Math.round(l*100)}; }\r\nfunction palettes(hex){ var base=fromHex(hex); var h=base.h;\r\n  function rot(d){ var nh=((h+d)%360+360)%360; return hslToHex(nh, base.s, base.l); }\r\n  return {base:hex, complementary:rot(180), analogous:[rot(-30),hex,rot(30)], triadic:[hex,rot(120),rot(240)], splitComplementary:[rot(150),hex,rot(210)]}; }\r\nvar EXPORTS={palettes:palettes, hslToHex:hslToHex, fromHex:fromHex};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ColorPaletteForgePure = EXPORTS; }\r\n\r\n"
+}

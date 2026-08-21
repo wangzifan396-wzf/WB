@@ -1,0 +1,164 @@
+{
+  "id": "MqttForge",
+  "name": "mqtt_forge",
+  "title": "MqttForge",
+  "description": "MQTT 3.1.1 报文工坊：手写实现的二进制编解码器，可构造 CONNECT/PUBLISH/SUBSCRIBE/UNSUBSCRIBE 等控制报文并逐字节拆解字段含义，内置变长剩余长度编码、粘包与截断识别、主题通配符匹配器（#/+/$ 规范细则）与 MQTT-over-WebSocket 实时客户端，离线可用。",
+  "entry": "buildConnect",
+  "entries": {
+    "utf8Encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "utf8Decode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "start",
+        "end"
+      ],
+      "fields": []
+    },
+    "encodeVarint": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "decodeVarint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "offset"
+      ],
+      "fields": []
+    },
+    "encodeString": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "readString": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "offset"
+      ],
+      "fields": []
+    },
+    "buildConnect": {
+      "paramStyle": "single",
+      "paramNames": [
+        "o"
+      ],
+      "fields": []
+    },
+    "buildPublish": {
+      "paramStyle": "single",
+      "paramNames": [
+        "o"
+      ],
+      "fields": []
+    },
+    "buildSubscribe": {
+      "paramStyle": "single",
+      "paramNames": [
+        "o"
+      ],
+      "fields": []
+    },
+    "buildUnsubscribe": {
+      "paramStyle": "single",
+      "paramNames": [
+        "o"
+      ],
+      "fields": []
+    },
+    "buildPubAck": {
+      "paramStyle": "single",
+      "paramNames": [
+        "packetId"
+      ],
+      "fields": []
+    },
+    "buildPingReq": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "buildDisconnect": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "decodePacket": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "topicMatch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "filter",
+        "topic"
+      ],
+      "fields": []
+    },
+    "validateTopic": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "topic",
+        "isFilter"
+      ],
+      "fields": []
+    },
+    "hex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "parseHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "hexdump": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "lint": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cfg"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "o": {
+        "type": "object",
+        "description": "输入（o）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n/* ---- MQTT 3.1.1 (OASIS) 报文编解码 ---------------------------------------------\r\n   固定报头：1 字节控制报文类型+标志 + 1~4 字节剩余长度（7 位一组的变长编码）\r\n   变长编码上限 268435455 字节；字符串一律是 2 字节大端长度 + UTF-8 字节\r\n-------------------------------------------------------------------------------- */\r\n\r\nvar PACKET_TYPES = {\r\n  1:'CONNECT', 2:'CONNACK', 3:'PUBLISH', 4:'PUBACK', 5:'PUBREC', 6:'PUBREL', 7:'PUBCOMP',\r\n  8:'SUBSCRIBE', 9:'SUBACK', 10:'UNSUBSCRIBE', 11:'UNSUBACK', 12:'PINGREQ', 13:'PINGRESP',\r\n  14:'DISCONNECT', 15:'AUTH'\r\n};\r\n\r\nvar CONNACK_CODES = {\r\n  0:{name:'Accepted', desc:'连接已接受。'},\r\n  1:{name:'Unacceptable protocol version', desc:'服务端不支持客户端请求的 MQTT 协议级别。'},\r\n  2:{name:'Identifier rejected', desc:'客户端标识符格式正确但被服务端拒绝（常见于长度或字符限制）。'},\r\n  3:{name:'Server unavailable', desc:'网络连接已建立，但 MQTT 服务不可用。'},\r\n  4:{name:'Bad user name or password', desc:'用户名或密码格式错误 / 校验失败。'},\r\n  5:{name:'Not authorized', desc:'客户端未被授权连接。'}\r\n};\r\n\r\nfunction utf8Encode(str){\r\n  var s = String(str==null?'':str), out = [];\r\n  for(var i=0;i<s.length;i++){\r\n    var c = s.charCodeAt(i);\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xC0|(c>>6), 0x80|(c&0x3F)); }\r\n    else if(c>=0xD800 && c<=0xDBFF && i+1<s.length){\r\n      var d = s.charCodeAt(i+1);\r\n      if(d>=0xDC00 && d<=0xDFFF){\r\n        var cp = 0x10000 + ((c-0xD800)<<10) + (d-0xDC00);\r\n        out.push(0xF0|(cp>>18), 0x80|((cp>>12)&0x3F), 0x80|((cp>>6)&0x3F), 0x80|(cp&0x3F));\r\n        i++;\r\n      } else { out.push(0xE0|(c>>12), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F)); }\r\n    }\r\n    else { out.push(0xE0|(c>>12), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F)); }\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction utf8Decode(bytes, start, end){\r\n  var a = bytes, i = start||0, e = (end===undefined? a.length : end), out = '';\r\n  while(i<e){\r\n    var b = a[i];\r\n    if(b<0x80){ out += String.fromCharCode(b); i+=1; }\r\n    else if((b&0xE0)===0xC0){ out += String.fromCharCode(((b&0x1F)<<6)|(a[i+1]&0x3F)); i+=2; }\r\n    else if((b&0xF0)===0xE0){ out += String.fromCharCode(((b&0x0F)<<12)|((a[i+1]&0x3F)<<6)|(a[i+2]&0x3F)); i+=3; }\r\n    else {\r\n      var cp = ((b&0x07)<<18)|((a[i+1]&0x3F)<<12)|((a[i+2]&0x3F)<<6)|(a[i+3]&0x3F);\r\n      cp -= 0x10000;\r\n      out += String.fromCharCode(0xD800+(cp>>10), 0xDC00+(cp&0x3FF));\r\n      i+=4;\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction encodeVarint(n){\r\n  var v = Math.floor(Number(n)||0);\r\n  if(v<0) throw new Error('剩余长度不能为负');\r\n  if(v>268435455) throw new Error('剩余长度超过 MQTT 上限 268435455 字节');\r\n  var out=[];\r\n  do {\r\n    var b = v % 128;\r\n    v = Math.floor(v/128);\r\n    if(v>0) b = b | 0x80;\r\n    out.push(b);\r\n  } while(v>0);\r\n  return out;\r\n}\r\n\r\nfunction decodeVarint(bytes, offset){\r\n  var mul=1, value=0, i=offset||0, n=0, b;\r\n  do {\r\n    if(i>=bytes.length) return {ok:false, error:'剩余长度字段被截断'};\r\n    b = bytes[i++]; n++;\r\n    value += (b & 127) * mul;\r\n    if(n>4) return {ok:false, error:'剩余长度超过 4 字节，报文非法'};\r\n    mul *= 128;\r\n  } while((b & 128) !== 0);\r\n  return {ok:true, value:value, bytes:n, next:i};\r\n}\r\n\r\nfunction encodeString(str){\r\n  var b = utf8Encode(str);\r\n  if(b.length>65535) throw new Error('字符串 UTF-8 长度超过 65535');\r\n  return [(b.length>>8)&0xFF, b.length&0xFF].concat(b);\r\n}\r\n\r\nfunction readString(bytes, offset){\r\n  if(offset+2 > bytes.length) return {ok:false, error:'字符串长度字段被截断'};\r\n  var len = (bytes[offset]<<8) | bytes[offset+1];\r\n  if(offset+2+len > bytes.length) return {ok:false, error:'字符串内容被截断'};\r\n  return {ok:true, value:utf8Decode(bytes, offset+2, offset+2+len), len:len, next:offset+2+len};\r\n}\r\n\r\nfunction toBytes(arr){ return (typeof Uint8Array!=='undefined') ? new Uint8Array(arr) : arr; }\r\n\r\nfunction assemble(byte1, variableAndPayload){\r\n  return toBytes([byte1].concat(encodeVarint(variableAndPayload.length), variableAndPayload));\r\n}\r\n\r\nfunction buildConnect(o){\r\n  var c = o||{};\r\n  var clientId = c.clientId===undefined ? 'nano-mqtt' : String(c.clientId);\r\n  var keepAlive = c.keepAlive===undefined ? 60 : Math.max(0, Math.min(65535, Math.floor(Number(c.keepAlive)||0)));\r\n  var clean = c.clean===undefined ? true : !!c.clean;\r\n  var body = encodeString('MQTT').concat([0x04]);\r\n  var flags = 0;\r\n  if(clean) flags |= 0x02;\r\n  var will = c.will;\r\n  if(will && will.topic){\r\n    flags |= 0x04;\r\n    flags |= ((Math.max(0,Math.min(2, Number(will.qos)||0)) & 0x03) << 3);\r\n    if(will.retain) flags |= 0x20;\r\n  }\r\n  if(c.username!==undefined && c.username!==null && c.username!=='') flags |= 0x80;\r\n  if(c.password!==undefined && c.password!==null && c.password!=='') flags |= 0x40;\r\n  body.push(flags);\r\n  body.push((keepAlive>>8)&0xFF, keepAlive&0xFF);\r\n  body = body.concat(encodeString(clientId));\r\n  if(flags & 0x04){\r\n    body = body.concat(encodeString(will.topic));\r\n    body = body.concat(encodeString(will.payload===undefined?'':will.payload));\r\n  }\r\n  if(flags & 0x80) body = body.concat(encodeString(c.username));\r\n  if(flags & 0x40) body = body.concat(encodeString(c.password));\r\n  return assemble(0x10, body);\r\n}\r\n\r\nfunction buildPublish(o){\r\n  var c = o||{};\r\n  var qos = Math.max(0, Math.min(2, Math.floor(Number(c.qos)||0)));\r\n  var byte1 = 0x30 | (c.dup?0x08:0) | (qos<<1) | (c.retain?0x01:0);\r\n  var body = encodeString(c.topic===undefined?'':c.topic);\r\n  if(qos>0){\r\n    var pid = Math.max(1, Math.min(65535, Math.floor(Number(c.packetId)||1)));\r\n    body.push((pid>>8)&0xFF, pid&0xFF);\r\n  }\r\n  var payload = c.payload;\r\n  if(payload===undefined || payload===null) payload = [];\r\n  else if(typeof payload === 'string') payload = utf8Encode(payload);\r\n  else payload = Array.prototype.slice.call(payload);\r\n  return assemble(byte1, body.concat(payload));\r\n}\r\n\r\nfunction buildSubscribe(o){\r\n  var c = o||{};\r\n  var pid = Math.max(1, Math.min(65535, Math.floor(Number(c.packetId)||1)));\r\n  var body = [(pid>>8)&0xFF, pid&0xFF];\r\n  var subs = c.subscriptions||[];\r\n  if(!subs.length) throw new Error('SUBSCRIBE 至少要带一个主题过滤器');\r\n  subs.forEach(function(s){\r\n    body = body.concat(encodeString(s.topic));\r\n    body.push(Math.max(0, Math.min(2, Math.floor(Number(s.qos)||0))));\r\n  });\r\n  return assemble(0x82, body); // 低 4 位固定为 0010\r\n}\r\n\r\nfunction buildUnsubscribe(o){\r\n  var c = o||{};\r\n  var pid = Math.max(1, Math.min(65535, Math.floor(Number(c.packetId)||1)));\r\n  var body = [(pid>>8)&0xFF, pid&0xFF];\r\n  (c.topics||[]).forEach(function(t){ body = body.concat(encodeString(t)); });\r\n  return assemble(0xA2, body);\r\n}\r\n\r\nfunction buildPubAck(packetId){\r\n  var pid = Math.max(1, Math.min(65535, Math.floor(Number(packetId)||1)));\r\n  return assemble(0x40, [(pid>>8)&0xFF, pid&0xFF]);\r\n}\r\nfunction buildPingReq(){ return toBytes([0xC0, 0x00]); }\r\nfunction buildDisconnect(){ return toBytes([0xE0, 0x00]); }\r\n\r\nfunction decodePacket(bytes){\r\n  var a = bytes;\r\n  if(!a || a.length<2) return {ok:false, error:'报文至少需要 2 字节固定报头'};\r\n  var b1 = a[0];\r\n  var type = b1>>4, flags = b1 & 0x0F;\r\n  var name = PACKET_TYPES[type] || ('保留类型 '+type);\r\n  var fields = [{off:0, len:1, label:'控制报文类型 / 标志', value:'0x'+b1.toString(16).toUpperCase().padStart(2,'0')+' → '+name+' flags='+flags.toString(2).padStart(4,'0')}];\r\n  var rl = decodeVarint(a, 1);\r\n  if(!rl.ok) return {ok:false, error:rl.error, type:type, typeName:name};\r\n  fields.push({off:1, len:rl.bytes, label:'剩余长度', value:rl.value+' 字节（'+rl.bytes+' 字节变长编码）'});\r\n  var headerLength = 1 + rl.bytes;\r\n  var total = headerLength + rl.value;\r\n  var res = {ok:true, type:type, typeName:name, flags:flags, remainingLength:rl.value,\r\n             headerLength:headerLength, totalLength:total, fields:fields,\r\n             truncated:(a.length < total), extra:(a.length > total ? a.length-total : 0)};\r\n  var p = rl.next;\r\n  var end = Math.min(a.length, total);\r\n\r\n  if(type===1){ // CONNECT\r\n    var pn = readString(a, p); if(!pn.ok) return {ok:false, error:pn.error};\r\n    fields.push({off:p, len:2+pn.len, label:'协议名', value:pn.value});\r\n    p = pn.next;\r\n    if(p>=end) return res;\r\n    res.protocolLevel = a[p];\r\n    fields.push({off:p, len:1, label:'协议级别', value:a[p]+(a[p]===4?'（MQTT 3.1.1）':(a[p]===5?'（MQTT 5.0）':'（非常见版本）'))});\r\n    p++;\r\n    var cf = a[p];\r\n    res.connectFlags = cf;\r\n    res.clean = !!(cf & 0x02);\r\n    res.willFlag = !!(cf & 0x04);\r\n    res.willQos = (cf>>3)&0x03;\r\n    res.willRetain = !!(cf & 0x20);\r\n    res.hasPassword = !!(cf & 0x40);\r\n    res.hasUsername = !!(cf & 0x80);\r\n    var fl = [];\r\n    if(res.hasUsername) fl.push('username');\r\n    if(res.hasPassword) fl.push('password');\r\n    if(res.willRetain) fl.push('will-retain');\r\n    if(res.willFlag) fl.push('will(qos'+res.willQos+')');\r\n    if(res.clean) fl.push('clean-session');\r\n    fields.push({off:p, len:1, label:'连接标志', value:'0b'+cf.toString(2).padStart(8,'0')+(fl.length?(' → '+fl.join(', ')):'')});\r\n    p++;\r\n    res.keepAlive = (a[p]<<8)|a[p+1];\r\n    fields.push({off:p, len:2, label:'保活间隔', value:res.keepAlive+' 秒'+(res.keepAlive===0?'（0 = 不启用保活）':'')});\r\n    p+=2;\r\n    var cid = readString(a, p); if(!cid.ok) return {ok:false, error:cid.error};\r\n    res.clientId = cid.value;\r\n    fields.push({off:p, len:2+cid.len, label:'客户端标识符', value:cid.value===''?'(空，要求服务端分配)':cid.value});\r\n    p = cid.next;\r\n    if(res.willFlag){\r\n      var wt = readString(a, p); if(!wt.ok) return {ok:false, error:wt.error};\r\n      res.willTopic = wt.value;\r\n      fields.push({off:p, len:2+wt.len, label:'遗嘱主题', value:wt.value}); p = wt.next;\r\n      var wm = readString(a, p); if(!wm.ok) return {ok:false, error:wm.error};\r\n      res.willPayload = wm.value;\r\n      fields.push({off:p, len:2+wm.len, label:'遗嘱消息', value:wm.value}); p = wm.next;\r\n    }\r\n    if(res.hasUsername){\r\n      var un = readString(a, p); if(!un.ok) return {ok:false, error:un.error};\r\n      res.username = un.value;\r\n      fields.push({off:p, len:2+un.len, label:'用户名', value:un.value}); p = un.next;\r\n    }\r\n    if(res.hasPassword){\r\n      var pw = readString(a, p); if(!pw.ok) return {ok:false, error:pw.error};\r\n      res.password = pw.value;\r\n      fields.push({off:p, len:2+pw.len, label:'密码', value:'(已隐藏 '+pw.len+' 字节)'}); p = pw.next;\r\n    }\r\n    return res;\r\n  }\r\n\r\n  if(type===2){ // CONNACK\r\n    res.sessionPresent = !!(a[p] & 0x01);\r\n    fields.push({off:p, len:1, label:'连接确认标志', value:res.sessionPresent?'session present = 1（服务端保留了会话）':'session present = 0'});\r\n    res.returnCode = a[p+1];\r\n    var rc = CONNACK_CODES[res.returnCode];\r\n    res.returnName = rc ? rc.name : '未知返回码';\r\n    res.returnDesc = rc ? rc.desc : '不在 MQTT 3.1.1 定义范围内。';\r\n    fields.push({off:p+1, len:1, label:'返回码', value:res.returnCode+' '+res.returnName});\r\n    return res;\r\n  }\r\n\r\n  if(type===3){ // PUBLISH\r\n    res.dup = !!(flags & 0x08);\r\n    res.qos = (flags>>1)&0x03;\r\n    res.retain = !!(flags & 0x01);\r\n    var tp = readString(a, p); if(!tp.ok) return {ok:false, error:tp.error};\r\n    res.topic = tp.value;\r\n    fields.push({off:p, len:2+tp.len, label:'主题名', value:tp.value}); p = tp.next;\r\n    if(res.qos>0){\r\n      res.packetId = (a[p]<<8)|a[p+1];\r\n      fields.push({off:p, len:2, label:'报文标识符', value:String(res.packetId)}); p+=2;\r\n    }\r\n    var plLen = Math.max(0, end - p);\r\n    res.payloadBytes = plLen;\r\n    res.payload = utf8Decode(a, p, end);\r\n    fields.push({off:p, len:plLen, label:'有效载荷', value:plLen? (res.payload.length>120? res.payload.slice(0,120)+'…' : res.payload) : '(空)'});\r\n    return res;\r\n  }\r\n\r\n  if(type===8 || type===10){ // SUBSCRIBE / UNSUBSCRIBE\r\n    res.packetId = (a[p]<<8)|a[p+1];\r\n    fields.push({off:p, len:2, label:'报文标识符', value:String(res.packetId)});\r\n    p+=2;\r\n    res.subscriptions = [];\r\n    while(p < end){\r\n      var ft = readString(a, p); if(!ft.ok) return {ok:false, error:ft.error};\r\n      if(type===8){\r\n        var q = a[ft.next];\r\n        res.subscriptions.push({topic:ft.value, qos:q});\r\n        fields.push({off:p, len:2+ft.len+1, label:'订阅项', value:ft.value+'  QoS '+q});\r\n        p = ft.next+1;\r\n      } else {\r\n        res.subscriptions.push({topic:ft.value});\r\n        fields.push({off:p, len:2+ft.len, label:'退订项', value:ft.value});\r\n        p = ft.next;\r\n      }\r\n    }\r\n    return res;\r\n  }\r\n\r\n  if(type===9){ // SUBACK\r\n    res.packetId = (a[p]<<8)|a[p+1];\r\n    fields.push({off:p, len:2, label:'报文标识符', value:String(res.packetId)});\r\n    p+=2;\r\n    res.returnCodes = [];\r\n    while(p<end){\r\n      var code = a[p];\r\n      res.returnCodes.push(code);\r\n      fields.push({off:p, len:1, label:'订阅返回码',\r\n        value: code===0x80 ? '0x80 失败（无权限或过滤器非法）' : ('授予 QoS '+code)});\r\n      p++;\r\n    }\r\n    return res;\r\n  }\r\n\r\n  if(type===4||type===5||type===6||type===7||type===11){\r\n    res.packetId = (a[p]<<8)|a[p+1];\r\n    fields.push({off:p, len:2, label:'报文标识符', value:String(res.packetId)});\r\n    return res;\r\n  }\r\n\r\n  if(type===12||type===13||type===14){\r\n    if(rl.value!==0) fields.push({off:p, len:rl.value, label:'意外负载', value:name+' 不应携带负载'});\r\n    return res;\r\n  }\r\n  return res;\r\n}\r\n\r\nfunction topicMatch(filter, topic){\r\n  var fs = String(filter==null?'':filter), ts = String(topic==null?'':topic);\r\n  if(fs==='' || ts==='') return false;\r\n  var f = fs.split('/'), t = ts.split('/');\r\n  if(t[0].charAt(0)==='$' && (f[0]==='#' || f[0]==='+')) return false; // 通配符不匹配 $ 开头的系统主题\r\n  for(var i=0;i<f.length;i++){\r\n    if(f[i]==='#') return i===f.length-1;\r\n    if(i>=t.length) return false;\r\n    if(f[i]==='+') continue;\r\n    if(f[i]!==t[i]) return false;\r\n  }\r\n  return f.length===t.length;\r\n}\r\n\r\nfunction validateTopic(topic, isFilter){\r\n  var s = String(topic==null?'':topic);\r\n  var errors = [], warnings = [];\r\n  if(s==='') errors.push('主题不能为空，MQTT 要求至少 1 个字符。');\r\n  if(s.indexOf('\\u0000')>=0) errors.push('主题不能包含 U+0000。');\r\n  var blen = utf8Encode(s).length;\r\n  if(blen>65535) errors.push('主题 UTF-8 长度 '+blen+' 字节，超过 65535 上限。');\r\n  var levels = s.split('/');\r\n  if(!isFilter){\r\n    if(s.indexOf('+')>=0 || s.indexOf('#')>=0) errors.push('发布用的主题名不允许包含通配符 + 或 #。');\r\n  } else {\r\n    levels.forEach(function(lv, i){\r\n      if(lv.indexOf('#')>=0){\r\n        if(lv!=='#') errors.push('第 '+(i+1)+' 层「'+lv+'」中的 # 必须独占一层。');\r\n        else if(i!==levels.length-1) errors.push('# 只能出现在过滤器最后一层。');\r\n      }\r\n      if(lv.indexOf('+')>=0 && lv!=='+') errors.push('第 '+(i+1)+' 层「'+lv+'」中的 + 必须独占一层。');\r\n    });\r\n  }\r\n  if(s.charAt(0)==='$') warnings.push('以 $ 开头的主题被服务端保留（如 $SYS/），通配符订阅不会匹配到它。');\r\n  if(s.charAt(0)==='/') warnings.push('以 / 开头会产生一个空的首层，'+(isFilter?'需要用 \"/x\" 而不是 \"x\" 才能匹配。':'订阅方必须用同样的前导斜杠。'));\r\n  if(s.length>1 && s.charAt(s.length-1)==='/') warnings.push('以 / 结尾会产生一个空的末层，\"a/\" 与 \"a\" 是两个不同主题。');\r\n  if(s.indexOf('//')>=0) warnings.push('出现连续斜杠，中间是一个合法但容易被误读的空层。');\r\n  if(/\\s/.test(s)) warnings.push('主题包含空白字符：合法，但排查问题时极易看漏。');\r\n  return {ok:errors.length===0, errors:errors, warnings:warnings, levels:levels.length, bytes:blen};\r\n}\r\n\r\nfunction hex(bytes){\r\n  var out=[];\r\n  for(var i=0;i<bytes.length;i++) out.push(bytes[i].toString(16).toUpperCase().padStart(2,'0'));\r\n  return out.join(' ');\r\n}\r\n\r\nfunction parseHex(text){\r\n  var s = String(text==null?'':text).replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,' ').trim();\r\n  if(!s) return {ok:false, error:'没有解析到十六进制字节'};\r\n  var toks = s.split(/\\s+/), out=[];\r\n  for(var i=0;i<toks.length;i++){\r\n    var t = toks[i];\r\n    if(t.length%2!==0) return {ok:false, error:'第 '+(i+1)+' 组「'+t+'」不是偶数位十六进制'};\r\n    for(var j=0;j<t.length;j+=2) out.push(parseInt(t.substr(j,2),16));\r\n  }\r\n  return {ok:true, bytes:toBytes(out)};\r\n}\r\n\r\nfunction hexdump(bytes){\r\n  var lines=[];\r\n  for(var i=0;i<bytes.length;i+=16){\r\n    var chunk=[], ascii='';\r\n    for(var j=0;j<16;j++){\r\n      if(i+j<bytes.length){\r\n        var b=bytes[i+j];\r\n        chunk.push(b.toString(16).toUpperCase().padStart(2,'0'));\r\n        ascii += (b>=32 && b<127) ? String.fromCharCode(b) : '.';\r\n      } else { chunk.push('  '); ascii += ' '; }\r\n    }\r\n    lines.push(i.toString(16).toUpperCase().padStart(4,'0')+'  '+chunk.join(' ')+'  |'+ascii+'|');\r\n  }\r\n  return lines.join('\\n');\r\n}\r\n\r\nfunction lint(cfg){\r\n  var c = cfg||{};\r\n  var out = [];\r\n  function add(level, msg){ out.push({level:level, msg:msg}); }\r\n  var cid = c.clientId===undefined ? '' : String(c.clientId);\r\n  if(cid===''){\r\n    if(c.clean===false) add('error', 'clientId 为空时必须使用 clean session=1，否则服务端应以返回码 2 拒绝连接。');\r\n    else add('info', 'clientId 留空表示由服务端分配；这样的会话无法在断线后被恢复。');\r\n  } else {\r\n    var blen = utf8Encode(cid).length;\r\n    if(blen>65535) add('error', 'clientId 超过 65535 字节。');\r\n    else if(blen>23) add('warn', 'clientId 长度 '+blen+' 字节：规范只要求服务端接受 1–23 字节，超长部分依赖具体实现。');\r\n    if(!/^[0-9a-zA-Z]*$/.test(cid)) add('warn', 'clientId 含非字母数字字符：规范只要求服务端支持 [0-9a-zA-Z]，其余字符可能被拒。');\r\n  }\r\n  if(c.password && !c.username) add('error', 'MQTT 3.1.1 规定：没有用户名时不允许携带密码（密码标志位必须为 0）。');\r\n  var ka = Number(c.keepAlive===undefined?60:c.keepAlive);\r\n  if(ka===0) add('warn', '保活间隔为 0 表示关闭保活机制，服务端将不会主动检测半开连接。');\r\n  else if(ka>65535) add('error', '保活间隔超过 65535 秒，字段只有 2 字节。');\r\n  else if(ka>300) add('info', '保活 '+ka+'s 偏长：服务端要等 1.5 倍（'+Math.round(ka*1.5)+'s）才判定客户端离线。');\r\n  if(c.clean===false && cid==='') add('warn', '持久会话依赖固定 clientId，随机 id + clean=false 会在服务端堆积永不消费的会话。');\r\n  if(c.will && c.will.topic){\r\n    var wv = validateTopic(c.will.topic, false);\r\n    wv.errors.forEach(function(e){ add('error', '遗嘱主题：'+e); });\r\n    if(!c.will.retain) add('info', '遗嘱未设置 retain：后订阅的客户端看不到这条离线通知，做在线状态一般需要 retain=1。');\r\n  }\r\n  if(c.topic!==undefined){\r\n    var tv = validateTopic(c.topic, !!c.isFilter);\r\n    tv.errors.forEach(function(e){ add('error', e); });\r\n    tv.warnings.forEach(function(w){ add('warn', w); });\r\n  }\r\n  var qos = Number(c.qos||0);\r\n  if(qos===2) add('info', 'QoS 2 是四步握手（PUBLISH/PUBREC/PUBREL/PUBCOMP），吞吐显著低于 QoS 1，且部分云托管代理并不支持。');\r\n  if(qos===0 && c.retain) add('info', 'QoS 0 + retain：消息会被保留，但投递本身仍是「至多一次」，代理重启期间发出的消息可能丢失。');\r\n  if(c.url){\r\n    if(/^ws:\\/\\//i.test(c.url)) add('warn', '使用明文 ws://：MQTT 的用户名与密码是明文字段，务必改用 wss://。');\r\n    if(!/\\/mqtt|\\/ws/i.test(c.url)) add('info', '多数代理的 WebSocket 端点路径是 /mqtt（EMQX、Mosquitto）或 /ws，请确认路径正确。');\r\n  }\r\n  return out;\r\n}\r\n\r\nvar MqttForgePure = {\r\n  PACKET_TYPES:PACKET_TYPES, CONNACK_CODES:CONNACK_CODES,\r\n  utf8Encode:utf8Encode, utf8Decode:utf8Decode,\r\n  encodeVarint:encodeVarint, decodeVarint:decodeVarint,\r\n  encodeString:encodeString, readString:readString,\r\n  buildConnect:buildConnect, buildPublish:buildPublish, buildSubscribe:buildSubscribe,\r\n  buildUnsubscribe:buildUnsubscribe, buildPubAck:buildPubAck,\r\n  buildPingReq:buildPingReq, buildDisconnect:buildDisconnect,\r\n  decodePacket:decodePacket, topicMatch:topicMatch, validateTopic:validateTopic,\r\n  hex:hex, parseHex:parseHex, hexdump:hexdump, lint:lint\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = MqttForgePure;\r\nif (typeof window !== 'undefined') window.MqttForgePure = MqttForgePure;\r\n\r\n"
+}

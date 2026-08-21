@@ -1,0 +1,50 @@
+{
+  "id": "ReadingLevelForge",
+  "name": "reading_level_forge",
+  "title": "ReadingLevelForge",
+  "description": "Flesch 易读性指数与 Flesch–Kincaid 年级水平，离线分析英文文本的词/句/音节。",
+  "entry": "countSyllables",
+  "entries": {
+    "countSyllables": {
+      "paramStyle": "single",
+      "paramNames": [
+        "word"
+      ],
+      "fields": []
+    },
+    "stats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "flesch": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "kincaid": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "word": {
+        "type": "string",
+        "description": "输入（word）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction countSyllables(word){\r\n  word=String(word).toLowerCase().replace(/[^a-z]/g,'');\r\n  if(!word) return 0;\r\n  if(word.length<=3) return 1;\r\n  word=word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/,'');\r\n  word=word.replace(/^y/,'');\r\n  var m=word.match(/[aeiouy]+/g);\r\n  return m?m.length:1;\r\n}\r\nfunction stats(text){\r\n  var words=String(text).match(/[A-Za-z0-9']+/g)||[];\r\n  var nw=words.length; if(!nw) return {words:0, sentences:0, syllables:0};\r\n  var ns=0; for(var i=0;i<nw;i++) ns+=countSyllables(words[i]);\r\n  var sentences=String(text).split(/[.!?]+/).filter(function(s){return s.trim().length;}).length;\r\n  if(!sentences) sentences=1;\r\n  return {words:nw, sentences:sentences, syllables:ns};\r\n}\r\nfunction flesch(text){ var s=stats(text); if(!s.words) return NaN; return 206.835 - 1.015*(s.words/s.sentences) - 84.6*(s.syllables/s.words); }\r\nfunction kincaid(text){ var s=stats(text); if(!s.words) return NaN; return 0.39*(s.words/s.sentences) + 11.8*(s.syllables/s.words) - 15.59; }\r\nvar EXPORTS={ countSyllables:countSyllables, stats:stats, flesch:flesch, kincaid:kincaid };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ReadingLevelForgePure = EXPORTS; }\r\n\r\n"
+}

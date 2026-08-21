@@ -1,0 +1,75 @@
+{
+  "id": "LessonPlanForge",
+  "name": "lesson_plan_forge",
+  "title": "教案生成",
+  "description": "按学科 / 学段 / 课时 / 目标生成结构化单课教案（导入-新授-练习-小结-作业），离线。",
+  "entry": "buildLessonPlan",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "stagePlan": {
+      "paramStyle": "single",
+      "paramNames": [
+        "minutes"
+      ],
+      "fields": []
+    },
+    "buildLessonPlan": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "subject",
+        "grade",
+        "minutes",
+        "topic",
+        "goals",
+        "key",
+        "diff"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "subject": {
+        "type": "string",
+        "description": "参数 subject"
+      },
+      "grade": {
+        "type": "string",
+        "description": "参数 grade"
+      },
+      "minutes": {
+        "type": "string",
+        "description": "参数 minutes"
+      },
+      "topic": {
+        "type": "string",
+        "description": "参数 topic"
+      },
+      "goals": {
+        "type": "string",
+        "description": "参数 goals"
+      },
+      "key": {
+        "type": "string",
+        "description": "参数 key"
+      },
+      "diff": {
+        "type": "string",
+        "description": "参数 diff"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction stagePlan(minutes){\r\n  minutes=parseInt(minutes,10)||40;\r\n  if(minutes>=80){ return [['导入',5],['新授讲授',35],['实践练习',25],['小结',10],['作业布置',5]]; }\r\n  return [['导入',5],['新授讲授',18],['课堂练习',10],['小结',5],['作业布置',2]];\r\n}\r\nfunction stageHint(stage, topic){\r\n  if(stage.indexOf('导入')>=0) return '情境或问题导入，引出《'+topic+'》主题';\r\n  if(stage.indexOf('新授')>=0) return '讲解核心概念，配合示例逐步演示';\r\n  if(stage.indexOf('练习')>=0) return '随堂分层练习，即时反馈与纠错';\r\n  if(stage.indexOf('小结')>=0) return '师生共同梳理本课知识要点';\r\n  return '布置分层作业，兼顾巩固与拓展';\r\n}\r\nfunction buildLessonPlan(o){\r\n  o=o||{};\r\n  var subject=String(o.subject||'通用').trim()||'通用';\r\n  var grade=String(o.grade||'初中').trim()||'初中';\r\n  var minutes=parseInt(o.minutes,10)||40;\r\n  var topic=String(o.topic||'').trim()||'（待填写课题）';\r\n  var goals=splitLines(o.goals);\r\n  if(!goals.length) goals=['（待补充教学目标）'];\r\n  var key=String(o.key||'').trim();\r\n  var diff=String(o.diff||'').trim();\r\n  var stages=stagePlan(minutes);\r\n  var lines=[];\r\n  lines.push('# 教案：'+subject+'《'+topic+'》');\r\n  lines.push('');\r\n  lines.push('## 一、基本信息');\r\n  lines.push('- 学科：'+subject);\r\n  lines.push('- 学段：'+grade);\r\n  lines.push('- 课时：'+minutes+' 分钟');\r\n  lines.push('');\r\n  lines.push('## 二、教学目标');\r\n  goals.forEach(function(g,i){ lines.push((i+1)+'. '+g); });\r\n  lines.push('');\r\n  lines.push('## 三、教学重难点');\r\n  lines.push('- 重点：'+(key||'围绕《'+topic+'》的核心概念与典型方法'));\r\n  lines.push('- 难点：'+(diff||'概念的理解迁移与综合应用'));\r\n  lines.push('');\r\n  lines.push('## 四、教学过程');\r\n  stages.forEach(function(s,i){\r\n    lines.push('### '+(i+1)+'. '+s[0]+'（约 '+s[1]+' 分钟）');\r\n    lines.push('- '+stageHint(s[0], topic));\r\n    lines.push('');\r\n  });\r\n  lines.push('## 五、板书设计');\r\n  lines.push('```');\r\n  lines.push(topic);\r\n  lines.push('├── 核心概念');\r\n  lines.push('└── 典型例题 / 案例');\r\n  lines.push('```');\r\n  lines.push('');\r\n  lines.push('## 六、教学反思');\r\n  lines.push('（课后填写：目标达成情况 / 学生参与度 / 待改进点）');\r\n  return {title:subject+'《'+topic+'》教案', minutes:minutes, stageCount:stages.length,\r\n          goalCount:goals.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, stagePlan:stagePlan, buildLessonPlan:buildLessonPlan};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LessonPlanForgePure = EXPORTS; }\r\n\r\n"
+}

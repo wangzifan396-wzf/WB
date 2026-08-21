@@ -1,0 +1,62 @@
+{
+  "id": "I18nForge",
+  "name": "i18n_forge",
+  "title": "I18nForge",
+  "description": "i18n 键生成：标签批量转 camelCase / snake_case / kebab-case 等风格，支持命名空间前缀与去重。",
+  "entry": "wordsOf",
+  "entries": {
+    "wordsOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "toKey": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "label",
+        "style",
+        "ns"
+      ],
+      "fields": []
+    },
+    "bulk": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "style",
+        "ns",
+        "dedup"
+      ],
+      "fields": []
+    },
+    "camel": {
+      "paramStyle": "single",
+      "paramNames": [
+        "words"
+      ],
+      "fields": []
+    },
+    "pascal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "words"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction wordsOf(s){var t=[];var re=/[a-zA-Z0-9]+/g;var m;while((m=re.exec(s))!==null)t.push(m[0]);return t;}\r\nfunction camel(words){if(!words.length)return '';return words[0].toLowerCase()+words.slice(1).map(function(w){return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();}).join('');}\r\nfunction pascal(words){return words.map(function(w){return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();}).join('');}\r\nfunction toKey(label, style, ns){\r\n  var words=wordsOf(label);\r\n  var core;\r\n  if(style==='camel') core=camel(words);\r\n  else if(style==='pascal') core=pascal(words);\r\n  else if(style==='snake') core=words.map(function(w){return w.toLowerCase();}).join('_');\r\n  else if(style==='kebab') core=words.map(function(w){return w.toLowerCase();}).join('-');\r\n  else if(style==='dot') core=words.map(function(w){return w.toLowerCase();}).join('.');\r\n  else if(style==='constant') core=words.map(function(w){return w.toUpperCase();}).join('_');\r\n  else core=words.map(function(w){return w.toLowerCase();}).join('_');\r\n  if(ns){var nw=wordsOf(ns);\r\n    if(style==='camel') core=toKey(ns,'camel')+(core?core.charAt(0).toUpperCase()+core.slice(1):'');\r\n    else if(style==='pascal') core=toKey(ns,'pascal')+core;\r\n    else if(style==='constant') core=nw.map(function(w){return w.toUpperCase();}).join('_')+(core?'_'+core:'');\r\n    else {var sep=style==='kebab'?'-':(style==='dot'?'.':'_'); core=ns.replace(/[^a-zA-Z0-9]+/g,sep).replace(/^_+|_+$/g,'')+(core?sep+core:'');}\r\n  }\r\n  return core;\r\n}\r\nfunction bulk(text, style, ns, dedup){\r\n  var lines=text.split(/\\r\\n|\\r|\\n/);\r\n  var seen={},out=[];\r\n  lines.forEach(function(l){var key=toKey(l,style,ns); if(!key)return; if(dedup){if(seen[key])return;seen[key]=1;} out.push(key);});\r\n  return out;\r\n}\r\nvar EXPORTS={wordsOf:wordsOf,toKey:toKey,bulk:bulk,camel:camel,pascal:pascal};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.I18nForgePure = EXPORTS; }\r\n\r\n"
+}

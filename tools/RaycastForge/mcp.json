@@ -1,0 +1,72 @@
+{
+  "id": "RaycastForge",
+  "name": "raycast_forge",
+  "title": "RaycastForge",
+  "description": "光线投射：2.5D DDA 射线投射，网格迷宫第一人称投影，方向键漫游。",
+  "entry": "rcCell",
+  "entries": {
+    "rcCell": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "map",
+        "x",
+        "y"
+      ],
+      "fields": []
+    },
+    "rcCast": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "map",
+        "px",
+        "py",
+        "ang"
+      ],
+      "fields": []
+    },
+    "rcFrame": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "map",
+        "px",
+        "py",
+        "ang",
+        "w",
+        "fov"
+      ],
+      "fields": []
+    },
+    "rcMove": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "map",
+        "px",
+        "py",
+        "ang",
+        "forward"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "map": {
+        "type": "string",
+        "description": "第 1 个参数（map）"
+      },
+      "x": {
+        "type": "string",
+        "description": "第 2 个参数（x）"
+      },
+      "y": {
+        "type": "string",
+        "description": "第 3 个参数（y）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar RC_MAP = [\r\n  \"111111111111\",\r\n  \"1..........1\",\r\n  \"1..22..33..1\",\r\n  \"1..2....3..1\",\r\n  \"1..........1\",\r\n  \"1..4....5..1\",\r\n  \"1..44..55..1\",\r\n  \"1..........1\",\r\n  \"111111111111\"\r\n];\r\nfunction rcCell(map, x, y){\r\n  var r = map[Math.floor(y)];\r\n  if(r === undefined) return 1;\r\n  var c = r[Math.floor(x)];\r\n  if(c === undefined || c === '1') return 1;\r\n  return c === '.' ? 0 : Number(c);\r\n}\r\nfunction rcCast(map, px, py, ang){\r\n  var dx = Math.cos(ang), dy = Math.sin(ang);\r\n  var mapX = Math.floor(px), mapY = Math.floor(py);\r\n  var ddx = dx === 0 ? 1e30 : Math.abs(1/dx), ddy = dy === 0 ? 1e30 : Math.abs(1/dy);\r\n  var stepX = dx < 0 ? -1 : 1, stepY = dy < 0 ? -1 : 1;\r\n  var sdx = dx < 0 ? (px - mapX) * ddx : (mapX + 1 - px) * ddx;\r\n  var sdy = dy < 0 ? (py - mapY) * ddy : (mapY + 1 - py) * ddy;\r\n  var side = 0, tile = 0;\r\n  for(var i=0;i<64;i++){\r\n    if(sdx < sdy){ sdx += ddx; mapX += stepX; side = 0; }\r\n    else { sdy += ddy; mapY += stepY; side = 1; }\r\n    tile = rcCell(map, mapX + 0.5, mapY + 0.5);\r\n    if(tile > 0) break;\r\n  }\r\n  var dist = side === 0 ? sdx - ddx : sdy - ddy;\r\n  return { dist: Math.max(dist, 1e-6), side: side, tile: tile };\r\n}\r\nfunction rcFrame(map, px, py, ang, w, fov){\r\n  var cols = [];\r\n  for(var x=0;x<w;x++){\r\n    var ra = ang + (x/w - 0.5) * fov;\r\n    var hit = rcCast(map, px, py, ra);\r\n    var corr = hit.dist * Math.cos(ra - ang);\r\n    cols.push({ h: 1/Math.max(corr, 1e-6), side: hit.side, tile: hit.tile });\r\n  }\r\n  return cols;\r\n}\r\nfunction rcMove(map, px, py, ang, forward){\r\n  var nx = px + Math.cos(ang) * 0.2 * forward;\r\n  var ny = py + Math.sin(ang) * 0.2 * forward;\r\n  if(rcCell(map, nx, py) === 0) px = nx;\r\n  if(rcCell(map, px, ny) === 0) py = ny;\r\n  return { x: px, y: py };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { RC_MAP:RC_MAP, rcCell:rcCell, rcCast:rcCast, rcFrame:rcFrame, rcMove:rcMove };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.RaycastForgePure = { RC_MAP:RC_MAP, rcCell:rcCell, rcCast:rcCast, rcFrame:rcFrame, rcMove:rcMove };\r\n}\r\n"
+}

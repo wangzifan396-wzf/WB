@@ -1,0 +1,62 @@
+{
+  "id": "CronForge",
+  "name": "cron_forge",
+  "title": "CronForge",
+  "description": "Crontab 可视化：表达式解析成人话、预测未来 5 次运行、24 小时 + 7 天时刻表。",
+  "entry": "parse",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "expr"
+      ],
+      "fields": []
+    },
+    "fits": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "parsed",
+        "d"
+      ],
+      "fields": []
+    },
+    "next": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "expr",
+        "from",
+        "limit"
+      ],
+      "fields": []
+    },
+    "nextN": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "expr",
+        "from",
+        "n"
+      ],
+      "fields": []
+    },
+    "describe": {
+      "paramStyle": "single",
+      "paramNames": [
+        "expr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "expr": {
+        "type": "string",
+        "description": "输入（expr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar MONTHS = {JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12};\r\nvar DOWS = {SUN:0,MON:1,TUE:2,WED:3,THU:4,FRI:5,SAT:6};\r\nvar DOWCN = ['周日','周一','周二','周三','周四','周五','周六'];\r\nvar MONTHCN = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];\r\nfunction pad(n){ return (n<10?'0':'')+n; }\r\nfunction parseField(field, min, max, names){\r\n  var allowed = {};\r\n  var parts = String(field).toUpperCase().split(',');\r\n  function mapName(tok){\r\n    tok = tok.trim();\r\n    if(names && names[tok] !== undefined) return names[tok];\r\n    var n = parseInt(tok,10);\r\n    if(n === 7) return 0;\r\n    return n;\r\n  }\r\n  for(var i=0;i<parts.length;i++){\r\n    var p = parts[i].trim();\r\n    if(p === '') continue;\r\n    var step = 1, range;\r\n    var slash = p.indexOf('/');\r\n    if(slash >= 0){ step = parseInt(p.slice(slash+1),10); range = p.slice(0,slash); }\r\n    else range = p;\r\n    var lo, hi;\r\n    if(range === '*' || range === ''){ lo = min; hi = max; }\r\n    else {\r\n      var dash = range.indexOf('-');\r\n      if(dash >= 0){ lo = mapName(range.slice(0,dash)); hi = mapName(range.slice(dash+1)); }\r\n      else { lo = mapName(range); hi = lo; }\r\n    }\r\n    if(isNaN(lo) || isNaN(hi) || isNaN(step)) return null;\r\n    for(var v = lo; v <= hi; v += step){ allowed[v] = true; }\r\n  }\r\n  return allowed;\r\n}\r\nfunction parse(expr){\r\n  var f = String(expr).trim().split(/\\s+/);\r\n  if(f.length !== 5) return null;\r\n  var min = parseField(f[0],0,59,null);\r\n  var hour = parseField(f[1],0,23,null);\r\n  var dom = parseField(f[2],1,31,null);\r\n  var mon = parseField(f[3],1,12,MONTHS);\r\n  var dow = parseField(f[4],0,6,DOWS);\r\n  if(!min || !hour || !dom || !mon || !dow) return null;\r\n  return {min:min,hour:hour,dom:dom,mon:mon,dow:dow,raw:f};\r\n}\r\nfunction fits(parsed, d){\r\n  if(!parsed.min[d.getMinutes()]) return false;\r\n  if(!parsed.hour[d.getHours()]) return false;\r\n  if(!parsed.mon[d.getMonth()+1]) return false;\r\n  var domStar = parsed.raw[2] === '*';\r\n  var dowStar = parsed.raw[4] === '*';\r\n  var domOk = !!parsed.dom[d.getDate()];\r\n  var dowOk = !!parsed.dow[d.getDay()];\r\n  if(!domStar && !dowStar) return domOk || dowOk;\r\n  if(!domStar) return domOk;\r\n  if(!dowStar) return dowOk;\r\n  return true;\r\n}\r\nfunction next(expr, from, limit){\r\n  var p = parse(expr); if(!p) return null;\r\n  limit = limit || (8*366*24*60);\r\n  var d = from ? new Date(from.getTime()) : new Date();\r\n  d.setSeconds(0,0); d.setMinutes(d.getMinutes()+1);\r\n  for(var i=0;i<limit;i++){\r\n    if(fits(p,d)) return new Date(d.getTime());\r\n    d.setMinutes(d.getMinutes()+1);\r\n  }\r\n  return null;\r\n}\r\nfunction nextN(expr, from, n){\r\n  var out = []; var cur = from ? new Date(from.getTime()) : new Date();\r\n  for(var k=0;k<n;k++){\r\n    var r = next(expr, cur); if(!r) break;\r\n    out.push(new Date(r.getTime()));\r\n    cur = new Date(r.getTime()); cur.setMinutes(cur.getMinutes()+1);\r\n  }\r\n  return out;\r\n}\r\nfunction stepOf(arr, max){ if(arr.length<2) return 0; var k=arr[1]-arr[0]; if(k<=0||arr[0]!==0) return 0; for(var i=1;i<arr.length;i++) if(arr[i]!==arr[i-1]+k) return 0; if((arr.length-1)*k>max) return 0; return k; }\r\nfunction describe(expr){\r\n  var p = parse(expr); if(!p) return '表达式无法解析';\r\n  if((expr||'').trim() === '* * * * *') return '每分钟';\r\n  var allMin = Object.keys(p.min).length === 60;\r\n  var allHour = Object.keys(p.hour).length === 24;\r\n  var domStar = p.raw[2] === '*', monStar = p.raw[3] === '*', dowStar = p.raw[4] === '*';\r\n  var mins = Object.keys(p.min).map(Number).sort(function(a,b){return a-b;});\r\n  var hours = Object.keys(p.hour).map(Number).sort(function(a,b){return a-b;});\r\n  var mk = stepOf(mins, 59);\r\n  var t = '';\r\n  if(mins.length === 1 && hours.length === 1) t = pad(hours[0]) + ':' + pad(mins[0]);\r\n  else if(mk > 0) t = '每 ' + mk + ' 分钟';\r\n  else if(mins.length === 1 && allHour) t = '每小时第 ' + pad(mins[0]) + ' 分钟';\r\n  else if(allMin && hours.length === 1) t = '每小时 ' + pad(hours[0]) + ' 分';\r\n  else if(allMin && allHour) t = '每分钟';\r\n  else {\r\n    var hs = allHour ? '每小时' : ('在 ' + hours.map(pad).join('/') + ' 点');\r\n    var ms = allMin ? '' : (' 的 ' + mins.map(pad).join('/') + ' 分');\r\n    t = hs + ms;\r\n  }\r\n  var when = [];\r\n  if(!domStar || !dowStar){\r\n    if(!dowStar){\r\n      var dw = Object.keys(p.dow).map(Number).sort(function(a,b){return a-b;}).map(function(x){return DOWCN[x];});\r\n      when.push('每周' + dw.join('、'));\r\n    }\r\n    if(!domStar){\r\n      var dm = Object.keys(p.dom).map(Number).sort(function(a,b){return a-b;});\r\n      when.push('每月 ' + dm.join('、') + ' 日');\r\n    }\r\n  }\r\n  if(!monStar){\r\n    var mn = Object.keys(p.mon).map(Number).sort(function(a,b){return a-b;}).map(function(x){return MONTHCN[x];});\r\n    when.push('每年 ' + mn.join('、') + ' 月');\r\n  }\r\n  var s = '';\r\n  if(domStar && monStar && dowStar && t !== '每分钟') s = '每天 ';\r\n  if(when.length) s += when.join(' ') + ' ';\r\n  s += t;\r\n  return s;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parse:parse, fits:fits, next:next, nextN:nextN, describe:describe, parseField:parseField };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.CronForgePure = { parse:parse, fits:fits, next:next, nextN:nextN, describe:describe };\r\n}\r\n"
+}

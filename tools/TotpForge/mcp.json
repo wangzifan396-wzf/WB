@@ -1,0 +1,76 @@
+{
+  "id": "TotpForge",
+  "name": "totp_forge",
+  "title": "TotpForge",
+  "description": "离线 TOTP 身份验证器：纯 JS HMAC-SHA1（RFC 4226/6238 验证），Base32/ASCII 密钥，实时倒计时。",
+  "entry": "sha1bytes",
+  "entries": {
+    "sha1bytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "hmacSha1": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "keyBytes",
+        "msgBytes"
+      ],
+      "fields": []
+    },
+    "hotp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "keyBytes",
+        "counter",
+        "digits"
+      ],
+      "fields": []
+    },
+    "totp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "keyBytes",
+        "opts"
+      ],
+      "fields": []
+    },
+    "base32Decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "asciiBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "secretToBytes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "isAscii"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction rotl(x,n){ return (x<<n)|(x>>>(32-n)); }\r\nfunction sha1bytes(bytes){\r\n  function r1(x,n){ return (x<<n)|(x>>>(32-n)); }\r\n  var h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476,h4=0xC3D2E1F0;\r\n  var msg=bytes.slice(); var bitLen=msg.length*8; msg.push(0x80);\r\n  while(msg.length%64!==56) msg.push(0);\r\n  var hi=Math.floor(bitLen/4294967296), lo=bitLen>>>0;\r\n  for(var s=3;s>=0;s--) msg.push((hi>>>(8*s))&0xff);\r\n  for(var s=3;s>=0;s--) msg.push((lo>>>(8*s))&0xff);\r\n  for(var off=0; off<msg.length; off+=64){\r\n    var w=new Array(80);\r\n    for(var t=0;t<16;t++){ w[t]=((msg[off+4*t]<<24)|(msg[off+4*t+1]<<16)|(msg[off+4*t+2]<<8)|(msg[off+4*t+3]))>>>0; }\r\n    for(var t=16;t<80;t++){ w[t]=r1(w[t-3]^w[t-8]^w[t-14]^w[t-16],1)>>>0; }\r\n    var a=h0,b=h1,c=h2,d=h3,e=h4;\r\n    for(var t=0;t<80;t++){\r\n      var f,k;\r\n      if(t<20){ f=(b&c)|((~b)&d); k=0x5A827999; }\r\n      else if(t<40){ f=b^c^d; k=0x6ED9EBA1; }\r\n      else if(t<60){ f=(b&c)|(b&d)|(c&d); k=0x8F1BBCDC; }\r\n      else { f=b^c^d; k=0xCA62C1D6; }\r\n      var tmp=(r1(a,5)+f+e+k+(w[t]>>>0))>>>0;\r\n      e=d; d=c; c=r1(b,30); b=a; a=tmp;\r\n    }\r\n    h0=(h0+a)>>>0; h1=(h1+b)>>>0; h2=(h2+c)>>>0; h3=(h3+d)>>>0; h4=(h4+e)>>>0;\r\n  }\r\n  var out=[]; [h0,h1,h2,h3,h4].forEach(function(x){ for(var s=3;s>=0;s--) out.push((x>>>(8*s))&0xff); });\r\n  return out;\r\n}\r\nfunction hmacSha1(keyBytes, msgBytes){\r\n  var B=64;\r\n  if(keyBytes.length>B) keyBytes=sha1bytes(keyBytes);\r\n  var k=new Array(B).fill(0);\r\n  for(var i=0;i<keyBytes.length;i++) k[i]=keyBytes[i];\r\n  var ipad=new Array(B), opad=new Array(B);\r\n  for(var i=0;i<B;i++){ ipad[i]=k[i]^0x36; opad[i]=k[i]^0x5c; }\r\n  var inner=ipad.concat(msgBytes);\r\n  var innerHash=sha1bytes(inner);\r\n  var outer=opad.concat(innerHash);\r\n  return sha1bytes(outer);\r\n}\r\nfunction hotp(keyBytes, counter, digits){\r\n  digits=digits||6;\r\n  var c=counter>>>0;\r\n  var C=[0,0,0,0,(c>>>24)&0xff,(c>>>16)&0xff,(c>>>8)&0xff,c&0xff];\r\n  var mac=hmacSha1(keyBytes, C);\r\n  var off=mac[19]&0x0f;\r\n  var bin=((mac[off]&0x7f)<<24)|((mac[off+1]&0xff)<<16)|((mac[off+2]&0xff)<<8)|(mac[off+3]&0xff);\r\n  var otp=(bin%Math.pow(10,digits)).toString();\r\n  while(otp.length<digits) otp='0'+otp;\r\n  return otp;\r\n}\r\nfunction totp(keyBytes, opts){\r\n  opts=opts||{};\r\n  var X=opts.period||30;\r\n  var T=opts.time!=null?opts.time:(Date.now()/1000);\r\n  var counter=Math.floor(T/X);\r\n  return hotp(keyBytes, counter, opts.digits||6);\r\n}\r\nfunction base32Decode(s){\r\n  s=String(s).toUpperCase().replace(/=+$/,'').replace(/\\s+/g,'');\r\n  var alpha='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';\r\n  var bits=0, value=0, out=[];\r\n  for(var i=0;i<s.length;i++){\r\n    var idx=alpha.indexOf(s[i]); if(idx<0) continue;\r\n    value=(value<<5)|idx; bits+=5;\r\n    if(bits>=8){ out.push((value>>>(bits-8))&0xff); bits-=8; }\r\n  }\r\n  return out;\r\n}\r\nfunction asciiBytes(s){ var o=[]; s=String(s); for(var i=0;i<s.length;i++) o.push(s.charCodeAt(i)&0xff); return o; }\r\nfunction secretToBytes(s, isAscii){\r\n  if(isAscii) return asciiBytes(s);\r\n  var b=base32Decode(s);\r\n  if(b.length) return b;\r\n  return asciiBytes(s);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { sha1bytes:sha1bytes, hmacSha1:hmacSha1, hotp:hotp, totp:totp, base32Decode:base32Decode, asciiBytes:asciiBytes, secretToBytes:secretToBytes };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TotpForgePure = { sha1bytes:sha1bytes, hmacSha1:hmacSha1, hotp:hotp, totp:totp, base32Decode:base32Decode, asciiBytes:asciiBytes, secretToBytes:secretToBytes };\r\n}\r\n"
+}

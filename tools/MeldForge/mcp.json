@@ -1,0 +1,39 @@
+{
+  "id": "MeldForge",
+  "name": "meld_forge",
+  "title": "MELD 评分",
+  "description": "由胆红素/INR/肌酐估算 MELD 肝病风险评分，离线（非医疗建议）。",
+  "entry": "meld",
+  "entries": {
+    "meld": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bili",
+        "inr",
+        "cr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bili": {
+        "type": "string",
+        "description": "第 1 个参数（bili）"
+      },
+      "inr": {
+        "type": "string",
+        "description": "第 2 个参数（inr）"
+      },
+      "cr": {
+        "type": "string",
+        "description": "第 3 个参数（cr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction meld(bili, inr, cr){\r\n  bili=+bili; inr=+inr; cr=+cr;\r\n  if([bili,inr,cr].some(function(v){return isNaN(v)||v<=0;})) return {error:'胆红素/INR/肌酐须为正'};\r\n  var B=Math.max(bili,1), I=Math.max(inr,1), C=Math.max(Math.min(cr,4),1);\r\n  var s=3.78*Math.log(B)+11.2*Math.log(I)+9.57*Math.log(C)+6.43;\r\n  s=Math.max(0,Math.round(s*10)/10);\r\n  var interp;\r\n  if(s>=40) interp='3 个月病死风险很高（≥40）';\r\n  else if(s>=30) interp='3 个月病死风险高（30–39）';\r\n  else if(s>=20) interp='3 个月病死风险中等（20–29）';\r\n  else if(s>=10) interp='3 个月病死风险较低（10–19）';\r\n  else interp='3 个月病死风险低（<10）';\r\n  return {meld:s, interp:interp, note:'MELD 评分，非医疗建议'};\r\n}\r\nvar EXPORTS={meld:meld};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MeldForgePure = EXPORTS; }\r\n\r\n"
+}

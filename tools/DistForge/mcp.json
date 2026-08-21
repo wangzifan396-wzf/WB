@@ -1,0 +1,90 @@
+{
+  "id": "DistForge",
+  "name": "dist_forge",
+  "title": "DistForge",
+  "description": "字符串距离六合一：Levenshtein/Damerau/Hamming/Jaro-Winkler/Dice。",
+  "entry": "dsLevenshtein",
+  "entries": {
+    "dsLevenshtein": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "dsDamerauOSA": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "dsHamming": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "dsJaro": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "dsJaroWinkler": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b",
+        "p"
+      ],
+      "fields": []
+    },
+    "dsDice": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "dsBigrams": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "dsAll": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "string",
+        "description": "第 1 个参数（a）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 2 个参数（b）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction dsLevenshtein(a, b){\r\n  a=String(a); b=String(b);\r\n  var m=a.length, n=b.length;\r\n  if(m===0) return n;\r\n  if(n===0) return m;\r\n  var prev=new Array(n+1), cur=new Array(n+1), i, j;\r\n  for(j=0;j<=n;j++) prev[j]=j;\r\n  for(i=1;i<=m;i++){\r\n    cur[0]=i;\r\n    for(j=1;j<=n;j++){\r\n      var cost=a[i-1]===b[j-1]?0:1;\r\n      cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost);\r\n    }\r\n    var t=prev; prev=cur; cur=t;\r\n  }\r\n  return prev[n];\r\n}\r\nfunction dsDamerauOSA(a, b){\r\n  a=String(a); b=String(b);\r\n  var m=a.length, n=b.length;\r\n  if(m===0) return n;\r\n  if(n===0) return m;\r\n  var d=[], i, j;\r\n  for(i=0;i<=m;i++){ d[i]=[i]; }\r\n  for(j=0;j<=n;j++) d[0][j]=j;\r\n  for(i=1;i<=m;i++){\r\n    for(j=1;j<=n;j++){\r\n      var cost=a[i-1]===b[j-1]?0:1;\r\n      d[i][j]=Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+cost);\r\n      if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1])\r\n        d[i][j]=Math.min(d[i][j], d[i-2][j-2]+1);\r\n    }\r\n  }\r\n  return d[m][n];\r\n}\r\nfunction dsHamming(a, b){\r\n  a=String(a); b=String(b);\r\n  if(a.length!==b.length) return { value:null, error:'汉明距离要求等长' };\r\n  var d=0;\r\n  for(var i=0;i<a.length;i++) if(a[i]!==b[i]) d++;\r\n  return { value:d, error:null };\r\n}\r\nfunction dsJaro(a, b){\r\n  a=String(a); b=String(b);\r\n  if(a===b) return 1;\r\n  var m=a.length, n=b.length;\r\n  if(m===0||n===0) return 0;\r\n  var win=Math.max(0, Math.floor(Math.max(m,n)/2)-1);\r\n  var am=new Array(m).fill(false), bm=new Array(n).fill(false);\r\n  var matches=0, i, j;\r\n  for(i=0;i<m;i++){\r\n    var lo=Math.max(0,i-win), hi=Math.min(n-1,i+win);\r\n    for(j=lo;j<=hi;j++){\r\n      if(!bm[j]&&a[i]===b[j]){ am[i]=true; bm[j]=true; matches++; break; }\r\n    }\r\n  }\r\n  if(matches===0) return 0;\r\n  var k=0, trans=0;\r\n  for(i=0;i<m;i++){\r\n    if(am[i]){\r\n      while(!bm[k]) k++;\r\n      if(a[i]!==b[k]) trans++;\r\n      k++;\r\n    }\r\n  }\r\n  trans=trans/2;\r\n  return (matches/m + matches/n + (matches-trans)/matches)/3;\r\n}\r\nfunction dsJaroWinkler(a, b, p){\r\n  var jw=dsJaro(a,b);\r\n  var scale=(typeof p==='number')?p:0.1;\r\n  var l=0, max=Math.min(4, Math.min(String(a).length, String(b).length));\r\n  while(l<max && String(a)[l]===String(b)[l]) l++;\r\n  return jw + l*scale*(1-jw);\r\n}\r\nfunction dsBigrams(s){\r\n  var out={}, str=String(s);\r\n  for(var i=0;i<str.length-1;i++){\r\n    var g=str.substr(i,2);\r\n    out[g]=(out[g]||0)+1;\r\n  }\r\n  return out;\r\n}\r\nfunction dsDice(a, b){\r\n  a=String(a); b=String(b);\r\n  if(a===b) return 1;\r\n  if(a.length<2||b.length<2) return 0;\r\n  var ga=dsBigrams(a), gb=dsBigrams(b), inter=0, na=0, nb=0, g;\r\n  for(g in ga) na+=ga[g];\r\n  for(g in gb) nb+=gb[g];\r\n  for(g in ga) if(gb[g]) inter+=Math.min(ga[g], gb[g]);\r\n  return 2*inter/(na+nb);\r\n}\r\nfunction dsAll(a, b){\r\n  var h=dsHamming(a,b);\r\n  return {\r\n    levenshtein: dsLevenshtein(a,b),\r\n    damerau: dsDamerauOSA(a,b),\r\n    hamming: h.error?null:h.value,\r\n    jaro: dsJaro(a,b),\r\n    jaroWinkler: dsJaroWinkler(a,b),\r\n    dice: dsDice(a,b)\r\n  };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { dsLevenshtein:dsLevenshtein, dsDamerauOSA:dsDamerauOSA, dsHamming:dsHamming,\r\n    dsJaro:dsJaro, dsJaroWinkler:dsJaroWinkler, dsDice:dsDice, dsBigrams:dsBigrams, dsAll:dsAll };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.DistForgePure = { dsLevenshtein:dsLevenshtein, dsDamerauOSA:dsDamerauOSA, dsHamming:dsHamming,\r\n    dsJaro:dsJaro, dsJaroWinkler:dsJaroWinkler, dsDice:dsDice, dsBigrams:dsBigrams, dsAll:dsAll };\r\n}\r\n"
+}

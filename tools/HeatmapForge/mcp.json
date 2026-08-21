@@ -1,0 +1,95 @@
+{
+  "id": "HeatmapForge",
+  "name": "heatmap_forge",
+  "title": "HeatmapForge",
+  "description": "日历活动热力图：GitHub 风格贡献格、分位配色、连续打卡统计，离线可用。",
+  "entry": "hmParseDate",
+  "entries": {
+    "hmParseDate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "hmFmtDate": {
+      "paramStyle": "object",
+      "paramNames": [
+        "dt"
+      ],
+      "fields": [
+        "getUTCFullYear",
+        "getUTCMonth",
+        "getUTCDate"
+      ]
+    },
+    "hmParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "hmRange": {
+      "paramStyle": "single",
+      "paramNames": [
+        "map"
+      ],
+      "fields": []
+    },
+    "hmGrid": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "map",
+        "startStr",
+        "endStr"
+      ],
+      "fields": []
+    },
+    "hmLevels": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "map",
+        "buckets"
+      ],
+      "fields": []
+    },
+    "hmLevelOf": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "cuts"
+      ],
+      "fields": []
+    },
+    "hmStreak": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "map",
+        "startStr",
+        "endStr"
+      ],
+      "fields": []
+    },
+    "hmStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "map"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction hmParseDate(s){\r\n  var m=String(s).trim().match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})$/);\r\n  if(!m) return null;\r\n  var y=+m[1], mo=+m[2], d=+m[3];\r\n  if(mo<1||mo>12||d<1||d>31) return null;\r\n  var dt=new Date(Date.UTC(y, mo-1, d));\r\n  if(dt.getUTCFullYear()!==y || dt.getUTCMonth()!==mo-1 || dt.getUTCDate()!==d) return null;\r\n  return dt;\r\n}\r\nfunction hmFmtDate(dt){\r\n  function p(x){ return (x<10?'0':'')+x; }\r\n  return dt.getUTCFullYear()+'-'+p(dt.getUTCMonth()+1)+'-'+p(dt.getUTCDate());\r\n}\r\nfunction hmParse(text){\r\n  var lines=String(text||'').split(/\\n+/), map={}, bad=0, count=0;\r\n  for(var i=0;i<lines.length;i++){\r\n    var l=lines[i].trim();\r\n    if(!l || l.charAt(0)==='#') continue;\r\n    var parts=l.split(/[\\s,\\t]+/);\r\n    var dt=hmParseDate(parts[0]);\r\n    if(!dt){ bad++; continue; }\r\n    var v = parts.length>1 ? parseFloat(parts[1]) : 1;\r\n    if(isNaN(v)){ bad++; continue; }\r\n    var key=hmFmtDate(dt);\r\n    map[key]=(map[key]||0)+v;\r\n    count++;\r\n  }\r\n  if(!count) return { error:'未解析到有效数据（格式：2026-07-30 3）', bad:bad };\r\n  return { error:null, map:map, bad:bad, count:count };\r\n}\r\nfunction hmDayIndex(dt){ return Math.floor(dt.getTime()/86400000); }\r\nfunction hmRange(map){\r\n  var keys=Object.keys(map).sort();\r\n  return { first:keys[0], last:keys[keys.length-1], days:keys.length };\r\n}\r\nfunction hmGrid(map, startStr, endStr){\r\n  var start=hmParseDate(startStr), end=hmParseDate(endStr);\r\n  if(!start || !end || end<start) return { error:'起止日期无效' };\r\n  var s=new Date(start.getTime());\r\n  s.setUTCDate(s.getUTCDate() - s.getUTCDay());\r\n  var weeks=[], cur=new Date(s.getTime()), guard=0;\r\n  while(cur<=end && guard<400){\r\n    var col=[];\r\n    for(var d=0; d<7; d++){\r\n      var key=hmFmtDate(cur);\r\n      var inRange = cur>=start && cur<=end;\r\n      col.push({ date:key, value: inRange ? (map[key]||0) : null, dow:d });\r\n      cur=new Date(cur.getTime()+86400000);\r\n    }\r\n    weeks.push(col); guard++;\r\n  }\r\n  return { error:null, weeks:weeks, start:hmFmtDate(start), end:hmFmtDate(end) };\r\n}\r\nfunction hmLevels(map, buckets){\r\n  buckets = buckets || 4;\r\n  var vals=[];\r\n  for(var k in map) if(map[k]>0) vals.push(map[k]);\r\n  if(!vals.length) return [];\r\n  vals.sort(function(a,b){ return a-b; });\r\n  var cuts=[];\r\n  for(var i=1;i<=buckets;i++){\r\n    var idx=Math.min(vals.length-1, Math.ceil(vals.length*i/buckets)-1);\r\n    cuts.push(vals[idx]);\r\n  }\r\n  return cuts;\r\n}\r\nfunction hmLevelOf(v, cuts){\r\n  if(v===null || v===undefined) return -1;\r\n  if(v<=0) return 0;\r\n  for(var i=0;i<cuts.length;i++) if(v<=cuts[i]) return i+1;\r\n  return cuts.length;\r\n}\r\nfunction hmStreak(map, startStr, endStr){\r\n  var start=hmParseDate(startStr), end=hmParseDate(endStr);\r\n  if(!start || !end) return { best:0, current:0, active:0 };\r\n  var cur=new Date(start.getTime()), run=0, best=0, active=0, total=0, guard=0;\r\n  while(cur<=end && guard<3000){\r\n    var v=map[hmFmtDate(cur)]||0;\r\n    if(v>0){ run++; total++; if(run>best) best=run; } else run=0;\r\n    cur=new Date(cur.getTime()+86400000); guard++;\r\n  }\r\n  active=run;\r\n  return { best:best, current:active, active:total };\r\n}\r\nfunction hmStats(map){\r\n  var vals=[], sum=0, mx=0, mxKey=null;\r\n  for(var k in map){ vals.push(map[k]); sum+=map[k]; if(map[k]>mx){ mx=map[k]; mxKey=k; } }\r\n  if(!vals.length) return { total:0, days:0, avg:0, max:0, maxDate:null };\r\n  return { total:Math.round(sum*100)/100, days:vals.length,\r\n           avg:Math.round(sum/vals.length*100)/100, max:mx, maxDate:mxKey };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { hmParseDate:hmParseDate, hmFmtDate:hmFmtDate, hmParse:hmParse, hmRange:hmRange,\r\n    hmGrid:hmGrid, hmLevels:hmLevels, hmLevelOf:hmLevelOf, hmStreak:hmStreak, hmStats:hmStats };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.HeatmapForgePure = { hmParseDate:hmParseDate, hmFmtDate:hmFmtDate, hmParse:hmParse, hmRange:hmRange,\r\n    hmGrid:hmGrid, hmLevels:hmLevels, hmLevelOf:hmLevelOf, hmStreak:hmStreak, hmStats:hmStats };\r\n}\r\n\r\n"
+}

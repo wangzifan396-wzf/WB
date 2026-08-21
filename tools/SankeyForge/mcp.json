@@ -1,0 +1,100 @@
+{
+  "id": "SankeyForge",
+  "name": "sankey_forge",
+  "title": "SankeyForge",
+  "description": "桑基流量图：一行一条流向文本直出 SVG，最长路径自动分层、贝塞尔缎带渲染与节点流量守恒体检，离线可用。",
+  "entry": "parseFlows",
+  "entries": {
+    "parseFlows": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "mergeLinks": {
+      "paramStyle": "single",
+      "paramNames": [
+        "links"
+      ],
+      "fields": []
+    },
+    "nodeList": {
+      "paramStyle": "single",
+      "paramNames": [
+        "links"
+      ],
+      "fields": []
+    },
+    "assignLayers": {
+      "paramStyle": "single",
+      "paramNames": [
+        "links"
+      ],
+      "fields": []
+    },
+    "nodeTotals": {
+      "paramStyle": "single",
+      "paramNames": [
+        "links"
+      ],
+      "fields": []
+    },
+    "balanceCheck": {
+      "paramStyle": "single",
+      "paramNames": [
+        "links"
+      ],
+      "fields": []
+    },
+    "layout": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "links",
+        "opt"
+      ],
+      "fields": []
+    },
+    "ribbonPath": {
+      "paramStyle": "object",
+      "paramNames": [
+        "r"
+      ],
+      "fields": [
+        "x0",
+        "x1",
+        "thickness",
+        "y0",
+        "y1"
+      ]
+    },
+    "toSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "lay",
+        "opt"
+      ],
+      "fields": []
+    },
+    "summary": {
+      "paramStyle": "single",
+      "paramNames": [
+        "links"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar SK_PALETTE = ['#5E6AD2','#22D3EE','#10B981','#F5A623','#A78BFA','#EF4444','#38BDF8','#F472B6'];\r\n\r\nfunction parseFlows(text){\r\n  var lines = String(text == null ? '' : text).split(/\\r?\\n/);\r\n  var links = [], errors = [];\r\n  for (var i = 0; i < lines.length; i++){\r\n    var l = lines[i].trim();\r\n    if (!l || l.charAt(0) === '#') continue;\r\n    var m = /^(.+?)\\s*(?:->|=>|→)\\s*(.+?)\\s*[:：\\[]\\s*(-?[\\d.]+)\\s*\\]?$/.exec(l);\r\n    if (!m){ errors.push({ line:i + 1, text:l, why:'格式应为 源 -> 目标: 数值' }); continue; }\r\n    var v = parseFloat(m[3]);\r\n    if (!isFinite(v) || v <= 0){ errors.push({ line:i + 1, text:l, why:'数值必须为正数' }); continue; }\r\n    var from = m[1].trim(), to = m[2].trim();\r\n    if (!from || !to){ errors.push({ line:i + 1, text:l, why:'节点名为空' }); continue; }\r\n    if (from === to){ errors.push({ line:i + 1, text:l, why:'自环流不被支持' }); continue; }\r\n    links.push({ from:from, to:to, value:v });\r\n  }\r\n  return { links:links, errors:errors };\r\n}\r\n\r\nfunction mergeLinks(links){\r\n  var map = {}, order = [];\r\n  for (var i = 0; i < links.length; i++){\r\n    var k = links[i].from + '\\u0001' + links[i].to;\r\n    if (map[k] === undefined){ map[k] = links.length ? order.length : 0; order.push({ from:links[i].from, to:links[i].to, value:0 }); map[k] = order.length - 1; }\r\n    order[map[k]].value += links[i].value;\r\n  }\r\n  return order;\r\n}\r\n\r\nfunction nodeList(links){\r\n  var seen = {}, out = [];\r\n  for (var i = 0; i < links.length; i++){\r\n    if (!seen[links[i].from]){ seen[links[i].from] = 1; out.push(links[i].from); }\r\n    if (!seen[links[i].to]){ seen[links[i].to] = 1; out.push(links[i].to); }\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction assignLayers(links){\r\n  var names = nodeList(links), inc = {}, adj = {};\r\n  for (var i = 0; i < names.length; i++){ inc[names[i]] = []; adj[names[i]] = []; }\r\n  for (var j = 0; j < links.length; j++){ adj[links[j].from].push(links[j].to); inc[links[j].to].push(links[j].from); }\r\n  var layer = {}, guard = {}, capped = false;\r\n  function depth(n, d){\r\n    if (d > names.length){ capped = true; return 0; }\r\n    if (layer[n] !== undefined) return layer[n];\r\n    if (guard[n]){ capped = true; return 0; }\r\n    guard[n] = 1;\r\n    var best = 0;\r\n    for (var k = 0; k < inc[n].length; k++) best = Math.max(best, depth(inc[n][k], d + 1) + 1);\r\n    guard[n] = 0;\r\n    layer[n] = best;\r\n    return best;\r\n  }\r\n  for (var m = 0; m < names.length; m++) depth(names[m], 0);\r\n  var maxLayer = 0;\r\n  for (var q = 0; q < names.length; q++) maxLayer = Math.max(maxLayer, layer[names[q]]);\r\n  for (var s = 0; s < names.length; s++){\r\n    if (!adj[names[s]].length) layer[names[s]] = maxLayer;\r\n  }\r\n  return { layer:layer, names:names, maxLayer:maxLayer, cyclic:capped, adj:adj, inc:inc };\r\n}\r\n\r\nfunction nodeTotals(links){\r\n  var t = {};\r\n  function touch(n){ if (!t[n]) t[n] = { name:n, inSum:0, outSum:0 }; }\r\n  for (var i = 0; i < links.length; i++){\r\n    touch(links[i].from); touch(links[i].to);\r\n    t[links[i].from].outSum += links[i].value;\r\n    t[links[i].to].inSum += links[i].value;\r\n  }\r\n  for (var k in t) if (Object.prototype.hasOwnProperty.call(t, k)) t[k].value = Math.max(t[k].inSum, t[k].outSum);\r\n  return t;\r\n}\r\n\r\nfunction balanceCheck(links){\r\n  var t = nodeTotals(links), out = [];\r\n  for (var k in t){\r\n    if (!Object.prototype.hasOwnProperty.call(t, k)) continue;\r\n    var n = t[k];\r\n    if (n.inSum > 0 && n.outSum > 0 && Math.abs(n.inSum - n.outSum) > 1e-9){\r\n      out.push({ name:n.name, inSum:round3(n.inSum), outSum:round3(n.outSum), delta:round3(n.outSum - n.inSum) });\r\n    }\r\n  }\r\n  out.sort(function(a, b){ return Math.abs(b.delta) - Math.abs(a.delta); });\r\n  return out;\r\n}\r\n\r\nfunction round3(n){ return Math.round(n * 1000) / 1000; }\r\n\r\nfunction layout(links, opt){\r\n  opt = opt || {};\r\n  var W = opt.width || 680, H = opt.height || 360;\r\n  var pad = opt.pad || 24, nodeW = opt.nodeW || 12, gap = opt.gap || 8;\r\n  var merged = mergeLinks(links);\r\n  if (!merged.length) return { nodes:[], ribbons:[], width:W, height:H, empty:true };\r\n  var la = assignLayers(merged), totals = nodeTotals(merged);\r\n  var cols = {}, i;\r\n  for (i = 0; i < la.names.length; i++){\r\n    var lv = la.layer[la.names[i]];\r\n    (cols[lv] = cols[lv] || []).push(la.names[i]);\r\n  }\r\n  var maxLayer = la.maxLayer;\r\n  var colX = function(l){ return maxLayer === 0 ? pad : pad + l * ((W - pad * 2 - nodeW) / maxLayer); };\r\n  var maxColSum = 0;\r\n  for (var c in cols){\r\n    if (!Object.prototype.hasOwnProperty.call(cols, c)) continue;\r\n    var s = 0;\r\n    for (i = 0; i < cols[c].length; i++) s += totals[cols[c][i]].value;\r\n    maxColSum = Math.max(maxColSum, s);\r\n  }\r\n  var maxCount = 0;\r\n  for (var c2 in cols) if (Object.prototype.hasOwnProperty.call(cols, c2)) maxCount = Math.max(maxCount, cols[c2].length);\r\n  var avail = H - pad * 2 - gap * Math.max(0, maxCount - 1);\r\n  var scale = maxColSum > 0 ? avail / maxColSum : 1;\r\n  var nodes = {}, order = [];\r\n  for (var lv2 in cols){\r\n    if (!Object.prototype.hasOwnProperty.call(cols, lv2)) continue;\r\n    var list = cols[lv2].slice().sort(function(a, b){ return totals[b].value - totals[a].value || (a < b ? -1 : 1); });\r\n    var y = pad;\r\n    for (i = 0; i < list.length; i++){\r\n      var nm = list[i], h = Math.max(2, totals[nm].value * scale);\r\n      var nd = { name:nm, layer:parseInt(lv2, 10), x:colX(parseInt(lv2, 10)), y:y, w:nodeW, h:h,\r\n                 value:round3(totals[nm].value), inSum:round3(totals[nm].inSum), outSum:round3(totals[nm].outSum),\r\n                 color:SK_PALETTE[parseInt(lv2, 10) % SK_PALETTE.length], outCursor:y, inCursor:y };\r\n      nodes[nm] = nd; order.push(nd);\r\n      y += h + gap;\r\n    }\r\n  }\r\n  var sorted = merged.slice().sort(function(a, b){ return nodes[a.from].y - nodes[b.from].y || nodes[a.to].y - nodes[b.to].y; });\r\n  var ribbons = [];\r\n  for (i = 0; i < sorted.length; i++){\r\n    var lk = sorted[i], a = nodes[lk.from], b = nodes[lk.to];\r\n    var th = Math.max(1, lk.value * scale);\r\n    var y0 = a.outCursor, y1 = b.inCursor;\r\n    a.outCursor += th; b.inCursor += th;\r\n    ribbons.push({ from:lk.from, to:lk.to, value:round3(lk.value), thickness:round3(th),\r\n                   x0:a.x + a.w, y0:y0, x1:b.x, y1:y1, color:a.color });\r\n  }\r\n  return { nodes:order, ribbons:ribbons, width:W, height:H, scale:scale, maxLayer:maxLayer, cyclic:la.cyclic, empty:false };\r\n}\r\n\r\nfunction ribbonPath(r){\r\n  var x0 = r.x0, x1 = r.x1, t = r.thickness;\r\n  var cx = (x0 + x1) / 2;\r\n  var top0 = r.y0, top1 = r.y1;\r\n  return 'M' + f(x0) + ',' + f(top0) +\r\n         ' C' + f(cx) + ',' + f(top0) + ' ' + f(cx) + ',' + f(top1) + ' ' + f(x1) + ',' + f(top1) +\r\n         ' L' + f(x1) + ',' + f(top1 + t) +\r\n         ' C' + f(cx) + ',' + f(top1 + t) + ' ' + f(cx) + ',' + f(top0 + t) + ' ' + f(x0) + ',' + f(top0 + t) + ' Z';\r\n}\r\n\r\nfunction f(n){ return Math.round(n * 100) / 100; }\r\n\r\nfunction escXml(s){\r\n  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\r\n}\r\n\r\nfunction toSvg(lay, opt){\r\n  opt = opt || {};\r\n  if (!lay || lay.empty) return '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"' + ((lay && lay.width) || 680) + '\" height=\"' + ((lay && lay.height) || 360) + '\"></svg>';\r\n  var out = ['<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ' + lay.width + ' ' + lay.height + '\" width=\"100%\" height=\"' + lay.height + '\" role=\"img\" aria-label=\"桑基流向图\">'];\r\n  out.push('<rect width=\"' + lay.width + '\" height=\"' + lay.height + '\" fill=\"#0A0A0B\"/>');\r\n  for (var i = 0; i < lay.ribbons.length; i++){\r\n    var r = lay.ribbons[i];\r\n    out.push('<path d=\"' + ribbonPath(r) + '\" fill=\"' + r.color + '\" fill-opacity=\"' + (opt.opacity || 0.32) + '\"><title>' + escXml(r.from + ' → ' + r.to + ': ' + r.value) + '</title></path>');\r\n  }\r\n  for (var j = 0; j < lay.nodes.length; j++){\r\n    var n = lay.nodes[j];\r\n    out.push('<rect x=\"' + f(n.x) + '\" y=\"' + f(n.y) + '\" width=\"' + n.w + '\" height=\"' + f(n.h) + '\" rx=\"2\" fill=\"' + n.color + '\"><title>' + escXml(n.name + ': ' + n.value) + '</title></rect>');\r\n    var anchor = n.layer === lay.maxLayer ? 'end' : 'start';\r\n    var tx = n.layer === lay.maxLayer ? n.x - 6 : n.x + n.w + 6;\r\n    out.push('<text x=\"' + f(tx) + '\" y=\"' + f(n.y + n.h / 2 + 4) + '\" fill=\"#A1A1AA\" font-size=\"11\" text-anchor=\"' + anchor + '\" font-family=\"system-ui,sans-serif\">' + escXml(n.name) + ' ' + n.value + '</text>');\r\n  }\r\n  out.push('</svg>');\r\n  return out.join('');\r\n}\r\n\r\nfunction summary(links){\r\n  var merged = mergeLinks(links);\r\n  var totals = nodeTotals(merged), la = assignLayers(merged);\r\n  var sources = [], sinks = [], total = 0;\r\n  for (var k in totals){\r\n    if (!Object.prototype.hasOwnProperty.call(totals, k)) continue;\r\n    if (totals[k].inSum === 0){ sources.push(k); total += totals[k].outSum; }\r\n    if (totals[k].outSum === 0) sinks.push(k);\r\n  }\r\n  var biggest = merged.slice().sort(function(a, b){ return b.value - a.value; })[0] || null;\r\n  return { nodes:la.names.length, links:merged.length, layers:la.maxLayer + 1, sources:sources.sort(), sinks:sinks.sort(),\r\n           throughput:round3(total), biggest:biggest, cyclic:la.cyclic, unbalanced:balanceCheck(merged) };\r\n}\r\n\r\nvar SankeyForgePure = {\r\n  parseFlows: parseFlows, mergeLinks: mergeLinks, nodeList: nodeList, assignLayers: assignLayers,\r\n  nodeTotals: nodeTotals, balanceCheck: balanceCheck, layout: layout, ribbonPath: ribbonPath,\r\n  toSvg: toSvg, summary: summary, PALETTE: SK_PALETTE\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = SankeyForgePure;\r\nif (typeof window !== 'undefined') window.SankeyForgePure = SankeyForgePure;\r\n\r\n"
+}

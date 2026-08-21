@@ -1,0 +1,37 @@
+{
+  "id": "VaccineForge",
+  "name": "vaccine_forge",
+  "title": "VaccineForge",
+  "description": "按出生日期生成接种计划与状态",
+  "entry": "schedule",
+  "entries": {
+    "schedule": {
+      "paramStyle": "single",
+      "paramNames": [
+        "birthISO"
+      ],
+      "fields": []
+    },
+    "status": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "dueISO",
+        "todayISO"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "birthISO": {
+        "type": "string",
+        "description": "输入（birthISO）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar SCHED=[\r\n  {name:'卡介苗 BCG', age:0},\r\n  {name:'乙肝疫苗 HepB 第1针', age:0},\r\n  {name:'乙肝疫苗 HepB 第2针', age:1},\r\n  {name:'脊灰 IPV 第1针', age:2},\r\n  {name:'百白破 DTP 第1针', age:2},\r\n  {name:'百白破 DTP 第2针', age:3},\r\n  {name:'百白破 DTP 第3针', age:4},\r\n  {name:'流感疫苗 Flu', age:6},\r\n  {name:'麻腮风 MMR', age:12},\r\n  {name:'百白破 DTP 加强', age:18}\r\n];\r\nfunction addMonths(iso, m){ var d=new Date(iso); d.setMonth(d.getMonth()+m); return d.toISOString().slice(0,10); }\r\nfunction schedule(birthISO){ if(!/^\\d{4}-\\d{2}-\\d{2}/.test(birthISO||'')) return {error:'出生日期格式应为 YYYY-MM-DD'};\r\n  return SCHED.map(function(v){ return {name:v.name, ageMonths:v.age, due:addMonths(birthISO,v.age)}; }); }\r\nfunction status(dueISO, todayISO){ todayISO=todayISO||new Date().toISOString().slice(0,10);\r\n  var d=new Date(dueISO), t=new Date(todayISO); var diff=Math.round((d-t)/86400000);\r\n  if(diff>30) return 'upcoming'; if(diff<-30) return 'overdue'; return 'due'; }\r\nvar EXPORTS={schedule:schedule, status:status, SCHED:SCHED};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.VaccineForgePure = EXPORTS; }\r\n\r\n"
+}

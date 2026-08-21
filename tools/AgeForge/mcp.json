@@ -1,0 +1,45 @@
+{
+  "id": "AgeForge",
+  "name": "age_forge",
+  "title": "AgeForge",
+  "description": "年龄与日期差计算：精确到岁 / 月 / 天与合计天数，离线可用。",
+  "entry": "ageParse",
+  "entries": {
+    "ageParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "ageDays": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "ageDiff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fromS",
+        "toS"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction ageParse(s){\r\n  var m=/^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(s).trim());\r\n  if(!m) return { error:'日期格式应为 YYYY-MM-DD' };\r\n  var y=+m[1], mo=+m[2], d=+m[3];\r\n  var dt=new Date(Date.UTC(y,mo-1,d));\r\n  if(isNaN(dt.getTime())|| dt.getUTCFullYear()!==y || dt.getUTCMonth()!==mo-1 || dt.getUTCDate()!==d) return { error:'非法日期' };\r\n  return { error:null, t:dt.getTime() };\r\n}\r\nfunction ageDays(a,b){\r\n  if(typeof a==='string'){ var pa=ageParse(a); a=pa.error?NaN:pa.t; }\r\n  if(typeof b==='string'){ var pb=ageParse(b); b=pb.error?NaN:pb.t; }\r\n  return Math.floor((b-a)/86400000);\r\n}\r\nfunction ageDiff(fromS, toS){\r\n  var a=ageParse(fromS), b=ageParse(toS);\r\n  if(a.error) return { error:a.error };\r\n  if(b.error) return { error:b.error };\r\n  if(b.t < a.t) return { error:'结束日期不能早于开始日期' };\r\n  var d0=new Date(a.t), d1=new Date(b.t);\r\n  var years=d1.getUTCFullYear()-d0.getUTCFullYear();\r\n  var months=d1.getUTCMonth()-d0.getUTCMonth();\r\n  var days=d1.getUTCDate()-d0.getUTCDate();\r\n  if(days<0){ months--; var prev=new Date(Date.UTC(d1.getUTCFullYear(), d1.getUTCMonth(),0)); days+=prev.getUTCDate(); }\r\n  if(months<0){ years--; months+=12; }\r\n  return { error:null, years:years, months:months, days:days, totalDays:ageDays(a.t,b.t) };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { ageParse:ageParse, ageDays:ageDays, ageDiff:ageDiff };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.AgeForgePure = { ageParse:ageParse, ageDays:ageDays, ageDiff:ageDiff };\r\n}\r\n\r\n"
+}

@@ -1,0 +1,50 @@
+{
+  "id": "StatusForge",
+  "name": "status_forge",
+  "title": "StatusForge",
+  "description": "离线 HTTP 状态码速查：覆盖 1xx–5xx 共 60+ 状态码，支持数字 / 关键词搜索与分类筛选。",
+  "entry": "catOf",
+  "entries": {
+    "catOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "getStatus": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "searchStatus": {
+      "paramStyle": "single",
+      "paramNames": [
+        "q"
+      ],
+      "fields": []
+    },
+    "listByCat": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cat"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "输入（code）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar STATUS = {\r\n 100:{n:'Continue',d:'请求已收到，继续处理'},\r\n 101:{n:'Switching Protocols',d:'切换协议（如升级 WebSocket）'},\r\n 102:{n:'Processing',d:'WebDAV：正在处理'},\r\n 103:{n:'Early Hints',d:'响应头提前推送（103）'},\r\n 200:{n:'OK',d:'请求成功'},\r\n 201:{n:'Created',d:'已创建资源'},\r\n 202:{n:'Accepted',d:'已接受待处理'},\r\n 203:{n:'Non-Authoritative',d:'非权威信息'},\r\n 204:{n:'No Content',d:'成功但无返回内容'},\r\n 205:{n:'Reset Content',d:'重置内容'},\r\n 206:{n:'Partial Content',d:'分片下载 / 范围请求'},\r\n 207:{n:'Multi-Status',d:'WebDAV：多状态'},\r\n 208:{n:'Already Reported',d:'WebDAV：已报告'},\r\n 226:{n:'IM Used',d:'实例操作已应用'},\r\n 300:{n:'Multiple Choices',d:'多路选择'},\r\n 301:{n:'Moved Permanently',d:'永久重定向'},\r\n 302:{n:'Found',d:'临时重定向（语义混用）'},\r\n 303:{n:'See Other',d:'见其它位置（POST→GET）'},\r\n 304:{n:'Not Modified',d:'缓存未变更'},\r\n 305:{n:'Use Proxy',d:'已废弃：需经代理'},\r\n 307:{n:'Temporary Redirect',d:'临时重定向（方法不变）'},\r\n 308:{n:'Permanent Redirect',d:'永久重定向（方法不变）'},\r\n 400:{n:'Bad Request',d:'请求语法错误'},\r\n 401:{n:'Unauthorized',d:'未认证'},\r\n 402:{n:'Payment Required',d:'预留：需付费'},\r\n 403:{n:'Forbidden',d:'无权限（已认证但拒绝）'},\r\n 404:{n:'Not Found',d:'资源不存在'},\r\n 405:{n:'Method Not Allowed',d:'方法不被允许'},\r\n 406:{n:'Not Acceptable',d:'无法生成可接受响应'},\r\n 407:{n:'Proxy Auth Required',d:'需代理认证'},\r\n 408:{n:'Request Timeout',d:'请求超时'},\r\n 409:{n:'Conflict',d:'资源冲突（如 PUT 版本）'},\r\n 410:{n:'Gone',d:'资源已永久删除'},\r\n 411:{n:'Length Required',d:'需 Content-Length'},\r\n 412:{n:'Precondition Failed',d:'前置条件失败'},\r\n 413:{n:'Payload Too Large',d:'负载过大'},\r\n 414:{n:'URI Too Long',d:'URI 过长'},\r\n 415:{n:'Unsupported Media',d:'媒体类型不支持'},\r\n 416:{n:'Range Not Satisfiable',d:'范围不可满足'},\r\n 417:{n:'Expectation Failed',d:'Expect 头不满足'},\r\n 418:{n:\"I'm a teapot\",d:'彩蛋：我是一个茶壶（RFC 2324）'},\r\n 421:{n:'Misdirected',d:'请求发错服务器'},\r\n 422:{n:'Unprocessable',d:'语义正确但无法处理'},\r\n 423:{n:'Locked',d:'WebDAV：已锁定'},\r\n 424:{n:'Failed Dependency',d:'WebDAV：依赖失败'},\r\n 425:{n:'Too Early',d:'过早（重放风险）'},\r\n 426:{n:'Upgrade Required',d:'需升级协议'},\r\n 428:{n:'Precondition Required',d:'需前置条件'},\r\n 429:{n:'Too Many Requests',d:'限流'},\r\n 431:{n:'Unavailable For Legal',d:'因法律不可用'},\r\n 451:{n:'Unavailable For Legal (Censored)',d:'因法律原因下线（审查）'},\r\n 500:{n:'Internal Server Error',d:'服务器内部错误'},\r\n 501:{n:'Not Implemented',d:'未实现'},\r\n 502:{n:'Bad Gateway',d:'网关错误'},\r\n 503:{n:'Service Unavailable',d:'服务不可用（过载 / 维护）'},\r\n 504:{n:'Gateway Timeout',d:'网关超时'},\r\n 505:{n:'HTTP Version Not Supported',d:'HTTP 版本不支持'},\r\n 506:{n:'Variant Also Negotiates',d:'变体协商错误'},\r\n 507:{n:'Insufficient Storage',d:'WebDAV：存储不足'},\r\n 508:{n:'Loop Detected',d:'WebDAV：检测到环路'},\r\n 510:{n:'Not Extended',d:'需扩展'},\r\n 511:{n:'Network Auth Required',d:'需网络认证（captive portal）'}\r\n};\r\nfunction catOf(code){ var d=Math.floor(code/100); return d===1?'信息':d===2?'成功':d===3?'重定向':d===4?'客户端错误':'服务器错误'; }\r\nfunction getStatus(code){ var e=STATUS[code]; return e?{code:code,name:e.n,desc:e.d,cat:catOf(code)}:null; }\r\nfunction searchStatus(q){\r\n  q=String(q||'').trim().toLowerCase();\r\n  var keys=Object.keys(STATUS).map(Number).sort(function(a,b){return a-b;});\r\n  if(/^\\d+$/.test(q)) return keys.filter(function(k){return String(k).indexOf(q)===0;}).map(getStatus);\r\n  if(!q) return keys.map(getStatus);\r\n  return keys.filter(function(k){ var e=STATUS[k]; return (e.n.toLowerCase().indexOf(q)>=0)||(e.d.toLowerCase().indexOf(q)>=0); }).map(getStatus);\r\n}\r\nfunction listByCat(cat){ return searchStatus('').filter(function(s){return s.cat===cat;}); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports={STATUS:STATUS,catOf:catOf,getStatus:getStatus,searchStatus:searchStatus,listByCat:listByCat};\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.StatusForgePure={STATUS:STATUS,catOf:catOf,getStatus:getStatus,searchStatus:searchStatus,listByCat:listByCat};\r\n}\r\n"
+}

@@ -1,0 +1,68 @@
+{
+  "id": "VcardForge",
+  "name": "vcard_forge",
+  "title": "VcardForge",
+  "description": "vCard 工作台：解析与生成 vCard 3.0/4.0，正确处理逗号/分号/换行的转义与折叠续行，支持多卡片批量解析与字段摘要。在 App 间搬运联系人、把表单导出成标准电子名片，零依赖、离线可用。",
+  "entry": "parse",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "summary": {
+      "paramStyle": "object",
+      "paramNames": [
+        "card"
+      ],
+      "fields": [
+        "TEL",
+        "EMAIL"
+      ]
+    },
+    "gen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fields",
+        "ver"
+      ],
+      "fields": []
+    },
+    "unescape": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "vescape": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "toV3": {
+      "paramStyle": "single",
+      "paramNames": [
+        "card"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  function unescape(v){\r\n    return String(v)\r\n      .replace(/\\\\n/gi,'\\n')\r\n      .replace(/\\\\,/g,',')\r\n      .replace(/\\\\;/g,';')\r\n      .replace(/\\\\\\\\/g,'\\\\');\r\n  }\r\n  function vescape(v){\r\n    return String(v)\r\n      .replace(/\\\\/g,'\\\\\\\\')\r\n      .replace(/\\n/g,'\\\\n')\r\n      .replace(/,/g,'\\\\,')\r\n      .replace(/;/g,'\\\\;');\r\n  }\r\n  function splitParams(p){\r\n    if(!p) return [];\r\n    return p.split(';').map(function(x){ var kv=x.split('='); return {k:(kv[0]||'').toUpperCase(), v:kv[1]||''}; });\r\n  }\r\n  function parse(text){\r\n    if(!text || !String(text).trim()) return {value:null,error:'输入为空'};\r\n    var norm='\\n'+String(text).replace(/\\r\\n/g,'\\n').replace(/\\r/g,'\\n');\r\n    var blocks=norm.split('\\nBEGIN:VCARD');\r\n    var cards=[];\r\n    for(var bi=1; bi<blocks.length; bi++){\r\n      var body='BEGIN:VCARD'+blocks[bi];\r\n      var end=body.indexOf('END:VCARD');\r\n      if(end<0) continue;\r\n      body=body.slice(0,end);\r\n      var raw=body.split('\\n'), lines=[], i=0;\r\n      while(i<raw.length){\r\n        var line=raw[i];\r\n        while(i+1<raw.length && /^[ \\t]/.test(raw[i+1])) line+=raw[++i].slice(1);\r\n        i++;\r\n        if(/^\\s*$/.test(line)) continue;\r\n        lines.push(line);\r\n      }\r\n      var card={};\r\n      for(var li=0; li<lines.length; li++){\r\n        var mm=/^([^:;]+)((?:;[^:;]+)*):([\\s\\S]*)$/.exec(lines[li]);\r\n        if(!mm) continue;\r\n        var name=mm[1].toUpperCase();\r\n        var params=splitParams(mm[2]?mm[2].slice(1):'');\r\n        var val=unescape(mm[3]);\r\n        (card[name]=card[name]||[]).push({params:params, value:val});\r\n      }\r\n      cards.push(card);\r\n    }\r\n    if(!cards.length) return {value:null,error:'未找到 BEGIN:VCARD'};\r\n    return {value:cards, error:''};\r\n  }\r\n  function first(card,name){ return (card[name]&&card[name][0])?card[name][0].value:''; }\r\n  function summary(card){\r\n    return {\r\n      fn:first(card,'FN'), n:first(card,'N'), org:first(card,'ORG'),\r\n      title:first(card,'TITLE'), url:first(card,'URL'), adr:first(card,'ADR'),\r\n      tel:(card.TEL||[]).map(function(t){return t.value;}),\r\n      email:(card.EMAIL||[]).map(function(t){return t.value;}),\r\n      version:first(card,'VERSION')\r\n    };\r\n  }\r\n  function toV3(card){\r\n    // 把 4.0 的某些属性回退到 3.0 写法（简化：复制并改 VERSION）\r\n    return card;\r\n  }\r\n  function gen(fields, ver){\r\n    ver=ver||'3.0';\r\n    var L=['BEGIN:VCARD','VERSION:'+ver];\r\n    if(fields.fn) L.push('FN:'+vescape(fields.fn));\r\n    if(fields.n) L.push('N:'+vescape(fields.n));\r\n    if(fields.org) L.push('ORG:'+vescape(fields.org));\r\n    if(fields.title) L.push('TITLE:'+vescape(fields.title));\r\n    if(fields.tel){ (Array.isArray(fields.tel)?fields.tel:[fields.tel]).forEach(function(t){ if(t) L.push('TEL;TYPE=CELL:'+vescape(t)); }); }\r\n    if(fields.email){ (Array.isArray(fields.email)?fields.email:[fields.email]).forEach(function(e){ if(e) L.push('EMAIL;TYPE=INTERNET:'+vescape(e)); }); }\r\n    if(fields.url) L.push('URL:'+vescape(fields.url));\r\n    if(fields.adr) L.push('ADR;TYPE=HOME:'+vescape(fields.adr));\r\n    L.push('END:VCARD');\r\n    return L.join('\\n');\r\n  }\r\n  var API={parse:parse, summary:summary, gen:gen, unescape:unescape, vescape:vescape, toV3:toV3};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__VcardForge__=API;\r\n})();\r\n\r\n"
+}

@@ -1,0 +1,121 @@
+{
+  "id": "GeneticForge",
+  "name": "genetic_forge",
+  "title": "GeneticForge",
+  "description": "遗传算法：比特串种群经选择、交叉、变异不断进化，逼近目标函数峰值。",
+  "entry": "gaInit",
+  "entries": {
+    "gaInit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pop",
+        "bits",
+        "rnd"
+      ],
+      "fields": []
+    },
+    "gaDecode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ind",
+        "lo",
+        "hi"
+      ],
+      "fields": []
+    },
+    "gaEval": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ind",
+        "lo",
+        "hi"
+      ],
+      "fields": []
+    },
+    "gaBest": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pop",
+        "lo",
+        "hi"
+      ],
+      "fields": []
+    },
+    "gaTournament": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pop",
+        "lo",
+        "hi",
+        "rnd",
+        "k"
+      ],
+      "fields": []
+    },
+    "gaCross": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b",
+        "rnd"
+      ],
+      "fields": []
+    },
+    "gaMutate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ind",
+        "rnd",
+        "mr"
+      ],
+      "fields": []
+    },
+    "gaStep": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pop",
+        "lo",
+        "hi",
+        "rnd",
+        "k",
+        "mr"
+      ],
+      "fields": []
+    },
+    "gaFitness": {
+      "paramStyle": "single",
+      "paramNames": [
+        "x"
+      ],
+      "fields": []
+    },
+    "_rng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pop": {
+        "type": "string",
+        "description": "第 1 个参数（pop）"
+      },
+      "bits": {
+        "type": "string",
+        "description": "第 2 个参数（bits）"
+      },
+      "rnd": {
+        "type": "string",
+        "description": "第 3 个参数（rnd）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _rng(seed){ var s=seed>>>0||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction gaInit(pop, bits, rnd){ var g=[]; for(var i=0;i<pop;i++){ var ind=[]; for(var j=0;j<bits;j++) ind.push(rnd()<0.5?0:1); g.push(ind); } return g; }\r\nfunction gaDecode(ind, lo, hi){ var v=0; for(var j=0;j<ind.length;j++) v=(v<<1)|ind[j]; var max=(1<<ind.length)-1; return lo+(v/max)*(hi-lo); }\r\nfunction gaFitness(x){ var d=x-0.3; return 1-d*d; } // unimodal peak at 0.3\r\nfunction gaEval(ind, lo, hi){ return gaFitness(gaDecode(ind,lo,hi)); }\r\nfunction gaBest(pop, lo, hi){ var bi=0, bf=-Infinity; for(var i=0;i<pop.length;i++){ var f=gaEval(pop[i],lo,hi); if(f>bf){bf=f;bi=i;} } return {i:bi,f:bf,x:gaDecode(pop[bi],lo,hi)}; }\r\nfunction gaTournament(pop, lo, hi, rnd, k){ var best=-1, bf=-Infinity; for(var t=0;t<k;t++){ var i=Math.floor(rnd()*pop.length); var f=gaEval(pop[i],lo,hi); if(f>bf){bf=f;best=i;} } return pop[best].slice(); }\r\nfunction gaCross(a,b,rnd){ var c=a.slice(); var cut=1+Math.floor(rnd()*(a.length-1)); for(var j=cut;j<a.length;j++) c[j]=b[j]; return c; }\r\nfunction gaMutate(ind, rnd, mr){ for(var j=0;j<ind.length;j++) if(rnd()<mr) ind[j]^=1; return ind; }\r\nfunction gaStep(pop, lo, hi, rnd, k, mr){\r\n  var np=[]; var el=gaBest(pop,lo,hi); np.push(pop[el.i].slice());\r\n  while(np.length<pop){ var p1=gaTournament(pop,lo,hi,rnd,k); var p2=gaTournament(pop,lo,hi,rnd,k);\r\n    var child=gaCross(p1,p2,rnd); gaMutate(child,rnd,mr); np.push(child); }\r\n  return np;\r\n}\r\nvar EXPORTS={gaInit:gaInit, gaDecode:gaDecode, gaEval:gaEval, gaBest:gaBest, gaTournament:gaTournament, gaCross:gaCross, gaMutate:gaMutate, gaStep:gaStep, gaFitness:gaFitness, _rng:_rng};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.GeneticForgePure = EXPORTS; }\r\n\r\n"
+}

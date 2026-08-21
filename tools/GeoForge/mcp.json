@@ -1,0 +1,62 @@
+{
+  "id": "GeoForge",
+  "name": "geo_forge",
+  "title": "GeoForge",
+  "description": "地理距离计算器：Haversine 大圆距离 + 方位角 + 目的地 + 包围盒。",
+  "entry": "parseLatLng",
+  "entries": {
+    "parseLatLng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "haversine": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "bearing": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "destination": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "bearingDeg",
+        "distKm"
+      ],
+      "fields": []
+    },
+    "boundingBox": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "center",
+        "radiusKm"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar EARTH_R = 6371.0088;\r\nfunction toRad(d){ return d*Math.PI/180; }\r\nfunction toDeg(r){ return r*180/Math.PI; }\r\nfunction parseLatLng(s){\r\n  var parts=String(s||'').trim().split(/[,\\s]+/).filter(function(x){return x.length;});\r\n  if(parts.length!==2) return { value:null, error:'需要「纬度, 经度」两个数' };\r\n  var lat=Number(parts[0]), lng=Number(parts[1]);\r\n  if(!isFinite(lat)||!isFinite(lng)) return { value:null, error:'非法数字' };\r\n  if(lat<-90||lat>90) return { value:null, error:'纬度须在 [-90, 90]' };\r\n  if(lng<-180||lng>180) return { value:null, error:'经度须在 [-180, 180]' };\r\n  return { value:{lat:lat,lng:lng}, error:null };\r\n}\r\nfunction haversine(a, b){\r\n  var dLat=toRad(b.lat-a.lat), dLng=toRad(b.lng-a.lng);\r\n  var s=Math.sin(dLat/2)*Math.sin(dLat/2) +\r\n        Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLng/2)*Math.sin(dLng/2);\r\n  return 2*EARTH_R*Math.asin(Math.min(1, Math.sqrt(s)));\r\n}\r\nfunction bearing(a, b){\r\n  var la=toRad(a.lat), lb=toRad(b.lat), dl=toRad(b.lng-a.lng);\r\n  var y=Math.sin(dl)*Math.cos(lb);\r\n  var x=Math.cos(la)*Math.sin(lb)-Math.sin(la)*Math.cos(lb)*Math.cos(dl);\r\n  return (toDeg(Math.atan2(y,x))+360)%360;\r\n}\r\nfunction destination(a, bearingDeg, distKm){\r\n  var la=toRad(a.lat), lo=toRad(a.lng), br=toRad(bearingDeg), dr=distKm/EARTH_R;\r\n  var lat2=Math.asin(Math.sin(la)*Math.cos(dr)+Math.cos(la)*Math.sin(dr)*Math.cos(br));\r\n  var lng2=lo+Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(la), Math.cos(dr)-Math.sin(la)*Math.sin(lat2));\r\n  var lngDeg=((toDeg(lng2)+540)%360)-180;\r\n  return { lat:toDeg(lat2), lng:lngDeg };\r\n}\r\nfunction boundingBox(center, radiusKm){\r\n  var dLat=toDeg(radiusKm/EARTH_R);\r\n  var dLng=toDeg(radiusKm/(EARTH_R*Math.cos(toRad(center.lat))));\r\n  return { minLat:center.lat-dLat, maxLat:center.lat+dLat,\r\n           minLng:center.lng-dLng, maxLng:center.lng+dLng };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parseLatLng:parseLatLng, haversine:haversine, bearing:bearing,\r\n    destination:destination, boundingBox:boundingBox, EARTH_R:EARTH_R };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.GeoForgePure = { parseLatLng:parseLatLng, haversine:haversine, bearing:bearing,\r\n    destination:destination, boundingBox:boundingBox };\r\n}\r\n"
+}

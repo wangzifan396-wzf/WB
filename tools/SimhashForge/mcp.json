@@ -1,0 +1,72 @@
+{
+  "id": "SimhashForge",
+  "name": "simhash_forge",
+  "title": "SimhashForge",
+  "description": "SimHash 64 位指纹 + 海明距离，近重复文本检测。",
+  "entry": "shFnv1a",
+  "entries": {
+    "shFnv1a": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "seed"
+      ],
+      "fields": []
+    },
+    "shFeatures": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "simhash64": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "shPopcount32": {
+      "paramStyle": "single",
+      "paramNames": [
+        "x"
+      ],
+      "fields": []
+    },
+    "shHamming": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "hexA",
+        "hexB"
+      ],
+      "fields": []
+    },
+    "shCompare": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "textA",
+        "textB",
+        "threshold"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "第 1 个参数（str）"
+      },
+      "seed": {
+        "type": "number",
+        "description": "第 2 个参数（seed）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction shFnv1a(str, seed){\r\n  var h=(0x811c9dc5 ^ (seed||0))>>>0;\r\n  for(var i=0;i<str.length;i++){\r\n    h=(h^str.charCodeAt(i))>>>0;\r\n    h=(h+((h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24)))>>>0;\r\n  }\r\n  return h>>>0;\r\n}\r\nfunction shFeatures(text){\r\n  var s=String(text).toLowerCase().replace(/[^a-z0-9\\u4e00-\\u9fff]+/g,' ').trim();\r\n  if(!s) return {};\r\n  var words=s.split(' '), feats={}, i;\r\n  for(i=0;i<words.length;i++) feats[words[i]]=(feats[words[i]]||0)+1;\r\n  for(i=0;i<words.length-1;i++){\r\n    var bg=words[i]+' '+words[i+1];\r\n    feats[bg]=(feats[bg]||0)+1;\r\n  }\r\n  return feats;\r\n}\r\nfunction shHash64(feat){\r\n  return [shFnv1a(feat, 0x51ed270b), shFnv1a(feat, 0x2545f491)];\r\n}\r\nfunction simhash64(text){\r\n  var feats=shFeatures(text);\r\n  var v=new Array(64).fill(0), f;\r\n  var any=false;\r\n  for(f in feats){\r\n    any=true;\r\n    var w=feats[f], h=shHash64(f), b;\r\n    for(b=0;b<32;b++) v[b]+=((h[0]>>>b)&1)?w:-w;\r\n    for(b=0;b<32;b++) v[32+b]+=((h[1]>>>b)&1)?w:-w;\r\n  }\r\n  if(!any) return { value:'0000000000000000', error:null };\r\n  var hi=0, lo=0;\r\n  for(var i=0;i<32;i++){ if(v[i]>0) lo=(lo|(1<<i))>>>0; }\r\n  for(var j=0;j<32;j++){ if(v[32+j]>0) hi=(hi|(1<<j))>>>0; }\r\n  var hex=function(x){ var s=x.toString(16); while(s.length<8) s='0'+s; return s; };\r\n  return { value:hex(hi)+hex(lo), error:null };\r\n}\r\nfunction shPopcount32(x){\r\n  x=x-((x>>>1)&0x55555555);\r\n  x=(x&0x33333333)+((x>>>2)&0x33333333);\r\n  x=(x+(x>>>4))&0x0f0f0f0f;\r\n  return (x*0x01010101)>>>24;\r\n}\r\nfunction shHamming(hexA, hexB){\r\n  var a=String(hexA).toLowerCase(), b=String(hexB).toLowerCase();\r\n  if(!/^[0-9a-f]{16}$/.test(a)||!/^[0-9a-f]{16}$/.test(b))\r\n    return { value:null, error:'需要 16 位 hex 的 64 位指纹' };\r\n  var d=0;\r\n  for(var i=0;i<16;i+=8){\r\n    var xa=parseInt(a.substr(i,8),16)>>>0, xb=parseInt(b.substr(i,8),16)>>>0;\r\n    d+=shPopcount32((xa^xb)>>>0);\r\n  }\r\n  return { value:d, error:null };\r\n}\r\nfunction shCompare(textA, textB, threshold){\r\n  var ha=simhash64(textA), hb=simhash64(textB);\r\n  var d=shHamming(ha.value, hb.value);\r\n  if(d.error) return { value:null, error:d.error };\r\n  var t=(typeof threshold==='number')?threshold:3;\r\n  return { value:{ hashA:ha.value, hashB:hb.value, hamming:d.value, nearDup:d.value<=t }, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { shFnv1a:shFnv1a, shFeatures:shFeatures, simhash64:simhash64,\r\n    shPopcount32:shPopcount32, shHamming:shHamming, shCompare:shCompare };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SimhashForgePure = { shFnv1a:shFnv1a, shFeatures:shFeatures, simhash64:simhash64,\r\n    shPopcount32:shPopcount32, shHamming:shHamming, shCompare:shCompare };\r\n}\r\n"
+}

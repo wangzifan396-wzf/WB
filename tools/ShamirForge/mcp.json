@@ -1,0 +1,74 @@
+{
+  "id": "ShamirForge",
+  "name": "shamir_forge",
+  "title": "ShamirForge",
+  "description": "Shamir 秘密共享：基于有限域（GF(257)）拉格朗日插值，把秘密拆成 n 份，任意 k 份即可还原、少于 k 份毫无信息。是阈值加密的经典方案，纯本地、零依赖。",
+  "entry": "shSplit",
+  "entries": {
+    "shSplit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "secret",
+        "k",
+        "n",
+        "p",
+        "seed"
+      ],
+      "fields": []
+    },
+    "shRecover": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "shares",
+        "p"
+      ],
+      "fields": []
+    },
+    "shLagrange": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "shares",
+        "x",
+        "p"
+      ],
+      "fields": []
+    },
+    "shModinv": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "p"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "secret": {
+        "type": "string",
+        "description": "第 1 个参数（secret）"
+      },
+      "k": {
+        "type": "string",
+        "description": "第 2 个参数（k）"
+      },
+      "n": {
+        "type": "string",
+        "description": "第 3 个参数（n）"
+      },
+      "p": {
+        "type": "number",
+        "description": "第 4 个参数（p）（数值）"
+      },
+      "seed": {
+        "type": "number",
+        "description": "第 5 个参数（seed）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction shModinv(a,p){ a=((a%p)+p)%p; for(var x=1;x<p;x++){ if((a*x)%p===1) return x; } return 1; }\r\nfunction shEval(coeffs, x, p){ var y=0; for(var i=coeffs.length-1;i>=0;i--){ y=((y*x)%p+coeffs[i])%p; } return ((y%p)+p)%p; }\r\nfunction shSplit(secret, k, n, p, seed){ p=p||257; secret=((secret%p)+p)%p; var s=seed||1; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;}\r\n  var coeffs=[secret]; for(var i=1;i<k;i++) coeffs.push(Math.floor(rnd()*(p-1))+1);\r\n  var shares=[]; for(var i=1;i<=n;i++){ shares.push([i, shEval(coeffs, i, p)]); } return {p:p, k:k, shares:shares}; }\r\nfunction shLagrange(shares, x, p){ var acc=0; for(var i=0;i<shares.length;i++){ var xi=shares[i][0], yi=shares[i][1]; var num=1, den=1; for(var j=0;j<shares.length;j++){ if(i===j) continue; var xj=shares[j][0]; num=(num*(x-xj))%p; den=(den*(xi-xj))%p; } var t=Math.imul(num, shModinv(((den%p)+p)%p, p))%p; acc=(acc+Math.imul(yi,t))%p; } return ((acc%p)+p)%p; }\r\nfunction shRecover(shares, p){ return shLagrange(shares, 0, p||257); }\r\nvar EXPORTS={shSplit:shSplit, shRecover:shRecover, shLagrange:shLagrange, shModinv:shModinv};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ShamirForgePure = EXPORTS; }\r\n\r\n"
+}

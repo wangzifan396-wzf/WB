@@ -1,0 +1,34 @@
+{
+  "id": "WilcoxonForge",
+  "name": "wilcoxon_forge",
+  "title": "WilcoxonForge",
+  "description": "Wilcoxon 符号秩检验：配对样本的中位差非参数检验，计算正/负秩和与统计量 W，离线精确。",
+  "entry": "signedRank",
+  "entries": {
+    "signedRank": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "xs",
+        "mu"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "xs": {
+        "type": "string",
+        "description": "第 1 个参数（xs）"
+      },
+      "mu": {
+        "type": "string",
+        "description": "第 2 个参数（mu）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction signedRank(xs, mu){ var diffs=xs.map(function(x){return x-mu;});\r\n  var nz=[]; for(var i=0;i<diffs.length;i++) if(diffs[i]!==0) nz.push(diffs[i]);\r\n  var abs=nz.map(Math.abs);\r\n  var idx=abs.map(function(v,i){return {v:v,i:i};}).sort(function(a,b){return a.v-b.v;});\r\n  var ranks=new Array(abs.length);\r\n  var i=0;\r\n  while(i<idx.length){ var j=i; while(j+1<idx.length && idx[j+1].v===idx[i].v) j++; var avg=(i+j+2)/2; for(var k=i;k<=j;k++) ranks[idx[k].i]=avg; i=j+1; }\r\n  var Wp=0,Wm=0;\r\n  for(var k=0;k<nz.length;k++){ if(nz[k]>0) Wp+=ranks[k]; else Wm+=ranks[k]; }\r\n  return {Wplus:Wp, Wminus:Wm, W:Math.min(Wp,Wm), n:nz.length};\r\n}\r\nvar EXPORTS={signedRank:signedRank};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.WilcoxonForgePure = EXPORTS; }\r\n\r\n"
+}

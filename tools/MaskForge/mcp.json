@@ -1,0 +1,58 @@
+{
+  "id": "MaskForge",
+  "name": "mask_forge",
+  "title": "MaskForge",
+  "description": "敏感信息脱敏：在本地把邮箱、手机号、银行卡号、身份证号等 PII 打码，原文不出本机，支持勾选字段。",
+  "entry": "maskEmail",
+  "entries": {
+    "maskEmail": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "maskPhone": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "maskCard": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "maskId": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "maskText": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "t",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction maskEmail(s){ return s.replace(/([^\\s@]+)@([^\\s@]+)/g, function(m,u,d){ var lu = u.length<=2 ? u[0]+'*' : u[0]+'*'.repeat(Math.min(u.length-1,6)); var ld = d.length<=1 ? d : d[0]+'*'.repeat(Math.min(d.length-1,4)); return lu+'@'+ld; }); }\r\nfunction maskPhone(s){ var digits=s.replace(/\\D/g,''); if(digits.length<4) return s; return '*'.repeat(digits.length-4)+digits.slice(-4); }\r\nfunction maskCard(s){ var digits=s.replace(/\\D/g,''); if(digits.length<4) return s; return '*'.repeat(digits.length-4)+digits.slice(-4); }\r\nfunction maskId(s){ var d=s.replace(/\\D/g,''); if(d.length<10) return s; return d.slice(0,6)+'********'+d.slice(-4); }\r\nfunction maskText(t, opts){ opts=opts||{email:true,phone:true,card:true,id:true}; var out=t; if(opts.email) out=out.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g, function(m){return maskEmail(m);}); if(opts.id) out=out.replace(/\\d{17}[\\dXx]/g, function(m){return maskId(m);}); if(opts.card) out=out.replace(/\\b\\d{13,19}\\b/g, function(m){return maskCard(m);}); if(opts.phone) out=out.replace(/\\b1[3-9]\\d{9}\\b/g, function(m){return maskPhone(m);}); return out; }\r\nvar EXPORTS={maskEmail:maskEmail,maskPhone:maskPhone,maskCard:maskCard,maskId:maskId,maskText:maskText};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MaskForgePure = EXPORTS; }\r\n\r\n"
+}

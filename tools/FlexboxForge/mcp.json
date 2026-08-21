@@ -1,0 +1,130 @@
+{
+  "id": "FlexboxForge",
+  "name": "flexbox_forge",
+  "title": "FlexboxForge",
+  "description": "Flexbox 沙盒：内置完整 flex 布局解算（换行行断、grow/shrink 加权、align-self、order），左浏览器原生、右内核坐标双视图对照，附圣杯布局等 8 个配方与 CSS 一键导出、溢出体检，离线可用。",
+  "entry": "parseFlex",
+  "entries": {
+    "parseFlex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sh"
+      ],
+      "fields": []
+    },
+    "resolveBasis": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "basis",
+        "contentSize",
+        "mainSize"
+      ],
+      "fields": []
+    },
+    "normItems": {
+      "paramStyle": "single",
+      "paramNames": [
+        "items"
+      ],
+      "fields": []
+    },
+    "orderItems": {
+      "paramStyle": "single",
+      "paramNames": [
+        "items"
+      ],
+      "fields": []
+    },
+    "breakLines": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "hyp",
+        "mainSize",
+        "gap",
+        "wrap"
+      ],
+      "fields": []
+    },
+    "flexLine": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "line",
+        "mainSize",
+        "gap"
+      ],
+      "fields": []
+    },
+    "distribute": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "mode",
+        "free",
+        "n",
+        "gap"
+      ],
+      "fields": []
+    },
+    "layout": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cfg",
+        "items",
+        "box"
+      ],
+      "fields": []
+    },
+    "containerCss": {
+      "paramStyle": "object",
+      "paramNames": [
+        "cfg"
+      ],
+      "fields": [
+        "direction",
+        "wrap",
+        "justify",
+        "align",
+        "alignContent",
+        "gap"
+      ]
+    },
+    "itemCss": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "it",
+        "sel"
+      ],
+      "fields": []
+    },
+    "fullCss": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cfg",
+        "items"
+      ],
+      "fields": []
+    },
+    "lint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cfg",
+        "items",
+        "box"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sh": {
+        "type": "string",
+        "description": "输入（sh）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseFlex(sh){\r\n  if(sh==null) return {grow:0,shrink:1,basis:'auto'};\r\n  if(typeof sh==='number') return {grow:sh,shrink:1,basis:'0%'};\r\n  var s=String(sh).trim();\r\n  if(s==='none') return {grow:0,shrink:0,basis:'auto'};\r\n  if(s==='auto') return {grow:1,shrink:1,basis:'auto'};\r\n  if(s==='initial'||s==='') return {grow:0,shrink:1,basis:'auto'};\r\n  var parts=s.split(/\\s+/);\r\n  var nums=[], basis=null;\r\n  for(var i=0;i<parts.length;i++){\r\n    var p=parts[i];\r\n    if(/^[0-9.]+$/.test(p) && nums.length<2 && basis===null) nums.push(parseFloat(p));\r\n    else basis=p;\r\n  }\r\n  var grow=nums.length>0?nums[0]:1;\r\n  var shrink=nums.length>1?nums[1]:1;\r\n  if(basis===null) basis = nums.length>0 ? '0%' : 'auto';\r\n  return {grow:grow, shrink:shrink, basis:basis};\r\n}\r\n\r\nfunction resolveBasis(basis, contentSize, mainSize){\r\n  if(basis==null||basis==='auto'||basis==='content') return contentSize;\r\n  if(typeof basis==='number') return basis;\r\n  var s=String(basis).trim();\r\n  if(/%$/.test(s)) return mainSize*(parseFloat(s)||0)/100;\r\n  var v=parseFloat(s);\r\n  return isFinite(v)?v:contentSize;\r\n}\r\n\r\nfunction normItems(items){\r\n  var out=[];\r\n  for(var i=0;i<items.length;i++){\r\n    var it=items[i]||{};\r\n    var f = it.flex!=null ? parseFlex(it.flex)\r\n          : {grow: it.grow||0,\r\n             shrink: it.shrink==null?1:it.shrink,\r\n             basis: it.basis==null?'auto':it.basis};\r\n    out.push({i:i, w:it.w==null?100:it.w, h:it.h==null?40:it.h,\r\n              grow:f.grow, shrink:f.shrink, basis:f.basis,\r\n              alignSelf:it.alignSelf||null, order:it.order||0,\r\n              label:it.label==null?String(i+1):it.label});\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction orderItems(items){\r\n  var idx=items.map(function(x,k){ return {x:x,k:k}; });\r\n  idx.sort(function(a,b){ return (a.x.order-b.x.order) || (a.k-b.k); });\r\n  return idx.map(function(e){ return e.x; });\r\n}\r\n\r\nfunction breakLines(items, hyp, mainSize, gap, wrap){\r\n  if(wrap==='nowrap') return [{items:items, hyp:hyp}];\r\n  var lines=[], cur=[], curH=[], acc=0;\r\n  for(var i=0;i<items.length;i++){\r\n    var need = hyp[i] + (cur.length?gap:0);\r\n    if(cur.length && acc+need > mainSize + 0.001){\r\n      lines.push({items:cur, hyp:curH}); cur=[]; curH=[]; acc=0; need=hyp[i];\r\n    }\r\n    cur.push(items[i]); curH.push(hyp[i]); acc+=need;\r\n  }\r\n  if(cur.length) lines.push({items:cur, hyp:curH});\r\n  return lines;\r\n}\r\n\r\nfunction flexLine(line, mainSize, gap){\r\n  var n=line.items.length;\r\n  var sizes=line.hyp.slice();\r\n  var total=0; for(var i=0;i<n;i++) total+=sizes[i];\r\n  var free = mainSize - total - gap*(n-1);\r\n  if(free > 0.001){\r\n    var tg=0; for(var a=0;a<n;a++) tg+=line.items[a].grow;\r\n    if(tg>0) for(var b=0;b<n;b++) sizes[b] += free*line.items[b].grow/tg;\r\n  } else if(free < -0.001){\r\n    var scaled=0;\r\n    for(var c=0;c<n;c++) scaled += line.items[c].shrink*line.hyp[c];\r\n    if(scaled>0) for(var d=0;d<n;d++){\r\n      sizes[d] += free*(line.items[d].shrink*line.hyp[d])/scaled;\r\n      if(sizes[d]<0) sizes[d]=0;\r\n    }\r\n  }\r\n  return sizes;\r\n}\r\n\r\nfunction distribute(mode, free, n, gap){\r\n  var start=0, between=gap;\r\n  if(free<0) free=0;\r\n  if(mode==='flex-end'||mode==='end') start=free;\r\n  else if(mode==='center') start=free/2;\r\n  else if(mode==='space-between') { if(n>1) between=gap+free/(n-1); }\r\n  else if(mode==='space-around'){ var ea=free/n; start=ea/2; between=gap+ea; }\r\n  else if(mode==='space-evenly'){ var ee=free/(n+1); start=ee; between=gap+ee; }\r\n  return {start:start, between:between};\r\n}\r\n\r\nfunction crossPos(mode, lineStart, lineCross, itemCross){\r\n  if(mode==='flex-end'||mode==='end') return lineStart + lineCross - itemCross;\r\n  if(mode==='center') return lineStart + (lineCross-itemCross)/2;\r\n  return lineStart;\r\n}\r\n\r\nfunction layout(cfg, items, box){\r\n  cfg = cfg||{};\r\n  var dir = cfg.direction||'row';\r\n  var isRow = dir==='row'||dir==='row-reverse';\r\n  var revMain = dir==='row-reverse'||dir==='column-reverse';\r\n  var wrap = cfg.wrap||'nowrap';\r\n  var gap = cfg.gap||0;\r\n  var justify = cfg.justify||'flex-start';\r\n  var align = cfg.align||'stretch';\r\n  var alignContent = cfg.alignContent||'stretch';\r\n  var mainSize = isRow ? box.w : box.h;\r\n  var crossSize = isRow ? box.h : box.w;\r\n\r\n  var norm = orderItems(normItems(items));\r\n  var hyp = norm.map(function(it){\r\n    return resolveBasis(it.basis, isRow?it.w:it.h, mainSize);\r\n  });\r\n  var lines = breakLines(norm, hyp, mainSize, gap, wrap);\r\n\r\n  var lineCross = lines.map(function(ln){\r\n    var m=0;\r\n    for(var i=0;i<ln.items.length;i++){ var cv = isRow?ln.items[i].h:ln.items[i].w; if(cv>m) m=cv; }\r\n    return m;\r\n  });\r\n  var totalCross=0; for(var q=0;q<lineCross.length;q++) totalCross+=lineCross[q];\r\n  var crossFree = crossSize - totalCross - gap*(lines.length-1);\r\n  var stretchLines = (alignContent==='stretch' && lines.length>0 && crossFree>0);\r\n  if(stretchLines){\r\n    var add = crossFree/lines.length;\r\n    for(var w2=0;w2<lineCross.length;w2++) lineCross[w2]+=add;\r\n    crossFree = 0;\r\n  }\r\n  var cd = distribute(alignContent==='stretch'?'flex-start':alignContent, crossFree, lines.length, gap);\r\n\r\n  var out=[];\r\n  var cy = cd.start;\r\n  var order = (wrap==='wrap-reverse') ? lines.slice().reverse() : lines;\r\n  var orderCross = (wrap==='wrap-reverse') ? lineCross.slice().reverse() : lineCross;\r\n\r\n  for(var li=0; li<order.length; li++){\r\n    var ln=order[li];\r\n    var sizes=flexLine(ln, mainSize, gap);\r\n    var used=0; for(var s2=0;s2<sizes.length;s2++) used+=sizes[s2];\r\n    var mFree = mainSize - used - gap*(sizes.length-1);\r\n    var md = distribute(justify, mFree, sizes.length, gap);\r\n    var mp = md.start;\r\n    for(var k=0;k<ln.items.length;k++){\r\n      var it=ln.items[k];\r\n      var mainLen=sizes[k];\r\n      var selfAlign = it.alignSelf && it.alignSelf!=='auto' ? it.alignSelf : align;\r\n      var natCross = isRow?it.h:it.w;\r\n      var crossLen = (selfAlign==='stretch') ? orderCross[li] : natCross;\r\n      var cp = crossPos(selfAlign, cy, orderCross[li], crossLen);\r\n      var mStart = revMain ? (mainSize - mp - mainLen) : mp;\r\n      out.push(isRow\r\n        ? {i:it.i, label:it.label, x:round2(mStart), y:round2(cp), w:round2(mainLen), h:round2(crossLen)}\r\n        : {i:it.i, label:it.label, x:round2(cp), y:round2(mStart), w:round2(crossLen), h:round2(mainLen)});\r\n      mp += mainLen + md.between;\r\n    }\r\n    cy += orderCross[li] + cd.between;\r\n  }\r\n  out.sort(function(a,b){ return a.i-b.i; });\r\n  return {boxes:out, lines:lines.length, lineCross:lineCross.map(round2)};\r\n}\r\n\r\nfunction round2(v){ return Math.round(v*100)/100; }\r\n\r\nfunction containerCss(cfg){\r\n  cfg=cfg||{};\r\n  var L=['display: flex;'];\r\n  if(cfg.direction && cfg.direction!=='row') L.push('flex-direction: '+cfg.direction+';');\r\n  if(cfg.wrap && cfg.wrap!=='nowrap') L.push('flex-wrap: '+cfg.wrap+';');\r\n  if(cfg.justify && cfg.justify!=='flex-start') L.push('justify-content: '+cfg.justify+';');\r\n  if(cfg.align && cfg.align!=='stretch') L.push('align-items: '+cfg.align+';');\r\n  if(cfg.wrap && cfg.wrap!=='nowrap' && cfg.alignContent && cfg.alignContent!=='stretch')\r\n    L.push('align-content: '+cfg.alignContent+';');\r\n  if(cfg.gap) L.push('gap: '+cfg.gap+'px;');\r\n  return '.container {\\n  ' + L.join('\\n  ') + '\\n}';\r\n}\r\n\r\nfunction itemCss(it, sel){\r\n  it=it||{};\r\n  var f = it.flex!=null ? parseFlex(it.flex)\r\n        : {grow:it.grow||0, shrink:it.shrink==null?1:it.shrink, basis:it.basis==null?'auto':it.basis};\r\n  var basis = typeof f.basis==='number' ? f.basis+'px' : f.basis;\r\n  var L=['flex: '+f.grow+' '+f.shrink+' '+basis+';'];\r\n  if(it.alignSelf && it.alignSelf!=='auto') L.push('align-self: '+it.alignSelf+';');\r\n  if(it.order) L.push('order: '+it.order+';');\r\n  return (sel||'.item') + ' {\\n  ' + L.join('\\n  ') + '\\n}';\r\n}\r\n\r\nfunction fullCss(cfg, items){\r\n  var parts=[containerCss(cfg)];\r\n  var norm=normItems(items||[]);\r\n  for(var i=0;i<norm.length;i++){\r\n    var it=norm[i];\r\n    var isDefault = it.grow===0 && it.shrink===1 && (it.basis==='auto') && !it.alignSelf && !it.order;\r\n    if(!isDefault) parts.push(itemCss(items[i], '.item-'+(i+1)));\r\n  }\r\n  return parts.join('\\n\\n');\r\n}\r\n\r\nfunction lint(cfg, items, box){\r\n  cfg=cfg||{}; items=items||[]; box=box||{w:640,h:220};\r\n  var w=[];\r\n  var norm=normItems(items);\r\n  var isRow=(cfg.direction||'row').indexOf('row')===0;\r\n  var mainSize=isRow?box.w:box.h;\r\n  var gap=cfg.gap||0;\r\n  var sum=0;\r\n  for(var i=0;i<norm.length;i++) sum += resolveBasis(norm[i].basis, isRow?norm[i].w:norm[i].h, mainSize);\r\n  sum += gap*Math.max(0,norm.length-1);\r\n  var noShrink = norm.length>0 && norm.every(function(x){ return x.shrink===0; });\r\n  if((cfg.wrap||'nowrap')==='nowrap' && sum>mainSize+0.5 && noShrink)\r\n    w.push({level:'error', msg:'nowrap + flex-shrink:0 且内容总宽 '+round2(sum)+'px 超过容器 '+mainSize+'px，会直接溢出'});\r\n  else if((cfg.wrap||'nowrap')==='nowrap' && sum>mainSize+0.5)\r\n    w.push({level:'warn', msg:'nowrap 下内容总长 '+round2(sum)+'px 超过容器 '+mainSize+'px，子项将被压缩'});\r\n  if(cfg.alignContent && cfg.alignContent!=='stretch' && (cfg.wrap||'nowrap')==='nowrap')\r\n    w.push({level:'warn', msg:'align-content 仅在 flex-wrap:wrap 多行时生效，当前为 nowrap'});\r\n  if((cfg.justify==='space-between'||cfg.justify==='space-around') && norm.length<2)\r\n    w.push({level:'warn', msg:'justify-content:'+cfg.justify+' 在只有 1 个子项时没有可见效果'});\r\n  var pctBasis = norm.filter(function(x){ return typeof x.basis==='string' && /%$/.test(x.basis); });\r\n  if(pctBasis.length && (cfg.wrap||'nowrap')==='wrap' && gap>0)\r\n    w.push({level:'warn', msg:'百分比 flex-basis 不扣除 gap，'+pctBasis.length+' 个子项可能提前换行，建议改用 calc(50% - '+gap/2+'px)'});\r\n  var growNoBasis = norm.filter(function(x){ return x.grow>0 && x.basis==='auto'; });\r\n  if(growNoBasis.length>1)\r\n    w.push({level:'info', msg:growNoBasis.length+' 个子项使用 flex-grow + basis:auto，最终宽度受内容影响；要等分请用 flex:1 1 0'});\r\n  if(norm.some(function(x){ return x.order!==0; }))\r\n    w.push({level:'info', msg:'使用了 order 会让视觉顺序与 DOM 顺序不一致，键盘 Tab 与读屏仍按 DOM 顺序'});\r\n  return w;\r\n}\r\n\r\nvar FlexboxForgePure = {\r\n  parseFlex:parseFlex, resolveBasis:resolveBasis, normItems:normItems, orderItems:orderItems,\r\n  breakLines:breakLines, flexLine:flexLine, distribute:distribute, layout:layout,\r\n  containerCss:containerCss, itemCss:itemCss, fullCss:fullCss, lint:lint\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = FlexboxForgePure;\r\nif (typeof window !== 'undefined') window.FlexboxForgePure = FlexboxForgePure;\r\n\r\n"
+}

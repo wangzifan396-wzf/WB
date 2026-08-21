@@ -1,0 +1,56 @@
+{
+  "id": "GasLawForge",
+  "name": "gas_law_forge",
+  "title": "GasLawForge",
+  "description": "理想气体 PV=nRT 与联合气体定律 P₁V₁/T₁=P₂V₂/T₂，留空一项即求解。",
+  "entry": "ideal",
+  "entries": {
+    "ideal": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "P",
+        "V",
+        "n",
+        "T"
+      ],
+      "fields": []
+    },
+    "combined": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "P1",
+        "V1",
+        "T1",
+        "P2",
+        "V2",
+        "T2"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "P": {
+        "type": "string",
+        "description": "第 1 个参数（P）"
+      },
+      "V": {
+        "type": "string",
+        "description": "第 2 个参数（V）"
+      },
+      "n": {
+        "type": "string",
+        "description": "第 3 个参数（n）"
+      },
+      "T": {
+        "type": "string",
+        "description": "第 4 个参数（T）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar R_LATM=0.082057; // L·atm/(mol·K)\r\nfunction ideal(P,V,n,T){\r\n  var miss=0,res={};\r\n  if(P==null){ res.P = n*R_LATM*T/V; }\r\n  else if(V==null){ res.V = n*R_LATM*T/P; }\r\n  else if(n==null){ res.n = P*V/(R_LATM*T); }\r\n  else if(T==null){ res.T = P*V/(n*R_LATM); }\r\n  else { res.P=P;res.V=V;res.n=n;res.T=T; }\r\n  return res;\r\n}\r\nfunction combined(P1,V1,T1,P2,V2,T2){\r\n  // P1V1/T1 = P2V2/T2 ; 恰好一个为 null\r\n  var vals=[P1,V1,T1,P2,V2,T2];\r\n  var idx=vals.indexOf(null);\r\n  if(idx<0) return {};\r\n  var left=P1*V1/T1, right=P2*V2/T2;\r\n  var res={};\r\n  if(idx===0) res.P1=right*T1/V1;\r\n  else if(idx===1) res.V1=right*T1/P1;\r\n  else if(idx===2) res.T1=P1*V1/right;\r\n  else if(idx===3) res.P2=left*T2/V2;\r\n  else if(idx===4) res.V2=left*T2/P2;\r\n  else if(idx===5) res.T2=P2*V2/left;\r\n  return res;\r\n}\r\nvar EXPORTS={ideal:ideal, combined:combined, R_LATM:R_LATM};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.GasLawForgePure = EXPORTS; }\r\n\r\n"
+}

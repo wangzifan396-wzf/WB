@@ -1,0 +1,50 @@
+{
+  "id": "PunycodeForge",
+  "name": "punycode_forge",
+  "title": "PunycodeForge",
+  "description": "国际化域名转换：把含中文/emoji 的域名编码为 xn-- 形式的 Punycode（符合 RFC 3492），或反向解码，离线可用。",
+  "entry": "toUnicode",
+  "entries": {
+    "toUnicode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "domain"
+      ],
+      "fields": []
+    },
+    "toASCII": {
+      "paramStyle": "single",
+      "paramNames": [
+        "domain"
+      ],
+      "fields": []
+    },
+    "encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cp"
+      ],
+      "fields": []
+    },
+    "decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "domain": {
+        "type": "string",
+        "description": "输入（domain）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  var BASE=36, TMIN=1, TMAX=26, SKEW=38, DAMP=700, INITIAL_BIAS=72, INITIAL_N=128, DELIMITER='-';\r\n  function ucs2decode(str){ var out=[],i=0,l=str.length,val,extra; while(i<l){ val=str.charCodeAt(i++);\r\n    if(val>=0xD800&&val<=0xDBFF&&i<l){ extra=str.charCodeAt(i++); if((extra&0xFC00)===0xDC00){ out.push(((val&0x3FF)<<10)+(extra&0x3FF)+0x10000); continue; } i--; }\r\n    out.push(val); } return out; }\r\n  function ucs2encode(arr){ var out='',i=0,l=arr.length,val; while(i<l){ val=arr[i++];\r\n    if(val>0xFFFF){ val-=0x10000; out+=String.fromCharCode(((val>>>10)&0x3FF)|0xD800); out+=String.fromCharCode((val&0x3FF)|0xDC00); } else out+=String.fromCharCode(val); } return out; }\r\n  function basicToDigit(cp){ if(cp-0x30<0x0A) return cp-0x30+0x1A; if(cp-0x61<0x1A) return cp-0x61; return -1; }\r\n  function digitToBasic(d){ return d<26 ? String.fromCharCode(97+d) : String.fromCharCode(22+d); }\r\n  function adapt(delta,num,first){ var k=0; delta=first?Math.floor(delta/DAMP):delta>>1; delta+=Math.floor(delta/num);\r\n    for(;delta>((BASE-TMIN)*TMAX)>>1;k+=BASE){ delta=Math.floor(delta/(BASE-TMIN)); }\r\n    return Math.floor(k+(BASE-TMIN+1)*delta/(delta+SKEW)); }\r\n  function punyDecode(input){ input=String(input); var n=INITIAL_N,i=0,bias=INITIAL_BIAS,out=[];\r\n    var basic=input.lastIndexOf(DELIMITER); if(basic<0)basic=0;\r\n    for(var j=0;j<basic;j++){ if(input.charCodeAt(j)>=0x80) return {error:'含非 ASCII 基础字符'}; out.push(input.charCodeAt(j)); }\r\n    var idx=basic>0?basic+1:0;\r\n    while(idx<input.length){ var oldi=i, w=1, k=BASE;\r\n      while(true){ var digit=basicToDigit(input.charCodeAt(idx++)); if(digit<0) return {error:'非法字符'}; i+=digit*w;\r\n        var t=(k<=bias+TMIN)?TMIN:((k>=bias+TMAX)?TMAX:k-bias); if(digit<t)break; w*=(BASE-t); k+=BASE; }\r\n      var len=out.length+1; bias=adapt(i-oldi,len,oldi===0); n+=Math.floor(i/len); var ins=i%len; out.splice(ins,0,n); i=ins+1; }\r\n    return {value:out}; }\r\n  function punyEncode(cp){ var out=[], n=INITIAL_N, delta=0, bias=INITIAL_BIAS, b=0;\r\n    for(var i=0;i<cp.length;i++){ if(cp[i]<0x80){ out.push(cp[i]); b++; } }\r\n    var h=b; if(b>0) out.push(DELIMITER.charCodeAt(0));\r\n    while(h<cp.length){ var m=-1; for(var i2=0;i2<cp.length;i2++){ if(cp[i2]>=n && (m<0||cp[i2]<m)) m=cp[i2]; }\r\n      delta+=(m-n)*(h+1); n=m;\r\n      for(var i3=0;i3<cp.length;i3++){ var c=cp[i3]; if(c<n){delta+=1;continue;} if(c===n){ var q=delta;\r\n        for(var k=BASE;;k+=BASE){ var t=(k<=bias+TMIN)?TMIN:((k>=bias+TMAX)?TMAX:k-bias);\r\n          if(q<t) break; out.push(digitToBasic(t+(q-t)%(BASE-t)).charCodeAt(0)); q=Math.floor((q-t)/(BASE-t)); }\r\n        out.push(digitToBasic(q).charCodeAt(0)); delta=adapt(delta,h+1,h===b); delta=0; n++; h++; } }\r\n      delta++; n++; }\r\n    return {value: out.map(function(x){return String.fromCharCode(x);}).join('')}; }\r\n  function toUnicode(domain){ return String(domain).split('.').map(function(label){ if(label.toLowerCase().indexOf('xn--')===0) return ucs2encode(punyDecode(label.slice(4)).value||[]); return label; }).join('.'); }\r\n  function toASCII(domain){ return String(domain).split('.').map(function(label){ if(/[^\\x00-\\x7f]/.test(label)) return 'xn--'+punyEncode(ucs2decode(label)).value; return label; }).join('.'); }\r\n  var API={toUnicode:toUnicode,toASCII:toASCII,encode:punyEncode,decode:punyDecode};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__PunycodeForge__=API;\r\n})();\r\n"
+}

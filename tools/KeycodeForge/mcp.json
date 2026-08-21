@@ -1,0 +1,67 @@
+{
+  "id": "KeycodeForge",
+  "name": "keycode_forge",
+  "title": "KeycodeForge",
+  "description": "键盘事件查看器：实时捕获 key / code / keyCode、组合键与 macOS 记法、按码反查，离线可用。",
+  "entry": "kcLookup",
+  "entries": {
+    "kcLookup": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "kcGroup": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "kcFromEvent": {
+      "paramStyle": "object",
+      "paramNames": [
+        "e"
+      ],
+      "fields": [
+        "ctrlKey",
+        "altKey",
+        "shiftKey",
+        "metaKey",
+        "key",
+        "code",
+        "keyCode",
+        "location"
+      ]
+    },
+    "kcLabel": {
+      "paramStyle": "single",
+      "paramNames": [
+        "key"
+      ],
+      "fields": []
+    },
+    "kcToAccel": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "evt",
+        "mac"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "number",
+        "description": "输入（code）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar KC_MAP = {\r\n  8:['Backspace','Backspace'], 9:['Tab','Tab'], 13:['Enter','Enter'], 16:['Shift','ShiftLeft'],\r\n  17:['Control','ControlLeft'], 18:['Alt','AltLeft'], 19:['Pause','Pause'], 20:['CapsLock','CapsLock'],\r\n  27:['Escape','Escape'], 32:[' ','Space'], 33:['PageUp','PageUp'], 34:['PageDown','PageDown'],\r\n  35:['End','End'], 36:['Home','Home'], 37:['ArrowLeft','ArrowLeft'], 38:['ArrowUp','ArrowUp'],\r\n  39:['ArrowRight','ArrowRight'], 40:['ArrowDown','ArrowDown'], 45:['Insert','Insert'], 46:['Delete','Delete'],\r\n  91:['Meta','MetaLeft'], 93:['ContextMenu','ContextMenu'], 144:['NumLock','NumLock'],\r\n  186:[';','Semicolon'], 187:['=','Equal'], 188:[',','Comma'], 189:['-','Minus'], 190:['.','Period'],\r\n  191:['/','Slash'], 192:['`','Backquote'], 219:['[','BracketLeft'], 220:['\\\\','Backslash'],\r\n  221:[']','BracketRight'], 222:[\"'\",'Quote']\r\n};\r\nfunction kcLookup(code){\r\n  var c=Number(code);\r\n  if(!(c>=0 && c<=255)) return { error:'keyCode \\u5e94\\u5728 0\\u2013255' };\r\n  if(KC_MAP[c]) return { error:null, keyCode:c, key:KC_MAP[c][0], code:KC_MAP[c][1], group:kcGroup(c) };\r\n  if(c>=48 && c<=57) return { error:null, keyCode:c, key:String.fromCharCode(c), code:'Digit'+String.fromCharCode(c), group:kcGroup(c) };\r\n  if(c>=65 && c<=90) return { error:null, keyCode:c, key:String.fromCharCode(c).toLowerCase(), code:'Key'+String.fromCharCode(c), group:kcGroup(c) };\r\n  if(c>=96 && c<=105) return { error:null, keyCode:c, key:String(c-96), code:'Numpad'+(c-96), group:kcGroup(c) };\r\n  if(c>=112 && c<=123) return { error:null, keyCode:c, key:'F'+(c-111), code:'F'+(c-111), group:kcGroup(c) };\r\n  return { error:null, keyCode:c, key:'Unidentified', code:'Unknown', group:kcGroup(c) };\r\n}\r\nfunction kcGroup(code){\r\n  var c=Number(code);\r\n  if(c>=65 && c<=90) return '\\u5b57\\u6bcd';\r\n  if(c>=48 && c<=57) return '\\u6570\\u5b57';\r\n  if(c>=96 && c<=105) return '\\u5c0f\\u952e\\u76d8';\r\n  if(c>=112 && c<=123) return '\\u529f\\u80fd\\u952e';\r\n  if(c>=37 && c<=40) return '\\u65b9\\u5411\\u952e';\r\n  if([16,17,18,91,93].indexOf(c)>=0) return '\\u4fee\\u9970\\u952e';\r\n  return '\\u63a7\\u5236\\u952e';\r\n}\r\nfunction kcFromEvent(e){\r\n  if(!e) return { error:'\\u65e0\\u4e8b\\u4ef6' };\r\n  var mods=[];\r\n  if(e.ctrlKey) mods.push('Ctrl');\r\n  if(e.altKey) mods.push('Alt');\r\n  if(e.shiftKey) mods.push('Shift');\r\n  if(e.metaKey) mods.push('Meta');\r\n  return { error:null, key:e.key===' '?'Space':e.key, code:e.code, keyCode:e.keyCode,\r\n           mods:mods, combo: mods.concat([kcLabel(e.key)]).join(' + '),\r\n           repeat:!!e.repeat, location:e.location||0 };\r\n}\r\nfunction kcLabel(key){\r\n  if(key===' ') return 'Space';\r\n  if(!key) return '?';\r\n  return key.length===1 ? key.toUpperCase() : key;\r\n}\r\nfunction kcToAccel(evt, mac){\r\n  var r=kcFromEvent(evt);\r\n  if(r.error) return r;\r\n  var parts=r.mods.map(function(m){\r\n    if(!mac) return m;\r\n    return { Ctrl:'\\u2303', Alt:'\\u2325', Shift:'\\u21e7', Meta:'\\u2318' }[m] || m;\r\n  });\r\n  parts.push(kcLabel(evt.key));\r\n  return { error:null, accel: mac ? parts.join('') : parts.join('+') };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { kcLookup:kcLookup, kcGroup:kcGroup, kcFromEvent:kcFromEvent, kcLabel:kcLabel, kcToAccel:kcToAccel, KC_MAP:KC_MAP };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.KeycodeForgePure = { kcLookup:kcLookup, kcGroup:kcGroup, kcFromEvent:kcFromEvent, kcLabel:kcLabel, kcToAccel:kcToAccel, KC_MAP:KC_MAP };\r\n}\r\n\r\n"
+}

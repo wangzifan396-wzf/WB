@@ -1,0 +1,41 @@
+{
+  "id": "GrexForge",
+  "name": "grex_forge",
+  "title": "GrexForge",
+  "description": "从一组示例字符串反推正则：自动提取公共前后缀、按列生成字符类，一键得到可匹配全部样本的 Pattern。",
+  "entry": "fromSamples",
+  "entries": {
+    "fromSamples": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "input",
+        "opt"
+      ],
+      "fields": []
+    },
+    "esc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "第 1 个参数（input）"
+      },
+      "opt": {
+        "type": "object",
+        "description": "第 2 个参数（opt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function esc(s){ return String(s).replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&'); }\r\n  function cls(chars){\r\n    var u={}, order=[];\r\n    for(var i=0;i<chars.length;i++){ var c=chars[i]; if(!(c in u)){u[c]=1;order.push(c);} }\r\n    order.sort();\r\n    var parts=[], i=0;\r\n    while(i<order.length){\r\n      var j=i;\r\n      while(j+1<order.length && order[j+1].charCodeAt(0)-order[j].charCodeAt(0)===1){ j++; }\r\n      if(j>i){ parts.push(order[i]+'-'+order[j]); } else { parts.push(order[i]); }\r\n      i=j+1;\r\n    }\r\n    if(parts.length===1 && parts[0].indexOf('-')<0) return parts[0];\r\n    return '['+parts.join('')+']';\r\n  }\r\n  function code(c){ return c.charCodeAt(0); }\r\n  function pre(s1,s2){ var i=0; while(i<s1.length&&i<s2.length&&s1[i]===s2[i])i++; return i; }\r\n  function commonPrefix(a){ var p=0; for(var i=1;i<a.length;i++){ var n=pre(a[0],a[i]); if(n<p)p=n; else p=n; } return a[0].slice(0,p); }\r\n  function commonSuffix(a){ var sufs=a.map(function(s){return s.split('').reverse().join('');}); var p=0; for(var i=1;i<sufs.length;i++){ var n=pre(sufs[0],sufs[i]); if(n<p)p=n; else p=n; } var k=a[0].length-p; return a[0].slice(k); }\r\n  function fromSamples(input, opt){\r\n    opt=opt||{};\r\n    var ss=String(input||'').split(/\\r?\\n/).map(function(s){return s.replace(/\\r$/,'')}).filter(function(s){return s.length;});\r\n    if(!ss.length) return {error:'请输入示例字符串'};\r\n    if(ss.length===1) return {value:esc(ss[0])};\r\n    var pre=commonPrefix(ss), suf=commonSuffix(ss);\r\n    var mids=ss.map(function(s){return s.slice(pre.length, s.length-suf.length);});\r\n    var body;\r\n    var sameLen=mids.every(function(m){return m.length===mids[0].length;});\r\n    if(mids.every(function(m){return m.length===0;})) body='';\r\n    else if(opt.alternation || !sameLen){\r\n      body='('+mids.map(esc).join('|')+')';\r\n    } else {\r\n      body=mids[0].split('').map(function(_,i){ var col=mids.map(function(m){return m[i];}); return cls(col); }).join('');\r\n    }\r\n    return {value: esc(pre)+body+esc(suf)};\r\n  }\r\n  var API={fromSamples:fromSamples, esc:esc};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__GrexForge__=API;\r\n})();\r\n"
+}

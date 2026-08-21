@@ -1,0 +1,44 @@
+{
+  "id": "FxForge",
+  "name": "fx_forge",
+  "title": "FxForge",
+  "description": "JSON 美化与取值：格式化压缩的 JSON，并按 .a.b[0].c 路径提取字段，结果即时高亮，复制即用。",
+  "entry": "pretty",
+  "entries": {
+    "pretty": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "get": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "t",
+        "path"
+      ],
+      "fields": []
+    },
+    "parsePath": {
+      "paramStyle": "single",
+      "paramNames": [
+        "p"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "t": {
+        "type": "string",
+        "description": "输入（t）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function parsePath(p){\r\n    var s=String(p||'').replace(/^\\./,''); var parts=[],buf='',i=0;\r\n    while(i<s.length){ var c=s[i];\r\n      if(c==='.'){ if(buf)parts.push(buf); buf=''; i++; }\r\n      else if(c==='['){ if(buf)parts.push(buf); buf=''; var j=s.indexOf(']',i); if(j<0){parts.push(s.slice(i));break;} parts.push(s.slice(i,j+1)); i=j+1; }\r\n      else { buf+=c; i++; } }\r\n    if(buf)parts.push(buf); return parts;\r\n  }\r\n  function walk(o,parts){\r\n    var cur=o;\r\n    for(var i=0;i<parts.length;i++){ var p=parts[i]; if(p==='')continue;\r\n      var m=p.match(/^\\[(\\d+)\\]$/); if(m) cur=cur[parseInt(m[1],10)]; else cur=cur[p];\r\n      if(cur===undefined) return {error:'路径不存在'}; }\r\n    return {value:cur};\r\n  }\r\n  function pretty(t){\r\n    var v; try{ v=JSON.parse(t); }catch(e){ return {error:'JSON 解析失败: '+e.message}; }\r\n    return {value:JSON.stringify(v,null,2)};\r\n  }\r\n  function get(t,path){\r\n    var v; try{ v=JSON.parse(t); }catch(e){ return {error:'JSON 解析失败: '+e.message}; }\r\n    var r=walk(v,parsePath(path)); if(r.error)return r;\r\n    return {value: typeof r.value==='object'? JSON.stringify(r.value,null,2): String(r.value)};\r\n  }\r\n  var API={pretty:pretty,get:get,parsePath:parsePath};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__FxForge__=API;\r\n})();\r\n"
+}

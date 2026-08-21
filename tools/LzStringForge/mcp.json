@@ -1,0 +1,51 @@
+{
+  "id": "LzStringForge",
+  "name": "lz_string_forge",
+  "title": "LzStringForge",
+  "description": "LZW 字符串压缩：纯 JS 文本压缩为 Base64、UTF-8 安全、压缩率统计与无损还原，离线可用。",
+  "entry": "lzwCompress",
+  "entries": {
+    "lzwCompress": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "lzwDecompress": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b64"
+      ],
+      "fields": []
+    },
+    "lzRatio": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "src",
+        "packed"
+      ],
+      "fields": []
+    },
+    "utf8Encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar B64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\nfunction utf8Encode(str){\r\n  var out='';\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.charCodeAt(i);\r\n    if(c<128){ out+=String.fromCharCode(c); }\r\n    else if(c<2048){ out+=String.fromCharCode(192|(c>>6), 128|(c&63)); }\r\n    else { out+=String.fromCharCode(224|(c>>12), 128|((c>>6)&63), 128|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction utf8Decode(bin){\r\n  var out='', i=0;\r\n  while(i<bin.length){\r\n    var c=bin.charCodeAt(i);\r\n    if(c<128){ out+=String.fromCharCode(c); i+=1; }\r\n    else if(c>191 && c<224){ out+=String.fromCharCode(((c&31)<<6)|(bin.charCodeAt(i+1)&63)); i+=2; }\r\n    else { out+=String.fromCharCode(((c&15)<<12)|((bin.charCodeAt(i+1)&63)<<6)|(bin.charCodeAt(i+2)&63)); i+=3; }\r\n  }\r\n  return out;\r\n}\r\nfunction b64FromBytes(bytes){\r\n  var out='';\r\n  for(var i=0;i<bytes.length;i+=3){\r\n    var b0=bytes[i]&255;\r\n    var has1=(i+1)<bytes.length, has2=(i+2)<bytes.length;\r\n    var b1=has1?(bytes[i+1]&255):0;\r\n    var b2=has2?(bytes[i+2]&255):0;\r\n    var c0=(b0>>2)&63;\r\n    var c1=((b0&3)<<4)|((b1>>4)&15);\r\n    var c2=has1?((((b1&15)<<2)|((b2>>6)&3))&63):64;\r\n    var c3=has2?(b2&63):64;\r\n    out+=B64.charAt(c0)+B64.charAt(c1)+(c2===64?'=':B64.charAt(c2))+(c3===64?'=':B64.charAt(c3));\r\n  }\r\n  return out;\r\n}\r\nfunction b64ToBytes(s){\r\n  var bytes=[];\r\n  s=String(s).replace(/[^A-Za-z0-9+\\/]/g,'');\r\n  for(var i=0;i<s.length;i+=4){\r\n    var n=s.length-i;\r\n    var e0=B64.indexOf(s.charAt(i));\r\n    var e1=(n>1)?B64.indexOf(s.charAt(i+1)):-1;\r\n    var e2=(n>2)?B64.indexOf(s.charAt(i+2)):-1;\r\n    var e3=(n>3)?B64.indexOf(s.charAt(i+3)):-1;\r\n    if(e0<0 || e1<0) break;\r\n    bytes.push(((e0<<2)|(e1>>4))&255);\r\n    if(e2<0) break;\r\n    bytes.push((((e1&15)<<4)|(e2>>2))&255);\r\n    if(e3<0) break;\r\n    bytes.push((((e2&3)<<6)|e3)&255);\r\n  }\r\n  return bytes;\r\n}\r\nvar LZ_MAX=65536;\r\nfunction lzwCompress(str){\r\n  if(str==='' || str===null || str===undefined) return '';\r\n  var s=utf8Encode(String(str));\r\n  var dict={}, dictSize=256, i, c;\r\n  for(i=0;i<256;i++) dict[String.fromCharCode(i)]=i;\r\n  var w='', result=[];\r\n  for(i=0;i<s.length;i++){\r\n    c=s.charAt(i);\r\n    var wc=w+c;\r\n    if(dict[wc]!==undefined){ w=wc; }\r\n    else { result.push(dict[w]); if(dictSize<LZ_MAX) dict[wc]=dictSize++; w=c; }\r\n  }\r\n  if(w!=='') result.push(dict[w]);\r\n  var bytes=[];\r\n  for(i=0;i<result.length;i++){ var v=result[i]|0; bytes.push((v>>8)&255); bytes.push(v&255); }\r\n  return b64FromBytes(bytes);\r\n}\r\nfunction lzwDecompress(b64){\r\n  if(b64==='' || b64===null || b64===undefined) return '';\r\n  var bytes=b64ToBytes(b64), codes=[], i;\r\n  for(i=0;i+1<bytes.length;i+=2) codes.push((bytes[i]<<8)|bytes[i+1]);\r\n  if(codes.length===0) return '';\r\n  var dict={}, dictSize=256;\r\n  for(i=0;i<256;i++) dict[i]=String.fromCharCode(i);\r\n  if(dict[codes[0]]===undefined) return null;\r\n  var w=dict[codes[0]], out=w, entry='';\r\n  for(i=1;i<codes.length;i++){\r\n    var k=codes[i];\r\n    if(dict[k]!==undefined) entry=dict[k];\r\n    else if(k===dictSize) entry=w+w.charAt(0);\r\n    else return null;\r\n    out+=entry;\r\n    if(dictSize<LZ_MAX) dict[dictSize++]=w+entry.charAt(0);\r\n    w=entry;\r\n  }\r\n  return utf8Decode(out);\r\n}\r\nfunction lzRatio(src, packed){\r\n  var a=utf8Encode(String(src)).length, b=String(packed).length;\r\n  if(a===0) return 0;\r\n  return Math.round((1-(b/a))*1000)/10;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { lzwCompress:lzwCompress, lzwDecompress:lzwDecompress, lzRatio:lzRatio, utf8Encode:utf8Encode }; }\r\nif (typeof window !== 'undefined') { window.LzStringForgePure = { lzwCompress:lzwCompress, lzwDecompress:lzwDecompress, lzRatio:lzRatio, utf8Encode:utf8Encode }; }\r\n\r\n"
+}

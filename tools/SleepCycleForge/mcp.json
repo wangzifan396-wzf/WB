@@ -1,0 +1,60 @@
+{
+  "id": "SleepCycleForge",
+  "name": "sleep_cycle_forge",
+  "title": "SleepCycleForge",
+  "description": "按 90 分钟睡眠周期，由就寝/起床时间算经历周期数与推荐起床点。",
+  "entry": "parseHM",
+  "entries": {
+    "parseHM": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "fmt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "mins"
+      ],
+      "fields": []
+    },
+    "addMinutes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "mins"
+      ],
+      "fields": []
+    },
+    "cyclesBetween": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bed",
+        "wake"
+      ],
+      "fields": []
+    },
+    "recommendedWake": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bed",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pad2(n){ return String(n).padStart(2,'0'); }\r\nfunction parseHM(s){ var p=/^(\\d{1,2}):(\\d{2})$/.exec(s.trim()); if(!p) return null; var h=+p[1],m=+p[2]; if(h>23||m>59) return null; return h*60+m; }\r\nfunction fmt(mins){ mins=((mins%1440)+1440)%1440; return pad2(Math.floor(mins/60))+':'+pad2(mins%60); }\r\nfunction addMinutes(s, mins){ var t=parseHM(s); if(t===null) return null; return fmt(t+mins); }\r\nfunction cyclesBetween(bed, wake){ var a=parseHM(bed), b=parseHM(wake); if(a===null||b===null) return null; var diff=(b-a+1440)%1440; return Math.floor(diff/90); }\r\nfunction recommendedWake(bed, n){ n=n||5; return addMinutes(bed, n*90); }\r\nvar EXPORTS={parseHM:parseHM,fmt:fmt,addMinutes:addMinutes,cyclesBetween:cyclesBetween,recommendedWake:recommendedWake};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SleepCycleForgePure = EXPORTS; }\r\n\r\n"
+}

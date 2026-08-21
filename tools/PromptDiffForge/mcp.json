@@ -1,0 +1,126 @@
+{
+  "id": "PromptDiffForge",
+  "name": "prompt_diff_forge",
+  "title": "PromptDiffForge",
+  "description": "提示词版本对比：LCS 行级差异与词级高亮、token 增减率、六款模型调用成本影响与 prompt lint，离线可用。",
+  "entry": "estimateTokens",
+  "entries": {
+    "estimateTokens": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "lcsMatrix": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "diffLines": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "oldText",
+        "newText"
+      ],
+      "fields": []
+    },
+    "diffStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "wordDiff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "oldLine",
+        "newLine"
+      ],
+      "fields": []
+    },
+    "tokenDelta": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "oldText",
+        "newText"
+      ],
+      "fields": []
+    },
+    "costImpact": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "oldText",
+        "newText",
+        "model",
+        "callsPerDay",
+        "outputTokens"
+      ],
+      "fields": []
+    },
+    "round4": {
+      "paramStyle": "single",
+      "paramNames": [
+        "x"
+      ],
+      "fields": []
+    },
+    "extractVars": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "varDiff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "oldText",
+        "newText"
+      ],
+      "fields": []
+    },
+    "lintPrompt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "compare": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "oldText",
+        "newText",
+        "model",
+        "calls",
+        "outTok"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar PD_MODELS = {\r\n  'gpt-4o':          { input: 2.50,  output: 10.00 },\r\n  'gpt-4o-mini':     { input: 0.15,  output: 0.60  },\r\n  'claude-sonnet':   { input: 3.00,  output: 15.00 },\r\n  'claude-haiku':    { input: 0.80,  output: 4.00  },\r\n  'deepseek-chat':   { input: 0.14,  output: 0.28  },\r\n  'qwen-plus':       { input: 0.11,  output: 0.28  }\r\n};\r\n\r\nfunction estimateTokens(text){\r\n  var s = String(text == null ? '' : text);\r\n  if (!s) return 0;\r\n  var cjk = 0, other = '';\r\n  for (var i = 0; i < s.length; i++){\r\n    var c = s.charCodeAt(i);\r\n    if ((c >= 0x4e00 && c <= 0x9fff) || (c >= 0x3040 && c <= 0x30ff) || (c >= 0xac00 && c <= 0xd7af)) cjk++;\r\n    else other += s.charAt(i);\r\n  }\r\n  return Math.ceil(cjk * 1.6 + other.length / 4);\r\n}\r\n\r\nfunction splitLines(text){\r\n  var s = String(text == null ? '' : text);\r\n  if (s === '') return [];\r\n  return s.replace(/\\r\\n/g, '\\n').split('\\n');\r\n}\r\n\r\nfunction lcsMatrix(a, b){\r\n  var m = a.length, n = b.length, i, j;\r\n  var d = [];\r\n  for (i = 0; i <= m; i++){ d.push(new Array(n + 1)); d[i][0] = 0; }\r\n  for (j = 0; j <= n; j++) d[0][j] = 0;\r\n  for (i = 1; i <= m; i++)\r\n    for (j = 1; j <= n; j++)\r\n      d[i][j] = a[i - 1] === b[j - 1] ? d[i - 1][j - 1] + 1 : (d[i - 1][j] > d[i][j - 1] ? d[i - 1][j] : d[i][j - 1]);\r\n  return d;\r\n}\r\n\r\nfunction diffLines(oldText, newText){\r\n  var a = splitLines(oldText), b = splitLines(newText);\r\n  var d = lcsMatrix(a, b), out = [], i = a.length, j = b.length;\r\n  while (i > 0 || j > 0){\r\n    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]){ out.push({ type: 'same', text: a[i - 1], oldNo: i, newNo: j }); i--; j--; }\r\n    else if (j > 0 && (i === 0 || d[i][j - 1] >= d[i - 1][j])){ out.push({ type: 'add', text: b[j - 1], oldNo: null, newNo: j }); j--; }\r\n    else { out.push({ type: 'del', text: a[i - 1], oldNo: i, newNo: null }); i--; }\r\n  }\r\n  out.reverse();\r\n  return out;\r\n}\r\n\r\nfunction diffStats(rows){\r\n  var s = { added: 0, removed: 0, same: 0 };\r\n  for (var i = 0; i < rows.length; i++){\r\n    if (rows[i].type === 'add') s.added++;\r\n    else if (rows[i].type === 'del') s.removed++;\r\n    else s.same++;\r\n  }\r\n  s.total = rows.length;\r\n  s.changeRatio = rows.length ? Math.round((s.added + s.removed) / rows.length * 10000) / 10000 : 0;\r\n  return s;\r\n}\r\n\r\nfunction wordDiff(oldLine, newLine){\r\n  var a = String(oldLine || '').split(/(\\s+)/).filter(function(x){ return x !== ''; });\r\n  var b = String(newLine || '').split(/(\\s+)/).filter(function(x){ return x !== ''; });\r\n  var d = lcsMatrix(a, b), out = [], i = a.length, j = b.length;\r\n  while (i > 0 || j > 0){\r\n    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]){ out.push({ type: 'same', text: a[i - 1] }); i--; j--; }\r\n    else if (j > 0 && (i === 0 || d[i][j - 1] >= d[i - 1][j])){ out.push({ type: 'add', text: b[j - 1] }); j--; }\r\n    else { out.push({ type: 'del', text: a[i - 1] }); i--; }\r\n  }\r\n  out.reverse();\r\n  return out;\r\n}\r\n\r\nfunction tokenDelta(oldText, newText){\r\n  var a = estimateTokens(oldText), b = estimateTokens(newText);\r\n  return { before: a, after: b, delta: b - a,\r\n           pct: a ? Math.round((b - a) / a * 10000) / 100 : (b ? 100 : 0) };\r\n}\r\n\r\nfunction costImpact(oldText, newText, model, callsPerDay, outputTokens){\r\n  var m = PD_MODELS[model];\r\n  if (!m) return { error: 'unknown model: ' + model };\r\n  callsPerDay = callsPerDay == null ? 1000 : callsPerDay;\r\n  outputTokens = outputTokens == null ? 300 : outputTokens;\r\n  var t = tokenDelta(oldText, newText);\r\n  function daily(inTok){\r\n    return (inTok * m.input + outputTokens * m.output) / 1e6 * callsPerDay;\r\n  }\r\n  var before = daily(t.before), after = daily(t.after);\r\n  return {\r\n    error: null, model: model, tokens: t,\r\n    dailyBefore: round4(before), dailyAfter: round4(after),\r\n    dailyDelta: round4(after - before),\r\n    monthlyDelta: round4((after - before) * 30),\r\n    yearlyDelta: round4((after - before) * 365),\r\n    monthlyDeltaCNY: round4((after - before) * 30 * 7.2)\r\n  };\r\n}\r\n\r\nfunction round4(x){ return Math.round(x * 10000) / 10000; }\r\n\r\nfunction extractVars(text){\r\n  var s = String(text || ''), out = [], seen = {};\r\n  var pats = [/\\{\\{\\s*([\\w.\\-]+)\\s*\\}\\}/g, /\\{\\s*([\\w.\\-]+)\\s*\\}/g, /\\$\\{\\s*([\\w.\\-]+)\\s*\\}/g];\r\n  for (var p = 0; p < pats.length; p++){\r\n    var m;\r\n    while ((m = pats[p].exec(s)) !== null){\r\n      var k = m[1];\r\n      if (!seen[k]){ seen[k] = 1; out.push(k); }\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction varDiff(oldText, newText){\r\n  var a = extractVars(oldText), b = extractVars(newText);\r\n  var sa = {}, sb = {}, i;\r\n  for (i = 0; i < a.length; i++) sa[a[i]] = 1;\r\n  for (i = 0; i < b.length; i++) sb[b[i]] = 1;\r\n  var added = b.filter(function(x){ return !sa[x]; });\r\n  var removed = a.filter(function(x){ return !sb[x]; });\r\n  var kept = b.filter(function(x){ return sa[x]; });\r\n  return { added: added, removed: removed, kept: kept,\r\n           breaking: removed.length > 0 || added.length > 0 };\r\n}\r\n\r\nfunction lintPrompt(text){\r\n  var s = String(text || ''), issues = [];\r\n  var tk = estimateTokens(s);\r\n  if (tk > 4000) issues.push({ level: 'warn', msg: '提示词超过 4000 token，考虑拆分或做检索' });\r\n  if (!s.trim()) issues.push({ level: 'error', msg: '提示词为空' });\r\n  if (/\\bplease\\b/i.test(s) && (s.match(/\\bplease\\b/gi) || []).length > 3)\r\n    issues.push({ level: 'info', msg: '\"please\" 出现多次，礼貌用语不会提升效果，只增加 token' });\r\n  if (/(?:sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16})/.test(s))\r\n    issues.push({ level: 'error', msg: '疑似硬编码密钥，务必移除' });\r\n  if (s.length > 200 && !/\\n/.test(s))\r\n    issues.push({ level: 'info', msg: '长提示词无换行，建议分段以提升可读性与稳定性' });\r\n  var open = (s.match(/\\{\\{/g) || []).length, close = (s.match(/\\}\\}/g) || []).length;\r\n  if (open !== close) issues.push({ level: 'error', msg: '模板占位符 {{ }} 不配对（' + open + ' vs ' + close + '）' });\r\n  if (!/(?:^|\\n)\\s*(?:#|##|\\d+\\.|-\\s)/.test(s) && tk > 300)\r\n    issues.push({ level: 'info', msg: '较长提示词缺少结构化标记（标题/列表），模型解析更易漂移' });\r\n  return { tokens: tk, chars: s.length, issues: issues,\r\n           errors: issues.filter(function(x){ return x.level === 'error'; }).length,\r\n           warnings: issues.filter(function(x){ return x.level === 'warn'; }).length };\r\n}\r\n\r\nfunction compare(oldText, newText, model, calls, outTok){\r\n  var rows = diffLines(oldText, newText);\r\n  return {\r\n    rows: rows, stats: diffStats(rows),\r\n    tokens: tokenDelta(oldText, newText),\r\n    cost: costImpact(oldText, newText, model || 'gpt-4o-mini', calls, outTok),\r\n    vars: varDiff(oldText, newText),\r\n    lintOld: lintPrompt(oldText), lintNew: lintPrompt(newText)\r\n  };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { PD_MODELS:PD_MODELS, estimateTokens:estimateTokens, splitLines:splitLines, lcsMatrix:lcsMatrix, diffLines:diffLines, diffStats:diffStats, wordDiff:wordDiff, tokenDelta:tokenDelta, costImpact:costImpact, round4:round4, extractVars:extractVars, varDiff:varDiff, lintPrompt:lintPrompt, compare:compare }; }\r\nif (typeof window !== 'undefined') { window.PromptDiffForgePure = { PD_MODELS:PD_MODELS, estimateTokens:estimateTokens, splitLines:splitLines, lcsMatrix:lcsMatrix, diffLines:diffLines, diffStats:diffStats, wordDiff:wordDiff, tokenDelta:tokenDelta, costImpact:costImpact, round4:round4, extractVars:extractVars, varDiff:varDiff, lintPrompt:lintPrompt, compare:compare }; }\r\n\r\n"
+}

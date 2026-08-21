@@ -1,0 +1,45 @@
+{
+  "id": "CheckersForge",
+  "name": "checkers_forge",
+  "title": "CheckersForge",
+  "description": "西洋跳棋（Checkers）：红黑双方沿斜线移动，可吃子时必须吃，吃光对方或让对方无子可走即胜，你执红对战机器。",
+  "entry": "ckNew",
+  "entries": {
+    "ckNew": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "ckMoves": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "player"
+      ],
+      "fields": []
+    },
+    "ckApply": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "mv"
+      ],
+      "fields": []
+    },
+    "ckCount": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "player"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\nvar CK_SIZE=8;\r\nfunction ckNew(){ var b=new Array(64).fill(null); for(var r=0;r<3;r++) for(var c=0;c<8;c++){ if((r+c)%2===1) b[r*8+c]='b'; } for(var r2=5;r2<8;r2++) for(var c2=0;c2<8;c2++){ if((r2+c2)%2===1) b[r2*8+c2]='r'; } return b; }\r\nfunction ckInb(r,c){return r>=0&&r<8&&c>=0&&c<8;}\r\nfunction ckDirs(p){ return (p==='r'||p==='R')?[[-1,-1],[-1,1]]:(p==='b'||p==='B')?[[1,-1],[1,1]]:[[-1,-1],[-1,1],[1,-1],[1,1]]; }\r\nfunction ckPromote(player, row){ if(player==='r' && row===0) return true; if(player==='b' && row===7) return true; return false; }\r\nfunction ckMoves(b, player){ var caps=[], steps=[]; for(var i=0;i<64;i++){ var p=b[i]; if(!p||p.toLowerCase()!==player) continue; var r=i/8|0,c=i%8; var dirs=ckDirs(p); dirs.forEach(function(d){ var mr=r+d[0],mc=c+d[1],lr=r+2*d[0],lc=c+2*d[1]; if(ckInb(lr,lc)){ var mid=b[(r+d[0])*8+(c+d[1])]; if(mid && mid.toLowerCase()!==player && !b[lr*8+lc]){ caps.push({from:[r,c],to:[lr,lc],cap:[r+d[0],c+d[1]],promote:ckPromote(player,lr)}); } } var srr=r+d[0], scc=c+d[1]; if(ckInb(srr,scc) && !b[srr*8+scc]){ steps.push({from:[r,c],to:[srr,scc],cap:null,promote:ckPromote(player,srr)}); } }); } return caps.length?caps:steps; }\r\nfunction ckApply(b, mv){ var nb=b.slice(); var pr=mv.from[0]*8+mv.from[1], to=mv.to[0]*8+mv.to[1]; var piece=nb[pr]; nb[pr]=null; if(mv.cap){ nb[mv.cap[0]*8+mv.cap[1]]=null; } if(mv.promote){ piece=(piece==='r')?'R':'B'; } nb[to]=piece; return nb; }\r\nfunction ckCount(b, player){ var n=0; for(var i=0;i<64;i++) if(b[i]&&b[i].toLowerCase()===player) n++; return n; }\r\nvar EXPORTS={ckNew:ckNew,ckMoves:ckMoves,ckApply:ckApply,ckCount:ckCount,CK_SIZE:CK_SIZE};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CheckersForgePure = EXPORTS; }\r\n\r\n"
+}

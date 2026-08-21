@@ -1,0 +1,52 @@
+{
+  "id": "ExprForge",
+  "name": "expr_forge",
+  "title": "ExprForge",
+  "description": "表达式求值器：调度场算法 + RPN，变量 / 函数，无 eval。",
+  "entry": "exprTokenize",
+  "entries": {
+    "exprTokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "exprToRpn": {
+      "paramStyle": "single",
+      "paramNames": [
+        "tokens"
+      ],
+      "fields": []
+    },
+    "exprEvalRpn": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rpn",
+        "vars"
+      ],
+      "fields": []
+    },
+    "exprEval": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "src",
+        "vars"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "src": {
+        "type": "string",
+        "description": "输入（src）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar _FUNCS={ abs:Math.abs, sqrt:Math.sqrt, min:Math.min, max:Math.max,\r\n  floor:Math.floor, ceil:Math.ceil, round:Math.round, log:Math.log, exp:Math.exp,\r\n  sin:Math.sin, cos:Math.cos, tan:Math.tan };\r\nvar _CONSTS={ pi:Math.PI, e:Math.E };\r\nfunction exprTokenize(src){\r\n  var out=[], i=0, s=String(src);\r\n  while(i<s.length){\r\n    var c=s[i];\r\n    if(c===' '||c==='\\t'||c==='\\n'){ i++; continue; }\r\n    if(c>='0'&&c<='9'||c==='.'){\r\n      var j=i;\r\n      while(j<s.length&&(s[j]>='0'&&s[j]<='9'||s[j]==='.')) j++;\r\n      var num=parseFloat(s.slice(i,j));\r\n      if(isNaN(num)) return {value:null, error:'非法数字 at '+i};\r\n      out.push({t:'num', v:num}); i=j; continue;\r\n    }\r\n    if(/[a-zA-Z_]/.test(c)){\r\n      var k=i;\r\n      while(k<s.length&&/[a-zA-Z_0-9]/.test(s[k])) k++;\r\n      out.push({t:'name', v:s.slice(i,k)}); i=k; continue;\r\n    }\r\n    if('+-*/%^(),'.indexOf(c)>=0){ out.push({t:c, v:c}); i++; continue; }\r\n    return {value:null, error:'非法字符 '+c+' at '+i};\r\n  }\r\n  return {value:out, error:null};\r\n}\r\nvar _PREC={'+':1,'-':1,'*':2,'/':2,'%':2,'^':3,'neg':4};\r\nvar _RIGHT={'^':1,'neg':1};\r\nfunction exprToRpn(tokens){\r\n  var out=[], ops=[], prev=null;\r\n  for(var i=0;i<tokens.length;i++){\r\n    var tk=tokens[i];\r\n    if(tk.t==='num'){ out.push(tk); }\r\n    else if(tk.t==='name'){\r\n      if(i+1<tokens.length&&tokens[i+1].t==='('){ ops.push({t:'func', v:tk.v}); }\r\n      else out.push({t:'var', v:tk.v});\r\n    }\r\n    else if(tk.t===','){\r\n      while(ops.length&&ops[ops.length-1].t!=='(') out.push(ops.pop());\r\n      if(!ops.length) return {value:null, error:'逗号位置非法'};\r\n    }\r\n    else if(tk.t==='('){ ops.push(tk); }\r\n    else if(tk.t===')'){\r\n      while(ops.length&&ops[ops.length-1].t!=='(') out.push(ops.pop());\r\n      if(!ops.length) return {value:null, error:'括号不匹配'};\r\n      ops.pop();\r\n      if(ops.length&&ops[ops.length-1].t==='func') out.push(ops.pop());\r\n    }\r\n    else {\r\n      var op=tk.t;\r\n      if(op==='-'&&(prev===null||prev.t==='('||prev.t===','||_PREC[prev.t]||prev.t==='neg')) op='neg';\r\n      while(ops.length){\r\n        var top=ops[ops.length-1];\r\n        if(top.t==='('||top.t==='func') break;\r\n        var tp=_PREC[top.t], cp=_PREC[op];\r\n        if(tp>cp||(tp===cp&&!_RIGHT[op])) out.push(ops.pop());\r\n        else break;\r\n      }\r\n      ops.push({t:op, v:op});\r\n    }\r\n    prev=tk;\r\n  }\r\n  while(ops.length){\r\n    var rest=ops.pop();\r\n    if(rest.t==='(') return {value:null, error:'括号不匹配'};\r\n    out.push(rest);\r\n  }\r\n  return {value:out, error:null};\r\n}\r\nvar _ARITY={ abs:1, sqrt:1, floor:1, ceil:1, round:1, log:1, exp:1, sin:1, cos:1, tan:1, min:2, max:2 };\r\nfunction exprEvalRpn(rpn, vars){\r\n  vars=vars||{};\r\n  var st=[];\r\n  for(var i=0;i<rpn.length;i++){\r\n    var tk=rpn[i];\r\n    if(tk.t==='num'){ st.push(tk.v); }\r\n    else if(tk.t==='var'){\r\n      if(vars.hasOwnProperty(tk.v)){ st.push(Number(vars[tk.v])); }\r\n      else if(_CONSTS.hasOwnProperty(tk.v)){ st.push(_CONSTS[tk.v]); }\r\n      else return {value:null, error:'未定义变量 '+tk.v};\r\n    }\r\n    else if(tk.t==='func'){\r\n      var f=_FUNCS[tk.v];\r\n      if(!f) return {value:null, error:'未知函数 '+tk.v};\r\n      var arity=_ARITY[tk.v];\r\n      if(st.length<arity) return {value:null, error:'函数 '+tk.v+' 参数不足'};\r\n      var args=st.splice(st.length-arity, arity);\r\n      st.push(f.apply(null, args));\r\n    }\r\n    else if(tk.t==='neg'){\r\n      if(st.length<1) return {value:null, error:'一元负号缺操作数'};\r\n      st.push(-st.pop());\r\n    }\r\n    else {\r\n      if(st.length<2) return {value:null, error:'操作符 '+tk.t+' 缺操作数'};\r\n      var b=st.pop(), a=st.pop(), r;\r\n      switch(tk.t){\r\n        case '+': r=a+b; break;\r\n        case '-': r=a-b; break;\r\n        case '*': r=a*b; break;\r\n        case '/': if(b===0) return {value:null, error:'除以零'}; r=a/b; break;\r\n        case '%': if(b===0) return {value:null, error:'模零'}; r=a%b; break;\r\n        case '^': r=Math.pow(a,b); break;\r\n        default: return {value:null, error:'未知操作符 '+tk.t};\r\n      }\r\n      st.push(r);\r\n    }\r\n  }\r\n  if(st.length!==1) return {value:null, error:'表达式不完整'};\r\n  return {value:st[0], error:null};\r\n}\r\nfunction exprEval(src, vars){\r\n  var t=exprTokenize(src);\r\n  if(t.error) return t;\r\n  if(!t.value.length) return {value:null, error:'空表达式'};\r\n  var r=exprToRpn(t.value);\r\n  if(r.error) return r;\r\n  return exprEvalRpn(r.value, vars);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { exprTokenize:exprTokenize, exprToRpn:exprToRpn, exprEvalRpn:exprEvalRpn, exprEval:exprEval };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ExprForgePure = { exprTokenize:exprTokenize, exprToRpn:exprToRpn, exprEvalRpn:exprEvalRpn, exprEval:exprEval };\r\n}\r\n"
+}

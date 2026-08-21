@@ -1,0 +1,55 @@
+{
+  "id": "ConvexHullForge",
+  "name": "convex_hull_forge",
+  "title": "ConvexHullForge",
+  "description": "凸包计算可视化：在画布上随机撒点，用 Graham 扫描（极角排序 + 单调栈）算出包围全部点的最小凸多边形，可重生成并查看周长。",
+  "entry": "chHull",
+  "entries": {
+    "chHull": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pts"
+      ],
+      "fields": []
+    },
+    "chRand": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "w",
+        "h",
+        "seed"
+      ],
+      "fields": []
+    },
+    "chPerim": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    },
+    "chCross": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "o",
+        "a",
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pts": {
+        "type": "string",
+        "description": "输入（pts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction chCross(o,a,b){ return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]); }\r\nfunction chHull(pts){ if(pts.length<3) return pts.map(function(p){return p.slice();}); var pivot=pts[0]; for(var i=1;i<pts.length;i++){ if(pts[i][1]<pivot[1]||(pts[i][1]===pivot[1]&&pts[i][0]<pivot[0])) pivot=pts[i]; } var rest=pts.filter(function(p){return !(p[0]===pivot[0]&&p[1]===pivot[1]);}); rest.sort(function(a,b){ var aa=Math.atan2(a[1]-pivot[1],a[0]-pivot[0]); var ba=Math.atan2(b[1]-pivot[1],b[0]-pivot[0]); if(aa!==ba) return aa-ba; var da=(a[0]-pivot[0])*(a[0]-pivot[0])+(a[1]-pivot[1])*(a[1]-pivot[1]); var db=(b[0]-pivot[0])*(b[0]-pivot[0])+(b[1]-pivot[1])*(b[1]-pivot[1]); return da-db; }); var hull=[pivot]; for(var k=0;k<rest.length;k++){ var p=rest[k]; while(hull.length>=2 && chCross(hull[hull.length-2],hull[hull.length-1],p)<=0) hull.pop(); hull.push(p); } return hull; }\r\nfunction chRand(n, w, h, seed){ var pts=[]; var s=seed||3; function rnd(){ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; } for(var i=0;i<n;i++) pts.push([Math.floor(rnd()*(w-30))+15, Math.floor(rnd()*(h-30))+15]); return pts; }\r\nfunction chPerim(h){ var p=0; for(var i=0;i<h.length;i++){ var a=h[i], b=h[(i+1)%h.length]; p+=Math.sqrt((a[0]-b[0])*(a[0]-b[0])+(a[1]-b[1])*(a[1]-b[1])); } return p; }\r\nvar EXPORTS={chHull:chHull,chRand:chRand,chPerim:chPerim,chCross:chCross};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ConvexHullForgePure = EXPORTS; }\r\n\r\n"
+}

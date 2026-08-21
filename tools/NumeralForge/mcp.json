@@ -1,0 +1,36 @@
+{
+  "id": "NumeralForge",
+  "name": "numeral_forge",
+  "title": "NumeralForge",
+  "description": "数字转英文单词与人民币大写金额，支持负数与小数。",
+  "entry": "toEnglish",
+  "entries": {
+    "toEnglish": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "toChineseCapital": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "输入（n）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction nfToEnglish(n){\r\n  if(typeof n==='string'){ n = n.trim().replace(/,/g,''); }\r\n  var neg=false;\r\n  if(typeof n==='string'){ if(n.charAt(0)==='-'){ neg=true; n=n.slice(1); } }\r\n  else if(typeof n==='number'){ if(n<0){ neg=true; n=-n; } }\r\n  var parts=String(n).split('.');\r\n  var intPart=parts[0]; var decPart=parts[1];\r\n  if(!/^[0-9]+$/.test(intPart)) return {error:'Invalid number'};\r\n  var ones=['','one','two','three','four','five','six','seven','eight','nine','ten',\r\n            'eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];\r\n  var tens=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];\r\n  var scales=['','thousand','million','billion','trillion','quadrillion','quintillion'];\r\n  function chunkToWords(num){\r\n    if(num===0) return '';\r\n    var s='';\r\n    var h=Math.floor(num/100);\r\n    if(h>0){ s+=ones[h]+' hundred'; }\r\n    var r=num%100;\r\n    if(r>0){\r\n      if(s!=='') s+=' ';\r\n      if(r<20) s+=ones[r];\r\n      else { s+=tens[Math.floor(r/10)]; if(r%10>0) s+='-'+ones[r%10]; }\r\n    }\r\n    return s;\r\n  }\r\n  function groupWords(intStr){\r\n    if(intStr==='0') return 'zero';\r\n    var groups=[];\r\n    while(intStr.length>0){ groups.unshift(intStr.slice(-3)); intStr=intStr.slice(0,-3); }\r\n    var words=[];\r\n    for(var g=0;g<groups.length;g++){\r\n      var v=parseInt(groups[g],10);\r\n      if(v===0) continue;\r\n      var w=chunkToWords(v);\r\n      if(scales[groups.length-1-g]!=='') w+=' '+scales[groups.length-1-g];\r\n      words.push(w);\r\n    }\r\n    return words.join(' ');\r\n  }\r\n  var res=groupWords(intPart);\r\n  if(decPart){\r\n    var decWords=[];\r\n    for(var i=0;i<decPart.length;i++){ var d=parseInt(decPart.charAt(i),10); decWords.push(ones[d]||String(d)); }\r\n    res+=' point '+decWords.join(' ');\r\n  }\r\n  if(neg) res='negative '+res;\r\n  return {value:res, error:null};\r\n}\r\nfunction nfToChineseCapital(n){\r\n  if(typeof n==='string'){ n=n.trim().replace(/,/g,''); }\r\n  var neg=false;\r\n  if(typeof n==='string'){ if(n.charAt(0)==='-'){ neg=true; n=n.slice(1); } }\r\n  else if(typeof n==='number'){ if(n<0){ neg=true; n=-n; } }\r\n  if(typeof n==='number') n=String(n);\r\n  if(!/^[0-9]+(\\.[0-9]{1,2})?$/.test(n)) return {error:'Invalid number'};\r\n  var digits='\\u96f6\\u58f9\\u8d30\\u53c1\\u8086\\u4f0d\\u9646\\u67d2\\u634c\\u7396';\r\n  var units=['','\\u62fe','\\u4f70','\\u4edf'];\r\n  var bigUnits=['','\\u4e07','\\u4ebf'];\r\n  var intStr=n.split('.')[0];\r\n  var decStr=n.split('.')[1]||'';\r\n  function intToCap(s){\r\n    if(s==='0') return '\\u96f6';\r\n    s=s.replace(/^0+/,'')||'0';\r\n    var len=s.length;\r\n    var secs=[];\r\n    while(s.length>0){ secs.unshift(s.slice(-4)); s=s.slice(0,-4); }\r\n    var out='';\r\n    for(var i=0;i<secs.length;i++){\r\n      var sec=secs[i];\r\n      var secWords='';\r\n      var started=false;\r\n      for(var p=0;p<sec.length;p++){\r\n        var d=parseInt(sec.charAt(p),10);\r\n        var pos=sec.length-1-p;\r\n        if(d===0){\r\n          if(started && !out.endsWith('\\u96f6') && sectionHasNonZero(sec,p)){ /* handled below */ }\r\n        } else { started=true; }\r\n      }\r\n      // straightforward per-digit with 零 handling\r\n      var secStr=''; var zeroPending=false;\r\n      for(var q=0;q<sec.length;q++){\r\n        var dd=parseInt(sec.charAt(q),10);\r\n        var pp=sec.length-1-q;\r\n        if(dd===0){\r\n          if(!zeroPending && (sectionHasNonZero(sec,q))) zeroPending=true;\r\n        } else {\r\n          if(zeroPending){ secStr+='\\u96f6'; zeroPending=false; }\r\n          secStr+=digits.charAt(dd)+units[pp];\r\n        }\r\n      }\r\n      if(secStr!=='') out+=secStr+bigUnits[secs.length-1-i];\r\n    }\r\n    out=out.replace(/\\u96f6+/g,'\\u96f6').replace(/\\u96f6\\u4e07/g,'\\u4e07').replace(/\\u96f6\\u4ebf/g,'\\u4ebf');\r\n    return out;\r\n  }\r\n  function sectionHasNonZero(sec, beforeIdx){\r\n    for(var i=beforeIdx+1;i<sec.length;i++){ if(sec.charAt(i)!=='0') return true; }\r\n    return false;\r\n  }\r\n  if(intStr==='0' && decStr==='') return {value:'\\u96f6\\u5143\\u6574', error:null};\r\n  var cap=intToCap(intStr);\r\n  var tail='\\u5143';\r\n  if(decStr===''){ tail+='\\u6574'; }\r\n  else {\r\n    var jiao=parseInt(decStr.charAt(0),10);\r\n    var fen=decStr.length>1?parseInt(decStr.charAt(1),10):0;\r\n    if(jiao>0) tail+=digits.charAt(jiao)+'\\u89d2';\r\n    else if(fen>0) tail+='\\u96f6';\r\n    if(fen>0) tail+=digits.charAt(fen)+'\\u5206';\r\n    if(fen===0) tail+='\\u6574';\r\n  }\r\n  var val=(neg?'\\u8d1f':'')+cap+tail;\r\n  return {value:val, error:null};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { toEnglish:nfToEnglish, toChineseCapital:nfToChineseCapital };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.NumeralForgePure = { toEnglish:nfToEnglish, toChineseCapital:nfToChineseCapital };\r\n}\r\n"
+}

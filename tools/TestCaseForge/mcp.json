@@ -1,0 +1,43 @@
+{
+  "id": "TestCaseForge",
+  "name": "test_case_forge",
+  "title": "测试用例生成",
+  "description": "按需求逐条生成 正常 / 边界 / 负面 三类结构化测试用例表，离线。",
+  "entry": "splitReqs",
+  "entries": {
+    "splitReqs": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "genCases": {
+      "paramStyle": "single",
+      "paramNames": [
+        "reqs"
+      ],
+      "fields": []
+    },
+    "toMarkdown": {
+      "paramStyle": "single",
+      "paramNames": [
+        "reqs"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitReqs(text){\r\n  return String(text||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});\r\n}\r\nfunction genCases(reqs){\r\n  reqs = splitReqs(reqs);\r\n  var cases=[];\r\n  reqs.forEach(function(req, i){\r\n    var id='TC'+(i+1);\r\n    cases.push({id:id+'-P', req:req, type:'正常流程',\r\n      pre:'系统已登录且功能可用', step:'按预期方式操作：'+req, expect:'功能按需求正常工作，结果符合预期'});\r\n    cases.push({id:id+'-B', req:req, type:'边界值',\r\n      pre:'处于输入/状态边界', step:'使用边界值（最小/最大/空/临界）执行：'+req, expect:'系统在边界下行为确定、不崩溃、数据一致'});\r\n    cases.push({id:id+'-N', req:req, type:'异常/负面',\r\n      pre:'提供非法或异常输入', step:'以异常方式操作：'+req, expect:'系统给出明确错误提示并安全拒绝，状态不变'});\r\n  });\r\n  return {count:cases.length, reqCount:reqs.length, cases:cases};\r\n}\r\nfunction toMarkdown(reqs){\r\n  var r=genCases(reqs);\r\n  var lines=['# 测试用例','| 用例ID | 需求 | 类型 | 前置条件 | 步骤 | 预期结果 |',\r\n             '|--------|------|------|----------|------|----------|'];\r\n  r.cases.forEach(function(c){ lines.push('| '+c.id+' | '+c.req+' | '+c.type+' | '+c.pre+' | '+c.step+' | '+c.expect+' |'); });\r\n  return {markdown:lines.join('\\n'), count:r.count, reqCount:r.reqCount};\r\n}\r\nvar EXPORTS={splitReqs:splitReqs, genCases:genCases, toMarkdown:toMarkdown};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TestCaseForgePure = EXPORTS; }\r\n\r\n"
+}

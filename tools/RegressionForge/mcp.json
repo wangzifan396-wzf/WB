@@ -1,0 +1,71 @@
+{
+  "id": "RegressionForge",
+  "name": "regression_forge",
+  "title": "RegressionForge",
+  "description": "多项式最小二乘回归：拖动阶数滑块，曲线实时贴合带噪声散点并显示 R²。",
+  "entry": "regFit",
+  "entries": {
+    "regFit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "xs",
+        "ys",
+        "deg"
+      ],
+      "fields": []
+    },
+    "regPredict": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "c",
+        "x"
+      ],
+      "fields": []
+    },
+    "regR2": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "xs",
+        "ys",
+        "c"
+      ],
+      "fields": []
+    },
+    "regDesign": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "xs",
+        "deg"
+      ],
+      "fields": []
+    },
+    "_rng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "xs": {
+        "type": "string",
+        "description": "第 1 个参数（xs）"
+      },
+      "ys": {
+        "type": "string",
+        "description": "第 2 个参数（ys）"
+      },
+      "deg": {
+        "type": "string",
+        "description": "第 3 个参数（deg）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction regDesign(xs, deg){\r\n  var X=[]; for(var i=0;i<xs.length;i++){ var row=[1]; var p=xs[i]; for(var j=1;j<=deg;j++){ row.push(p); p*=xs[i]; } X.push(row); }\r\n  return X;\r\n}\r\nfunction regSolve(A, b){\r\n  var n=A.length; var M=[], bb=[]; for(var i=0;i<n;i++){ M.push(A[i].slice()); bb.push(b[i]); }\r\n  for(var col=0;col<n;col++){\r\n    var piv=col; for(var r=col+1;r<n;r++) if(Math.abs(M[r][col])>Math.abs(M[piv][col])) piv=r;\r\n    var t=M[col]; M[col]=M[piv]; M[piv]=t; var tb=bb[col]; bb[col]=bb[piv]; bb[piv]=tb;\r\n    var d=M[col][col]||1e-9;\r\n    for(var r=0;r<n;r++){ if(r===col) continue; var f=M[r][col]/d; for(var c=col;c<n;c++) M[r][c]-=f*M[col][c]; bb[r]-=f*bb[col]; }\r\n  }\r\n  var x=[]; for(var i=0;i<n;i++) x.push(bb[i]/(M[i][i]||1e-9)); return x;\r\n}\r\nfunction regFit(xs, ys, deg){\r\n  var X=regDesign(xs,deg); var p=deg+1; var AtA=[], Aty=[];\r\n  for(var i=0;i<p;i++){ AtA.push(new Array(p).fill(0)); Aty.push(0); }\r\n  for(var r=0;r<X.length;r++){ for(var i=0;i<p;i++){ Aty[i]+=X[r][i]*ys[r]; for(var j=0;j<p;j++) AtA[i][j]+=X[r][i]*X[r][j]; } }\r\n  return regSolve(AtA, Aty);\r\n}\r\nfunction regPredict(c, x){ var s=c[0]; var p=x; for(var i=1;i<c.length;i++){ s+=c[i]*p; p*=x; } return s; }\r\nfunction regR2(xs, ys, c){ var m=0; for(var i=0;i<ys.length;i++) m+=ys[i]; m/=ys.length;\r\n  var ss=0, sr=0; for(var i=0;i<ys.length;i++){ var pr=regPredict(c,xs[i]); ss+=(ys[i]-pr)*(ys[i]-pr); sr+=(ys[i]-m)*(ys[i]-m); }\r\n  return sr===0?1:1-ss/sr; }\r\nfunction _rng(seed){ var s=seed>>>0||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nvar EXPORTS={regFit:regFit, regPredict:regPredict, regR2:regR2, regDesign:regDesign, _rng:_rng};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RegressionForgePure = EXPORTS; }\r\n\r\n"
+}

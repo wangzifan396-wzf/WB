@@ -1,0 +1,60 @@
+{
+  "id": "RunbookForge",
+  "name": "runbook_forge",
+  "title": "运维手册生成",
+  "description": "按服务名 / 故障级别 / 告警场景生成 Runbook（SLA+响应流程+场景处置+升级路径），离线。",
+  "entry": "buildRunbook",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "sla": {
+      "paramStyle": "single",
+      "paramNames": [
+        "level"
+      ],
+      "fields": []
+    },
+    "buildRunbook": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "service",
+        "level",
+        "scenes",
+        "contact"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "service": {
+        "type": "string",
+        "description": "参数 service"
+      },
+      "level": {
+        "type": "string",
+        "description": "参数 level"
+      },
+      "scenes": {
+        "type": "string",
+        "description": "参数 scenes"
+      },
+      "contact": {
+        "type": "string",
+        "description": "参数 contact"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction sla(level){\r\n  level=String(level||'P1');\r\n  if(level.indexOf('P0')>=0) return {respond:5, mitigate:30, desc:'全面事故，最高优先级处理'};\r\n  if(level.indexOf('P2')>=0) return {respond:60, mitigate:1440, desc:'一般故障，工作时间内处理'};\r\n  return {respond:15, mitigate:120, desc:'重要故障，需尽快恢复服务'};\r\n}\r\nfunction buildRunbook(o){\r\n  o=o||{};\r\n  var service=String(o.service||'').trim()||'（待填写服务名）';\r\n  var level=String(o.level||'P1');\r\n  var scenes=splitLines(o.scenes);\r\n  if(!scenes.length) scenes=['服务 5xx 错误率升高','核心接口响应延迟异常'];\r\n  var contact=String(o.contact||'').trim()||'值班电话 / 企业微信群';\r\n  var s=sla(level);\r\n  var steps=['确认告警真实性并截图留痕','查看监控大盘与最近变更（发布 / 配置 / 依赖）','评估影响面（用户量与核心链路）','按场景处置手册执行缓解','通报进展并记录时间线','恢复后 48 小时内完成复盘'];\r\n  var lines=[];\r\n  lines.push('# Runbook：'+service+'（'+level+'）');\r\n  lines.push('');\r\n  lines.push('## 一、响应目标（SLA）');\r\n  lines.push('- 响应时限：'+s.respond+' 分钟内确认告警');\r\n  lines.push('- 缓解时限：'+s.mitigate+' 分钟内恢复或降级');\r\n  lines.push('- 级别说明：'+s.desc);\r\n  lines.push('');\r\n  lines.push('## 二、响应流程');\r\n  steps.forEach(function(st,i){ lines.push((i+1)+'. '+st); });\r\n  lines.push('');\r\n  lines.push('## 三、场景处置手册');\r\n  scenes.forEach(function(sc,i){\r\n    lines.push('### 场景 '+(i+1)+'：'+sc);\r\n    lines.push('- 排查：查看相关日志与指标（错误率 / 延迟 / QPS）');\r\n    lines.push('- 处置：优先回滚最近变更，其次降级或扩容');\r\n    lines.push('- 验证：核心接口探活通过后持续观察 15 分钟');\r\n    lines.push('');\r\n  });\r\n  lines.push('## 四、升级路径');\r\n  lines.push('- 一线值班 → '+contact);\r\n  lines.push('- 超时未缓解：升级至服务负责人与二线 on-call');\r\n  lines.push('');\r\n  lines.push('## 五、复盘要求');\r\n  lines.push('- 输出时间线 / 根因 / 行动项（负责人 + 截止日期）');\r\n  return {title:service+' Runbook', level:level, respondMinutes:s.respond,\r\n          mitigateMinutes:s.mitigate, sceneCount:scenes.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, sla:sla, buildRunbook:buildRunbook};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RunbookForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,72 @@
+{
+  "id": "VarintForge",
+  "name": "varint_forge",
+  "title": "VarintForge",
+  "description": "protobuf varint + ZigZag 变长整数编解码，hex 字节流互转。",
+  "entry": "viZigzagEncode",
+  "entries": {
+    "viZigzagEncode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "viZigzagDecode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "z"
+      ],
+      "fields": []
+    },
+    "viEncode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "viDecodeOne": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "offset"
+      ],
+      "fields": []
+    },
+    "viDecodeStream": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "viHexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hex"
+      ],
+      "fields": []
+    },
+    "viBytesToHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "输入（n）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar VI_MAX = 9007199254740991; // Number.MAX_SAFE_INTEGER\r\nfunction viZigzagEncode(n){\r\n  if(n<0) return -2*n-1;\r\n  return 2*n;\r\n}\r\nfunction viZigzagDecode(z){\r\n  if(z%2===0) return z/2;\r\n  return -(z+1)/2;\r\n}\r\nfunction viEncode(n){\r\n  if(typeof n!=='number'||!isFinite(n)||Math.floor(n)!==n) return { value:null, error:'必须是整数' };\r\n  if(n<0) return { value:null, error:'varint 不接受负数，请启用 ZigZag' };\r\n  if(n>VI_MAX) return { value:null, error:'超出安全整数范围' };\r\n  var out=[];\r\n  while(n>=128){\r\n    out.push((n%128)|0x80);\r\n    n=Math.floor(n/128);\r\n  }\r\n  out.push(n);\r\n  return { value:out, error:null };\r\n}\r\nfunction viDecodeOne(bytes, offset){\r\n  var result=0, shift=1, i=offset||0;\r\n  for(;;){\r\n    if(i>=bytes.length) return { value:null, length:0, error:'字节流截断' };\r\n    var b=bytes[i];\r\n    result+=(b&0x7f)*shift;\r\n    if(result>VI_MAX) return { value:null, length:0, error:'超出安全整数范围' };\r\n    i++;\r\n    if((b&0x80)===0) break;\r\n    shift*=128;\r\n  }\r\n  return { value:result, length:i-(offset||0), error:null };\r\n}\r\nfunction viDecodeStream(bytes){\r\n  var out=[], i=0;\r\n  while(i<bytes.length){\r\n    var r=viDecodeOne(bytes, i);\r\n    if(r.error) return { value:null, error:r.error+' (offset '+i+')' };\r\n    out.push(r.value); i+=r.length;\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nfunction viHexToBytes(hex){\r\n  var s=String(hex).replace(/[\\s,]+/g,'').toLowerCase();\r\n  if(s.length%2!==0) return { value:null, error:'hex 长度必须为偶数' };\r\n  if(!/^[0-9a-f]*$/.test(s)) return { value:null, error:'非法 hex 字符' };\r\n  var out=[];\r\n  for(var i=0;i<s.length;i+=2) out.push(parseInt(s.substr(i,2),16));\r\n  return { value:out, error:null };\r\n}\r\nfunction viBytesToHex(bytes){\r\n  return bytes.map(function(b){ var h=b.toString(16); return h.length<2?'0'+h:h; }).join(' ');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { viZigzagEncode:viZigzagEncode, viZigzagDecode:viZigzagDecode,\r\n    viEncode:viEncode, viDecodeOne:viDecodeOne, viDecodeStream:viDecodeStream,\r\n    viHexToBytes:viHexToBytes, viBytesToHex:viBytesToHex };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.VarintForgePure = { viZigzagEncode:viZigzagEncode, viZigzagDecode:viZigzagDecode,\r\n    viEncode:viEncode, viDecodeOne:viDecodeOne, viDecodeStream:viDecodeStream,\r\n    viHexToBytes:viHexToBytes, viBytesToHex:viBytesToHex };\r\n}\r\n"
+}

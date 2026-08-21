@@ -1,0 +1,42 @@
+{
+  "id": "ProteinFoldForge",
+  "name": "protein_fold_forge",
+  "title": "ProteinFoldForge",
+  "description": "HP 格点模型蛋白质折叠：回溯搜索最小化 H-H 接触能，离线可用。",
+  "entry": "foldHP",
+  "entries": {
+    "foldHP": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "seq",
+        "limit"
+      ],
+      "fields": []
+    },
+    "countContacts": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "seq"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seq": {
+        "type": "string",
+        "description": "第 1 个参数（seq）"
+      },
+      "limit": {
+        "type": "number",
+        "description": "第 2 个参数（limit）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar PM=[[1,0],[-1,0],[0,1],[0,-1]];\r\nfunction gridMap(n){ var g={}; for(var i=0;i<n.length;i++) g[n[i][0]+','+n[i][1]]=i; return g; }\r\nfunction countContacts(n, seq){ var g=gridMap(n); var c=0;\r\n  for(var i=0;i<n.length;i++){ if(seq[i]!=='H') continue; var p=n[i];\r\n    for(var t=0;t<4;t++){ var key=(p[0]+PM[t][0])+','+(p[1]+PM[t][1]); if(g[key]!==undefined){ var j=g[key];\r\n      if(j!==i && j!==i-1 && j!==i+1 && seq[j]==='H') c++; } } }\r\n  return c/2; }\r\nfunction foldHP(seq, limit){ limit=limit||200000; var used={}; var nodes=[[0,0]]; used['0,0']=1;\r\n  var best={energy:0, path:null}; var cnt=0;\r\n  function back(k){ if(cnt>limit) return; cnt++;\r\n    if(k===seq.length){ var e=-countContacts(nodes,seq); if(e<=best.energy){ best={energy:e, path:nodes.map(function(p){return [p[0],p[1]];})}; } return; }\r\n    var last=nodes[nodes.length-1];\r\n    for(var d=0;d<4;d++){ var nx=last[0]+PM[d][0], ny=last[1]+PM[d][1], key=nx+','+ny;\r\n      if(used[key]) continue; used[key]=1; nodes.push([nx,ny]); back(k+1); nodes.pop(); delete used[key]; } }\r\n  if(seq.length>0) back(1);\r\n  return best;\r\n}\r\nvar EXPORTS={foldHP:foldHP, countContacts:countContacts};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ProteinFoldForgePure = EXPORTS; }\r\n\r\n"
+}

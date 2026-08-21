@@ -1,0 +1,39 @@
+{
+  "id": "SalaryForge",
+  "name": "salary_forge",
+  "title": "SalaryForge",
+  "description": "按示例累进税率表估算个税与税后月薪，可调免税额。",
+  "entry": "netSalary",
+  "entries": {
+    "netSalary": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "gross",
+        "allowances",
+        "brackets"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "gross": {
+        "type": "string",
+        "description": "第 1 个参数（gross）"
+      },
+      "allowances": {
+        "type": "string",
+        "description": "第 2 个参数（allowances）"
+      },
+      "brackets": {
+        "type": "string",
+        "description": "第 3 个参数（brackets）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar DEFAULT_BR=[{up:3000,rate:0.03},{up:12000,rate:0.1},{up:25000,rate:0.2},{up:1e9,rate:0.25}];\r\nfunction netSalary(gross, allowances, brackets){\r\n  var taxable=gross-allowances; if(taxable<0) taxable=0;\r\n  var tax=0, prev=0;\r\n  for(var i=0;i<brackets.length;i++){ var b=brackets[i]; var portion=Math.max(0, Math.min(taxable, b.up)-prev); tax += portion*b.rate; prev=b.up; }\r\n  return {tax:+tax.toFixed(2), net:+(gross-tax).toFixed(2), taxable:+taxable.toFixed(2)};\r\n}\r\nvar EXPORTS={netSalary:netSalary, DEFAULT_BR:DEFAULT_BR};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SalaryForgePure = EXPORTS; }\r\n\r\n"
+}

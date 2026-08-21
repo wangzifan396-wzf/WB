@@ -1,0 +1,34 @@
+{
+  "id": "PhylogeneticForge",
+  "name": "phylogenetic_forge",
+  "title": "PhylogeneticForge",
+  "description": "系统发育树（UPGMA 层次聚类）：由距离矩阵逐步合并最近类群，估计进化树与分歧高度，离线。",
+  "entry": "upgma",
+  "entries": {
+    "upgma": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "labels",
+        "D"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "labels": {
+        "type": "string",
+        "description": "第 1 个参数（labels）"
+      },
+      "D": {
+        "type": "string",
+        "description": "第 2 个参数（D）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction upgma(labels, D){\r\n  var n=labels.length;\r\n  var clusters=labels.slice();\r\n  var sizes=labels.map(function(){return 1;});\r\n  var d=D.map(function(r){return r.slice();});\r\n  var height=labels.map(function(){return 0;});\r\n  while(clusters.length>1){\r\n    var mi=0,mj=1,mn=Infinity;\r\n    for(var i=0;i<clusters.length;i++) for(var j=i+1;j<clusters.length;j++){ if(d[i][j]<mn){mn=d[i][j];mi=i;mj=j;} }\r\n    var h=mn/2;\r\n    var ni=sizes[mi], nj=sizes[mj], ns=ni+nj;\r\n    var newRow=[]; for(var k=0;k<clusters.length;k++){ if(k===mi||k===mj) continue; newRow.push((d[mi][k]*ni+d[mj][k]*nj)/ns); }\r\n    var idx=[]; for(var a=0;a<clusters.length;a++){ if(a!==mi&&a!==mj) idx.push(a); }\r\n    var nd=[]; for(var a=0;a<idx.length;a++){ var row=[]; for(var b=0;b<idx.length;b++){ row.push(d[idx[a]][idx[b]]); } row.push(newRow[a]); nd.push(row); }\r\n    var lastRow=newRow.slice(); lastRow.push(0); nd.push(lastRow);\r\n    var nc=[], nsz=[], nh=[]; for(var a=0;a<idx.length;a++){ nc.push(clusters[idx[a]]); nsz.push(sizes[idx[a]]); nh.push(height[idx[a]]); }\r\n    nc.push(clusters[mi]+\"/\"+clusters[mj]); nsz.push(ns); nh.push(h);\r\n    clusters=nc; sizes=nsz; height=nh; d=nd;\r\n  }\r\n  return {root:clusters[0], height:height[0]};\r\n}\r\nvar EXPORTS={upgma:upgma};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PhylogeneticForgePure = EXPORTS; }\r\n\r\n"
+}

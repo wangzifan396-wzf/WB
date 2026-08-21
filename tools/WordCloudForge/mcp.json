@@ -1,0 +1,60 @@
+{
+  "id": "WordCloudForge",
+  "name": "word_cloud_forge",
+  "title": "WordCloudForge",
+  "description": "词云生成：中英分词 + 螺旋布局 + AABB 碰撞，高频大字。",
+  "entry": "wcTokenize",
+  "entries": {
+    "wcTokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "wcCount": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tokens",
+        "opts"
+      ],
+      "fields": []
+    },
+    "wcLayout": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "freqs",
+        "opts"
+      ],
+      "fields": []
+    },
+    "wcSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opts"
+      ],
+      "fields": []
+    },
+    "wcEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar WC_STOP={'the':1,'a':1,'an':1,'and':1,'or':1,'of':1,'to':1,'in':1,'is':1,'are':1,'was':1,'be':1,'on':1,'for':1,'with':1,'that':1,'this':1,'it':1,'as':1,'at':1,'by':1,'from':1,'not':1,'but':1,'means':1,'need':1};\r\nfunction wcTokenize(text){\r\n  if(typeof text!=='string'||!text.trim()) return { value:null, error:'文本为空' };\r\n  var out=[], re=/[a-zA-Z][a-zA-Z0-9'-]*|[\\u4e00-\\u9fa5]+|\\d+/g, m;\r\n  while((m=re.exec(text))!==null){\r\n    var t=m[0];\r\n    if(/^[\\u4e00-\\u9fa5]+$/.test(t)){\r\n      if(t.length<=2){ out.push(t); }\r\n      else { for(var i=0;i+2<=t.length;i++) out.push(t.slice(i,i+2)); }\r\n    } else out.push(t.toLowerCase());\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nfunction wcCount(tokens, opts){\r\n  var o=opts||{}, stop=o.stopwords!==false, min=o.minLen||2;\r\n  var map={};\r\n  for(var i=0;i<tokens.length;i++){\r\n    var t=tokens[i];\r\n    if(t.length<min) continue;\r\n    if(stop && WC_STOP[t]) continue;\r\n    map[t]=(map[t]||0)+1;\r\n  }\r\n  var arr=Object.keys(map).map(function(k){ return { word:k, count:map[k] }; });\r\n  arr.sort(function(a,b){ return b.count-a.count || (a.word<b.word?-1:1); });\r\n  return arr;\r\n}\r\nfunction wcLayout(freqs, opts){\r\n  var o=opts||{}, W=o.width||640, H=o.height||360, maxN=o.max||40;\r\n  var items=freqs.slice(0,maxN);\r\n  if(!items.length) return { value:null, error:'无有效词' };\r\n  var top=items[0].count, low=items[items.length-1].count;\r\n  var placed=[];\r\n  function box(x,y,w,h){ return { x:x-w/2, y:y-h/2, w:w, h:h }; }\r\n  function hits(b){\r\n    if(b.x<0||b.y<0||b.x+b.w>W||b.y+b.h>H) return true;\r\n    for(var i=0;i<placed.length;i++){\r\n      var p=placed[i].bb;\r\n      if(b.x<p.x+p.w && b.x+b.w>p.x && b.y<p.y+p.h && b.y+b.h>p.y) return true;\r\n    }\r\n    return false;\r\n  }\r\n  for(var i=0;i<items.length;i++){\r\n    var f=items[i];\r\n    var size=top===low?24:Math.round(14+(f.count-low)/(top-low)*30);\r\n    var w=f.word.length*size*0.62+6, h=size*1.15;\r\n    var ang=0, r=0, done=false;\r\n    while(r<Math.max(W,H)){\r\n      var x=W/2+r*Math.cos(ang), y=H/2+r*Math.sin(ang)*0.62;\r\n      var b=box(x,y,w,h);\r\n      if(!hits(b)){ placed.push({ word:f.word, count:f.count, size:size, x:x, y:y, bb:b }); done=true; break; }\r\n      ang+=0.35; r+=0.55;\r\n    }\r\n    if(!done) break;\r\n  }\r\n  return { value:{ items:placed, width:W, height:H }, error:null };\r\n}\r\nfunction wcEsc(s){\r\n  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\r\n}\r\nfunction wcSvg(text, opts){\r\n  var t=wcTokenize(text);\r\n  if(t.error) return { value:null, error:t.error };\r\n  var L=wcLayout(wcCount(t.value, opts), opts);\r\n  if(L.error) return { value:null, error:L.error };\r\n  var PAL=['#5E6AD2','#22D3EE','#10B981','#A78BFA','#F5A623','#A1A1AA'];\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+L.value.width+'\" height=\"'+L.value.height+'\" viewBox=\"0 0 '+L.value.width+' '+L.value.height+'\">';\r\n  s+='<rect width=\"'+L.value.width+'\" height=\"'+L.value.height+'\" fill=\"#0A0A0B\"/>';\r\n  for(var i=0;i<L.value.items.length;i++){\r\n    var it=L.value.items[i];\r\n    s+='<text x=\"'+Math.round(it.x)+'\" y=\"'+Math.round(it.y)+'\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-size=\"'+it.size+'\" fill=\"'+PAL[i%PAL.length]+'\" font-family=\"system-ui,sans-serif\" font-weight=\"'+(i<3?700:400)+'\">'+wcEsc(it.word)+'</text>';\r\n  }\r\n  s+='</svg>';\r\n  return { value:s, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { wcTokenize:wcTokenize, wcCount:wcCount, wcLayout:wcLayout, wcSvg:wcSvg, wcEsc:wcEsc };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.WordCloudForgePure = { wcTokenize:wcTokenize, wcCount:wcCount, wcLayout:wcLayout, wcSvg:wcSvg, wcEsc:wcEsc };\r\n}\r\n"
+}

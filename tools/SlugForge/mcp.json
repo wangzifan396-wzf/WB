@@ -1,0 +1,45 @@
+{
+  "id": "SlugForge",
+  "name": "slug_forge",
+  "title": "SlugForge",
+  "description": "离线 URL Slug 生成：变音符折叠（é→e、ß→ss）、可配置分隔符 / 大小写 / 长度，支持批量。",
+  "entry": "deburr",
+  "entries": {
+    "deburr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "slugify": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opts"
+      ],
+      "fields": []
+    },
+    "slugifyLines": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar CHARMAP={'ß':'ss','æ':'ae','œ':'oe','ø':'o','đ':'d','ł':'l','þ':'th','ð':'d','ħ':'h','ı':'i'};\r\nfunction deburr(str){\r\n  str=String(str); var out='';\r\n  for(var i=0;i<str.length;i++){\r\n    var ch=str[i], low=ch.toLowerCase();\r\n    if(CHARMAP[ch]!=null) out+=CHARMAP[ch];\r\n    else if(CHARMAP[low]!=null) out+=(ch===low?CHARMAP[low]:CHARMAP[low].toUpperCase());\r\n    else out+=ch;\r\n  }\r\n  if(out.normalize) out=out.normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'');\r\n  return out;\r\n}\r\nfunction esc(sep){ return sep.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&'); }\r\nfunction slugify(text, opts){\r\n  opts=opts||{};\r\n  var sep = opts.separator!=null?opts.separator:'-';\r\n  var lower = opts.lowercase!==false;\r\n  var s=deburr(text);\r\n  if(lower) s=s.toLowerCase();\r\n  s=s.replace(/[^a-zA-Z0-9]+/g, sep);\r\n  if(sep){\r\n    var e=esc(sep);\r\n    s=s.replace(new RegExp('^'+e+'+|'+e+'+$','g'),'');\r\n    s=s.replace(new RegExp(e+'{2,}','g'), sep);\r\n  }\r\n  if(opts.maxLength && s.length>opts.maxLength){\r\n    s=s.slice(0,opts.maxLength);\r\n    if(sep) s=s.replace(new RegExp(esc(sep)+'+$'),'');\r\n  }\r\n  return s;\r\n}\r\nfunction slugifyLines(text, opts){\r\n  return String(text).split('\\n').map(function(l){ return slugify(l,opts); })\r\n                     .filter(function(x){ return x.length; }).join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { deburr:deburr, slugify:slugify, slugifyLines:slugifyLines };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SlugForgePure = { deburr:deburr, slugify:slugify, slugifyLines:slugifyLines };\r\n}\r\n"
+}

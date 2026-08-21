@@ -1,0 +1,34 @@
+{
+  "id": "CommissionForge",
+  "name": "commission_forge",
+  "title": "阶梯提成",
+  "description": "按销售额与可配置阶梯费率计算销售提成，离线。",
+  "entry": "commission",
+  "entries": {
+    "commission": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sales",
+        "tiers"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sales": {
+        "type": "string",
+        "description": "第 1 个参数（sales）"
+      },
+      "tiers": {
+        "type": "string",
+        "description": "第 2 个参数（tiers）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar TIERS=[{upTo:10000,rate:0.05},{upTo:50000,rate:0.08},{upTo:Infinity,rate:0.12}];\r\nfunction commission(sales, tiers){\r\n  sales=+sales; if(!(sales>=0)) return {error:'销售额须非负'}; tiers=tiers||TIERS;\r\n  var remaining=sales, prev=0, total=0;\r\n  for(var i=0;i<tiers.length;i++){ var top=tiers[i].upTo; var band=Math.min(sales,top)-prev;\r\n    if(band>0) total+=band*tiers[i].rate; prev=Math.min(sales,top); if(sales<=top) break; }\r\n  return {amount:Math.round(total*100)/100, rate:Math.round(total/sales*10000)/100}; }\r\nvar EXPORTS={commission:commission, TIERS:TIERS};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CommissionForgePure = EXPORTS; }\r\n\r\n"
+}

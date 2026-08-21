@@ -1,0 +1,54 @@
+{
+  "id": "HashcashForge",
+  "name": "hashcash_forge",
+  "title": "HashcashForge",
+  "description": "Hashcash 工作量证明：为某个资源（如邮箱）mint 一个带足够前导零位的 stamp，用于反垃圾邮件 / 算力证明演示。内置可验证哈希与难度校验，纯本地、零依赖。",
+  "entry": "hcMint",
+  "entries": {
+    "hcMint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "resource",
+        "bits",
+        "counter"
+      ],
+      "fields": []
+    },
+    "hcCheck": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "stamp",
+        "bits"
+      ],
+      "fields": []
+    },
+    "hcSimple": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "resource": {
+        "type": "string",
+        "description": "第 1 个参数（resource）"
+      },
+      "bits": {
+        "type": "number",
+        "description": "第 2 个参数（bits）（数值）"
+      },
+      "counter": {
+        "type": "number",
+        "description": "第 3 个参数（counter）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction hcSimple(s){ var h=0x811c9dc5; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,0x01000193); } return (h>>>0); }\r\nfunction hcZeroBits(n){ var c=0; while((n&1)===0 && c<32){ c++; n>>=1; } return c; }\r\nfunction hcMint(resource, bits, counter){ bits=bits||20; counter=counter||0; var ver='1:', date='20260803', stamp; for(;;){ stamp=ver+bits+':'+date+':'+resource+'::'+(counter).toString(16); if(hcZeroBits(hcSimple(stamp))>=bits) return stamp; counter++; } }\r\nfunction hcCheck(stamp, bits){ bits=bits||20; return hcZeroBits(hcSimple(stamp))>=bits; }\r\nvar EXPORTS={hcMint:hcMint, hcCheck:hcCheck, hcSimple:hcSimple};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HashcashForgePure = EXPORTS; }\r\n\r\n"
+}

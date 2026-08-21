@@ -1,0 +1,65 @@
+{
+  "id": "OgForge",
+  "name": "og_forge",
+  "title": "OgForge",
+  "description": "OG 社交卡片生成器：可视化编辑标题/描述/配色，实时生成 1200×630 预览与 meta 标签，利于分享卡片，离线可用。",
+  "entry": "ogWrap",
+  "entries": {
+    "ogWrap": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "maxChars"
+      ],
+      "fields": []
+    },
+    "ogFontSize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "title"
+      ],
+      "fields": []
+    },
+    "ogColor": {
+      "paramStyle": "single",
+      "paramNames": [
+        "c"
+      ],
+      "fields": []
+    },
+    "ogEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "ogMeta": {
+      "paramStyle": "object",
+      "paramNames": [
+        "d"
+      ],
+      "fields": [
+        "title",
+        "subtitle"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "maxChars": {
+        "type": "string",
+        "description": "第 2 个参数（maxChars）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction ogWrap(text, maxChars){\r\n  var words=String(text||'').split(/\\s+/).filter(Boolean);\r\n  var lines=[], cur='';\r\n  for(var i=0;i<words.length;i++){\r\n    var w=words[i];\r\n    while(w.length>maxChars){ if(cur){ lines.push(cur); cur=''; } lines.push(w.slice(0,maxChars)); w=w.slice(maxChars); }\r\n    var t=cur?cur+' '+w:w;\r\n    if(t.length>maxChars){ lines.push(cur); cur=w; } else { cur=t; }\r\n  }\r\n  if(cur) lines.push(cur);\r\n  return lines;\r\n}\r\nfunction ogFontSize(title){\r\n  var len=String(title||'').length;\r\n  if(len<=12) return 96; if(len<=24) return 76; if(len<=40) return 60; return 48;\r\n}\r\nfunction ogColor(c){ var s=String(c||'').trim(); return /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(s) ? s : '#5E6AD2'; }\r\nfunction ogEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); }\r\nfunction ogMeta(d){\r\n  d=d||{};\r\n  var t=ogEsc(d.title||''), s=ogEsc(d.subtitle||'');\r\n  return ['<meta property=\"og:title\" content=\"'+t+'\">',\r\n    '<meta property=\"og:description\" content=\"'+s+'\">',\r\n    '<meta property=\"og:type\" content=\"website\">',\r\n    '<meta property=\"og:image\" content=\"og.png\">',\r\n    '<meta name=\"twitter:card\" content=\"summary_large_image\">',\r\n    '<meta name=\"twitter:title\" content=\"'+t+'\">',\r\n    '<meta name=\"twitter:description\" content=\"'+s+'\">'].join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { ogWrap:ogWrap, ogFontSize:ogFontSize, ogColor:ogColor, ogEsc:ogEsc, ogMeta:ogMeta };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.OgForgePure = { ogWrap:ogWrap, ogFontSize:ogFontSize, ogColor:ogColor, ogEsc:ogEsc, ogMeta:ogMeta };\r\n}\r\n"
+}

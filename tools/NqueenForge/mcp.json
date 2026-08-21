@@ -1,0 +1,55 @@
+{
+  "id": "NqueenForge",
+  "name": "nqueen_forge",
+  "title": "NqueenForge",
+  "description": "N 皇后：回溯求解 + 全部计数 + 独立校验器。",
+  "entry": "nqSolve",
+  "entries": {
+    "nqSolve": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "limit"
+      ],
+      "fields": []
+    },
+    "nqValidate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cols"
+      ],
+      "fields": []
+    },
+    "nqCounts": {
+      "paramStyle": "single",
+      "paramNames": [
+        "maxN"
+      ],
+      "fields": []
+    },
+    "nqSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cols"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "第 1 个参数（n）"
+      },
+      "limit": {
+        "type": "string",
+        "description": "第 2 个参数（limit）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction nqSolve(n, limit){\r\n  if(!Number.isInteger(n)||n<1||n>13) return { value:null, error:'N 须为 1-13 的整数' };\r\n  var cap=(limit===undefined)?100:limit;\r\n  var sols=[], cols=[], nodes=0;\r\n  var colUsed={}, d1={}, d2={};\r\n  function bt(row){\r\n    if(row===n){ if(sols.length<cap) sols.push(cols.slice()); return; }\r\n    for(var c=0;c<n;c++){\r\n      if(colUsed[c]||d1[row-c]||d2[row+c]) continue;\r\n      nodes++;\r\n      colUsed[c]=1; d1[row-c]=1; d2[row+c]=1; cols.push(c);\r\n      bt(row+1);\r\n      cols.pop(); delete colUsed[c]; delete d1[row-c]; delete d2[row+c];\r\n      if(sols.length>=cap && cap>0 && countAll===false) return;\r\n    }\r\n  }\r\n  var countAll=true;\r\n  var total=0;\r\n  // full count pass (fast, no storage)\r\n  (function cnt(row){\r\n    if(row===n){ total++; return; }\r\n    for(var c=0;c<n;c++){\r\n      if(colUsed[c]||d1[row-c]||d2[row+c]) continue;\r\n      colUsed[c]=1; d1[row-c]=1; d2[row+c]=1;\r\n      cnt(row+1);\r\n      delete colUsed[c]; delete d1[row-c]; delete d2[row+c];\r\n    }\r\n  })(0);\r\n  countAll=false;\r\n  bt(0);\r\n  return { value:{ n:n, total:total, solutions:sols, nodes:nodes }, error:null };\r\n}\r\nfunction nqValidate(cols){\r\n  if(!Array.isArray(cols)||!cols.length) return false;\r\n  var n=cols.length;\r\n  for(var i=0;i<n;i++){\r\n    if(!Number.isInteger(cols[i])||cols[i]<0||cols[i]>=n) return false;\r\n    for(var j=i+1;j<n;j++){\r\n      if(cols[i]===cols[j]) return false;\r\n      if(Math.abs(cols[i]-cols[j])===Math.abs(i-j)) return false;\r\n    }\r\n  }\r\n  return true;\r\n}\r\nfunction nqCounts(maxN){\r\n  var out=[];\r\n  for(var n=1;n<=maxN;n++) out.push({ n:n, count:nqSolve(n, 0).value.total });\r\n  return out;\r\n}\r\nfunction nqSvg(cols){\r\n  var n=cols.length, C=Math.max(18, Math.min(44, Math.floor(400/n)));\r\n  var W=n*C+4, H=n*C+4;\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+W+'\" height=\"'+H+'\" viewBox=\"0 0 '+W+' '+H+'\">';\r\n  s+='<rect width=\"'+W+'\" height=\"'+H+'\" fill=\"#0A0A0B\"/>';\r\n  for(var y=0;y<n;y++) for(var x=0;x<n;x++){\r\n    s+='<rect x=\"'+(x*C+2)+'\" y=\"'+(y*C+2)+'\" width=\"'+C+'\" height=\"'+C+'\" fill=\"'+((x+y)%2?'#141417':'#1A1B1E')+'\"/>';\r\n  }\r\n  for(var r=0;r<n;r++){\r\n    var cx=cols[r]*C+2+C/2, cy=r*C+2+C/2;\r\n    s+='<circle cx=\"'+cx+'\" cy=\"'+cy+'\" r=\"'+(C*0.32)+'\" fill=\"#5E6AD2\" stroke=\"#A78BFA\" stroke-width=\"1.5\"/>';\r\n    s+='<text x=\"'+cx+'\" y=\"'+(cy+C*0.13)+'\" text-anchor=\"middle\" font-size=\"'+(C*0.38)+'\" fill=\"#FFFFFF\" font-family=\"system-ui,sans-serif\">♛</text>';\r\n  }\r\n  s+='</svg>';\r\n  return s;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { nqSolve:nqSolve, nqValidate:nqValidate, nqCounts:nqCounts, nqSvg:nqSvg };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.NqueenForgePure = { nqSolve:nqSolve, nqValidate:nqValidate, nqCounts:nqCounts, nqSvg:nqSvg };\r\n}\r\n"
+}

@@ -1,0 +1,49 @@
+{
+  "id": "PasswordPolicyForge",
+  "name": "password_policy_forge",
+  "title": "密码策略检查",
+  "description": "按可配置策略检查密码合规性并生成合规密码，离线。",
+  "entry": "checkPassword",
+  "entries": {
+    "checkPassword": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pwd",
+        "policy"
+      ],
+      "fields": []
+    },
+    "genPassword": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "policy",
+        "rng"
+      ],
+      "fields": []
+    },
+    "hasSequence": {
+      "paramStyle": "single",
+      "paramNames": [
+        "p"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pwd": {
+        "type": "string",
+        "description": "第 1 个参数（pwd）"
+      },
+      "policy": {
+        "type": "object",
+        "description": "第 2 个参数（policy）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar COMMON=['password','123456','qwerty','admin','letmein','iloveyou','welcome','abc123','111111','sunshine','football','monkey'];\r\nfunction hasSequence(p){\r\n  var s=p.toLowerCase();\r\n  for(var i=0;i+2<s.length;i++){\r\n    var a=s.charCodeAt(i), b=s.charCodeAt(i+1), c=s.charCodeAt(i+2);\r\n    if(b===a+1 && c===b+1) return true;\r\n    if(b===a-1 && c===b-1) return true;\r\n  }\r\n  return false;\r\n}\r\nfunction checkPassword(pwd, policy){\r\n  policy=policy||{};\r\n  pwd=String(pwd||'');\r\n  var minLen=policy.minLen!=null?policy.minLen:12;\r\n  var maxLen=policy.maxLen!=null?policy.maxLen:64;\r\n  var reqUpper=policy.upper, reqLower=policy.lower, reqDigit=policy.digit, reqSpecial=policy.special;\r\n  var noRepeat=policy.noRepeat, noSeq=policy.noSeq, noCommon=policy.noCommon;\r\n  var issues=[];\r\n  if(pwd.length<minLen) issues.push('长度不足（至少 '+minLen+' 位）');\r\n  if(pwd.length>maxLen) issues.push('超出最大长度（'+maxLen+' 位）');\r\n  var hasUpper=/[A-Z]/.test(pwd), hasLower=/[a-z]/.test(pwd), hasDigit=/\\d/.test(pwd), hasSpecial=/[^A-Za-z0-9]/.test(pwd);\r\n  if(reqUpper && !hasUpper) issues.push('缺少大写字母');\r\n  if(reqLower && !hasLower) issues.push('缺少小写字母');\r\n  if(reqDigit && !hasDigit) issues.push('缺少数字');\r\n  if(reqSpecial && !hasSpecial) issues.push('缺少特殊符号');\r\n  if(noRepeat && /(.)\\1\\1/.test(pwd)) issues.push('含连续重复字符');\r\n  if(noSeq && hasSequence(pwd)) issues.push('含连续序列（如 abc/123）');\r\n  if(noCommon){ var low=pwd.toLowerCase(); for(var i=0;i<COMMON.length;i++){ if(low.indexOf(COMMON[i])>=0){ issues.push('命中常见弱口令'); break; } } }\r\n  var classes=0; if(hasUpper)classes++; if(hasLower)classes++; if(hasDigit)classes++; if(hasSpecial)classes++;\r\n  var score=Math.min(100, pwd.length*4 + classes*10 - issues.length*15);\r\n  if(score<0)score=0;\r\n  return {ok:issues.length===0, score:score, issues:issues, length:pwd.length, classes:classes};\r\n}\r\nfunction pick(s,rng){ return s.charAt(Math.floor(rng()*s.length)); }\r\nfunction genPassword(policy, rng){\r\n  policy=policy||{};\r\n  var minLen=policy.minLen!=null?policy.minLen:12;\r\n  var maxLen=policy.maxLen!=null?policy.maxLen:64;\r\n  rng=rng||Math.random;\r\n  var upper='ABCDEFGHJKLMNPQRSTUVWXYZ', lower='abcdefghijkmnopqrstuvwxyz', digit='23456789', special='!@#$%^&*';\r\n  var full=upper+lower+digit+special;\r\n  var need=[];\r\n  if(policy.upper) need.push(pick(upper,rng));\r\n  if(policy.lower) need.push(pick(lower,rng));\r\n  if(policy.digit) need.push(pick(digit,rng));\r\n  if(policy.special) need.push(pick(special,rng));\r\n  var len=Math.max(minLen, need.length);\r\n  for(var attempt=0; attempt<50; attempt++){\r\n    var chars=need.slice();\r\n    while(chars.length<len){ chars.push(full.charAt(Math.floor(rng()*full.length))); }\r\n    for(var i=chars.length-1;i>0;i--){ var j=Math.floor(rng()*(i+1)); var t=chars[i]; chars[i]=chars[j]; chars[j]=t; }\r\n    var cand=chars.join('');\r\n    if(checkPassword(cand, policy).ok) return cand;\r\n  }\r\n  return chars.join('');\r\n}\r\nvar EXPORTS={checkPassword:checkPassword, genPassword:genPassword, hasSequence:hasSequence, COMMON:COMMON};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PasswordPolicyForgePure = EXPORTS; }\r\n\r\n"
+}

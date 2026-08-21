@@ -1,0 +1,83 @@
+{
+  "id": "TlsForge",
+  "name": "tls_forge",
+  "title": "TlsForge",
+  "description": "TLS 密码套件体检：前向保密/AEAD 判定与 A–F 评分、协议版本风险表、HSTS 生成与证书到期提醒，离线可用。",
+  "entry": "buildHsts",
+  "entries": {
+    "protocolInfo": {
+      "paramStyle": "single",
+      "paramNames": [
+        "id"
+      ],
+      "fields": []
+    },
+    "parseCipher": {
+      "paramStyle": "single",
+      "paramNames": [
+        "name"
+      ],
+      "fields": []
+    },
+    "gradeCipher": {
+      "paramStyle": "single",
+      "paramNames": [
+        "name"
+      ],
+      "fields": []
+    },
+    "auditSuite": {
+      "paramStyle": "single",
+      "paramNames": [
+        "list"
+      ],
+      "fields": []
+    },
+    "buildHsts": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "maxAge",
+        "includeSubDomains",
+        "preload"
+      ]
+    },
+    "certDays": {
+      "paramStyle": "single",
+      "paramNames": [
+        "notAfterDays"
+      ],
+      "fields": []
+    },
+    "recommendConfig": {
+      "paramStyle": "single",
+      "paramNames": [
+        "level"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "maxAge": {
+        "type": "string",
+        "description": "参数 maxAge"
+      },
+      "includeSubDomains": {
+        "type": "string",
+        "description": "参数 includeSubDomains"
+      },
+      "preload": {
+        "type": "string",
+        "description": "参数 preload"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar PROTOCOLS = [\r\n  {id:'SSLv3', year:1996, grade:'F', note:'POODLE 攻击，必须禁用'},\r\n  {id:'TLS1.0', year:1999, grade:'D', note:'PCI DSS 已弃用，浏览器 2020 起移除'},\r\n  {id:'TLS1.1', year:2006, grade:'D', note:'弱 MAC/密钥交换，已弃用'},\r\n  {id:'TLS1.2', year:2008, grade:'B', note:'仍广泛可用，需限制弱套件'},\r\n  {id:'TLS1.3', year:2018, grade:'A', note:'仅保留 AEAD 套件，默认前向保密'}\r\n];\r\nfunction protocolInfo(id){\r\n  var key=String(id||'').toUpperCase().replace(/\\s+/g,'').replace(/^TLSV/,'TLS').replace(/^SSLV/,'SSLv');\r\n  for(var i=0;i<PROTOCOLS.length;i++){\r\n    if(PROTOCOLS[i].id.toUpperCase()===key.toUpperCase()) return PROTOCOLS[i];\r\n  }\r\n  return null;\r\n}\r\nfunction parseCipher(name){\r\n  var s=String(name||'').trim().toUpperCase();\r\n  if(!s) return {name:'', valid:false, reason:'空套件名'};\r\n  var out={name:String(name).trim(), valid:true, tls13:false, kx:'', auth:'', enc:'', mac:'', aead:false, pfs:false};\r\n  if(/^TLS_(AES|CHACHA20)/.test(s)){\r\n    out.tls13=true; out.kx='ECDHE'; out.auth='any'; out.pfs=true; out.aead=true;\r\n    out.enc = s.indexOf('CHACHA20')>-1 ? 'CHACHA20-POLY1305' : (s.indexOf('AES_256')>-1 ? 'AES-256-GCM' : (s.indexOf('AES_128_CCM')>-1?'AES-128-CCM':'AES-128-GCM'));\r\n    out.mac='AEAD';\r\n    return out;\r\n  }\r\n  if(s.indexOf('ECDHE')>-1) out.kx='ECDHE';\r\n  else if(s.indexOf('DHE')>-1) out.kx='DHE';\r\n  else if(s.indexOf('ECDH_')>-1 || /\\bECDH\\b/.test(s)) out.kx='ECDH';\r\n  else if(s.indexOf('RSA')>-1) out.kx='RSA';\r\n  else out.kx='unknown';\r\n  out.pfs = (out.kx==='ECDHE' || out.kx==='DHE');\r\n  if(s.indexOf('ECDSA')>-1) out.auth='ECDSA';\r\n  else if(s.indexOf('RSA')>-1) out.auth='RSA';\r\n  else if(s.indexOf('ANON')>-1 || s.indexOf('_ADH')>-1) out.auth='anon';\r\n  else out.auth='unknown';\r\n  if(s.indexOf('CHACHA20')>-1){ out.enc='CHACHA20-POLY1305'; out.aead=true; }\r\n  else if(s.indexOf('AES_256_GCM')>-1||s.indexOf('AES256-GCM')>-1){ out.enc='AES-256-GCM'; out.aead=true; }\r\n  else if(s.indexOf('AES_128_GCM')>-1||s.indexOf('AES128-GCM')>-1){ out.enc='AES-128-GCM'; out.aead=true; }\r\n  else if(s.indexOf('AES_256_CBC')>-1||s.indexOf('AES256-CBC')>-1||/AES256(?!-GCM)/.test(s)){ out.enc='AES-256-CBC'; }\r\n  else if(s.indexOf('AES_128_CBC')>-1||s.indexOf('AES128-CBC')>-1||/AES128(?!-GCM)/.test(s)){ out.enc='AES-128-CBC'; }\r\n  else if(s.indexOf('3DES')>-1||s.indexOf('DES-CBC3')>-1){ out.enc='3DES'; }\r\n  else if(s.indexOf('RC4')>-1){ out.enc='RC4'; }\r\n  else if(s.indexOf('NULL')>-1){ out.enc='NULL'; }\r\n  else out.enc='unknown';\r\n  if(out.aead) out.mac='AEAD';\r\n  else if(s.indexOf('SHA384')>-1) out.mac='SHA384';\r\n  else if(s.indexOf('SHA256')>-1) out.mac='SHA256';\r\n  else if(/SHA(?!\\d)/.test(s)) out.mac='SHA1';\r\n  else if(s.indexOf('MD5')>-1) out.mac='MD5';\r\n  else out.mac='unknown';\r\n  return out;\r\n}\r\nfunction gradeCipher(name){\r\n  var c=parseCipher(name);\r\n  if(!c.valid) return {cipher:c, grade:'F', score:0, issues:['无法解析']};\r\n  var issues=[], score=100;\r\n  if(c.enc==='NULL'){ issues.push('NULL 加密：明文传输'); score-=100; }\r\n  if(c.enc==='RC4'){ issues.push('RC4 存在偏置攻击，已被 RFC 7465 禁止'); score-=70; }\r\n  if(c.enc==='3DES'){ issues.push('3DES 受 Sweet32 生日攻击影响'); score-=60; }\r\n  if(c.auth==='anon'){ issues.push('匿名密钥交换，无身份认证'); score-=100; }\r\n  if(!c.pfs){ issues.push('无前向保密：私钥泄露可解密历史流量'); score-=35; }\r\n  if(c.mac==='MD5'){ issues.push('MD5 完整性校验已破解'); score-=60; }\r\n  else if(c.mac==='SHA1' && !c.aead){ issues.push('SHA1 MAC 偏弱，且 CBC 模式易受填充攻击'); score-=20; }\r\n  if(!c.aead && c.enc.indexOf('CBC')>-1){ issues.push('CBC 模式需谨慎处理填充（Lucky13）'); score-=15; }\r\n  if(c.enc==='unknown'){ issues.push('未识别加密算法'); score-=30; }\r\n  if(score<0) score=0;\r\n  var grade = score>=90?'A': score>=75?'B': score>=55?'C': score>=35?'D': score>0?'E':'F';\r\n  return {cipher:c, grade:grade, score:score, issues:issues};\r\n}\r\nfunction auditSuite(list){\r\n  var arr = Array.isArray(list) ? list : String(list||'').split(/[\\n,:]+/);\r\n  var rows=[], worst=100, pfsCount=0, aeadCount=0, valid=0;\r\n  for(var i=0;i<arr.length;i++){\r\n    var nm=String(arr[i]).trim();\r\n    if(!nm) continue;\r\n    var g=gradeCipher(nm);\r\n    rows.push(g); valid++;\r\n    if(g.score<worst) worst=g.score;\r\n    if(g.cipher.pfs) pfsCount++;\r\n    if(g.cipher.aead) aeadCount++;\r\n  }\r\n  if(!valid) return {rows:[], total:0, grade:'-', pfsRatio:0, aeadRatio:0, worstScore:0};\r\n  var grade = worst>=90?'A': worst>=75?'B': worst>=55?'C': worst>=35?'D': worst>0?'E':'F';\r\n  return {\r\n    rows:rows, total:valid, grade:grade, worstScore:worst,\r\n    pfsRatio: Math.round(pfsCount/valid*100),\r\n    aeadRatio: Math.round(aeadCount/valid*100)\r\n  };\r\n}\r\nfunction buildHsts(opt){\r\n  opt = opt||{};\r\n  var maxAge = typeof opt.maxAge==='number' ? opt.maxAge : 31536000;\r\n  var parts=['max-age='+maxAge];\r\n  if(opt.includeSubDomains) parts.push('includeSubDomains');\r\n  if(opt.preload) parts.push('preload');\r\n  var warns=[];\r\n  if(opt.preload && !opt.includeSubDomains) warns.push('提交 preload 列表必须同时开启 includeSubDomains');\r\n  if(opt.preload && maxAge < 31536000) warns.push('preload 要求 max-age 至少 31536000（1 年）');\r\n  if(maxAge>0 && maxAge<86400) warns.push('max-age 过短，建议先用 300 试运行再逐步提升');\r\n  var v=parts.join('; ');\r\n  return {header:'Strict-Transport-Security: '+v, value:v, warnings:warns, preloadReady: !!opt.preload && !!opt.includeSubDomains && maxAge>=31536000};\r\n}\r\nfunction certDays(notAfterDays){\r\n  var d = typeof notAfterDays==='number' ? notAfterDays : NaN;\r\n  if(!isFinite(d)) return {level:'unknown', days:null, msg:'无效天数'};\r\n  if(d<0) return {level:'expired', days:d, msg:'证书已过期 '+Math.abs(d)+' 天'};\r\n  if(d<=7) return {level:'critical', days:d, msg:'剩余 '+d+' 天，立即续期'};\r\n  if(d<=30) return {level:'warn', days:d, msg:'剩余 '+d+' 天，安排续期'};\r\n  return {level:'ok', days:d, msg:'剩余 '+d+' 天'};\r\n}\r\nfunction recommendConfig(level){\r\n  var C = {\r\n    modern: {label:'Modern（仅 TLS1.3）', protocols:['TLS1.3'],\r\n      ciphers:['TLS_AES_128_GCM_SHA256','TLS_AES_256_GCM_SHA384','TLS_CHACHA20_POLY1305_SHA256'],\r\n      note:'放弃 IE11 与旧安卓，换取最简攻击面'},\r\n    intermediate: {label:'Intermediate（TLS1.2+1.3）', protocols:['TLS1.2','TLS1.3'],\r\n      ciphers:['TLS_AES_128_GCM_SHA256','TLS_AES_256_GCM_SHA384','ECDHE-ECDSA-AES128-GCM-SHA256','ECDHE-RSA-AES128-GCM-SHA256','ECDHE-ECDSA-CHACHA20-POLY1305'],\r\n      note:'通用推荐，兼容 2016 年后的绝大多数客户端'},\r\n    old: {label:'Old（含 TLS1.0/1.1）', protocols:['TLS1.0','TLS1.1','TLS1.2','TLS1.3'],\r\n      ciphers:['ECDHE-RSA-AES128-GCM-SHA256','ECDHE-RSA-AES128-SHA','DES-CBC3-SHA'],\r\n      note:'仅在必须兼容远古客户端时使用，存在已知风险'}\r\n  };\r\n  return C[level] || null;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { PROTOCOLS:PROTOCOLS, protocolInfo:protocolInfo, parseCipher:parseCipher, gradeCipher:gradeCipher, auditSuite:auditSuite, buildHsts:buildHsts, certDays:certDays, recommendConfig:recommendConfig }; }\r\nif (typeof window !== 'undefined') { window.TlsForgePure = { PROTOCOLS:PROTOCOLS, protocolInfo:protocolInfo, parseCipher:parseCipher, gradeCipher:gradeCipher, auditSuite:auditSuite, buildHsts:buildHsts, certDays:certDays, recommendConfig:recommendConfig }; }\r\n\r\n"
+}

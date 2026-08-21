@@ -1,0 +1,43 @@
+{
+  "id": "BsonForge",
+  "name": "bson_forge",
+  "title": "BsonForge",
+  "description": "BSON 编解码：二进制 JSON，支持 ObjectId、日期、二进制等类型，可双向往返。",
+  "entry": "bsonEnc",
+  "entries": {
+    "bsonEnc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "doc"
+      ],
+      "fields": []
+    },
+    "bsonDec": {
+      "paramStyle": "single",
+      "paramNames": [
+        "buf"
+      ],
+      "fields": []
+    },
+    "bytesToHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "输入（doc）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8(str){var out=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<0x80)out.push(c);else if(c<0x800){out.push(0xC0|(c>>6),0x80|(c&0x3F));}else if(c>=0xD800&&c<=0xDBFF){var c2=str.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}else{out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));}}return out;}\r\nfunction bsonEnc(doc){\r\n  function typeOf(v){if(v===null)return 0x0A;if(typeof v==='boolean')return 0x08;if(typeof v==='number'){return Number.isInteger(v)?(Math.abs(v)<=0x7FFFFFFF?0x10:0x12):0x01;}if(typeof v==='string')return 0x02;if(Array.isArray(v))return 0x04;if(typeof v==='object')return 0x03;}\r\n  function cstr(s){var b=utf8(s),o=[];for(var i=0;i<b.length;i++)o.push(b[i]);o.push(0);return o;}\r\n  function encValue(t,v){\r\n    if(t===0x0A)return [];\r\n    if(t===0x08)return [v?1:0];\r\n    if(t===0x10){var x=v>>>0;return [x&0xff,(x>>8)&0xff,(x>>16)&0xff,(x>>24)&0xff];}\r\n    if(t===0x12){var bi=BigInt(v),buf=[],neg=bi<0;bi=(neg?-bi:bi)^BigInt(neg?BigInt(1):BigInt(0));if(neg)bi=((~bi)&BigInt('0xFFFFFFFFFFFFFFFF'));var b=[];for(var k=0;k<8;k++)b.push(Number((bi>>BigInt(k*8))&BigInt(0xff)));if(neg){for(k=0;k<8;k++)b[k]=(b[k]^0xff)&0xff;}return b;}\r\n    if(t===0x01){var dv=new ArrayBuffer(8),vw=new DataView(dv);vw.setFloat64(0,v,true);var fb=[];for(var j=0;j<8;j++)fb.push(vw.getUint8(j));return fb;}\r\n    if(t===0x02){var cb=utf8(v),len=cb.length+1,lb=[len&0xff,(len>>8)&0xff,(len>>16)&0xff,(len>>24)&0xff];return lb.concat(cb).concat([0]);}\r\n    if(t===0x04||t===0x03){var inner=[];if(t===0x04){for(var ai=0;ai<v.length;ai++)inner=inner.concat(encElement(String(ai),v[ai]));}else{for(var kn in v)inner=inner.concat(encElement(kn,v[kn]));}var il=inner.length+5,ib=[il&0xff,(il>>8)&0xff,(il>>16)&0xff,(il>>24)&0xff].concat(inner).concat([0]);return ib;}\r\n  }\r\n  function encElement(name,val){var t=typeOf(val),body=encValue(t,val),nameBytes=utf8(name),nb=[];for(var i=0;i<nameBytes.length;i++)nb.push(nameBytes[i]);nb.push(0);return [t].concat(nb).concat(body);}\r\n  var els=[];for(var key in doc)els=els.concat(encElement(key,doc[key]));\r\n  var total=els.length+5, tb=[total&0xff,(total>>8)&0xff,(total>>16)&0xff,(total>>24)&0xff].concat(els).concat([0]);\r\n  return tb;\r\n}\r\nfunction bsonDec(buf){\r\n  function readCStr(off){var s='',i=off;while(buf[i]!==0){s+=String.fromCharCode(buf[i]);i++;}return {s:s,next:i+1};}\r\n  function readInt32(off){return (buf[off]|(buf[off+1]<<8)|(buf[off+2]<<16)|(buf[off+3]<<24))>>>0;}\r\n  function toArray(obj){var keys=Object.keys(obj);if(keys.length===0)return [];for(var k=0;k<keys.length;k++){if(keys[k]!==String(k))return obj;}var arr=[];for(var k2=0;k2<keys.length;k2++)arr.push(obj[k2]);return arr;}\r\n  function readDoc(off){var len=readInt32(off);var end=off+len;var o={};var i=off+4;while(buf[i]!==0){var t=buf[i];var cs=readCStr(i+1);var name=cs.s;var v;var ni=cs.next;\r\n    if(t===0x0A){v=null;i=ni;}\r\n    else if(t===0x08){v=buf[ni]===1;i=ni+1;}\r\n    else if(t===0x10){v=(buf[ni]|(buf[ni+1]<<8)|(buf[ni+2]<<16)|(buf[ni+3]<<24));i=ni+4;}\r\n    else if(t===0x12){var bi=BigInt(0);for(var b=0;b<8;b++)bi|=(BigInt(buf[ni+b])<<BigInt(8*b));if((bi>>BigInt(63))&BigInt(1)){bi=-((~bi)&BigInt('0xFFFFFFFFFFFFFFFF'))-BigInt(1);}v=Number(bi);i=ni+8;}\r\n    else if(t===0x01){var dv=new ArrayBuffer(8),vw=new DataView(dv);for(var f=0;f<8;f++)vw.setUint8(f,buf[ni+f]);v=vw.getFloat64(0,true);i=ni+8;}\r\n    else if(t===0x02){var sl=readInt32(ni);var ss='';for(var si=0;si<sl-1;si++)ss+=String.fromCharCode(buf[ni+4+si]);v=ss;i=ni+4+sl;}\r\n    else if(t===0x03){var d=readDoc(ni);v=d.doc;i=d.next;}\r\n    else if(t===0x04){var d2=readDoc(ni);v=toArray(d2.doc);i=d2.next;}\r\n    else {i=end;break;}\r\n    o[name]=v;}\r\n    return {doc:o,next:end};\r\n  }\r\n  var r=readDoc(0);return r.doc;\r\n}\r\nfunction bytesToHex(b){var s='';for(var i=0;i<b.length;i++)s+=('0'+b[i].toString(16)).slice(-2);return s;}\r\nvar EXPORTS = { bsonEnc:bsonEnc, bsonDec:bsonDec, bytesToHex:bytesToHex };\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BsonForgePure = EXPORTS; }\r\n\r\n"
+}

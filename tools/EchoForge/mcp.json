@@ -1,0 +1,52 @@
+{
+  "id": "EchoForge",
+  "name": "echo_forge",
+  "title": "EchoForge",
+  "description": "为上传的音频添加可调节延迟与衰减的回声，离线处理并导出 WAV。",
+  "entry": "applyEcho",
+  "entries": {
+    "applyEcho": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "delaySec",
+        "decay",
+        "sr"
+      ],
+      "fields": []
+    },
+    "wavEncode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "delaySec": {
+        "type": "string",
+        "description": "第 2 个参数（delaySec）"
+      },
+      "decay": {
+        "type": "string",
+        "description": "第 3 个参数（decay）"
+      },
+      "sr": {
+        "type": "number",
+        "description": "第 4 个参数（sr）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction applyEcho(samples, delaySec, decay, sr){\r\n  sr=sr||44100; var d=Math.max(0, Math.round(delaySec*sr));\r\n  var out=new Float32Array(samples.length + d);\r\n  for(var i=0;i<samples.length;i++){ out[i]+=samples[i]; }\r\n  for(var i=0;i<samples.length;i++){ if(i+d<out.length) out[i+d]+=samples[i]*decay; }\r\n  var peak=0; for(var j=0;j<out.length;j++){ if(Math.abs(out[j])>peak) peak=Math.abs(out[j]); }\r\n  if(peak>1.0001){ for(var k=0;k<out.length;k++) out[k]/=peak; }\r\n  return out;\r\n}\r\nfunction wavEncode(samples, sr){\r\n  sr=sr||44100; var n=samples.length; var buf=new ArrayBuffer(44+n*2); var v=new DataView(buf);\r\n  function ws(o,s){ for(var i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); }\r\n  ws(0,'RIFF'); v.setUint32(4,36+n*2,true); ws(8,'WAVE'); ws(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);\r\n  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);\r\n  ws(36,'data'); v.setUint32(40,n*2,true);\r\n  var o=44; for(var i=0;i<n;i++){ var s=Math.max(-1,Math.min(1,samples[i])); v.setInt16(o, s<0?s*0x8000:s*0x7FFF, true); o+=2; }\r\n  return buf;\r\n}\r\nvar EXPORTS={applyEcho:applyEcho, wavEncode:wavEncode};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EchoForgePure = EXPORTS; }\r\n\r\n"
+}

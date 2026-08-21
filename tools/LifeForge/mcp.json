@@ -1,0 +1,80 @@
+{
+  "id": "LifeForge",
+  "name": "life_forge",
+  "title": "LifeForge",
+  "description": "生命游戏：B3/S23 元胞自动机，环面边界 + 经典模式识别。",
+  "entry": "lfParse",
+  "entries": {
+    "lfParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "lfStep": {
+      "paramStyle": "single",
+      "paramNames": [
+        "grid"
+      ],
+      "fields": []
+    },
+    "lfRun": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "grid",
+        "gens"
+      ],
+      "fields": []
+    },
+    "lfCount": {
+      "paramStyle": "single",
+      "paramNames": [
+        "grid"
+      ],
+      "fields": []
+    },
+    "lfPattern": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "name",
+        "size"
+      ],
+      "fields": []
+    },
+    "lfText": {
+      "paramStyle": "single",
+      "paramNames": [
+        "grid"
+      ],
+      "fields": []
+    },
+    "lfHash": {
+      "paramStyle": "single",
+      "paramNames": [
+        "grid"
+      ],
+      "fields": []
+    },
+    "lfSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "grid"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction lfParse(text){\r\n  if(typeof text!=='string'||!text.trim()) return { value:null, error:'棋盘为空' };\r\n  var rows=text.split('\\n').filter(function(r){ return r.length>0; });\r\n  var w=rows[0].length;\r\n  var grid=[];\r\n  for(var y=0;y<rows.length;y++){\r\n    if(rows[y].length!==w) return { value:null, error:'第 '+(y+1)+' 行宽度不一致' };\r\n    var row=[];\r\n    for(var x=0;x<w;x++){\r\n      var ch=rows[y].charAt(x);\r\n      if(ch!=='.'&&ch!=='O'&&ch!=='o'&&ch!=='*') return { value:null, error:'第 '+(y+1)+' 行含非法字符 \"'+ch+'\"（只允许 . O o *）' };\r\n      row.push(ch==='.'?0:1);\r\n    }\r\n    grid.push(row);\r\n  }\r\n  return { value:grid, error:null };\r\n}\r\nfunction lfStep(grid){\r\n  var h=grid.length, w=grid[0].length, next=[];\r\n  for(var y=0;y<h;y++){\r\n    var row=[];\r\n    for(var x=0;x<w;x++){\r\n      var n=0;\r\n      for(var dy=-1;dy<=1;dy++) for(var dx=-1;dx<=1;dx++){\r\n        if(dx===0&&dy===0) continue;\r\n        var yy=(y+dy+h)%h, xx=(x+dx+w)%w;\r\n        n+=grid[yy][xx];\r\n      }\r\n      row.push(grid[y][x]===1 ? (n===2||n===3?1:0) : (n===3?1:0));\r\n    }\r\n    next.push(row);\r\n  }\r\n  return next;\r\n}\r\nfunction lfRun(grid, gens){\r\n  var g=grid, hist=[lfHash(g)];\r\n  for(var i=0;i<gens;i++){\r\n    g=lfStep(g);\r\n    var hsh=lfHash(g);\r\n    if(hist.indexOf(hsh)!==-1) return { grid:g, generations:i+1, cycle:true, period:i+1-hist.indexOf(hsh) };\r\n    hist.push(hsh);\r\n  }\r\n  return { grid:g, generations:gens, cycle:false, period:0 };\r\n}\r\nfunction lfHash(grid){\r\n  var s='';\r\n  for(var y=0;y<grid.length;y++) s+=grid[y].join('');\r\n  return s;\r\n}\r\nfunction lfCount(grid){\r\n  var n=0;\r\n  for(var y=0;y<grid.length;y++) for(var x=0;x<grid[0].length;x++) n+=grid[y][x];\r\n  return n;\r\n}\r\nfunction lfPattern(name, size){\r\n  var s=Math.max(8, size||20), grid=[], y, x;\r\n  for(y=0;y<s;y++){ var r=[]; for(x=0;x<s;x++) r.push(0); grid.push(r); }\r\n  var P={\r\n    glider:[[1,2],[2,3],[3,1],[3,2],[3,3]],\r\n    blinker:[[2,1],[2,2],[2,3]],\r\n    block:[[1,1],[1,2],[2,1],[2,2]],\r\n    pulsar:[]\r\n  };\r\n  if(name==='pulsar'){\r\n    var seg=[2,3,4,8,9,10], off=[0,5,7,12], i, j;\r\n    for(i=0;i<seg.length;i++) for(j=0;j<off.length;j++){\r\n      P.pulsar.push([off[j]+1, seg[i]+1]); P.pulsar.push([seg[i]+1, off[j]+1]);\r\n    }\r\n    if(s<16) return { value:null, error:'Pulsar 需要至少 16×16 网格' };\r\n  }\r\n  var cells=P[name];\r\n  if(!cells) return { value:null, error:'未知图案: '+name };\r\n  for(var k=0;k<cells.length;k++){\r\n    if(cells[k][0]>=s||cells[k][1]>=s) return { value:null, error:'网格太小放不下该图案' };\r\n    grid[cells[k][0]][cells[k][1]]=1;\r\n  }\r\n  return { value:grid, error:null };\r\n}\r\nfunction lfText(grid){\r\n  var lines=[];\r\n  for(var y=0;y<grid.length;y++){\r\n    var s='';\r\n    for(var x=0;x<grid[0].length;x++) s+=grid[y][x]?'O':'.';\r\n    lines.push(s);\r\n  }\r\n  return lines.join('\\n');\r\n}\r\nfunction lfSvg(grid){\r\n  var h=grid.length, w=grid[0].length, C=Math.max(8, Math.min(22, Math.floor(560/w)));\r\n  var W=w*C+2, H=h*C+2;\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+W+'\" height=\"'+H+'\" viewBox=\"0 0 '+W+' '+H+'\">';\r\n  s+='<rect width=\"'+W+'\" height=\"'+H+'\" fill=\"#0A0A0B\"/>';\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    s+='<rect x=\"'+(x*C+1)+'\" y=\"'+(y*C+1)+'\" width=\"'+(C-1)+'\" height=\"'+(C-1)+'\" rx=\"2\" fill=\"'+(grid[y][x]?'#10B981':'#141417')+'\"/>';\r\n  }\r\n  s+='</svg>';\r\n  return s;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { lfParse:lfParse, lfStep:lfStep, lfRun:lfRun, lfCount:lfCount, lfPattern:lfPattern, lfText:lfText, lfHash:lfHash, lfSvg:lfSvg };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.LifeForgePure = { lfParse:lfParse, lfStep:lfStep, lfRun:lfRun, lfCount:lfCount, lfPattern:lfPattern, lfText:lfText, lfHash:lfHash, lfSvg:lfSvg };\r\n}\r\n"
+}

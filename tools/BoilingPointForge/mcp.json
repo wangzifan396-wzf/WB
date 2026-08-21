@@ -1,0 +1,36 @@
+{
+  "id": "BoilingPointForge",
+  "name": "boiling_point_forge",
+  "title": "沸点计算",
+  "description": "按海拔或压强计算水的沸点（Antoine 方程），离线。",
+  "entry": "boilAltitude",
+  "entries": {
+    "boilAltitude": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    },
+    "boilPressure": {
+      "paramStyle": "single",
+      "paramNames": [
+        "p"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "h": {
+        "type": "string",
+        "description": "输入（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction boilAltitude(h){\r\n  h=+h; if(isNaN(h)||h<0) return {error:'海拔须为非负数字（米）'};\r\n  var p = 101.325 * Math.pow(1 - 2.25577e-5*h, 5.25588);\r\n  if(!(p>0)) return {error:'海拔过高，超出近似范围'};\r\n  var r = boilPressure(p);\r\n  return {c:r.c, f:r.f, altitude:h};\r\n}\r\nfunction boilPressure(p){\r\n  p=+p; if(isNaN(p)||p<=0) return {error:'压强须为正数（kPa）'};\r\n  var mmHg=p*7.50062;\r\n  if(mmHg<=0) return {error:'压强过低'};\r\n  var T = 1730.63/(8.07131 - Math.log10(mmHg)) - 233.426;\r\n  T=Math.round(T*10)/10;\r\n  return {c:T, f:Math.round((T*9/5+32)*10)/10, kPa:p};\r\n}\r\nvar EXPORTS={boilAltitude:boilAltitude, boilPressure:boilPressure};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BoilingPointForgePure = EXPORTS; }\r\n\r\n"
+}

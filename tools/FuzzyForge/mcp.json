@@ -1,0 +1,42 @@
+{
+  "id": "FuzzyForge",
+  "name": "fuzzy_forge",
+  "title": "FuzzyForge",
+  "description": "模糊匹配打分器：fzf 风格子序列匹配 + 边界加分 + 结果排序。",
+  "entry": "fuzzyMatch",
+  "entries": {
+    "fuzzyMatch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "query",
+        "str"
+      ],
+      "fields": []
+    },
+    "fuzzyFilter": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "query",
+        "list"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "第 1 个参数（query）"
+      },
+      "str": {
+        "type": "string",
+        "description": "第 2 个参数（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction fuzzyMatch(query, str){\r\n  var q=String(query||'').toLowerCase(), s=String(str||''), sl=s.toLowerCase();\r\n  if(!q) return { matched:true, score:0, positions:[] };\r\n  var positions=[], score=0, si=0, prev=-2;\r\n  for(var qi=0;qi<q.length;qi++){\r\n    var found=-1;\r\n    for(var i=si;i<sl.length;i++){ if(sl[i]===q[qi]){ found=i; break; } }\r\n    if(found<0) return { matched:false, score:0, positions:[] };\r\n    var pts=1;\r\n    if(found===prev+1) pts+=4;\r\n    if(found===0) pts+=6;\r\n    else {\r\n      var c=s[found-1];\r\n      if(c==='/'||c==='\\\\'||c==='-'||c==='_'||c==='.'||c===' ') pts+=5;\r\n      else if(c===c.toLowerCase() && s[found]!==s[found].toLowerCase()) pts+=4;\r\n    }\r\n    score+=pts;\r\n    positions.push(found);\r\n    prev=found; si=found+1;\r\n  }\r\n  score -= Math.floor((positions[positions.length-1]-positions[0]-q.length+1)/3);\r\n  score -= Math.floor(positions[0]/4);\r\n  return { matched:true, score:score, positions:positions };\r\n}\r\nfunction fuzzyFilter(query, list){\r\n  var out=[];\r\n  for(var i=0;i<list.length;i++){\r\n    var r=fuzzyMatch(query, list[i]);\r\n    if(r.matched) out.push({ item:list[i], score:r.score, positions:r.positions });\r\n  }\r\n  out.sort(function(a,b){ return b.score-a.score || a.item.length-b.item.length; });\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { fuzzyMatch:fuzzyMatch, fuzzyFilter:fuzzyFilter };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.FuzzyForgePure = { fuzzyMatch:fuzzyMatch, fuzzyFilter:fuzzyFilter };\r\n}\r\n"
+}

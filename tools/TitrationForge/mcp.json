@@ -1,0 +1,59 @@
+{
+  "id": "TitrationForge",
+  "name": "titration_forge",
+  "title": "TitrationForge",
+  "description": "强酸–强碱滴定：自动算当量体积与任意加碱量下的 pH（含当量点=7），并生成曲线关键点。",
+  "entry": "equivalenceVol",
+  "entries": {
+    "equivalenceVol": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "Ca",
+        "Va",
+        "Cb"
+      ],
+      "fields": []
+    },
+    "phAt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "Ca",
+        "Va",
+        "Cb",
+        "Vb"
+      ],
+      "fields": []
+    },
+    "curve": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "Ca",
+        "Va",
+        "Cb",
+        "steps"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "Ca": {
+        "type": "string",
+        "description": "第 1 个参数（Ca）"
+      },
+      "Va": {
+        "type": "string",
+        "description": "第 2 个参数（Va）"
+      },
+      "Cb": {
+        "type": "string",
+        "description": "第 3 个参数（Cb）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction equivalenceVol(Ca, Va, Cb){ if(!Cb) return NaN; return Ca*Va/Cb; }\r\nfunction phAt(Ca, Va, Cb, Vb){\r\n  var nA = Ca*Va, nB = Cb*Vb, tot = Va+Vb;\r\n  if(nB < nA){ var h=(nA-nB)/tot; return -Math.log10(h); }\r\n  if(Math.abs(nB-nA) < 1e-12) return 7;\r\n  var oh=(nB-nA)/tot; return 14 + Math.log10(oh);\r\n}\r\nfunction curve(Ca, Va, Cb, steps){\r\n  steps=(steps==null)?50:steps; var Ve=equivalenceVol(Ca,Va,Cb); var out=[];\r\n  for(var i=0;i<=steps;i++){ var Vb=Ve*i/steps*1.2; out.push({Vb:Vb, pH:phAt(Ca,Va,Cb,Vb)}); }\r\n  return out;\r\n}\r\nvar EXPORTS={ equivalenceVol:equivalenceVol, phAt:phAt, curve:curve };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TitrationForgePure = EXPORTS; }\r\n\r\n"
+}

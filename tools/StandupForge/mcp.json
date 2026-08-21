@@ -1,0 +1,53 @@
+{
+  "id": "StandupForge",
+  "name": "standup_forge",
+  "title": "站会纪要",
+  "description": "按昨日 / 今日 / 障碍生成格式化站会纪要，离线。",
+  "entry": "buildStandup",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "buildStandup": {
+      "paramStyle": "object",
+      "paramNames": [
+        "f"
+      ],
+      "fields": [
+        "yesterday",
+        "today",
+        "blockers",
+        "team"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "yesterday": {
+        "type": "string",
+        "description": "参数 yesterday"
+      },
+      "today": {
+        "type": "string",
+        "description": "参数 today"
+      },
+      "blockers": {
+        "type": "string",
+        "description": "参数 blockers"
+      },
+      "team": {
+        "type": "string",
+        "description": "参数 team"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(text){\r\n  return String(text||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});\r\n}\r\nfunction buildStandup(f){\r\n  f=f||{};\r\n  var yest=splitLines(f.yesterday), today=splitLines(f.today), block=splitLines(f.blockers);\r\n  var who=String(f.team||'').trim();\r\n  var lines=['# 每日站会'+(who?(' · '+who):''), '', '## 昨日完成'];\r\n  yest.forEach(function(x){ lines.push('- '+x); }); if(!yest.length) lines.push('- （无）');\r\n  lines.push('','## 今日计划');\r\n  today.forEach(function(x){ lines.push('- '+x); }); if(!today.length) lines.push('- （无）');\r\n  lines.push('','## 障碍 / 风险');\r\n  block.forEach(function(x){ lines.push('- ⚠ '+x); }); if(!block.length) lines.push('- 无');\r\n  return {markdown:lines.join('\\n'), yest:yest.length, today:today.length, blockers:block.length};\r\n}\r\nvar EXPORTS={splitLines:splitLines, buildStandup:buildStandup};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.StandupForgePure = EXPORTS; }\r\n\r\n"
+}

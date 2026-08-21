@@ -1,0 +1,36 @@
+{
+  "id": "TomlForge",
+  "name": "toml_forge",
+  "title": "TomlForge",
+  "description": "TOML 解析器：字符串/数值/数组/表/数组表，零依赖解析。",
+  "entry": "tomlParse",
+  "entries": {
+    "tomlParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "tomlParseValue": {
+      "paramStyle": "single",
+      "paramNames": [
+        "raw"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction tomlStripComment(line){\r\n  var i=line.indexOf(' #');\r\n  if(i>=0) line=line.slice(0,i);\r\n  if(line.charAt(0)==='#') line='';\r\n  return line;\r\n}\r\nfunction tomlParseValue(raw){\r\n  raw=raw.trim();\r\n  if(raw.charAt(0)==='\"'){ var inner=raw.slice(1,-1).replace(/\\\\n/g,'\\n').replace(/\\\\t/g,'\\t').replace(/\\\\\"/g,'\"').replace(/\\\\\\\\/g,'\\\\'); return inner; }\r\n  if(raw.charAt(0)===\"'\"){ return raw.slice(1,-1); }\r\n  if(raw.charAt(0)==='['){ var inner=raw.slice(1,-1).trim(); if(inner==='') return []; return inner.split(',').map(function(x){ return tomlParseValue(x); }); }\r\n  if(raw==='true') return true;\r\n  if(raw==='false') return false;\r\n  if(/^-?\\d+$/.test(raw)) return parseInt(raw,10);\r\n  if(/^-?\\d*\\.\\d+$/.test(raw)) return parseFloat(raw);\r\n  return raw;\r\n}\r\nfunction tomlParse(text){\r\n  var root={}, cur=root;\r\n  var lines=text.split('\\n');\r\n  for(var li=0; li<lines.length; li++){\r\n    var line=tomlStripComment(lines[li]).trim();\r\n    if(line==='') continue;\r\n    if(line.charAt(0)==='['){\r\n      var close=line.lastIndexOf(']');\r\n      var header=line.slice(1,close);\r\n      var isArray = header.charAt(0)==='[';\r\n      if(isArray) header=header.slice(1,-1);\r\n      var keys=header.split('.').map(function(x){ return x.trim(); });\r\n      if(isArray){\r\n        var parent=root;\r\n        for(var i=0;i<keys.length-1;i++){ if(parent[keys[i]]===undefined) parent[keys[i]]={}; parent=parent[keys[i]]; }\r\n        var last=keys[keys.length-1];\r\n        if(!Array.isArray(parent[last])) parent[last]=[];\r\n        var newObj={}; parent[last].push(newObj); cur=newObj;\r\n      } else {\r\n        var p=root;\r\n        for(var i2=0;i2<keys.length;i2++){ if(p[keys[i2]]===undefined) p[keys[i2]]={}; p=p[keys[i2]]; }\r\n        cur=p;\r\n      }\r\n      continue;\r\n    }\r\n    var eq=line.indexOf('=');\r\n    if(eq<0) continue;\r\n    var k=line.slice(0,eq).trim();\r\n    cur[k]=tomlParseValue(line.slice(eq+1));\r\n  }\r\n  return root;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tomlParse:tomlParse, tomlParseValue:tomlParseValue };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TomlForgePure = { tomlParse:tomlParse, tomlParseValue:tomlParseValue };\r\n}\r\n"
+}

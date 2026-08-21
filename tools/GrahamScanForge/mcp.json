@@ -1,0 +1,38 @@
+{
+  "id": "GrahamScanForge",
+  "name": "graham_scan_forge",
+  "title": "GrahamScanForge",
+  "description": "凸包（Graham 扫描）：求平面上点集的凸包顶点，剔除内部点，离线精确。",
+  "entry": "hull",
+  "entries": {
+    "hull": {
+      "paramStyle": "single",
+      "paramNames": [
+        "points"
+      ],
+      "fields": []
+    },
+    "cross": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "o",
+        "a",
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "points": {
+        "type": "string",
+        "description": "输入（points）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction cross(o,a,b){ return (a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]); }\r\nfunction hull(points){\r\n  if(points.length<3) return points.slice();\r\n  var pts=points.slice().sort(function(p,q){ return p[1]!==q[1]? p[1]-q[1] : p[0]-q[0]; });\r\n  var pivot=pts[0];\r\n  var rest=pts.slice(1).sort(function(a,b){\r\n    var ang=Math.atan2(a[1]-pivot[1],a[0]-pivot[0])-Math.atan2(b[1]-pivot[1],b[0]-pivot[0]);\r\n    if(Math.abs(ang)>1e-12) return ang;\r\n    var da=(a[0]-pivot[0])*(a[0]-pivot[0])+(a[1]-pivot[1])*(a[1]-pivot[1]);\r\n    var db=(b[0]-pivot[0])*(b[0]-pivot[0])+(b[1]-pivot[1])*(b[1]-pivot[1]);\r\n    return da-db;\r\n  });\r\n  var st=[pivot, rest[0]];\r\n  for(var i=1;i<rest.length;i++){\r\n    while(st.length>=2 && cross(st[st.length-2], st[st.length-1], rest[i])<=0) st.pop();\r\n    st.push(rest[i]);\r\n  }\r\n  return st;\r\n}\r\nvar EXPORTS={hull:hull, cross:cross};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.GrahamScanForgePure = EXPORTS; }\r\n\r\n"
+}

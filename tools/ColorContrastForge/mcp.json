@@ -1,0 +1,55 @@
+{
+  "id": "ColorContrastForge",
+  "name": "color_contrast_forge",
+  "title": "ColorContrastForge",
+  "description": "WCAG 颜色对比度计算器：相对亮度、对比比率、AA/AAA 通过判定与实时预览，离线可用。",
+  "entry": "ccParseColor",
+  "entries": {
+    "ccParseColor": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "ccLum": {
+      "paramStyle": "object",
+      "paramNames": [
+        "c"
+      ],
+      "fields": [
+        "r",
+        "g",
+        "b"
+      ]
+    },
+    "ccContrast": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fg",
+        "bg"
+      ],
+      "fields": []
+    },
+    "ccLevel": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ratio"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction ccParseColor(str){\r\n  str=String(str||'').trim();\r\n  var m;\r\n  if((m=str.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i))){\r\n    var h=m[1];\r\n    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];\r\n    return {r:parseInt(h.slice(0,2),16), g:parseInt(h.slice(2,4),16), b:parseInt(h.slice(4,6),16)};\r\n  }\r\n  if((m=str.match(/^rgb\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)$/i))){\r\n    return {r:+m[1], g:+m[2], b:+m[3]};\r\n  }\r\n  return null;\r\n}\r\nfunction ccLin(c){\r\n  c=c/255;\r\n  return c<=0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4);\r\n}\r\nfunction ccLum(c){\r\n  return 0.2126*ccLin(c.r)+0.7152*ccLin(c.g)+0.0722*ccLin(c.b);\r\n}\r\nfunction ccContrast(fg, bg){\r\n  var l1=ccLum(fg), l2=ccLum(bg);\r\n  var hi=Math.max(l1,l2), lo=Math.min(l1,l2);\r\n  return Math.round((hi+0.05)/(lo+0.05)*100)/100;\r\n}\r\nfunction ccLevel(ratio){\r\n  return { AA: ratio>=4.5, AALarge: ratio>=3, AAA: ratio>=7, AAALarge: ratio>=4.5 };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { ccParseColor:ccParseColor, ccLum:ccLum, ccContrast:ccContrast, ccLevel:ccLevel };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ColorContrastForgePure = { ccParseColor:ccParseColor, ccLum:ccLum, ccContrast:ccContrast, ccLevel:ccLevel };\r\n}\r\n\r\n"
+}

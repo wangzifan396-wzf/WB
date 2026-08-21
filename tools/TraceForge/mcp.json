@@ -1,0 +1,57 @@
+{
+  "id": "TraceForge",
+  "name": "trace_forge",
+  "title": "TraceForge",
+  "description": "链路追踪瀑布图：粘贴 span JSON（name/start/dur/parent），按层级缩进渲染耗时瀑布 SVG，自动找出最慢 span，离线可用。",
+  "entry": "trcParse",
+  "entries": {
+    "trcParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "trcDepth": {
+      "paramStyle": "single",
+      "paramNames": [
+        "spans"
+      ],
+      "fields": []
+    },
+    "trcStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "spans"
+      ],
+      "fields": []
+    },
+    "trcSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "spans"
+      ],
+      "fields": []
+    },
+    "trcEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction trcParse(text){\r\n  var arr;\r\n  try{ arr=JSON.parse(String(text||'')); }catch(e){ return { error:'JSON 解析失败：'+e.message }; }\r\n  if(!Array.isArray(arr) || !arr.length) return { error:'需要非空 span 数组' };\r\n  var spans=[], names={};\r\n  for(var i=0;i<arr.length;i++){\r\n    var s=arr[i];\r\n    if(!s || typeof s.name!=='string' || !s.name) return { error:'第 '+(i+1)+' 个 span 缺少 name' };\r\n    var start=Number(s.start), dur=Number(s.dur);\r\n    if(!isFinite(start)||start<0) return { error:'span \"'+s.name+'\" start 非法' };\r\n    if(!isFinite(dur)||dur<=0) return { error:'span \"'+s.name+'\" dur 非法' };\r\n    if(names[s.name]) return { error:'span name 重复：\"'+s.name+'\"' };\r\n    names[s.name]=1;\r\n    spans.push({ name:s.name, start:start, dur:dur, parent:(typeof s.parent==='string'&&s.parent)?s.parent:null });\r\n  }\r\n  for(i=0;i<spans.length;i++) if(spans[i].parent && !names[spans[i].parent]) return { error:'span \"'+spans[i].name+'\" 的 parent 不存在' };\r\n  return { error:null, spans:spans };\r\n}\r\nfunction trcDepth(spans){\r\n  var byName={}, i;\r\n  for(i=0;i<spans.length;i++) byName[spans[i].name]=spans[i];\r\n  var depth={};\r\n  function d(s, guard){\r\n    if(guard>spans.length) return -1;\r\n    if(!s.parent) return 0;\r\n    var pd=d(byName[s.parent], guard+1);\r\n    return pd<0 ? -1 : pd+1;\r\n  }\r\n  for(i=0;i<spans.length;i++){\r\n    var dd=d(spans[i],0);\r\n    if(dd<0) return { error:'parent 链存在环' };\r\n    depth[spans[i].name]=dd;\r\n  }\r\n  return { error:null, depth:depth };\r\n}\r\nfunction trcStats(spans){\r\n  var end=0, slow=spans[0], i;\r\n  for(i=0;i<spans.length;i++){\r\n    end=Math.max(end, spans[i].start+spans[i].dur);\r\n    if(spans[i].dur>slow.dur) slow=spans[i];\r\n  }\r\n  return { total:end, slowest:slow.name, slowestDur:slow.dur };\r\n}\r\nfunction trcEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction trcSvg(spans){\r\n  var D=trcDepth(spans);\r\n  if(D.error) return '';\r\n  var st=trcStats(spans);\r\n  var ROW=28, LBL=180, CHART=560, PAD=10;\r\n  var W=LBL+CHART+PAD*2, H=PAD*2+spans.length*ROW+18;\r\n  var cols=['#5E6AD2','#22D3EE','#10B981','#A78BFA','#F5A623'];\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+W+'\" height=\"'+H+'\" viewBox=\"0 0 '+W+' '+H+'\">';\r\n  s+='<rect width=\"'+W+'\" height=\"'+H+'\" fill=\"#0A0A0B\"/>';\r\n  for(var g=0;g<=4;g++){\r\n    var gx=LBL+PAD+CHART*g/4;\r\n    s+='<line x1=\"'+gx+'\" y1=\"'+PAD+'\" x2=\"'+gx+'\" y2=\"'+(H-18)+'\" stroke=\"rgba(255,255,255,.06)\"/>';\r\n    s+='<text x=\"'+gx+'\" y=\"'+(H-4)+'\" font-family=\"system-ui,sans-serif\" font-size=\"10\" fill=\"#71717A\" text-anchor=\"middle\">'+Math.round(st.total*g/4)+'ms</text>';\r\n  }\r\n  for(var i=0;i<spans.length;i++){\r\n    var sp=spans[i], y=PAD+i*ROW, dep=D.depth[sp.name];\r\n    var x=LBL+PAD+CHART*sp.start/st.total, w=Math.max(2, CHART*sp.dur/st.total);\r\n    var c = sp.name===st.slowest ? '#EF4444' : cols[dep%cols.length];\r\n    s+='<text x=\"'+(PAD+dep*14)+'\" y=\"'+(y+ROW/2+4)+'\" font-family=\"system-ui,sans-serif\" font-size=\"12\" fill=\"#A1A1AA\">'+trcEsc(sp.name)+'</text>';\r\n    s+='<rect x=\"'+x+'\" y=\"'+(y+5)+'\" width=\"'+w+'\" height=\"'+(ROW-12)+'\" rx=\"4\" fill=\"'+c+'\" opacity=\"0.85\"/>';\r\n    s+='<text x=\"'+Math.min(W-PAD-30, x+w+6)+'\" y=\"'+(y+ROW/2+4)+'\" font-family=\"system-ui,sans-serif\" font-size=\"10\" fill=\"#71717A\">'+sp.dur+'ms</text>';\r\n  }\r\n  return s+'</svg>';\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { trcParse:trcParse, trcDepth:trcDepth, trcStats:trcStats, trcSvg:trcSvg, trcEsc:trcEsc };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TraceForgePure = { trcParse:trcParse, trcDepth:trcDepth, trcStats:trcStats, trcSvg:trcSvg, trcEsc:trcEsc };\r\n}\r\n"
+}

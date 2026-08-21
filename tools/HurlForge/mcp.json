@@ -1,0 +1,29 @@
+{
+  "id": "HurlForge",
+  "name": "hurl_forge",
+  "title": "HurlForge",
+  "description": "用接近 hurl 的文本语法编排 HTTP 请求链：定义方法/URL/请求头/体，断言状态码与响应内容，捕获变量，一键顺序执行。",
+  "entry": "parse",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function parse(text){\r\n    var blocks=String(text||'').split(/\\n\\s*\\n/), entries=[];\r\n    for(var i=0;i<blocks.length;i++){\r\n      var b=blocks[i].trim(); if(!b)continue;\r\n      var lines=b.split(/\\r?\\n/);\r\n      var first=lines[0].trim().match(/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\\s+(\\S+)/i);\r\n      if(!first) continue;\r\n      var e={method:first[1].toUpperCase(), url:first[2], headers:{}, body:'', asserts:[]};\r\n      for(var j=1;j<lines.length;j++){ var ln=lines[j].trim(); if(!ln)continue;\r\n        var sm=ln.match(/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\\s+/i); if(sm) break;\r\n        var hm=ln.match(/^([\\w-]+):\\s*(.+)$/);\r\n        if(hm && !/^(HTTP|status|body|header)$/i.test(hm[1])){ e.headers[hm[1]]=hm[2]; continue; }\r\n        var am=ln.match(/(?:status|HTTP\\/\\d\\.\\d)\\s*(==|!=|>=|<=|>|<)\\s*(\\d+)/i);\r\n        if(am){ e.asserts.push({kind:'status', op:am[1], val:+am[2]}); continue; }\r\n        var bm=ln.match(/^body\\s+(contains|matches|==)\\s+(.+)$/i);\r\n        if(bm){ e.asserts.push({kind:'body', op:bm[1].toLowerCase(), val:bm[2]}); continue; }\r\n        if(/^[{\\[]/.test(ln)){ e.body+= (e.body?'\\n':'')+ln; }\r\n      }\r\n      entries.push(e);\r\n    }\r\n    return {value:entries};\r\n  }\r\n  var API={parse:parse};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__HurlForge__=API;\r\n})();\r\n"
+}

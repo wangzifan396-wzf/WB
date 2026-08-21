@@ -1,0 +1,74 @@
+{
+  "id": "QuadtreeForge",
+  "name": "quadtree_forge",
+  "title": "QuadtreeForge",
+  "description": "四叉树图像近似：递归细分逼近细节，叶子统计与实时预览。",
+  "entry": "qtPattern",
+  "entries": {
+    "qtPattern": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "kind",
+        "size"
+      ],
+      "fields": []
+    },
+    "qtStats": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "grid",
+        "x",
+        "y",
+        "s"
+      ],
+      "fields": []
+    },
+    "qtBuild": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "grid",
+        "x",
+        "y",
+        "s",
+        "thr",
+        "minSize"
+      ],
+      "fields": []
+    },
+    "qtLeaves": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "node",
+        "out"
+      ],
+      "fields": []
+    },
+    "qtCount": {
+      "paramStyle": "object",
+      "paramNames": [
+        "node"
+      ],
+      "fields": [
+        "leaf",
+        "kids"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "description": "第 1 个参数（kind）"
+      },
+      "size": {
+        "type": "string",
+        "description": "第 2 个参数（size）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction qtPattern(kind, size){\r\n  var g = [];\r\n  for(var y=0;y<size;y++){\r\n    var row = [];\r\n    for(var x=0;x<size;x++){\r\n      var v;\r\n      if(kind === 'gradient'){ v = ((x + y) / (2*size - 2)) * 255; }\r\n      else if(kind === 'checker'){ v = ((Math.floor(x/(size/8)) + Math.floor(y/(size/8))) % 2) ? 220 : 40; }\r\n      else { var dx = x - size/2, dy = y - size/2; v = (Math.sin(Math.sqrt(dx*dx+dy*dy) * 0.15) + 1) / 2 * 255; }\r\n      row.push(v);\r\n    }\r\n    g.push(row);\r\n  }\r\n  return g;\r\n}\r\nfunction qtStats(grid, x, y, s){\r\n  var sum = 0, sum2 = 0, n = s*s;\r\n  for(var j=y;j<y+s;j++) for(var i=x;i<x+s;i++){ var v = grid[j][i]; sum += v; sum2 += v*v; }\r\n  var mean = sum / n;\r\n  return { mean: mean, std: Math.sqrt(Math.max(0, sum2/n - mean*mean)) };\r\n}\r\nfunction qtBuild(grid, x, y, s, thr, minSize){\r\n  var st = qtStats(grid, x, y, s);\r\n  if(s <= (minSize||4) || st.std <= thr){\r\n    return { x:x, y:y, s:s, v: st.mean, leaf: true };\r\n  }\r\n  var h = s/2;\r\n  return { x:x, y:y, s:s, leaf: false, kids: [\r\n    qtBuild(grid, x, y, h, thr, minSize),\r\n    qtBuild(grid, x+h, y, h, thr, minSize),\r\n    qtBuild(grid, x, y+h, h, thr, minSize),\r\n    qtBuild(grid, x+h, y+h, h, thr, minSize)\r\n  ]};\r\n}\r\nfunction qtLeaves(node, out){\r\n  out = out || [];\r\n  if(node.leaf) out.push(node);\r\n  else for(var i=0;i<4;i++) qtLeaves(node.kids[i], out);\r\n  return out;\r\n}\r\nfunction qtCount(node){\r\n  if(node.leaf) return { nodes: 1, leaves: 1, depth: 1 };\r\n  var nodes = 1, leaves = 0, depth = 0;\r\n  for(var i=0;i<4;i++){\r\n    var c = qtCount(node.kids[i]);\r\n    nodes += c.nodes; leaves += c.leaves; depth = Math.max(depth, c.depth);\r\n  }\r\n  return { nodes: nodes, leaves: leaves, depth: depth + 1 };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { qtPattern:qtPattern, qtStats:qtStats, qtBuild:qtBuild, qtLeaves:qtLeaves, qtCount:qtCount };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.QuadtreeForgePure = { qtPattern:qtPattern, qtStats:qtStats, qtBuild:qtBuild, qtLeaves:qtLeaves, qtCount:qtCount };\r\n}\r\n"
+}

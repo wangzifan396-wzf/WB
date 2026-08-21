@@ -1,0 +1,91 @@
+{
+  "id": "SortVizForge",
+  "name": "sort_viz_forge",
+  "title": "SortVizForge",
+  "description": "排序算法可视化：把数组画成柱状图，逐步播放冒泡 / 插入 / 选择 / 快速 / 归并五种排序的比较与交换过程，直观理解算法复杂度。",
+  "entry": "svMake",
+  "entries": {
+    "svMake": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "seed"
+      ],
+      "fields": []
+    },
+    "svBubble": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "visit"
+      ],
+      "fields": []
+    },
+    "svInsertion": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "visit"
+      ],
+      "fields": []
+    },
+    "svSelection": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "visit"
+      ],
+      "fields": []
+    },
+    "svQuick": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "visit"
+      ],
+      "fields": []
+    },
+    "svMerge": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "visit"
+      ],
+      "fields": []
+    },
+    "svRun": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "name",
+        "a",
+        "visit"
+      ],
+      "fields": []
+    },
+    "svSortedEq": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "第 1 个参数（n）"
+      },
+      "seed": {
+        "type": "number",
+        "description": "第 2 个参数（seed）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction svMake(n, seed){ var a=[]; var s=seed||1; function rnd(){ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; } for(var i=0;i<n;i++) a.push(Math.floor(rnd()*98)+2); return a; }\r\nfunction svBubble(a, visit){ var arr=a.slice(), n=arr.length, comp=0, swap=0; for(var i=0;i<n-1;i++){ var done=true; for(var j=0;j<n-1-i;j++){ comp++; if(visit)visit({t:'cmp',i:j,j:j+1}); if(arr[j]>arr[j+1]){ var t=arr[j];arr[j]=arr[j+1];arr[j+1]=t; swap++; if(visit)visit({t:'sw',i:j,j:j+1}); done=false; } } if(done) break; } return {arr:arr,comp:comp,swap:swap}; }\r\nfunction svInsertion(a, visit){ var arr=a.slice(), n=arr.length, comp=0, swap=0; for(var i=1;i<n;i++){ var key=arr[i], j=i-1; while(j>=0){ comp++; if(visit)visit({t:'cmp',i:j,j:i}); if(arr[j]>key){ arr[j+1]=arr[j]; swap++; if(visit)visit({t:'sw',i:j,j:j+1}); j--; } else break; } arr[j+1]=key; } return {arr:arr,comp:comp,swap:swap}; }\r\nfunction svSelection(a, visit){ var arr=a.slice(), n=arr.length, comp=0, swap=0; for(var i=0;i<n;i++){ var m=i; for(var j=i+1;j<n;j++){ comp++; if(visit)visit({t:'cmp',i:m,j:j}); if(arr[j]<arr[m]) m=j; } if(m!==i){ var t=arr[i];arr[i]=arr[m];arr[m]=t; swap++; if(visit)visit({t:'sw',i:i,j:m}); } } return {arr:arr,comp:comp,swap:swap}; }\r\nfunction svQuick(a, visit){ var arr=a.slice(), comp=0, swap=0; (function qs(lo,hi){ if(lo>=hi) return; var p=arr[hi], i=lo-1; for(var j=lo;j<hi;j++){ comp++; if(visit)visit({t:'cmp',i:j,j:hi}); if(arr[j]<p){ i++; var t=arr[i];arr[i]=arr[j];arr[j]=t; swap++; if(visit)visit({t:'sw',i:i,j:j}); } } var t2=arr[i+1];arr[i+1]=arr[hi];arr[hi]=t2; swap++; if(visit)visit({t:'sw',i:i+1,j:hi}); qs(lo,i); qs(i+2,hi); })(0,arr.length-1); return {arr:arr,comp:comp,swap:swap}; }\r\nfunction svMerge(a, visit){ var arr=a.slice(), comp=0; function ms(lo,hi){ if(hi-lo<=1) return; var mid=(lo+hi)>>1; ms(lo,mid); ms(mid,hi); var L=arr.slice(lo,mid), R=arr.slice(mid,hi), i=0,j=0,k=lo; while(i<L.length&&j<R.length){ comp++; if(visit)visit({t:'cmp',i:lo+i,j:mid+j}); if(L[i]<=R[j]) arr[k++]=L[i++]; else arr[k++]=R[j++]; } while(i<L.length) arr[k++]=L[i++]; while(j<R.length) arr[k++]=R[j++]; } ms(0,arr.length); return {arr:arr,comp:comp,swap:0}; }\r\nfunction svRun(name, a, visit){ if(name==='bubble')return svBubble(a,visit); if(name==='insertion')return svInsertion(a,visit); if(name==='selection')return svSelection(a,visit); if(name==='quick')return svQuick(a,visit); if(name==='merge')return svMerge(a,visit); return {arr:a.slice(),comp:0,swap:0}; }\r\nfunction svSortedEq(a,b){ if(a.length!==b.length)return false; for(var i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; }\r\nvar EXPORTS={svMake:svMake,svBubble:svBubble,svInsertion:svInsertion,svSelection:svSelection,svQuick:svQuick,svMerge:svMerge,svRun:svRun,svSortedEq:svSortedEq};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SortVizForgePure = EXPORTS; }\r\n\r\n"
+}

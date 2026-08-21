@@ -1,0 +1,78 @@
+{
+  "id": "AnsiForge",
+  "name": "ansi_forge",
+  "title": "AnsiForge",
+  "description": "ANSI 终端着色：转义序列渲染为彩色 HTML、一键去色还原纯文本、SGR 序列统计，离线可用。",
+  "entry": "anTokenize",
+  "entries": {
+    "anTokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "anApply": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "state",
+        "codes"
+      ],
+      "fields": []
+    },
+    "anStyle": {
+      "paramStyle": "object",
+      "paramNames": [
+        "st"
+      ],
+      "fields": [
+        "fg",
+        "bg",
+        "bold",
+        "italic",
+        "underline"
+      ]
+    },
+    "anToHtml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "anStrip": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "anStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "anEscapeHtml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar AN_FG = { 30:'#3F3F46', 31:'#EF4444', 32:'#10B981', 33:'#F5A623', 34:'#5E6AD2',\r\n              35:'#A78BFA', 36:'#22D3EE', 37:'#D4D4D8',\r\n              90:'#71717A', 91:'#F87171', 92:'#34D399', 93:'#FBBF24', 94:'#818CF8',\r\n              95:'#C4B5FD', 96:'#67E8F9', 97:'#FFFFFF' };\r\nvar AN_BG = { 40:'#3F3F46', 41:'#7F1D1D', 42:'#064E3B', 43:'#78350F', 44:'#312E81',\r\n              45:'#4C1D95', 46:'#164E63', 47:'#E4E4E7' };\r\nfunction anTokenize(text){\r\n  var s=String(text==null?'':text), out=[], re=/\\x1b\\[([0-9;]*)m/g, last=0, m;\r\n  while((m=re.exec(s))!==null){\r\n    if(m.index>last) out.push({ kind:'text', value:s.slice(last,m.index) });\r\n    out.push({ kind:'sgr', codes:(m[1]===''?['0']:m[1].split(';')).map(Number) });\r\n    last=re.lastIndex;\r\n  }\r\n  if(last<s.length) out.push({ kind:'text', value:s.slice(last) });\r\n  return out;\r\n}\r\nfunction anApply(state, codes){\r\n  var st={ fg:state.fg, bg:state.bg, bold:state.bold, italic:state.italic, underline:state.underline };\r\n  for(var i=0;i<codes.length;i++){\r\n    var c=codes[i];\r\n    if(c===0){ st={ fg:null,bg:null,bold:false,italic:false,underline:false }; }\r\n    else if(c===1) st.bold=true;\r\n    else if(c===3) st.italic=true;\r\n    else if(c===4) st.underline=true;\r\n    else if(c===22) st.bold=false;\r\n    else if(c===23) st.italic=false;\r\n    else if(c===24) st.underline=false;\r\n    else if(c===39) st.fg=null;\r\n    else if(c===49) st.bg=null;\r\n    else if(AN_FG[c]) st.fg=AN_FG[c];\r\n    else if(AN_BG[c]) st.bg=AN_BG[c];\r\n  }\r\n  return st;\r\n}\r\nfunction anStyle(st){\r\n  var p=[];\r\n  if(st.fg) p.push('color:'+st.fg);\r\n  if(st.bg) p.push('background:'+st.bg);\r\n  if(st.bold) p.push('font-weight:700');\r\n  if(st.italic) p.push('font-style:italic');\r\n  if(st.underline) p.push('text-decoration:underline');\r\n  return p.join(';');\r\n}\r\nfunction anEscapeHtml(s){\r\n  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\r\n}\r\nfunction anToHtml(text){\r\n  var toks=anTokenize(text), st={ fg:null,bg:null,bold:false,italic:false,underline:false }, out='';\r\n  for(var i=0;i<toks.length;i++){\r\n    if(toks[i].kind==='sgr'){ st=anApply(st, toks[i].codes); continue; }\r\n    var css=anStyle(st), body=anEscapeHtml(toks[i].value);\r\n    out += css ? '<span style=\"'+css+'\">'+body+'</span>' : body;\r\n  }\r\n  return out;\r\n}\r\nfunction anStrip(text){\r\n  return String(text==null?'':text).replace(/\\x1b\\[[0-9;]*m/g,'');\r\n}\r\nfunction anStats(text){\r\n  var toks=anTokenize(text), sgr=0, chars=0;\r\n  for(var i=0;i<toks.length;i++){\r\n    if(toks[i].kind==='sgr') sgr++; else chars+=toks[i].value.length;\r\n  }\r\n  return { sequences:sgr, visibleChars:chars, rawLength:String(text==null?'':text).length };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { anTokenize:anTokenize, anApply:anApply, anStyle:anStyle, anToHtml:anToHtml,\r\n                     anStrip:anStrip, anStats:anStats, anEscapeHtml:anEscapeHtml, AN_FG:AN_FG, AN_BG:AN_BG };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.AnsiForgePure = { anTokenize:anTokenize, anApply:anApply, anStyle:anStyle, anToHtml:anToHtml,\r\n                     anStrip:anStrip, anStats:anStats, anEscapeHtml:anEscapeHtml, AN_FG:AN_FG, AN_BG:AN_BG };\r\n}\r\n\r\n"
+}

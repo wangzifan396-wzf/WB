@@ -1,0 +1,64 @@
+{
+  "id": "DocxForge",
+  "name": "docx_forge",
+  "title": "DocxForge",
+  "description": "纯前端 Word 生成器：粘贴文本即可打包为标准 .docx（最小 OOXML + 无压缩 ZIP，自实现 CRC32），支持标题行，零依赖离线可用。",
+  "entry": "dxCrc32",
+  "entries": {
+    "dxCrc32": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "dxUtf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "dxZip": {
+      "paramStyle": "single",
+      "paramNames": [
+        "files"
+      ],
+      "fields": []
+    },
+    "dxXmlEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "dxDocXml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "dxBuild": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": false,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction dxCrc32(bytes){\r\n  var table=dxCrc32._t;\r\n  if(!table){\r\n    table=dxCrc32._t=[];\r\n    for(var i=0;i<256;i++){ var c=i;\r\n      for(var k=0;k<8;k++) c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1);\r\n      table[i]=c>>>0; }\r\n  }\r\n  var crc=0xFFFFFFFF;\r\n  for(var j=0;j<bytes.length;j++) crc=(crc>>>8) ^ table[(crc ^ bytes[j]) & 0xFF];\r\n  return (crc ^ 0xFFFFFFFF)>>>0;\r\n}\r\nfunction dxUtf8(str){\r\n  var out=[], s=String(str);\r\n  for(var i=0;i<s.length;i++){\r\n    var c=s.codePointAt(i);\r\n    if(c>0xFFFF) i++;\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xC0|(c>>6), 0x80|(c&63)); }\r\n    else if(c<0x10000){ out.push(0xE0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n    else { out.push(0xF0|(c>>18), 0x80|((c>>12)&63), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction dxZip(files){\r\n  var chunks=[], central=[], offset=0, i;\r\n  function u16(v){ return [v&255,(v>>8)&255]; }\r\n  function u32(v){ return [v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255]; }\r\n  for(i=0;i<files.length;i++){\r\n    var nameB=dxUtf8(files[i].name), data=files[i].data, crc=dxCrc32(data);\r\n    var local=[0x50,0x4B,0x03,0x04].concat(u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(nameB.length),u16(0),nameB,data);\r\n    central.push({ name:nameB, crc:crc, size:data.length, offset:offset });\r\n    chunks.push(local); offset+=local.length;\r\n  }\r\n  var cd=[], cdStart=offset;\r\n  for(i=0;i<central.length;i++){\r\n    var e=central[i];\r\n    cd=cd.concat([0x50,0x4B,0x01,0x02],u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(e.crc),u32(e.size),u32(e.size),u16(e.name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(e.offset),e.name);\r\n  }\r\n  var cdLen=cd.length;\r\n  var eocd=[0x50,0x4B,0x05,0x06].concat(u16(0),u16(0),u16(files.length),u16(files.length),u32(cdLen),u32(cdStart),u16(0));\r\n  var all=[]; for(i=0;i<chunks.length;i++) all=all.concat(chunks[i]);\r\n  return new Uint8Array(all.concat(cd, eocd));\r\n}\r\nfunction dxXmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction dxDocXml(text){\r\n  var lines=String(text||'').split('\\n'), body='';\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i]; if(!ln.trim()) continue;\r\n    var isH=/^#\\s+/.test(ln), t=dxXmlEsc(isH ? ln.replace(/^#\\s+/,'') : ln);\r\n    var rpr=isH ? '<w:rPr><w:b/><w:sz w:val=\"36\"/></w:rPr>' : '';\r\n    body+='<w:p><w:r>'+rpr+'<w:t xml:space=\"preserve\">'+t+'</w:t></w:r></w:p>';\r\n  }\r\n  if(!body) body='<w:p/>';\r\n  return '<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>'+body+'</w:body></w:document>';\r\n}\r\nfunction dxBuild(text){\r\n  var ct='<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>';\r\n  var rels='<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>';\r\n  return dxZip([\r\n    { name:'[Content_Types].xml', data:dxUtf8(ct) },\r\n    { name:'_rels/.rels', data:dxUtf8(rels) },\r\n    { name:'word/document.xml', data:dxUtf8(dxDocXml(text)) }\r\n  ]);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { dxCrc32:dxCrc32, dxUtf8:dxUtf8, dxZip:dxZip, dxXmlEsc:dxXmlEsc, dxDocXml:dxDocXml, dxBuild:dxBuild };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.DocxForgePure = { dxCrc32:dxCrc32, dxUtf8:dxUtf8, dxZip:dxZip, dxXmlEsc:dxXmlEsc, dxDocXml:dxDocXml, dxBuild:dxBuild };\r\n}\r\n"
+}

@@ -1,0 +1,34 @@
+{
+  "id": "SleepTimeForge",
+  "name": "sleep_time_forge",
+  "title": "睡眠时长",
+  "description": "由就寝/起床时间算睡眠时长并给质量建议，离线。",
+  "entry": "sleepTime",
+  "entries": {
+    "sleepTime": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bed",
+        "wake"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bed": {
+        "type": "string",
+        "description": "第 1 个参数（bed）"
+      },
+      "wake": {
+        "type": "string",
+        "description": "第 2 个参数（wake）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction toMin(hhmm){\r\n  var p=String(hhmm).split(':'); if(p.length<2) return null;\r\n  var h=+p[0], m=+p[1]; if(isNaN(h)||isNaN(m)) return null;\r\n  return h*60+m;\r\n}\r\nfunction sleepTime(bed, wake){\r\n  var b=toMin(bed), w=toMin(wake);\r\n  if(b==null||w==null) return {error:'时间格式须为 HH:MM'};\r\n  var mins = (w - b + 1440) % 1440;\r\n  var hours = Math.round(mins/6)/10;\r\n  var quality, tip;\r\n  if(mins < 360) { quality='睡眠不足'; tip='少于 6 小时，长期可能影响健康，建议提前作息。'; }\r\n  else if(mins <= 540) { quality='睡眠充足'; tip='6–9 小时，符合多数成年人推荐区间。'; }\r\n  else { quality='睡眠偏多'; tip='超过 9 小时，若伴不适可关注睡眠质量。'; }\r\n  return {hours:hours, minutes:mins, quality:quality, tip:tip};\r\n}\r\nvar EXPORTS={sleepTime:sleepTime};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SleepTimeForgePure = EXPORTS; }\r\n\r\n"
+}

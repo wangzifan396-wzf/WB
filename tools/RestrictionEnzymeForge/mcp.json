@@ -1,0 +1,36 @@
+{
+  "id": "RestrictionEnzymeForge",
+  "name": "restriction_enzyme_forge",
+  "title": "RestrictionEnzymeForge",
+  "description": "限制性内切酶切点分析：常见酶在 DNA 序列上的切点与片段，纯前端处理。",
+  "entry": "listEnzymes",
+  "entries": {
+    "listEnzymes": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "normSeq": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cut": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "seq",
+        "name"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\nvar ENZ = {\r\n  EcoRI:   { site: 'GAATTC',    cut: 1 },   // G^AATTC\r\n  BamHI:   { site: 'GGATCC',    cut: 1 },   // G^GATCC\r\n  HindIII: { site: 'AAGCTT',    cut: 1 },   // A^AGCTT\r\n  EcoRV:   { site: 'GATATC',    cut: 3 },   // GAT^ATC\r\n  NotI:    { site: 'GCGGCCGC',  cut: 2 },   // GC^GGCCGC\r\n  XhoI:    { site: 'CTCGAG',    cut: 1 }    // C^TCGAG\r\n};\r\nfunction listEnzymes(){ return Object.keys(ENZ); }\r\nfunction normSeq(s){ return String(s).toUpperCase().replace(/U/g,'T').replace(/[^ACGT]/g,''); }\r\n// 在序列中查找酶切位点，返回切割坐标（位点内 cut 偏移处）与片段\r\nfunction cut(seq, name){\r\n  var e = ENZ[name]; if(!e) return {error:'unknown enzyme'};\r\n  var s = normSeq(seq); var site = e.site; var positions = [];\r\n  var idx = s.indexOf(site);\r\n  while(idx !== -1){ positions.push(idx + e.cut); idx = s.indexOf(site, idx + 1); }\r\n  var fragments = []; var start = 0;\r\n  for(var i=0;i<positions.length;i++){ fragments.push(s.slice(start, positions[i])); start = positions[i]; }\r\n  fragments.push(s.slice(start));\r\n  return { enzyme:name, site:site, positions:positions, fragments:fragments, count:fragments.length };\r\n}\r\nvar EXPORTS={ ENZ:ENZ, listEnzymes:listEnzymes, normSeq:normSeq, cut:cut };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RestrictionEnzymeForgePure = EXPORTS; }\r\n\r\n"
+}

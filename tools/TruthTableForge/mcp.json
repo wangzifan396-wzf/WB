@@ -1,0 +1,44 @@
+{
+  "id": "TruthTableForge",
+  "name": "truth_table_forge",
+  "title": "TruthTableForge",
+  "description": "输入含 A-Z 变量的布尔表达式，生成完整真值表。",
+  "entry": "getVars",
+  "entries": {
+    "getVars": {
+      "paramStyle": "single",
+      "paramNames": [
+        "expr"
+      ],
+      "fields": []
+    },
+    "evalExpr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "expr",
+        "vals"
+      ],
+      "fields": []
+    },
+    "table": {
+      "paramStyle": "single",
+      "paramNames": [
+        "expr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "expr": {
+        "type": "string",
+        "description": "输入（expr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction getVars(expr){var s=String(expr);var set={};for(var i=0;i<s.length;i++){var c=s[i];if(c>='A'&&c<='Z')set[c]=1;}return Object.keys(set).sort();}\r\nvar PREC={'!':4,'&':3,'^':2,'|':1};\r\nfunction evalExpr(expr,vals){var out=[],op=[];for(var i=0;i<expr.length;i++){var c=expr[i];if(c===' ')continue;\r\n  if(c>='A'&&c<='Z'){out.push(vals[c]?1:0);}else if(c==='('){op.push(c);}else if(c===')'){while(op.length&&op[op.length-1]!=='(')out.push(op.pop());op.pop();}\r\n  else if(c==='!'){op.push(c);}else if(PREC[c]){while(op.length&&op[op.length-1]!=='('&&PREC[op[op.length-1]]>=PREC[c])out.push(op.pop());op.push(c);}}\r\n  while(op.length)out.push(op.pop());\r\n  var st=[];for(var j=0;j<out.length;j++){var t=out[j];\r\n    if(t==='!'){st.push(st.pop()?0:1);}\r\n    else if(t==='&'){var b=st.pop(),a=st.pop();st.push(a&&b?1:0);}\r\n    else if(t==='|'){var b=st.pop(),a=st.pop();st.push(a||b?1:0);}\r\n    else if(t==='^'){var b=st.pop(),a=st.pop();st.push((a^b)?1:0);}\r\n    else st.push(+t);}\r\n  return st[0]?1:0;}\r\nfunction table(expr){var vars=getVars(expr);if(!vars.length)return null;var n=vars.length;var rows=[];\r\n  for(var mm=0;mm<(1<<n);mm++){var vals={};for(var i=0;i<n;i++){vals[vars[i]]=(mm>>i)&1;}rows.push({inputs:vars.map(function(v){return vals[v];}),out:evalExpr(expr,vals)});}\r\n  return {vars:vars,rows:rows};}\r\nvar EXPORTS={getVars:getVars,evalExpr:evalExpr,table:table};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TruthTableForgePure = EXPORTS; }\r\n\r\n"
+}

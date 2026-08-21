@@ -1,0 +1,29 @@
+{
+  "id": "Json5Forge",
+  "name": "json5_forge",
+  "title": "Json5Forge",
+  "description": "JSON5 解析：支持注释、单引号、尾逗号、十六进制与无引号键的宽松 JSON 超集。",
+  "entry": "json5Parse",
+  "entries": {
+    "json5Parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "src": {
+        "type": "string",
+        "description": "输入（src）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction json5Parse(src){\r\n  var i=0;\r\n  function isWs(c){return c===' '||c==='\\t'||c==='\\n'||c==='\\r';}\r\n  function skip(){while(i<src.length){var c=src[i];if(c===' '||c==='\\t'||c==='\\n'||c==='\\r'){i++;}else if(c==='/'&&src[i+1]==='/'){i+=2;while(i<src.length&&src[i]!=='\\n')i++;}else if(c==='/'&&src[i+1]==='*'){i+=2;while(i<src.length&&!(src[i]==='*'&&src[i+1]==='/'))i++;i+=2;}else break;}}\r\n  function parseValue(){\r\n    skip();var c=src[i];\r\n    if(c==='{')return parseAgg(false);\r\n    if(c==='[')return parseAgg(true);\r\n    if(c==='\"'||c===\"'\")return parseStr();\r\n    if(src.substr(i,4)==='true'){i+=4;return true;}\r\n    if(src.substr(i,5)==='false'){i+=5;return false;}\r\n    if(src.substr(i,4)==='null'){i+=4;return null;}\r\n    if(src.substr(i,3)==='NaN'){i+=3;return NaN;}\r\n    if(src.substr(i,8)==='Infinity'){i+=8;return Infinity;}\r\n    if(src.substr(i,9)==='-Infinity'){i+=9;return -Infinity;}\r\n    if(c==='-'||c==='+'||(c>='0'&&c<='9')||c==='.')return parseNum();\r\n    throw new Error('unexpected at '+i);\r\n  }\r\n  function parseStr(){var q=src[i++];var s='';while(i<src.length&&src[i]!==q){var c=src[i];if(c==='\\\\'){i++;var e=src[i++];if(e==='n')s+='\\n';else if(e==='t')s+='\\t';else if(e==='r')s+='\\r';else if(e==='b')s+='\\b';else if(e==='f')s+='\\f';else if(e==='\\\\')s+='\\\\';else if(e==='/')s+='/';else if(e==='\"'||e===\"'\")s+=e;else if(e==='u'){s+=String.fromCharCode(parseInt(src.substr(i,4),16));i+=4;}else s+=e;}else{s+=c;i++;}}i++;return s;}\r\n  function parseNum(){var start=i;if(src[i]==='-')i++;if(src[i]==='0'&&(src[i+1]==='x'||src[i+1]==='X')){i+=2;while(i<src.length&&/[0-9a-fA-F]/.test(src[i]))i++;return parseInt(src.substr(start,i-start),16);}while(i<src.length&&/[0-9.eE+\\-]/.test(src[i]))i++;var num=src.substr(start,i-start);return parseFloat(num);}\r\n  function parseAgg(){var arr=src[i]==='[';i++;var res=arr?[]:{};skip();if(src[i]===(arr?']':'}')){i++;return res;}while(true){skip();if(!arr){var key;if(src[i]==='\"'||src[i]===\"'\"){key=parseStr();}else{var ks=i;while(i<src.length&&src[i]!==':'&&src[i]!=='\\n'&&src[i]!=='}'&&src[i]!==',')i++;key=src.substring(ks,i).trim();}skip();i++;}\r\n      var val=parseValue();\r\n      if(arr)res.push(val);else res[key]=val;\r\n      skip();if(src[i]===','){i++;skip();if(src[i]===(arr?']':'}')){i++;break;}continue;}if(src[i]===(arr?']':'}')){i++;break;}throw new Error('bad agg');}\r\n    return res;}\r\n  return parseValue();\r\n}\r\nvar EXPORTS = { json5Parse:json5Parse };\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.Json5ForgePure = EXPORTS; }\r\n\r\n"
+}

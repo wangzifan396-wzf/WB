@@ -1,0 +1,37 @@
+{
+  "id": "KdTreeForge",
+  "name": "kd_tree_forge",
+  "title": "KdTreeForge",
+  "description": "KD 树（二维空间划分）：构建后支持最近邻搜索，离线精确。",
+  "entry": "makeKd",
+  "entries": {
+    "makeKd": {
+      "paramStyle": "single",
+      "paramNames": [
+        "points"
+      ],
+      "fields": []
+    },
+    "queryKd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "root",
+        "target"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "points": {
+        "type": "string",
+        "description": "输入（points）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction d2(a,b){ var s=0; for(var i=0;i<a.length;i++){ var d=a[i]-b[i]; s+=d*d; } return s; }\r\nfunction buildKd(points, depth){ if(points.length===0) return null; var axis=depth%2; points.sort(function(a,b){return a[axis]-b[axis];}); var mid=Math.floor(points.length/2); var node={point:points[mid], axis:axis, left:null, right:null}; node.left=buildKd(points.slice(0,mid), depth+1); node.right=buildKd(points.slice(mid+1), depth+1); return node; }\r\nfunction nearest(node, target, best){ if(!node) return best; var dd=d2(node.point, target); if(dd<best.d) best={point:node.point, d:dd}; var diff=target[node.axis]-node.point[node.axis]; var near=diff<0?node.left:node.right; var far=diff<0?node.right:node.left; if(near) best=nearest(near,target,best); if(far && diff*diff<best.d) best=nearest(far,target,best); return best; }\r\nfunction makeKd(points){ return buildKd(points,0); }\r\nfunction queryKd(root,target){ var b=nearest(root,target,{point:null,d:Infinity}); return b.point; }\r\nvar EXPORTS={makeKd:makeKd, queryKd:queryKd};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.KdTreeForgePure = EXPORTS; }\r\n\r\n"
+}

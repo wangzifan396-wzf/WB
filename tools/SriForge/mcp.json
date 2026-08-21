@@ -1,0 +1,128 @@
+{
+  "id": "SriForge",
+  "name": "sri_forge",
+  "title": "SriForge",
+  "description": "子资源完整性 SRI：纯前端 SHA-256 摘要（base64/hex）、integrity 解析校验、script/link 标签生成与跨域体检，离线可用。",
+  "entry": "buildIntegrity",
+  "entries": {
+    "utf8Bytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "sha256Bytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "bytesToHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "bytesToB64": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "sha256Hex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "sha256B64": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "buildIntegrity": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "algo"
+      ],
+      "fields": []
+    },
+    "opensslCommand": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "file",
+        "algo"
+      ],
+      "fields": []
+    },
+    "parseIntegrity": {
+      "paramStyle": "single",
+      "paramNames": [
+        "attr"
+      ],
+      "fields": []
+    },
+    "strongest": {
+      "paramStyle": "single",
+      "paramNames": [
+        "list"
+      ],
+      "fields": []
+    },
+    "verifyIntegrity": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "attr"
+      ],
+      "fields": []
+    },
+    "buildTag": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "url",
+        "integrity",
+        "kind",
+        "crossorigin",
+        "defer",
+        "async",
+        "referrerPolicy"
+      ]
+    },
+    "auditTag": {
+      "paramStyle": "single",
+      "paramNames": [
+        "html"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "algo": {
+        "type": "string",
+        "description": "第 2 个参数（algo）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar SRI_ALGOS = {'sha256':{bytes:32, b64:44, strength:1}, 'sha384':{bytes:48, b64:64, strength:2}, 'sha512':{bytes:64, b64:88, strength:3}};\r\nfunction utf8Bytes(str){\r\n  var out=[], s=String(str===undefined?'':str);\r\n  for(var i=0;i<s.length;i++){\r\n    var c=s.charCodeAt(i);\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xc0|(c>>6), 0x80|(c&63)); }\r\n    else if(c>=0xd800 && c<=0xdbff && i+1<s.length){\r\n      var c2=s.charCodeAt(i+1);\r\n      var cp=0x10000+((c-0xd800)<<10)+(c2-0xdc00); i++;\r\n      out.push(0xf0|(cp>>18), 0x80|((cp>>12)&63), 0x80|((cp>>6)&63), 0x80|(cp&63));\r\n    } else { out.push(0xe0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction rotr32(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }\r\nvar SHA256_K=[\r\n0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,\r\n0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,\r\n0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,\r\n0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,\r\n0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,\r\n0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,\r\n0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,\r\n0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\r\nfunction sha256Bytes(bytes){\r\n  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\r\n  var msg=bytes.slice(), bitLen=msg.length*8;\r\n  msg.push(0x80);\r\n  while(msg.length%64!==56) msg.push(0);\r\n  var hi=Math.floor(bitLen/4294967296)>>>0, lo=(bitLen>>>0);\r\n  msg.push((hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255);\r\n  msg.push((lo>>>24)&255,(lo>>>16)&255,(lo>>>8)&255,lo&255);\r\n  var w=new Array(64);\r\n  for(var i=0;i<msg.length;i+=64){\r\n    for(var t=0;t<16;t++) w[t]=((msg[i+t*4]<<24)|(msg[i+t*4+1]<<16)|(msg[i+t*4+2]<<8)|msg[i+t*4+3])>>>0;\r\n    for(t=16;t<64;t++){\r\n      var s0=(rotr32(w[t-15],7)^rotr32(w[t-15],18)^(w[t-15]>>>3))>>>0;\r\n      var s1=(rotr32(w[t-2],17)^rotr32(w[t-2],19)^(w[t-2]>>>10))>>>0;\r\n      w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;\r\n    }\r\n    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];\r\n    for(t=0;t<64;t++){\r\n      var S1=(rotr32(e,6)^rotr32(e,11)^rotr32(e,25))>>>0;\r\n      var ch=((e&f)^((~e)&g))>>>0;\r\n      var t1=(h+S1+ch+SHA256_K[t]+w[t])>>>0;\r\n      var S0=(rotr32(a,2)^rotr32(a,13)^rotr32(a,22))>>>0;\r\n      var maj=((a&b)^(a&c)^(b&c))>>>0;\r\n      var t2=(S0+maj)>>>0;\r\n      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;\r\n    }\r\n    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;\r\n    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;\r\n  }\r\n  var out=[];\r\n  for(var j=0;j<8;j++) out.push((H[j]>>>24)&255,(H[j]>>>16)&255,(H[j]>>>8)&255,H[j]&255);\r\n  return out;\r\n}\r\nfunction bytesToHex(bytes){\r\n  var s='';\r\n  for(var i=0;i<bytes.length;i++) s += ('0'+(bytes[i]&255).toString(16)).slice(-2);\r\n  return s;\r\n}\r\nfunction bytesToB64(bytes){\r\n  var A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', out='';\r\n  for(var i=0;i<bytes.length;i+=3){\r\n    var b0=bytes[i]&255, has1=i+1<bytes.length, has2=i+2<bytes.length;\r\n    var b1=has1?bytes[i+1]&255:0, b2=has2?bytes[i+2]&255:0;\r\n    out += A.charAt(b0>>2);\r\n    out += A.charAt(((b0&3)<<4)|(b1>>4));\r\n    out += has1 ? A.charAt(((b1&15)<<2)|(b2>>6)) : '=';\r\n    out += has2 ? A.charAt(b2&63) : '=';\r\n  }\r\n  return out;\r\n}\r\nfunction sha256Hex(text){ return bytesToHex(sha256Bytes(utf8Bytes(text))); }\r\nfunction sha256B64(text){ return bytesToB64(sha256Bytes(utf8Bytes(text))); }\r\nfunction buildIntegrity(text, algo){\r\n  var a=String(algo||'sha256').toLowerCase();\r\n  if(a!=='sha256') return {value:'', algo:a, error:'本地内核仅支持 sha256；'+a+' 请用 openssl 命令生成', command:opensslCommand('FILE', a)};\r\n  return {value:'sha256-'+sha256B64(text), algo:'sha256', error:null, command:opensslCommand('FILE','sha256')};\r\n}\r\nfunction opensslCommand(file, algo){\r\n  var a=String(algo||'sha384').toLowerCase();\r\n  var d = a==='sha256'?'sha256': a==='sha512'?'sha512':'sha384';\r\n  return 'openssl dgst -'+d+' -binary '+file+' | openssl base64 -A';\r\n}\r\nfunction parseIntegrity(attr){\r\n  var toks=String(attr||'').trim().split(/\\s+/), out=[];\r\n  for(var i=0;i<toks.length;i++){\r\n    var t=toks[i];\r\n    if(!t) continue;\r\n    var dash=t.indexOf('-');\r\n    if(dash<0){ out.push({raw:t, algo:null, digest:null, valid:false, error:'缺少算法前缀'}); continue; }\r\n    var algo=t.slice(0,dash).toLowerCase();\r\n    var rest=t.slice(dash+1);\r\n    var opt=null, q=rest.indexOf('?');\r\n    if(q>-1){ opt=rest.slice(q+1); rest=rest.slice(0,q); }\r\n    var spec=SRI_ALGOS[algo];\r\n    if(!spec){ out.push({raw:t, algo:algo, digest:rest, valid:false, error:'不支持的算法: '+algo}); continue; }\r\n    if(!/^[A-Za-z0-9+/]+={0,2}$/.test(rest)){ out.push({raw:t, algo:algo, digest:rest, valid:false, error:'摘要不是合法 base64'}); continue; }\r\n    if(rest.length!==spec.b64){ out.push({raw:t, algo:algo, digest:rest, valid:false, error:algo+' 摘要应为 '+spec.b64+' 字符，实际 '+rest.length}); continue; }\r\n    out.push({raw:t, algo:algo, digest:rest, options:opt, valid:true, error:null, strength:spec.strength});\r\n  }\r\n  return out;\r\n}\r\nfunction strongest(list){\r\n  var best=null;\r\n  for(var i=0;i<list.length;i++){\r\n    if(!list[i].valid) continue;\r\n    if(!best || list[i].strength > best.strength) best=list[i];\r\n  }\r\n  return best;\r\n}\r\nfunction verifyIntegrity(text, attr){\r\n  var list=parseIntegrity(attr);\r\n  if(!list.length) return {ok:false, reason:'integrity 为空', matched:null};\r\n  var usable=[];\r\n  for(var i=0;i<list.length;i++) if(list[i].valid) usable.push(list[i]);\r\n  if(!usable.length) return {ok:false, reason:'没有可用的合法摘要', matched:null};\r\n  var maxS=0;\r\n  for(var j=0;j<usable.length;j++) if(usable[j].strength>maxS) maxS=usable[j].strength;\r\n  var actual256 = sha256B64(text);\r\n  for(var k=0;k<usable.length;k++){\r\n    if(usable[k].strength!==maxS) continue;\r\n    if(usable[k].algo!=='sha256') return {ok:null, reason:'最强算法为 '+usable[k].algo+'，本地内核无法验证，请用 openssl 比对', matched:null, expected:usable[k].digest};\r\n    if(usable[k].digest===actual256) return {ok:true, reason:'摘要匹配', matched:usable[k].raw, actual:actual256};\r\n  }\r\n  return {ok:false, reason:'摘要不匹配', matched:null, actual:actual256};\r\n}\r\nfunction buildTag(opt){\r\n  opt=opt||{};\r\n  var url=String(opt.url||''), integrity=String(opt.integrity||'');\r\n  var kind = opt.kind || (/\\.css(\\?|$)/i.test(url) ? 'style' : 'script');\r\n  var co = opt.crossorigin || 'anonymous';\r\n  var attrs = [];\r\n  if(kind==='style'){\r\n    attrs.push('rel=\"stylesheet\"','href=\"'+url+'\"');\r\n  } else {\r\n    attrs.push('src=\"'+url+'\"');\r\n    if(opt.defer) attrs.push('defer');\r\n    if(opt.async) attrs.push('async');\r\n  }\r\n  if(integrity) attrs.push('integrity=\"'+integrity+'\"');\r\n  attrs.push('crossorigin=\"'+co+'\"');\r\n  if(opt.referrerPolicy) attrs.push('referrerpolicy=\"'+opt.referrerPolicy+'\"');\r\n  var tag = kind==='style' ? '<link '+attrs.join(' ')+'>' : '<script '+attrs.join(' ')+'><\\/script>';\r\n  return {tag:tag, kind:kind, attrs:attrs};\r\n}\r\nfunction auditTag(html){\r\n  var s=String(html||''), issues=[];\r\n  function add(l,m){ issues.push({level:l, msg:m}); }\r\n  var isScript=/<script\\b/i.test(s), isLink=/<link\\b/i.test(s);\r\n  if(!isScript && !isLink) return {issues:[{level:'error', msg:'未识别到 script 或 link 标签'}], errors:1, warnings:0, ok:false};\r\n  var srcM = s.match(/(?:src|href)\\s*=\\s*[\"']([^\"']+)[\"']/i);\r\n  var url = srcM ? srcM[1] : '';\r\n  var intM = s.match(/integrity\\s*=\\s*[\"']([^\"']+)[\"']/i);\r\n  var coM = s.match(/crossorigin(?:\\s*=\\s*[\"']([^\"']*)[\"'])?/i);\r\n  var external = /^https?:\\/\\//i.test(url) || /^\\/\\//.test(url);\r\n  if(!url) add('error','缺少 src/href');\r\n  if(/^http:\\/\\//i.test(url)) add('error','使用明文 http 加载外部资源，SRI 无法阻止降级风险');\r\n  if(!intM){\r\n    if(external) add('error','跨域资源缺少 integrity 属性');\r\n    else add('info','同源资源可不设 integrity，但版本锁定时仍建议加');\r\n  } else {\r\n    var list=parseIntegrity(intM[1]);\r\n    for(var i=0;i<list.length;i++) if(!list[i].valid) add('error','integrity 无效: '+list[i].error);\r\n    var best=strongest(list);\r\n    if(best && best.algo==='sha256') add('warn','建议使用 sha384 或 sha512，安全边际更高');\r\n    if(list.length>1) add('info','提供了 '+list.length+' 个摘要，浏览器只校验最强算法');\r\n  }\r\n  if(intM && external && !coM) add('error','带 integrity 的跨域资源必须设置 crossorigin，否则会被静默拒绝');\r\n  if(coM && coM[1] && ['anonymous','use-credentials',''].indexOf(coM[1])===-1) add('error','crossorigin 取值非法: '+coM[1]);\r\n  var errors=0, warnings=0;\r\n  for(var j=0;j<issues.length;j++){ if(issues[j].level==='error') errors++; else if(issues[j].level==='warn') warnings++; }\r\n  return {url:url, external:external, integrity: intM?intM[1]:null, issues:issues, errors:errors, warnings:warnings, ok: errors===0};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { SRI_ALGOS:SRI_ALGOS, utf8Bytes:utf8Bytes, sha256Bytes:sha256Bytes, bytesToHex:bytesToHex, bytesToB64:bytesToB64, sha256Hex:sha256Hex, sha256B64:sha256B64, buildIntegrity:buildIntegrity, opensslCommand:opensslCommand, parseIntegrity:parseIntegrity, strongest:strongest, verifyIntegrity:verifyIntegrity, buildTag:buildTag, auditTag:auditTag }; }\r\nif (typeof window !== 'undefined') { window.SriForgePure = { SRI_ALGOS:SRI_ALGOS, utf8Bytes:utf8Bytes, sha256Bytes:sha256Bytes, bytesToHex:bytesToHex, bytesToB64:bytesToB64, sha256Hex:sha256Hex, sha256B64:sha256B64, buildIntegrity:buildIntegrity, opensslCommand:opensslCommand, parseIntegrity:parseIntegrity, strongest:strongest, verifyIntegrity:verifyIntegrity, buildTag:buildTag, auditTag:auditTag }; }\r\n\r\n"
+}

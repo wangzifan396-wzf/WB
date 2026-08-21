@@ -1,0 +1,64 @@
+{
+  "id": "GitLogForge",
+  "name": "git_log_forge",
+  "title": "GitLogForge",
+  "description": "粘贴 git log 输出即得团队画像：作者排行、星期与时段分布、月度趋势、Conventional Commits 规范率与不合规标题清单，并给出夜间/周末占比等观察。",
+  "entry": "analyze",
+  "entries": {
+    "analyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opt"
+      ],
+      "fields": []
+    },
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseDate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "bar": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "max",
+        "width"
+      ],
+      "fields": []
+    },
+    "fmtDay": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "opt": {
+        "type": "object",
+        "description": "第 2 个参数（opt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n'use strict';\r\nvar MON={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};\r\nvar WD=['周日','周一','周二','周三','周四','周五','周六'];\r\nvar CC=/^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([^)]*\\))?(!)?:\\s*(.+)$/i;\r\nfunction parseDate(s){\r\n  s=String(s||'').trim();\r\n  if(!s) return null;\r\n  var m=/^(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{2}):(\\d{2}):(\\d{2})/.exec(s);\r\n  if(m) return {y:+m[1],mo:+m[2]-1,d:+m[3],h:+m[4],mi:+m[5],ts:Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]),\r\n                wd:new Date(Date.UTC(+m[1],+m[2]-1,+m[3])).getUTCDay()};\r\n  m=/^[A-Za-z]{3}\\s+([A-Za-z]{3})\\s+(\\d{1,2})\\s+(\\d{2}):(\\d{2}):(\\d{2})\\s+(\\d{4})/.exec(s);\r\n  if(m&&MON[m[1]]!==undefined){\r\n    var y=+m[6],mo=MON[m[1]],d=+m[2];\r\n    return {y:y,mo:mo,d:d,h:+m[3],mi:+m[4],ts:Date.UTC(y,mo,d,+m[3],+m[4],+m[5]),\r\n            wd:new Date(Date.UTC(y,mo,d)).getUTCDay()};\r\n  }\r\n  var n=Number(s);\r\n  if(isFinite(n)&&n>1000000000){\r\n    var dt=new Date(n*1000);\r\n    return {y:dt.getUTCFullYear(),mo:dt.getUTCMonth(),d:dt.getUTCDate(),h:dt.getUTCHours(),mi:dt.getUTCMinutes(),\r\n            ts:n*1000,wd:dt.getUTCDay()};\r\n  }\r\n  return null;\r\n}\r\nfunction parse(text){\r\n  var lines=String(text||'').split(/\\r?\\n/),commits=[],i;\r\n  var pipe=false;\r\n  for(i=0;i<lines.length;i++){\r\n    if(lines[i].indexOf('|')>=0&&lines[i].split('|').length>=4){ pipe=true; break; }\r\n    if(/^commit\\s+[0-9a-f]{7,40}/.test(lines[i])) { pipe=false; break; }\r\n  }\r\n  if(pipe){\r\n    for(i=0;i<lines.length;i++){\r\n      var l=lines[i];\r\n      if(!l.trim()) continue;\r\n      var p=l.split('|');\r\n      if(p.length<4) continue;\r\n      commits.push({hash:p[0].trim(),author:p[1].trim(),email:p[2].trim(),\r\n                    date:parseDate(p[3]),subject:p.slice(4).join('|').trim(),merge:false});\r\n    }\r\n    return commits;\r\n  }\r\n  var cur=null,body=[];\r\n  function flush(){\r\n    if(cur){ cur.subject=body.join(' ').trim(); commits.push(cur); }\r\n    cur=null; body=[];\r\n  }\r\n  for(i=0;i<lines.length;i++){\r\n    var ln=lines[i];\r\n    var mc=/^commit\\s+([0-9a-f]{7,40})/.exec(ln);\r\n    if(mc){ flush(); cur={hash:mc[1],author:'',email:'',date:null,subject:'',merge:false}; continue; }\r\n    if(!cur) continue;\r\n    if(/^Merge:\\s/.test(ln)){ cur.merge=true; continue; }\r\n    var ma=/^Author:\\s*(.+?)\\s*<([^>]*)>/.exec(ln);\r\n    if(ma){ cur.author=ma[1]; cur.email=ma[2]; continue; }\r\n    var md=/^Date:\\s*(.+)$/.exec(ln);\r\n    if(md){ cur.date=parseDate(md[1]); continue; }\r\n    if(/^\\s{4}\\S/.test(ln)&&!body.length) body.push(ln.trim());\r\n  }\r\n  flush();\r\n  return commits;\r\n}\r\nfunction analyze(text,opt){\r\n  if(typeof text!=='string'||!text.trim()) return {value:null,error:'请粘贴 git log 输出'};\r\n  opt=opt||{};\r\n  var cs=parse(text);\r\n  if(!cs.length) return {value:null,error:'未解析到提交记录，请用 git log 或 git log --pretty=format:\"%H|%an|%ae|%ad|%s\" 的输出'};\r\n  var byAuthor={},byWd=[0,0,0,0,0,0,0],byHour=[],byMonth={},byType={},i,j;\r\n  for(i=0;i<24;i++) byHour.push(0);\r\n  var merges=0,dated=0,tsMin=null,tsMax=null,subjLen=0,convOk=0,badSubject=[];\r\n  for(i=0;i<cs.length;i++){\r\n    var c=cs[i];\r\n    if(/^Merge (branch|pull request|remote)/i.test(c.subject)) c.merge=true;\r\n    if(c.merge) merges++;\r\n    var key=opt.byEmail&&c.email?c.email:(c.author||'(未知)');\r\n    if(!byAuthor[key]) byAuthor[key]={name:key,email:c.email,count:0,merges:0,first:null,last:null};\r\n    var A=byAuthor[key];\r\n    A.count++; if(c.merge) A.merges++;\r\n    if(c.date){\r\n      dated++;\r\n      byWd[c.date.wd]++;\r\n      byHour[c.date.h]++;\r\n      var mk=c.date.y+'-'+(c.date.mo<9?'0':'')+(c.date.mo+1);\r\n      byMonth[mk]=(byMonth[mk]||0)+1;\r\n      if(tsMin===null||c.date.ts<tsMin) tsMin=c.date.ts;\r\n      if(tsMax===null||c.date.ts>tsMax) tsMax=c.date.ts;\r\n      if(A.first===null||c.date.ts<A.first) A.first=c.date.ts;\r\n      if(A.last===null||c.date.ts>A.last) A.last=c.date.ts;\r\n    }\r\n    subjLen+=c.subject.length;\r\n    var cm=CC.exec(c.subject);\r\n    if(cm){ convOk++; var t=cm[1].toLowerCase(); byType[t]=(byType[t]||0)+1; }\r\n    else if(!c.merge){\r\n      if(badSubject.length<8) badSubject.push(c.subject.slice(0,60)||'(空提交信息)');\r\n    }\r\n  }\r\n  var authors=[];\r\n  for(var k in byAuthor) authors.push(byAuthor[k]);\r\n  authors.sort(function(a,b){return b.count-a.count;});\r\n  var months=[];\r\n  for(var mk2 in byMonth) months.push({month:mk2,count:byMonth[mk2]});\r\n  months.sort(function(a,b){return a.month<b.month?-1:1;});\r\n  var types=[];\r\n  for(var tk in byType) types.push({type:tk,count:byType[tk]});\r\n  types.sort(function(a,b){return b.count-a.count;});\r\n  var peakHour=0,peakWd=0;\r\n  for(i=1;i<24;i++) if(byHour[i]>byHour[peakHour]) peakHour=i;\r\n  for(i=1;i<7;i++) if(byWd[i]>byWd[peakWd]) peakWd=i;\r\n  var days=(tsMin!==null&&tsMax!==null)?Math.max(1,Math.round((tsMax-tsMin)/86400000)+1):0;\r\n  var weekendPct=dated?Math.round((byWd[0]+byWd[6])/dated*1000)/10:0;\r\n  var nightPct=0;\r\n  if(dated){ var n=0; for(i=0;i<24;i++) if(i<7||i>=22) n+=byHour[i]; nightPct=Math.round(n/dated*1000)/10; }\r\n  var insights=[];\r\n  if(authors.length===1) insights.push('单人仓库：全部 '+cs.length+' 次提交都来自 '+authors[0].name);\r\n  else insights.push('前三名作者贡献了 '+Math.round((authors.slice(0,3).reduce(function(s,a){return s+a.count;},0))/cs.length*100)+'% 的提交');\r\n  if(dated) insights.push('提交高峰在'+WD[peakWd]+' '+peakHour+' 点前后');\r\n  if(weekendPct>25) insights.push('周末提交占 '+weekendPct+'%，注意休息节奏');\r\n  if(nightPct>25) insights.push('夜间（22:00-07:00）提交占 '+nightPct+'%');\r\n  var convPct=cs.length?Math.round(convOk/cs.length*1000)/10:0;\r\n  insights.push('符合 Conventional Commits 规范的提交占 '+convPct+'%');\r\n  if(merges) insights.push('合并提交 '+merges+' 次，占 '+Math.round(merges/cs.length*1000)/10+'%');\r\n  if(days>1) insights.push('时间跨度 '+days+' 天，平均每天 '+(Math.round(cs.length/days*100)/100)+' 次提交');\r\n  return {value:{\r\n    summary:{commits:cs.length,authors:authors.length,merges:merges,days:days,dated:dated,\r\n             avgSubject:cs.length?Math.round(subjLen/cs.length):0,convPct:convPct,\r\n             weekendPct:weekendPct,nightPct:nightPct,\r\n             peakHour:peakHour,peakWeekday:WD[peakWd],\r\n             firstTs:tsMin,lastTs:tsMax},\r\n    authors:authors.slice(0,15),byWeekday:byWd,byHour:byHour,months:months,types:types,\r\n    badSubject:badSubject,insights:insights,weekdayNames:WD\r\n  },error:null};\r\n}\r\nfunction bar(n,max,width){\r\n  width=width||24;\r\n  if(!max||max<=0) return '';\r\n  var w=Math.round(n/max*width);\r\n  var s='',i;\r\n  for(i=0;i<w;i++) s+='█';\r\n  return s;\r\n}\r\nfunction fmtDay(ts){\r\n  if(ts===null||ts===undefined||!isFinite(ts)) return '-';\r\n  var d=new Date(ts);\r\n  var mm=d.getUTCMonth()+1,dd=d.getUTCDate();\r\n  return d.getUTCFullYear()+'-'+(mm<10?'0':'')+mm+'-'+(dd<10?'0':'')+dd;\r\n}\r\nvar API={analyze:analyze,parse:parse,parseDate:parseDate,bar:bar,fmtDay:fmtDay,WD:WD};\r\nif(typeof module!=='undefined'&&module.exports) module.exports=API;\r\nif(typeof window!=='undefined') window.__GitLogForge__=API;\r\n})();\r\n\r\n"
+}

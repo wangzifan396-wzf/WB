@@ -1,0 +1,54 @@
+{
+  "id": "RabinForge",
+  "name": "rabin_forge",
+  "title": "RabinForge",
+  "description": "Rabin-Karp 滚动哈希搜索：多模式 + 重叠命中 + 假阳性复核。",
+  "entry": "rkHash",
+  "entries": {
+    "rkHash": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "rkPow": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "e",
+        "mod"
+      ],
+      "fields": []
+    },
+    "rkSearch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "pattern"
+      ],
+      "fields": []
+    },
+    "rkSearchMulti": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "patterns"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar RK_BASE=256n, RK_MOD=1000000007n;\r\nfunction rkHash(s){\r\n  var h=0n;\r\n  for(var i=0;i<s.length;i++) h=(h*RK_BASE+BigInt(s.charCodeAt(i)))%RK_MOD;\r\n  return Number(h);\r\n}\r\nfunction rkPow(b,e,mod){\r\n  var bb=BigInt(b)%BigInt(mod), mm=BigInt(mod), r=1n, ee=BigInt(e);\r\n  while(ee>0n){ if(ee%2n===1n) r=(r*bb)%mm; bb=(bb*bb)%mm; ee/=2n; }\r\n  return Number(r);\r\n}\r\nfunction rkSearch(text, pattern){\r\n  if(typeof text!=='string'||typeof pattern!=='string') return { value:null, error:'输入必须是字符串' };\r\n  if(!pattern.length) return { value:null, error:'模式为空' };\r\n  var n=text.length, m=pattern.length;\r\n  if(m>n) return { value:[], error:null };\r\n  var ph=BigInt(rkHash(pattern)), th=BigInt(rkHash(text.slice(0,m)));\r\n  var top=BigInt(rkPow(256,m-1,1000000007));\r\n  var out=[], comparisons=0;\r\n  for(var i=0;;i++){\r\n    if(th===ph){\r\n      comparisons++;\r\n      if(text.substr(i,m)===pattern) out.push(i);\r\n    }\r\n    if(i+m>=n) break;\r\n    th=(th-BigInt(text.charCodeAt(i))*top%RK_MOD+RK_MOD)%RK_MOD;\r\n    th=(th*RK_BASE+BigInt(text.charCodeAt(i+m)))%RK_MOD;\r\n  }\r\n  return { value:out, error:null, comparisons:comparisons };\r\n}\r\nfunction rkSearchMulti(text, patterns){\r\n  if(!Array.isArray(patterns)||!patterns.length) return { value:null, error:'模式列表为空' };\r\n  var res={};\r\n  for(var i=0;i<patterns.length;i++){\r\n    var p=patterns[i];\r\n    var r=rkSearch(text, p);\r\n    if(r.error) return { value:null, error:'\"'+p+'\": '+r.error };\r\n    res[p]=r.value;\r\n  }\r\n  return { value:res, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { rkHash:rkHash, rkPow:rkPow, rkSearch:rkSearch, rkSearchMulti:rkSearchMulti };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.RabinForgePure = { rkHash:rkHash, rkPow:rkPow, rkSearch:rkSearch, rkSearchMulti:rkSearchMulti };\r\n}\r\n"
+}

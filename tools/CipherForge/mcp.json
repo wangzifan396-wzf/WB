@@ -1,0 +1,69 @@
+{
+  "id": "CipherForge",
+  "name": "cipher_forge",
+  "title": "CipherForge",
+  "description": "离线经典密码：凯撒 / 维吉尼亚 / ROT13 / Atbash，数据不出本机。",
+  "entry": "caesar",
+  "entries": {
+    "caesar": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "shift",
+        "decrypt"
+      ],
+      "fields": []
+    },
+    "vigenere": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "key",
+        "decrypt"
+      ],
+      "fields": []
+    },
+    "rot13": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "atbash": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "normalizeKey": {
+      "paramStyle": "single",
+      "paramNames": [
+        "key"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "shift": {
+        "type": "string",
+        "description": "第 2 个参数（shift）"
+      },
+      "decrypt": {
+        "type": "string",
+        "description": "第 3 个参数（decrypt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction shiftChar(ch, k){\r\n  var c=ch.charCodeAt(0);\r\n  if(c>=65&&c<=90) return String.fromCharCode((c-65+k+260)%26+65);\r\n  if(c>=97&&c<=122) return String.fromCharCode((c-97+k+260)%26+97);\r\n  return ch;\r\n}\r\nfunction caesar(text, shift, decrypt){\r\n  var k=decrypt?-shift:shift;\r\n  return String(text).replace(/[a-zA-Z]/g, function(m){ return shiftChar(m,k); });\r\n}\r\nfunction normalizeKey(key){ return String(key).toUpperCase().replace(/[^A-Z]/g,''); }\r\nfunction vigenere(text, key, decrypt){\r\n  key=normalizeKey(key); if(!key) key='A';\r\n  var ki=0;\r\n  return String(text).replace(/[a-zA-Z]/g, function(m){\r\n    var base = (m<='Z')?65:97;\r\n    var kc = key.charCodeAt(ki%key.length)-65; ki++;\r\n    var ch = m.charCodeAt(0)-base;\r\n    var n = decrypt ? (ch-kc+26)%26 : (ch+kc)%26;\r\n    return String.fromCharCode(n+base);\r\n  });\r\n}\r\nfunction rot13(text){ return caesar(text,13,false); }\r\nfunction atbash(text){\r\n  return String(text).replace(/[a-zA-Z]/g, function(m){\r\n    var c=m.charCodeAt(0);\r\n    if(c>=65&&c<=90) return String.fromCharCode(90-(c-65));\r\n    return String.fromCharCode(122-(c-97));\r\n  });\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { caesar:caesar, vigenere:vigenere, rot13:rot13, atbash:atbash, normalizeKey:normalizeKey };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.CipherForgePure = { caesar:caesar, vigenere:vigenere, rot13:rot13, atbash:atbash, normalizeKey:normalizeKey };\r\n}\r\n"
+}

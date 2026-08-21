@@ -1,0 +1,92 @@
+{
+  "id": "GraphqlForge",
+  "name": "graphql_forge",
+  "title": "GraphqlForge",
+  "description": "GraphQL 查询分析：变量片段体检、变量模板生成、复杂度评分，离线可用。",
+  "entry": "gqStrip",
+  "entries": {
+    "gqStrip": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "gqTokens": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "gqBalance": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "gqParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "gqFields": {
+      "paramStyle": "single",
+      "paramNames": [
+        "body"
+      ],
+      "fields": []
+    },
+    "gqLint": {
+      "paramStyle": "object",
+      "paramNames": [
+        "p"
+      ],
+      "fields": [
+        "error",
+        "vars",
+        "used",
+        "frags",
+        "spreads",
+        "name",
+        "op"
+      ]
+    },
+    "gqVarStub": {
+      "paramStyle": "object",
+      "paramNames": [
+        "p"
+      ],
+      "fields": [
+        "error",
+        "vars"
+      ]
+    },
+    "gqCost": {
+      "paramStyle": "object",
+      "paramNames": [
+        "p"
+      ],
+      "fields": [
+        "error",
+        "body"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "src": {
+        "type": "string",
+        "description": "输入（src）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction gqStrip(src){\r\n  return String(src||'').replace(/#[^\\n]*/g,'');\r\n}\r\nfunction gqTokens(src){\r\n  var s=gqStrip(src), out=[], re=/\"(?:[^\"\\\\]|\\\\.)*\"|[\\{\\}\\(\\)\\[\\]:,=@\\$!]|\\.\\.\\.|[A-Za-z_][\\w]*|\\S/g, m;\r\n  while((m=re.exec(s))!==null) out.push(m[0]);\r\n  return out;\r\n}\r\nfunction gqBalance(src){\r\n  var t=gqTokens(src), stack=[], pairs={'}':'{',')':'(',']':'['};\r\n  for(var i=0;i<t.length;i++){\r\n    if('{(['.indexOf(t[i])>=0 && t[i].length===1) stack.push(t[i]);\r\n    else if(pairs[t[i]]){\r\n      if(stack.pop()!==pairs[t[i]]) return { ok:false, msg:'第 '+(i+1)+' 个 token 处括号不匹配：'+t[i] };\r\n    }\r\n  }\r\n  if(stack.length) return { ok:false, msg:'有 '+stack.length+' 个括号未闭合' };\r\n  return { ok:true, msg:'' };\r\n}\r\nfunction gqParse(src){\r\n  var text=gqStrip(src);\r\n  if(!text.trim()) return { error:'请输入 GraphQL 查询' };\r\n  var bal=gqBalance(text);\r\n  if(!bal.ok) return { error:bal.msg };\r\n  var head=text.match(/^\\s*(query|mutation|subscription)?\\s*([A-Za-z_]\\w*)?\\s*(\\(([\\s\\S]*?)\\))?\\s*\\{/);\r\n  if(!head) return { error:'未找到操作体，查询应包含 { ... }' };\r\n  var op=head[1]||'query', name=head[2]||null, varsRaw=head[4]||'';\r\n  var vars=[], vre=/\\$([A-Za-z_]\\w*)\\s*:\\s*(\\[?\\s*[A-Za-z_][\\w!]*\\s*\\]?!?)\\s*(?:=\\s*([^,)]+))?/g, vm;\r\n  while((vm=vre.exec(varsRaw))!==null)\r\n    vars.push({ name:vm[1], type:vm[2], required:/!$/.test(vm[2]), def: vm[3]? vm[3].trim() : null });\r\n  var used={}, ure=/\\$([A-Za-z_]\\w*)/g, um;\r\n  var bodyStart=text.indexOf('{', head.index);\r\n  var body=text.slice(bodyStart);\r\n  while((um=ure.exec(body))!==null) used[um[1]]=(used[um[1]]||0)+1;\r\n  var frags=[], fre=/fragment\\s+([A-Za-z_]\\w*)\\s+on\\s+([A-Za-z_]\\w*)/g, fm;\r\n  while((fm=fre.exec(text))!==null) frags.push({ name:fm[1], on:fm[2] });\r\n  var spreads=[], sre=/\\.\\.\\.\\s*([A-Za-z_]\\w*)/g, sm;\r\n  while((sm=sre.exec(text))!==null) if(sm[1]!=='on') spreads.push(sm[1]);\r\n  var directives=[], dre=/@([A-Za-z_]\\w*)/g, dm;\r\n  while((dm=dre.exec(text))!==null) directives.push(dm[1]);\r\n  return { error:null, op:op, name:name, vars:vars, used:used, frags:frags,\r\n           spreads:spreads, directives:directives, body:body };\r\n}\r\nvar GQ_KEYWORDS = ['query','mutation','subscription','fragment','on','true','false','null'];\r\nfunction gqFields(body){\r\n  var s=gqStrip(body||''), out=[], depth=0, maxDepth=0, paren=0;\r\n  var re=/\"(?:[^\"\\\\]|\\\\.)*\"|\\.\\.\\.|@[A-Za-z_]\\w*|\\$[A-Za-z_]\\w*|[A-Za-z_]\\w*|\\S/g, m, toks=[];\r\n  while((m=re.exec(s))!==null) toks.push(m[0]);\r\n  for(var i=0;i<toks.length;i++){\r\n    var t=toks[i];\r\n    if(t==='('){ paren++; continue; }\r\n    if(t===')'){ if(paren>0) paren--; continue; }\r\n    if(paren>0) continue;\r\n    if(t==='{'){ depth++; if(depth>maxDepth) maxDepth=depth; continue; }\r\n    if(t==='}'){ if(depth>0) depth--; continue; }\r\n    if(t==='...'){ i++; continue; }\r\n    if(t.charAt(0)==='@' || t.charAt(0)==='$' || t.charAt(0)==='\"') continue;\r\n    if(!/^[A-Za-z_]\\w*$/.test(t)) continue;\r\n    if(GQ_KEYWORDS.indexOf(t)>=0) continue;\r\n    var alias=null, name=t;\r\n    if(toks[i+1]===':' && /^[A-Za-z_]\\w*$/.test(toks[i+2]||'')){ alias=t; name=toks[i+2]; i+=2; }\r\n    out.push({ name:name, alias:alias, depth:depth });\r\n  }\r\n  return { fields:out, maxDepth:maxDepth };\r\n}\r\nfunction gqLint(p){\r\n  if(!p || p.error) return [];\r\n  var out=[];\r\n  for(var i=0;i<p.vars.length;i++)\r\n    if(!p.used[p.vars[i].name]) out.push('变量 $'+p.vars[i].name+' 声明后未被使用');\r\n  var declared={};\r\n  for(var j=0;j<p.vars.length;j++) declared[p.vars[j].name]=1;\r\n  for(var k in p.used)\r\n    if(!declared[k]) out.push('变量 $'+k+' 在查询体中使用但未声明');\r\n  var fnames={};\r\n  for(var f=0;f<p.frags.length;f++) fnames[p.frags[f].name]=1;\r\n  for(var s=0;s<p.spreads.length;s++)\r\n    if(!fnames[p.spreads[s]]) out.push('展开了未定义的片段 ...'+p.spreads[s]);\r\n  for(var g=0;g<p.frags.length;g++)\r\n    if(p.spreads.indexOf(p.frags[g].name)<0) out.push('片段 '+p.frags[g].name+' 定义后未被使用');\r\n  if(!p.name && p.op!=='query') out.push('建议为 '+p.op+' 操作命名，便于服务端日志与缓存定位');\r\n  return out;\r\n}\r\nfunction gqVarStub(p){\r\n  if(!p || p.error) return '{}';\r\n  var o={};\r\n  for(var i=0;i<p.vars.length;i++){\r\n    var v=p.vars[i], t=v.type.replace(/[!\\[\\]]/g,''), arr=/\\[/.test(v.type);\r\n    var sample = t==='Int' ? 0 : t==='Float' ? 0.0 : t==='Boolean' ? false : t==='ID' ? '1' : 'TODO_'+t;\r\n    if(v.def!==null){\r\n      try { sample = JSON.parse(v.def); } catch(e){ sample = v.def.replace(/^\"|\"$/g,''); }\r\n    }\r\n    o[v.name] = arr ? [sample] : sample;\r\n  }\r\n  return JSON.stringify(o, null, 2);\r\n}\r\nfunction gqCost(p){\r\n  if(!p || p.error) return { fields:0, depth:0, score:0, level:'-' };\r\n  var f=gqFields(p.body);\r\n  var score = f.fields.length * 1 + f.maxDepth * f.maxDepth * 3;\r\n  var level = score<20 ? '低' : score<60 ? '中' : score<120 ? '高' : '很高';\r\n  return { fields:f.fields.length, depth:f.maxDepth, score:score, level:level };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { gqStrip:gqStrip, gqTokens:gqTokens, gqBalance:gqBalance, gqParse:gqParse,\r\n    gqFields:gqFields, gqLint:gqLint, gqVarStub:gqVarStub, gqCost:gqCost };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.GraphqlForgePure = { gqStrip:gqStrip, gqTokens:gqTokens, gqBalance:gqBalance, gqParse:gqParse,\r\n    gqFields:gqFields, gqLint:gqLint, gqVarStub:gqVarStub, gqCost:gqCost };\r\n}\r\n\r\n"
+}

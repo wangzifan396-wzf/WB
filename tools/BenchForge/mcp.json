@@ -1,0 +1,79 @@
+{
+  "id": "BenchForge",
+  "name": "bench_forge",
+  "title": "BenchForge",
+  "description": "基准统计：mean/median/MAD/P95 + 离群点检测 + A/B 速度比。",
+  "entry": "bfParse",
+  "entries": {
+    "bfParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "bfMean": {
+      "paramStyle": "single",
+      "paramNames": [
+        "xs"
+      ],
+      "fields": []
+    },
+    "bfMedian": {
+      "paramStyle": "single",
+      "paramNames": [
+        "xs"
+      ],
+      "fields": []
+    },
+    "bfStddev": {
+      "paramStyle": "single",
+      "paramNames": [
+        "xs"
+      ],
+      "fields": []
+    },
+    "bfMad": {
+      "paramStyle": "single",
+      "paramNames": [
+        "xs"
+      ],
+      "fields": []
+    },
+    "bfStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "xs"
+      ],
+      "fields": []
+    },
+    "bfOutliers": {
+      "paramStyle": "single",
+      "paramNames": [
+        "xs"
+      ],
+      "fields": []
+    },
+    "bfCompare": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction bfParse(text){\r\n  return String(text).split(/[\\s,]+/).map(Number).filter(function(x){ return isFinite(x); });\r\n}\r\nfunction bfMean(xs){\r\n  var s=0; for(var i=0;i<xs.length;i++) s+=xs[i];\r\n  return s/xs.length;\r\n}\r\nfunction bfMedian(xs){\r\n  var a=xs.slice().sort(function(p,q){ return p-q; });\r\n  var mid=a.length>>1;\r\n  return a.length%2 ? a[mid] : (a[mid-1]+a[mid])/2;\r\n}\r\nfunction bfStddev(xs){\r\n  if(xs.length<2) return 0;\r\n  var m=bfMean(xs), s=0;\r\n  for(var i=0;i<xs.length;i++) s+=(xs[i]-m)*(xs[i]-m);\r\n  return Math.sqrt(s/(xs.length-1));\r\n}\r\nfunction bfMad(xs){\r\n  var med=bfMedian(xs);\r\n  return bfMedian(xs.map(function(x){ return Math.abs(x-med); }));\r\n}\r\nfunction bfStats(xs){\r\n  if(!xs||xs.length===0) return { value:null, error:'样本为空' };\r\n  var a=xs.slice().sort(function(p,q){ return p-q; });\r\n  return { value:{ n:xs.length, mean:bfMean(xs), median:bfMedian(xs), stddev:bfStddev(xs),\r\n    mad:bfMad(xs), min:a[0], max:a[a.length-1],\r\n    p95:a[Math.min(a.length-1, Math.ceil(a.length*0.95)-1)] }, error:null };\r\n}\r\nfunction bfOutliers(xs){\r\n  if(!xs||xs.length<3) return { value:{ outliers:[], indexes:[] }, error:null };\r\n  var med=bfMedian(xs), mad=bfMad(xs), out=[], idx=[];\r\n  for(var i=0;i<xs.length;i++){\r\n    var bad;\r\n    if(mad===0) bad = xs[i]!==med;\r\n    else bad = Math.abs(0.6745*(xs[i]-med)/mad) > 3.5;\r\n    if(bad){ out.push(xs[i]); idx.push(i); }\r\n  }\r\n  return { value:{ outliers:out, indexes:idx }, error:null };\r\n}\r\nfunction bfCompare(a, b){\r\n  var sa=bfStats(a), sb=bfStats(b);\r\n  if(sa.error||sb.error) return { value:null, error:sa.error||sb.error };\r\n  var A=sa.value, B=sb.value;\r\n  if(A.mean<=0||B.mean<=0) return { value:null, error:'均值必须为正' };\r\n  var fast = A.mean<=B.mean ? 'A' : 'B';\r\n  var ratio = A.mean<=B.mean ? B.mean/A.mean : A.mean/B.mean;\r\n  var relErr = Math.sqrt(Math.pow(A.stddev/A.mean,2)+Math.pow(B.stddev/B.mean,2));\r\n  return { value:{ faster:fast, ratio:ratio, ratioErr:ratio*relErr, meanA:A.mean, meanB:B.mean }, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { bfParse:bfParse, bfMean:bfMean, bfMedian:bfMedian, bfStddev:bfStddev,\r\n    bfMad:bfMad, bfStats:bfStats, bfOutliers:bfOutliers, bfCompare:bfCompare };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.BenchForgePure = { bfParse:bfParse, bfMean:bfMean, bfMedian:bfMedian, bfStddev:bfStddev,\r\n    bfMad:bfMad, bfStats:bfStats, bfOutliers:bfOutliers, bfCompare:bfCompare };\r\n}\r\n"
+}

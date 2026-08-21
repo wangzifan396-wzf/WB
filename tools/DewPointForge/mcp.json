@@ -1,0 +1,49 @@
+{
+  "id": "DewPointForge",
+  "name": "dew_point_forge",
+  "title": "DewPointForge",
+  "description": "由温度与相对湿度求露点（Magnus 公式）与绝对湿度（g/m³），辅助体感与结露判断。",
+  "entry": "dewPoint",
+  "entries": {
+    "dewPoint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "T",
+        "RH"
+      ],
+      "fields": []
+    },
+    "satVaporPressure": {
+      "paramStyle": "single",
+      "paramNames": [
+        "T"
+      ],
+      "fields": []
+    },
+    "absoluteHumidity": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "T",
+        "RH"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "T": {
+        "type": "string",
+        "description": "第 1 个参数（T）"
+      },
+      "RH": {
+        "type": "string",
+        "description": "第 2 个参数（RH）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar A_MAG = 17.625, B_MAG = 243.04;\r\nfunction dewPoint(T, RH){\r\n  if(!(RH >= 0 && RH <= 100)) return NaN;\r\n  var alpha = Math.log(RH/100) + A_MAG*T/(B_MAG+T);\r\n  return B_MAG*alpha/(A_MAG - alpha);\r\n}\r\nfunction satVaporPressure(T){ return 6.112 * Math.exp(17.67*T/(T+243.5)); }\r\nfunction absoluteHumidity(T, RH){\r\n  var e = satVaporPressure(T) * 100 * RH/100; // Pa\r\n  return 2.1674 * e / (273.15 + T);           // g/m³\r\n}\r\nvar EXPORTS = { dewPoint:dewPoint, satVaporPressure:satVaporPressure, absoluteHumidity:absoluteHumidity, A_MAG:A_MAG, B_MAG:B_MAG };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DewPointForgePure = EXPORTS; }\r\n\r\n"
+}

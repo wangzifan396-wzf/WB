@@ -1,0 +1,71 @@
+{
+  "id": "URLEncodeForge",
+  "name": "url_encode_forge",
+  "title": "URLEncodeForge",
+  "description": "URL 编解码：百分号编码/解码、完整 URL 编解码、查询参数解析与重组、URL 拆解，全程本地。",
+  "entry": "buildQuery",
+  "entries": {
+    "enc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "dec": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "encFull": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "decFull": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "parseQuery": {
+      "paramStyle": "single",
+      "paramNames": [
+        "q"
+      ],
+      "fields": []
+    },
+    "buildQuery": {
+      "paramStyle": "single",
+      "paramNames": [
+        "obj"
+      ],
+      "fields": []
+    },
+    "parseUrl": {
+      "paramStyle": "single",
+      "paramNames": [
+        "url"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "obj": {
+        "type": "string",
+        "description": "输入（obj）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction enc(s){ try{ return encodeURIComponent(s); }catch(e){ return null; } }\r\nfunction dec(s){ try{ return decodeURIComponent(s); }catch(e){ return null; } }\r\nfunction encFull(s){ try{ return encodeURI(s); }catch(e){ return null; } }\r\nfunction decFull(s){ try{ return decodeURI(s); }catch(e){ return null; } }\r\nfunction parseQuery(q){\r\n  if(q==null) return {};\r\n  q=String(q).replace(/^\\?/,'');\r\n  var out={}; if(!q) return out;\r\n  var pairs=q.split('&');\r\n  for(var i=0;i<pairs.length;i++){\r\n    if(!pairs[i]) continue;\r\n    var kv=pairs[i].split('=');\r\n    var k=dec(kv[0]); if(k==null) k=kv[0];\r\n    var v=kv.length>1?dec(kv[1]):'';\r\n    if(v==null) v=kv.length>1?kv[1]:'';\r\n    if(out[k]==null) out[k]=v;\r\n    else if(Array.isArray(out[k])) out[k].push(v);\r\n    else out[k]=[out[k],v];\r\n  }\r\n  return out;\r\n}\r\nfunction buildQuery(obj){\r\n  var parts=[];\r\n  for(var k in obj){ if(!obj.hasOwnProperty(k)) continue; var v=obj[k]; var arr=Array.isArray(v)?v:[v];\r\n    for(var i=0;i<arr.length;i++) parts.push(enc(k)+'='+enc(arr[i])); }\r\n  return parts.join('&');\r\n}\r\nfunction parseUrl(url){\r\n  var m=String(url).match(/^(([a-z]+:)\\/\\/([^\\/?#]+))?([^?#]*)(\\?[^#]*)?(#.*)?$/i);\r\n  if(!m) return null;\r\n  return { authority:m[3]||'', path:m[4]||'', query:m[5]?m[5].slice(1):'', hash:m[6]||'', params:parseQuery(m[5]||'') };\r\n}\r\nvar EXPORTS={ enc:enc, dec:dec, encFull:encFull, decFull:decFull, parseQuery:parseQuery, buildQuery:buildQuery, parseUrl:parseUrl };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.URLEncodeForgePure = EXPORTS; }\r\n\r\n"
+}

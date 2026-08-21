@@ -1,0 +1,52 @@
+{
+  "id": "BingoForge",
+  "name": "bingo_forge",
+  "title": "BingoForge",
+  "description": "宾果游戏（Bingo）：生成 5×5 卡片（中央 FREE），逐个叫号自动标记，行 / 列 / 对角 / 全满任意中奖即胜。",
+  "entry": "bingoCard",
+  "entries": {
+    "bingoCard": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "bingoCaller": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "bingoMark": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "card",
+        "called"
+      ],
+      "fields": []
+    },
+    "bingoDone": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "marked",
+        "pattern"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seed": {
+        "type": "number",
+        "description": "输入（seed）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction bingoCard(seed){ var s=seed||1; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;} function col(lo,hi){ var used={},out=[]; while(out.length<5){ var v=lo+Math.floor(rnd()*(hi-lo+1)); if(!used[v]){used[v]=1;out.push(v);} } return out; } var cols=[col(1,15),col(16,30),col(31,45),col(46,60),col(61,75)]; var card=[]; for(var r=0;r<5;r++){ var row=[]; for(var c=0;c<5;c++){ if(r===2&&c===2) row.push(null); else row.push(cols[c][r]); } card.push(row); } return card; }\r\nfunction bingoCaller(seed){ var s=seed||9; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;} var a=[]; for(var i=1;i<=75;i++) a.push(i); for(var i=a.length-1;i>0;i--){var j=Math.floor(rnd()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nfunction bingoMark(card, called){ return card.map(function(row){ return row.map(function(v){ return v===null?null:(called.indexOf(v)>=0); }); }); }\r\nfunction bingoDone(marked, pattern){ function line(arr){ return arr.every(function(x){return x===true||x===null;}); } if(pattern==='full'){ return marked.every(function(row){return row.every(function(x){return x===true||x===null;});}); } if(pattern==='row'){ return marked.some(function(row){return line(row);}); } if(pattern==='col'){ for(var c=0;c<5;c++){ var ok=true; for(var r=0;r<5;r++){ if(!(marked[r][c]===true||marked[r][c]===null)) ok=false; } if(ok) return true; } return false; } if(pattern==='diag'){ var d1=true,d2=true; for(var i=0;i<5;i++){ if(!(marked[i][i]===true||marked[i][i]===null)) d1=false; if(!(marked[i][4-i]===true||marked[i][4-i]===null)) d2=false; } return d1||d2; } return false; }\r\nvar EXPORTS={bingoCard:bingoCard,bingoCaller:bingoCaller,bingoMark:bingoMark,bingoDone:bingoDone};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BingoForgePure = EXPORTS; }\r\n\r\n"
+}

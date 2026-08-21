@@ -1,0 +1,102 @@
+{
+  "id": "AttentionForge",
+  "name": "attention_forge",
+  "title": "AttentionForge",
+  "description": "Transformer 注意力可视化：QK 缩放点积、softmax 权重热力矩阵、因果掩码，离线可用。",
+  "entry": "atTokenize",
+  "entries": {
+    "atTokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "atHash": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "seed"
+      ],
+      "fields": []
+    },
+    "atEmbed": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "token",
+        "dim",
+        "seed"
+      ],
+      "fields": []
+    },
+    "atDot": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "atSoftmax": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "atScores": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tokens",
+        "head",
+        "dim",
+        "causal"
+      ],
+      "fields": []
+    },
+    "atRowEntropy": {
+      "paramStyle": "single",
+      "paramNames": [
+        "row"
+      ],
+      "fields": []
+    },
+    "atTopK": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "row",
+        "tokens",
+        "k"
+      ],
+      "fields": []
+    },
+    "atSummary": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "tokens"
+      ],
+      "fields": []
+    },
+    "atCell": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction atTokenize(text){\r\n  var raw=String(text||'').trim();\r\n  if(!raw) return [];\r\n  var parts=raw.split(/\\s+/), out=[];\r\n  for(var i=0;i<parts.length;i++){\r\n    var p=parts[i];\r\n    var m=p.match(/^([\\w'\\u4e00-\\u9fa5-]+)([.,!?;:]*)$/);\r\n    if(m){ out.push(m[1]); if(m[2]) for(var j=0;j<m[2].length;j++) out.push(m[2][j]); }\r\n    else out.push(p);\r\n  }\r\n  return out;\r\n}\r\nfunction atHash(s, seed){\r\n  var h=2166136261 ^ (seed||0);\r\n  for(var i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }\r\n  return (h>>>0)/4294967296;\r\n}\r\nfunction atEmbed(token, dim, seed){\r\n  var v=[];\r\n  for(var d=0; d<dim; d++) v.push(atHash(token+'#'+d, seed)*2-1);\r\n  return v;\r\n}\r\nfunction atDot(a,b){ var s=0; for(var i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }\r\nfunction atSoftmax(arr){\r\n  if(!arr.length) return [];\r\n  var mx=Math.max.apply(null, arr), ex=[], sum=0;\r\n  for(var i=0;i<arr.length;i++){ var e=Math.exp(arr[i]-mx); ex.push(e); sum+=e; }\r\n  for(var j=0;j<ex.length;j++) ex[j]=ex[j]/sum;\r\n  return ex;\r\n}\r\nfunction atScores(tokens, head, dim, causal){\r\n  dim = dim || 8;\r\n  var n=tokens.length, emb=[], i, j;\r\n  for(i=0;i<n;i++) emb.push(atEmbed(tokens[i], dim, (head||0)*7919+1));\r\n  var scale=Math.sqrt(dim), rows=[];\r\n  for(i=0;i<n;i++){\r\n    var raw=[];\r\n    for(j=0;j<n;j++){\r\n      var s = atDot(emb[i], emb[j])/scale;\r\n      if(i===j) s += 0.6;\r\n      if(causal && j>i) s = -Infinity;\r\n      raw.push(s);\r\n    }\r\n    var finite = raw.map(function(x){ return x===-Infinity ? -1e9 : x; });\r\n    rows.push(atSoftmax(finite));\r\n  }\r\n  return rows;\r\n}\r\nfunction atRowEntropy(row){\r\n  var h=0;\r\n  for(var i=0;i<row.length;i++){ var p=row[i]; if(p>1e-12) h -= p*Math.log(p)/Math.LN2; }\r\n  return Math.round(h*1000)/1000;\r\n}\r\nfunction atTopK(row, tokens, k){\r\n  var pairs=[];\r\n  for(var i=0;i<row.length;i++) pairs.push({ i:i, token:tokens[i], w:row[i] });\r\n  pairs.sort(function(a,b){ return b.w-a.w || a.i-b.i; });\r\n  return pairs.slice(0, k||3);\r\n}\r\nfunction atSummary(rows, tokens){\r\n  if(!rows.length) return { error:'请输入至少一个 token' };\r\n  var n=rows.length, colSum=new Array(n), i, j;\r\n  for(i=0;i<n;i++) colSum[i]=0;\r\n  var entTotal=0, diag=0;\r\n  for(i=0;i<n;i++){\r\n    entTotal += atRowEntropy(rows[i]);\r\n    diag += rows[i][i];\r\n    for(j=0;j<n;j++) colSum[j]+=rows[i][j];\r\n  }\r\n  var best=0;\r\n  for(i=1;i<n;i++) if(colSum[i]>colSum[best]) best=i;\r\n  return { error:null, tokens:n, avgEntropy:Math.round(entTotal/n*1000)/1000,\r\n           selfWeight:Math.round(diag/n*1000)/1000,\r\n           focusToken:tokens[best], focusScore:Math.round(colSum[best]/n*1000)/1000,\r\n           maxEntropy:Math.round(Math.log(n)/Math.LN2*1000)/1000 };\r\n}\r\nfunction atCell(v){\r\n  var t=Math.max(0, Math.min(1, v));\r\n  return { alpha:Math.round(t*100)/100, label:(t*100).toFixed(1)+'%' };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { atTokenize:atTokenize, atHash:atHash, atEmbed:atEmbed, atDot:atDot,\r\n    atSoftmax:atSoftmax, atScores:atScores, atRowEntropy:atRowEntropy, atTopK:atTopK,\r\n    atSummary:atSummary, atCell:atCell };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.AttentionForgePure = { atTokenize:atTokenize, atHash:atHash, atEmbed:atEmbed, atDot:atDot,\r\n    atSoftmax:atSoftmax, atScores:atScores, atRowEntropy:atRowEntropy, atTopK:atTopK,\r\n    atSummary:atSummary, atCell:atCell };\r\n}\r\n\r\n"
+}

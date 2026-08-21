@@ -1,0 +1,95 @@
+{
+  "id": "KMeansForge",
+  "name": "k_means_forge",
+  "title": "KMeansForge",
+  "description": "k-means 聚类可视化：迭代把平面散点分成 k 簇，实时观察质心移动与惯性下降，支持 k=2–6。",
+  "entry": "kmGenBlobs",
+  "entries": {
+    "kmGenBlobs": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "k",
+        "rnd",
+        "spread"
+      ],
+      "fields": []
+    },
+    "kmDist": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "kmAssign": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pts",
+        "cents"
+      ],
+      "fields": []
+    },
+    "kmUpdate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pts",
+        "lab",
+        "k",
+        "prev"
+      ],
+      "fields": []
+    },
+    "kmInertia": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pts",
+        "lab",
+        "cents"
+      ],
+      "fields": []
+    },
+    "kmInitCentroids": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pts",
+        "k",
+        "rnd"
+      ],
+      "fields": []
+    },
+    "_rng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "第 1 个参数（n）"
+      },
+      "k": {
+        "type": "string",
+        "description": "第 2 个参数（k）"
+      },
+      "rnd": {
+        "type": "string",
+        "description": "第 3 个参数（rnd）"
+      },
+      "spread": {
+        "type": "string",
+        "description": "第 4 个参数（spread）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _rng(seed){ var s=seed>>>0||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction kmGenBlobs(n, k, rnd, spread){\r\n  var centers=[]; for(var i=0;i<k;i++) centers.push([rnd(), rnd()]);\r\n  var pts=[]; for(var i=0;i<n;i++){ var c=centers[Math.floor(rnd()*k)];\r\n    pts.push([c[0]+(rnd()-0.5)*spread, c[1]+(rnd()-0.5)*spread]); }\r\n  return pts;\r\n}\r\nfunction kmDist(a,b){ var dx=a[0]-b[0], dy=a[1]-b[1]; return dx*dx+dy*dy; }\r\nfunction kmAssign(pts, cents){\r\n  var lab=[]; for(var i=0;i<pts.length;i++){ var best=0,bd=Infinity;\r\n    for(var j=0;j<cents.length;j++){ var d=kmDist(pts[i],cents[j]); if(d<bd){bd=d;best=j;} } lab.push(best); }\r\n  return lab;\r\n}\r\nfunction kmUpdate(pts, lab, k, prev){\r\n  var sx=[],sy=[],n=[]; for(var j=0;j<k;j++){sx.push(0);sy.push(0);n.push(0);}\r\n  for(var i=0;i<pts.length;i++){ var c=lab[i]; sx[c]+=pts[i][0]; sy[c]+=pts[i][1]; n[c]++; }\r\n  var cents=[]; for(var j=0;j<k;j++){ if(n[j]>0) cents.push([sx[j]/n[j], sy[j]/n[j]]); else cents.push(prev[j]?prev[j].slice():[0.5,0.5]); }\r\n  return cents;\r\n}\r\nfunction kmInertia(pts, lab, cents){ var s=0; for(var i=0;i<pts.length;i++){ s+=kmDist(pts[i], cents[lab[i]]); } return s; }\r\nfunction kmInitCentroids(pts,k,rnd){\r\n  var idx=[]; var first=Math.floor(rnd()*pts.length); idx.push(first);\r\n  while(idx.length<k){ var cand=Math.floor(rnd()*pts.length); if(idx.indexOf(cand)<0) idx.push(cand); }\r\n  return idx.map(function(i){return pts[i].slice();});\r\n}\r\nvar EXPORTS={kmGenBlobs:kmGenBlobs, kmDist:kmDist, kmAssign:kmAssign, kmUpdate:kmUpdate, kmInertia:kmInertia, kmInitCentroids:kmInitCentroids, _rng:_rng};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.KMeansForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,71 @@
+{
+  "id": "CaddyForge",
+  "name": "caddy_forge",
+  "title": "CaddyForge",
+  "description": "Caddyfile 生成器：填域名、反向代理上游、TLS 邮箱、静态根目录等，自动产出带自动 HTTPS 的 Caddy 配置，复制即用。",
+  "entry": "gen",
+  "entries": {
+    "gen": {
+      "paramStyle": "object",
+      "paramNames": [
+        "p"
+      ],
+      "fields": [
+        "domain",
+        "email",
+        "path",
+        "tls",
+        "redir",
+        "redirTo",
+        "upstream",
+        "fileRoot",
+        "log"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "domain": {
+        "type": "string",
+        "description": "参数 domain"
+      },
+      "email": {
+        "type": "string",
+        "description": "参数 email"
+      },
+      "path": {
+        "type": "string",
+        "description": "参数 path"
+      },
+      "tls": {
+        "type": "string",
+        "description": "参数 tls"
+      },
+      "redir": {
+        "type": "string",
+        "description": "参数 redir"
+      },
+      "redirTo": {
+        "type": "string",
+        "description": "参数 redirTo"
+      },
+      "upstream": {
+        "type": "string",
+        "description": "参数 upstream"
+      },
+      "fileRoot": {
+        "type": "string",
+        "description": "参数 fileRoot"
+      },
+      "log": {
+        "type": "string",
+        "description": "参数 log"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function gen(p){\r\n    p=p||{}; if(!p.domain) return {error:'请填写域名'};\r\n    var s=''; if(p.email) s+='{\\n  email '+p.email+'\\n}\\n\\n';\r\n    var block=p.domain + (p.path && p.path!=='/' ? p.path : '');\r\n    s+=block+' {\\n';\r\n    if(p.tls==='off') s+='  tls off\\n';\r\n    if(p.redir) s+='  redir '+(p.redirTo||'/')+'\\n';\r\n    if(p.upstream){ var ups=p.upstream.indexOf(',')>=0? p.upstream.split(/[\\s,]+/).filter(Boolean).join(' ') : p.upstream; s+='  reverse_proxy '+ups+'\\n'; }\r\n    if(p.fileRoot){ s+='  root * '+p.fileRoot+'\\n  file_server\\n'; }\r\n    if(p.log) s+='  log\\n';\r\n    s+='}\\n'; return {value:s};\r\n  }\r\n  var API={gen:gen};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__CaddyForge__=API;\r\n})();\r\n"
+}

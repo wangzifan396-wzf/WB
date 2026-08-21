@@ -1,0 +1,34 @@
+{
+  "id": "RegexExplainForge",
+  "name": "regex_explain_forge",
+  "title": "RegexExplainForge",
+  "description": "正则可视化解释器：逐片段中文化说明、分组/量词/转义解析、语法错误定位，离线可用。",
+  "entry": "rxExplain",
+  "entries": {
+    "rxExplain": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pattern",
+        "flags"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pattern": {
+        "type": "string",
+        "description": "第 1 个参数（pattern）"
+      },
+      "flags": {
+        "type": "string",
+        "description": "第 2 个参数（flags）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rxExplain(pattern, flags){\r\n  pattern = String(pattern==null?'':pattern);\r\n  flags = String(flags==null?'':flags);\r\n  var tokens=[], i=0, depth=0;\r\n  function err(msg){ return {valid:false, error:msg, parts:tokens, summary:''}; }\r\n  while(i<pattern.length){\r\n    var c=pattern[i];\r\n    if(c==='\\\\'){\r\n      if(i+1>=pattern.length) return err('末尾悬空的转义符 \\\\');\r\n      var e=pattern[i+1]; i+=2;\r\n      var map={'d':'数字 [0-9]','D':'非数字','w':'单词字符 [A-Za-z0-9_]','W':'非单词字符','s':'空白字符','S':'非空白字符','b':'单词边界','B':'非单词边界','n':'换行符','t':'制表符','r':'回车符'};\r\n      if(map.hasOwnProperty(e)) tokens.push({t:'\\\\'+e, desc:map[e]});\r\n      else tokens.push({t:'\\\\'+e, desc:'字面字符「'+e+'」'});\r\n      continue;\r\n    }\r\n    if(c==='['){\r\n      var j=pattern.indexOf(']', i+1);\r\n      if(j<0) return err('字符类缺少闭合 ]');\r\n      var cls=pattern.slice(i, j+1), neg=pattern[i+1]==='^';\r\n      tokens.push({t:cls, desc:(neg?'排除字符集 ':'字符集 ')+(neg?cls.slice(2,-1):cls.slice(1,-1))});\r\n      i=j+1; continue;\r\n    }\r\n    if(c==='('){\r\n      if(pattern[i+1]==='?' && pattern[i+2]===':'){ tokens.push({t:'(?:', desc:'非捕获分组（不记录）'}); i+=3; depth++; continue; }\r\n      tokens.push({t:'(', desc:'捕获分组 #'+(depth+1)}); i++; depth++; continue;\r\n    }\r\n    if(c===')'){ tokens.push({t:')', desc:'分组结束'}); i++; depth=Math.max(0,depth-1); continue; }\r\n    if(c==='^'){ tokens.push({t:'^', desc:'字符串开头'}); i++; continue; }\r\n    if(c==='$'){ tokens.push({t:'$', desc:'字符串结尾'}); i++; continue; }\r\n    if(c==='.'){ tokens.push({t:'.', desc:'任意字符（除换行）'}); i++; continue; }\r\n    if(c==='|'){ tokens.push({t:'|', desc:'或（二选一）'}); i++; continue; }\r\n    if(c==='*'||c==='+'||c==='?'){\r\n      var q={'*':'零次或多次','+':'一次或多次','?':'零次或一次'}[c];\r\n      tokens.push({t:c, desc:q}); i++; continue;\r\n    }\r\n    if(c==='{'){\r\n      var mm=pattern.slice(i).match(/^\\{(\\d+)(,(\\d*))?\\}/);\r\n      if(!mm){ tokens.push({t:'{', desc:'字面「{」'}); i++; continue; }\r\n      var desc = mm[2]===undefined ? '精确 '+mm[1]+' 次' : (mm[3]==='' ? mm[1]+' 次或更多' : mm[1]+'-'+mm[3]+' 次');\r\n      tokens.push({t:mm[0], desc:desc}); i+=mm[0].length; continue;\r\n    }\r\n    tokens.push({t:c, desc:'字面字符「'+c+'」'}); i++;\r\n  }\r\n  if(depth>0) return err('分组括号未闭合');\r\n  var summary = tokens.length + ' 个片段' + (flags?('，标志 '+flags):'') + (flags.indexOf('i')>=0?'（忽略大小写）':'') + (flags.indexOf('g')>=0?'（全局匹配）':'') + (flags.indexOf('m')>=0?'（多行）':'');\r\n  return {valid:true, error:null, parts:tokens, summary:summary};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { rxExplain:rxExplain };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.RegexExplainForgePure = { rxExplain:rxExplain };\r\n}\r\n\r\n"
+}

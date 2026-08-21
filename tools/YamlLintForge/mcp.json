@@ -1,0 +1,36 @@
+{
+  "id": "YamlLintForge",
+  "name": "yaml_lint_forge",
+  "title": "YamlLintForge",
+  "description": "解析 YAML（嵌套映射/序列），校验结构并把格式化输出写回。",
+  "entry": "parseYaml",
+  "entries": {
+    "parseYaml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "formatYaml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "doc"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _stripComment(s){ var out='',inS=false,inD=false;\r\n  for(var i=0;i<s.length;i++){ var c=s[i];\r\n    if(c===\"'\"&&!inD){ inS=!inS; } else if(c==='\"'&&!inS){ inD=!inD; }\r\n    else if(c==='#'&&!inS&&!inD){ break; }\r\n    out+=c; }\r\n  return out.replace(/\\s+$/,'');\r\n}\r\nfunction _unq(s){ s=(s||'').trim(); if((s[0]==='\"'&&s[s.length-1]==='\"')||(s[0]===\"'\"&&s[s.length-1]===\"'\")) return s.slice(1,-1); return s; }\r\nfunction _scalar(s){ s=(s||'').trim();\r\n  if(s===''||s==='~'||/^null$/i.test(s)) return null;\r\n  if(/^true$/i.test(s)) return true; if(/^false$/i.test(s)) return false;\r\n  if((s[0]==='\"'&&s[s.length-1]==='\"')||(s[0]===\"'\"&&s[s.length-1]===\"'\")) return _unq(s);\r\n  if(/^-?\\d+$/.test(s)) return parseInt(s,10);\r\n  if(/^-?\\d+\\.\\d+$/.test(s)) return parseFloat(s);\r\n  return _unq(s);\r\n}\r\nfunction _tokenize(text){ var lines=String(text).replace(/\\r\\n/g,'\\n').split('\\n'); var toks=[];\r\n  for(var i=0;i<lines.length;i++){ var raw=lines[i]; if(/^\\s*$/.test(raw)) continue;\r\n    var content=_stripComment(raw).replace(/^\\s+/,''); if(content==='') continue;\r\n    var indent=raw.length-raw.replace(/^\\s*/,'').length;\r\n    toks.push({indent:indent,content:content}); }\r\n  return toks;\r\n}\r\nfunction parseYaml(text){\r\n  var toks=_tokenize(text); var errors=[];\r\n  function block(toks,start,indent){\r\n    var first=toks[start];\r\n    if(first.content==='-'||first.content.indexOf('- ')===0){\r\n      var arr=[],i=start;\r\n      while(i<toks.length && toks[i].indent===indent && (toks[i].content==='-'||toks[i].content.indexOf('- ')===0)){\r\n        var item=toks[i].content.slice(1).replace(/^\\s+/,'');\r\n        if(item.indexOf(':')>0 && !/^[\"'].*:[\"']?$/.test(item)){\r\n          var sub=toks.slice(0,i).concat([{indent:indent+2,content:item}]);\r\n          var deeper=i+1;\r\n          while(deeper<toks.length && toks[deeper].indent>indent){ sub.push(toks[deeper]); deeper++; }\r\n          var parsed=block(sub,sub.length-(deeper-i),indent+2);\r\n          arr.push(parsed.value); i=deeper;\r\n        } else { arr.push(_scalar(item)); i++; }\r\n      }\r\n      return {value:arr,next:i};\r\n    }\r\n    var obj={},i=start;\r\n    while(i<toks.length && toks[i].indent===indent && toks[i].content.indexOf('- ')!==0 && toks[i].content!=='-'){\r\n      var c=toks[i].content, ci=c.indexOf(':');\r\n      if(ci<0){ errors.push('行格式错误: '+c); i++; continue; }\r\n      var key=_unq(c.slice(0,ci)), val=c.slice(ci+1).trim();\r\n      if(val===''){\r\n        if(i+1<toks.length && toks[i+1].indent>indent){ var sub2=block(toks,i+1,toks[i+1].indent); obj[key]=sub2.value; i=sub2.next; }\r\n        else { obj[key]=null; i++; }\r\n      } else { obj[key]=_scalar(val); i++; }\r\n    }\r\n    return {value:obj,next:i};\r\n  }\r\n  if(!toks.length) return {ok:true,value:null,errors:[]};\r\n  var r=block(toks,0,toks[0].indent);\r\n  return {ok:errors.length===0,value:r.value,errors:errors};\r\n}\r\nfunction formatYaml(doc){\r\n  var out=[];\r\n  function pad(d){ return '  '.repeat(d); }\r\n  function fk(k){ return /^[A-Za-z0-9_]+$/.test(k)?k:JSON.stringify(k); }\r\n  function fv(v){ if(v===null) return 'null'; if(typeof v==='string') return /^[A-Za-z0-9_.\\-\\/]+$/.test(v)?v:JSON.stringify(v); return String(v); }\r\n  function emit(o,d){ if(Array.isArray(o)){ o.forEach(function(it){ if(it!==null&&typeof it==='object'&&!Array.isArray(it)){ var ks=Object.keys(it); out.push(pad(d)+'- '+fk(ks[0])+': '+fv(it[ks[0]])); for(var k=1;k<ks.length;k++) out.push(pad(d)+'  '+fk(ks[k])+': '+fv(it[ks[k]])); } else out.push(pad(d)+'- '+fv(it)); }); }\r\n    else { Object.keys(o).forEach(function(k){ var v=o[k]; if(v!==null&&typeof v==='object'){ out.push(pad(d)+fk(k)+':'); emit(v,d+1); } else out.push(pad(d)+fk(k)+': '+fv(v)); }); } }\r\n  emit(doc,0); return out.join('\\n')+'\\n';\r\n}\r\nvar EXPORTS={parseYaml:parseYaml,formatYaml:formatYaml};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.YamlLintForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,29 @@
+{
+  "id": "BubbleChartForge",
+  "name": "bubble_chart_forge",
+  "title": "气泡图",
+  "description": "输入若干点（x、y、数值大小），生成可缩放 SVG 气泡图，离线。",
+  "entry": "bubbleSvg",
+  "entries": {
+    "bubbleSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "points"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "points": {
+        "type": "string",
+        "description": "输入（points）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction esc(s){ s=String(s==null?'':s); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction bubbleSvg(points){\r\n  if(!Array.isArray(points)||points.length<1) return {error:'至少 1 个点'};\r\n  var pts=points.map(function(p){ return {x:+p.x, y:+p.y, size:+p.size, label:p.label||''}; });\r\n  if(pts.some(function(p){ return isNaN(p.x)||isNaN(p.y)||!(p.size>=0); })) return {error:'x/y 须为数字，size 须为非负'};\r\n  var xs=pts.map(function(p){return p.x;}), ys=pts.map(function(p){return p.y;}), ss=pts.map(function(p){return p.size;});\r\n  var xmin=Math.min.apply(null,xs), xmax=Math.max.apply(null,xs);\r\n  var ymin=Math.min.apply(null,ys), ymax=Math.max.apply(null,ys);\r\n  var smin=Math.min.apply(null,ss), smax=Math.max.apply(null,ss);\r\n  if(xmin===xmax)xmax=xmin+1; if(ymin===ymax)ymax=ymin+1;\r\n  var pad=28, W=220, H=170, pw=W-pad*2, ph=H-pad*2;\r\n  function sx(x){ return pad+(x-xmin)/(xmax-xmin)*pw; }\r\n  function sy(y){ return pad+ph-(y-ymin)/(ymax-ymin)*ph; }\r\n  function sr(sz){ return smax===smin?14:6+(sz-smin)/(smax-smin)*22; }\r\n  var pal=['#5E6AD2','#10B981','#F5A623','#EF4444','#22D3EE','#A78BFA','#F472B6','#34D399'];\r\n  var parts=[];\r\n  parts.push('<line x1=\"'+pad+'\" y1=\"'+(H-pad)+'\" x2=\"'+(W-pad)+'\" y2=\"'+(H-pad)+'\" stroke=\"#3A3B3E\" stroke-width=\"1\"/>');\r\n  parts.push('<line x1=\"'+pad+'\" y1=\"'+pad+'\" x2=\"'+pad+'\" y2=\"'+(H-pad)+'\" stroke=\"#3A3B3E\" stroke-width=\"1\"/>');\r\n  pts.forEach(function(p,i){\r\n    var cx=sx(p.x), cy=sy(p.y), r=sr(p.size);\r\n    parts.push('<circle cx=\"'+cx.toFixed(1)+'\" cy=\"'+cy.toFixed(1)+'\" r=\"'+r.toFixed(1)+'\" fill=\"'+pal[i%pal.length]+'\" fill-opacity=\"0.55\" stroke=\"'+pal[i%pal.length]+'\" stroke-width=\"1.2\"/>');\r\n    if(p.label) parts.push('<text x=\"'+cx.toFixed(1)+'\" y=\"'+(cy+r+10).toFixed(1)+'\" text-anchor=\"middle\" font-size=\"10\" fill=\"#A1A1AA\">'+esc(p.label)+'</text>');\r\n  });\r\n  var svg='<svg viewBox=\"0 0 '+W+' '+H+'\" xmlns=\"http://www.w3.org/2000/svg\">'+parts.join('')+'</svg>';\r\n  return {svg:svg, n:pts.length};\r\n}\r\nvar EXPORTS={bubbleSvg:bubbleSvg};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BubbleChartForgePure = EXPORTS; }\r\n\r\n"
+}

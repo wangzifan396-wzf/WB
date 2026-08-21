@@ -1,0 +1,53 @@
+{
+  "id": "HeartZoneForge",
+  "name": "heart_zone_forge",
+  "title": "HeartZoneForge",
+  "description": "心率训练区间：基于 Karvonen 储备心率法，按年龄与静息心率生成五档训练心率区间。",
+  "entry": "maxHR",
+  "entries": {
+    "maxHR": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "age",
+        "method"
+      ],
+      "fields": []
+    },
+    "karvonen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "age",
+        "hrRest",
+        "intensity",
+        "method"
+      ],
+      "fields": []
+    },
+    "zones": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "age",
+        "hrRest",
+        "method"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "age": {
+        "type": "string",
+        "description": "第 1 个参数（age）"
+      },
+      "method": {
+        "type": "string",
+        "description": "第 2 个参数（method）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction maxHR(age, method){ return method==='tanaka'? 208-0.7*age : 220-age; }\r\nfunction karvonen(age, hrRest, intensity, method){ var m=maxHR(age,method); return Math.round((m-hrRest)*intensity + hrRest); }\r\nfunction zones(age, hrRest, method){ var edges=[0.5,0.6,0.7,0.8,0.9,1.0]; var z=[]; for(var i=1;i<edges.length;i++){ z.push({lo:karvonen(age,hrRest,edges[i-1],method), hi:karvonen(age,hrRest,edges[i],method)}); } return {max:maxHR(age,method), zones:z}; }\r\nvar EXPORTS={ maxHR:maxHR, karvonen:karvonen, zones:zones };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HeartZoneForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "SecretForge",
+  "name": "secret_forge",
+  "title": "SecretForge",
+  "description": "密钥/凭据扫描器：正则模式 + 香农熵检测，定位代码中的高危泄露。",
+  "entry": "entropy",
+  "entries": {
+    "entropy": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "scan": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction entropy(s){\r\n  if(!s || !s.length) return 0;\r\n  var f={}; for(var i=0;i<s.length;i++){ f[s[i]]=(f[s[i]]||0)+1; }\r\n  var e=0; for(var k in f){ var p=f[k]/s.length; e -= p*Math.log2(p); }\r\n  return e;\r\n}\r\nvar RULES=[\r\n  {name:'AWS Access Key', re:/AKIA[0-9A-Z]{16}/},\r\n  {name:'AWS Secret', re:/aws_secret_access_key\\s*[:=]\\s*['\"]?[A-Za-z0-9\\/+=]{40}/i},\r\n  {name:'GitHub Token', re:/gh[pousr]_[A-Za-z0-9]{36,}/},\r\n  {name:'Slack Token', re:/xox[baprs]-[A-Za-z0-9-]{10,}/},\r\n  {name:'Google API', re:/AIza[0-9A-Za-z_-]{35}/},\r\n  {name:'Stripe Secret', re:/sk_live_[0-9a-zA-Z]{24}/},\r\n  {name:'Private Key', re:/-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/},\r\n  {name:'JWT', re:/eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+/},\r\n  {name:'Password Assign', re:/(?:password|passwd|pwd)\\s*[:=]\\s*['\"][^'\"]{8,}['\"]/i}\r\n];\r\nfunction scan(text){\r\n  var s=String(text||''), out=[];\r\n  for(var i=0;i<RULES.length;i++){\r\n    var r=RULES[i].re.exec(s);\r\n    if(r){ out.push({rule:RULES[i].name, match:r[0], index:r.index}); }\r\n  }\r\n  var runs=s.match(/[A-Za-z0-9\\/+=]{20,}/g)||[];\r\n  for(var j=0;j<runs.length;j++){\r\n    if(entropy(runs[j])>3.8){\r\n      out.push({rule:'High-Entropy', match:runs[j].slice(0,40), index:s.indexOf(runs[j])});\r\n    }\r\n  }\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { entropy:entropy, scan:scan, RULES:RULES };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SecretForgePure = { entropy:entropy, scan:scan, RULES:RULES };\r\n}\r\n"
+}

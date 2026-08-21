@@ -1,0 +1,29 @@
+{
+  "id": "FunnelForge",
+  "name": "funnel_forge",
+  "title": "漏斗图",
+  "description": "输入多阶段数值，生成 SVG 漏斗图，离线。",
+  "entry": "funnelSvg",
+  "entries": {
+    "funnelSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "stages"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "stages": {
+        "type": "string",
+        "description": "输入（stages）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction esc(s){ s=String(s==null?'':s); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction funnelSvg(stages){\r\n  if(!Array.isArray(stages)||stages.length<2) return {error:'至少 2 个阶段'};\r\n  var data=stages.map(function(s){ return {label:String(s.label||''), value:+s.value}; });\r\n  if(data.some(function(s){ return isNaN(s.value)||s.value<0; })) return {error:'value 须为非负数字'};\r\n  var maxV=Math.max.apply(null,data.map(function(s){return s.value;}));\r\n  var W=220, H=200, top=16, bottom=H-34, n=data.length, rowH=(bottom-top)/n, cx=W/2;\r\n  var pal=['#5E6AD2','#10B981','#F5A623','#EF4444','#22D3EE','#A78BFA','#F472B6','#34D399'];\r\n  var parts=[], prevR=null;\r\n  for(var i=0;i<n;i++){\r\n    var r=(data[i].value/maxV)*(W*0.44), y0=top+i*rowH, y1=top+(i+1)*rowH;\r\n    var r0=prevR==null?r:prevR, r1=r;\r\n    var pts=[[cx-r0,y0],[cx+r0,y0],[cx+r1,y1],[cx-r1,y1]];\r\n    var d='M '+pts[0][0].toFixed(1)+' '+pts[0][1].toFixed(1)+' L '+pts[1][0].toFixed(1)+' '+pts[1][1].toFixed(1)+' L '+pts[2][0].toFixed(1)+' '+(pts[2][1]).toFixed(1)+' L '+pts[3][0].toFixed(1)+' '+pts[3][1].toFixed(1)+' Z';\r\n    parts.push('<path d=\"'+d+'\" fill=\"'+pal[i%pal.length]+'\" fill-opacity=\"0.82\" stroke=\"#0A0A0B\" stroke-width=\"1\"/>');\r\n    parts.push('<text x=\"'+cx.toFixed(1)+'\" y=\"'+((y0+y1)/2+4).toFixed(1)+'\" text-anchor=\"middle\" font-size=\"11\" fill=\"#fff\">'+esc(data[i].label)+' '+data[i].value+'</text>');\r\n    prevR=r;\r\n  }\r\n  var svg='<svg viewBox=\"0 0 '+W+' '+H+'\" xmlns=\"http://www.w3.org/2000/svg\">'+parts.join('')+'</svg>';\r\n  return {svg:svg, n:n};\r\n}\r\nvar EXPORTS={funnelSvg:funnelSvg};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.FunnelForgePure = EXPORTS; }\r\n\r\n"
+}

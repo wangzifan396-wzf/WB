@@ -1,0 +1,42 @@
+{
+  "id": "TaxBracketForge",
+  "name": "tax_bracket_forge",
+  "title": "TaxBracketForge",
+  "description": "按分段边际税率计算应纳税额、有效税率与边际税率。",
+  "entry": "tax",
+  "entries": {
+    "tax": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "income",
+        "brackets"
+      ],
+      "fields": []
+    },
+    "bracketIndex": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "income",
+        "brackets"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "income": {
+        "type": "string",
+        "description": "第 1 个参数（income）"
+      },
+      "brackets": {
+        "type": "string",
+        "description": "第 2 个参数（brackets）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction tax(income, brackets){\r\n  if(!(income>=0)||!Array.isArray(brackets)||!brackets.length) return null;\r\n  var prev=0, total=0;\r\n  for(var i=0;i<brackets.length;i++){\r\n    var up=brackets[i].upTo, rate=brackets[i].rate;\r\n    var upper=(up===Infinity)?income:Math.min(up,income);\r\n    if(upper>prev){ total += (upper-prev)*rate; prev=upper; }\r\n    if(income<=up) break;\r\n  }\r\n  return {tax:total, effective: total/income, marginal: brackets[Math.max(0, bracketIndex(income,brackets))].rate};\r\n}\r\nfunction bracketIndex(income, brackets){\r\n  var idx=0; for(var i=0;i<brackets.length;i++){ if(income>brackets[i].upTo) idx=i+1; } return Math.min(idx, brackets.length-1);\r\n}\r\nvar EXPORTS={tax:tax,bracketIndex:bracketIndex};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TaxBracketForgePure = EXPORTS; }\r\n\r\n"
+}

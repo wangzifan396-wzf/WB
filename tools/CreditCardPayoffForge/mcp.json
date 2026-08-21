@@ -1,0 +1,44 @@
+{
+  "id": "CreditCardPayoffForge",
+  "name": "credit_card_payoff_forge",
+  "title": "信用卡还清",
+  "description": "估算信用卡按最低还款还清所需月数与总利息，离线。",
+  "entry": "payoff",
+  "entries": {
+    "payoff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "balance",
+        "apr",
+        "minPct",
+        "minFixed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "balance": {
+        "type": "string",
+        "description": "第 1 个参数（balance）"
+      },
+      "apr": {
+        "type": "string",
+        "description": "第 2 个参数（apr）"
+      },
+      "minPct": {
+        "type": "string",
+        "description": "第 3 个参数（minPct）"
+      },
+      "minFixed": {
+        "type": "string",
+        "description": "第 4 个参数（minFixed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction payoff(balance, apr, minPct, minFixed){\r\n  balance=+balance; apr=+apr; minPct=(+minPct); if(isNaN(minPct))minPct=0.02;\r\n  minFixed=(+minFixed)||0;\r\n  if(!(balance>0)) return {error:'账单余额须为正数'};\r\n  if(!(apr>=0)) return {error:'年利率须非负'};\r\n  var r=apr/12;\r\n  var bal=balance, months=0, totalInterest=0;\r\n  var cap=1200;\r\n  while(bal>0.005 && months<cap){\r\n    var interest=bal*r;\r\n    var pay=Math.max(minPct*bal, minFixed);\r\n    if(pay<=interest+0.005){ return {months:-1, note:'最低还款 ≤ 当月利息，永远无法还清（请提高每月还款额）', totalInterest:0, totalPaid:0, monthly:pay}; }\r\n    pay=Math.min(pay, bal+interest);\r\n    bal=bal+interest-pay;\r\n    totalInterest+=interest; months++;\r\n  }\r\n  var totalPaid=balance+totalInterest;\r\n  return {months:months, totalInterest:Math.round(totalInterest*100)/100, totalPaid:Math.round(totalPaid*100)/100, monthly:Math.max(minPct*balance,minFixed), note:''};\r\n}\r\nvar EXPORTS={payoff:payoff};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CreditCardPayoffForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,34 @@
+{
+  "id": "KnightTourForge",
+  "name": "knight_tour_forge",
+  "title": "KnightTourForge",
+  "description": "骑士巡游可视化：国际象棋马走日字，用 Warnsdorff 启发式 + 回溯找出遍历棋盘每一格恰好一次的路径，支持多种阶数求解。",
+  "entry": "ktTour",
+  "entries": {
+    "ktTour": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "start"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "number",
+        "description": "第 1 个参数（n）（数值）"
+      },
+      "start": {
+        "type": "string",
+        "description": "第 2 个参数（start）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction ktTour(n, start){ n=n||8; if(n<1||n>30) return null; var N=n*n;\r\n  var board=new Array(N).fill(-1);\r\n  var moves=[[2,1],[1,2],[-1,2],[-2,1],[-2,-1],[-1,-2],[1,-2],[2,-1]];\r\n  function inb(r,c){return r>=0&&r<n&&c>=0&&c<n;}\r\n  function deg(r,c){ var d=0; for(var i=0;i<8;i++){ var nr=r+moves[i][0], nc=c+moves[i][1]; if(inb(nr,nc)&&board[nr*n+nc]===-1) d++; } return d; }\r\n  function look(r,c){ var best=99; for(var i=0;i<8;i++){ var nr=r+moves[i][0], nc=c+moves[i][1]; if(inb(nr,nc)&&board[nr*n+nc]===-1){ var d=0; for(var j=0;j<8;j++){ var ar=nr+moves[j][0], ac=nc+moves[j][1]; if(inb(ar,ac)&&board[ar*n+ac]===-1) d++; } if(d<best) best=d; } } return best; }\r\n  var budget=200000, used=0;\r\n  function solve(r,c,step){ if(used++>budget) return false; board[r*n+c]=step; if(step===N-1) return true;\r\n    var cands=[]; for(var i=0;i<8;i++){ var nr=r+moves[i][0], nc=c+moves[i][1]; if(inb(nr,nc)&&board[nr*n+nc]===-1) cands.push([nr,nc]); }\r\n    cands.sort(function(a,b){ var da=deg(a[0],a[1])-deg(b[0],b[1]); if(da!==0) return da; return look(a[0],a[1])-look(b[0],b[1]); });\r\n    for(var k=0;k<cands.length;k++){ if(solve(cands[k][0],cands[k][1],step+1)) return true; }\r\n    board[r*n+c]=-1; return false; }\r\n  function tryStart(s){ board.fill(-1); used=0; if(!inb(s[0],s[1])) return false; return solve(s[0],s[1],0); }\r\n  var starts = start ? [start] : [];\r\n  if(!start){ for(var r=0;r<n;r++) for(var c=0;c<n;c++) starts.push([r,c]); }\r\n  for(var si=0; si<starts.length; si++){ if(tryStart(starts[si])){ var tour=new Array(N); for(var i=0;i<N;i++){ tour[board[i]]=[Math.floor(i/n), i%n]; } return tour; } }\r\n  return null; }\r\nvar EXPORTS={ktTour:ktTour};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.KnightTourForgePure = EXPORTS; }\r\n\r\n"
+}

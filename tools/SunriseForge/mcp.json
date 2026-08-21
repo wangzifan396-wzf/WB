@@ -1,0 +1,54 @@
+{
+  "id": "SunriseForge",
+  "name": "sunrise_forge",
+  "title": "SunriseForge",
+  "description": "基于 NOAA 近似算法计算任意地点日期的日出日落与正午",
+  "entry": "sunTimes",
+  "entries": {
+    "sunTimes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "y",
+        "m",
+        "d",
+        "lat",
+        "lng",
+        "tz"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "y": {
+        "type": "string",
+        "description": "第 1 个参数（y）"
+      },
+      "m": {
+        "type": "string",
+        "description": "第 2 个参数（m）"
+      },
+      "d": {
+        "type": "string",
+        "description": "第 3 个参数（d）"
+      },
+      "lat": {
+        "type": "string",
+        "description": "第 4 个参数（lat）"
+      },
+      "lng": {
+        "type": "string",
+        "description": "第 5 个参数（lng）"
+      },
+      "tz": {
+        "type": "string",
+        "description": "第 6 个参数（tz）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pad2(n){ n=Math.floor(n); return (n<10?'0':'')+n; }\r\nfunction fracToHHMM(f){ f=((f%1)+1)%1; var h=Math.floor(f*24), m=Math.floor((f*24-h)*60); return pad2(h)+':'+pad2(m); }\r\nfunction mod360(x){ return x - 360*Math.floor(x/360); }\r\nfunction toRad(d){ return d*Math.PI/180; }\r\nfunction toDeg(r){ return r*180/Math.PI; }\r\nfunction sunTimes(y,m,d,lat,lng,tz){\r\n  var JD = 367*y - Math.floor(7*(y+Math.floor((m+9)/12))/4) + Math.floor(275*m/9) + d + 1721013.5;\r\n  var JC = (JD - 2451545)/36525;\r\n  var L0 = mod360(280.46646 + JC*(36000.76983 + JC*0.0003032));\r\n  var M = 357.52911 + JC*(35999.05029 - 0.0001537*JC);\r\n  var e = 0.016708634 - JC*(0.000042037 + 0.0000001267*JC);\r\n  var C = Math.sin(toRad(M))*(1.914602 - JC*(0.004817 + 0.000014*JC)) + Math.sin(toRad(2*M))*(0.019993 - 0.000101*JC) + Math.sin(toRad(3*M))*0.000289;\r\n  var Ltrue = L0 + C;\r\n  var Lapp = Ltrue - 0.00569 - 0.00478*Math.sin(toRad(125.04 - 1934.136*JC));\r\n  var O0 = 23 + (26 + ((21.448 - JC*(46.815 + JC*(0.00059 - JC*0.001813))))/60)/60;\r\n  var O = O0 + 0.00256*Math.cos(toRad(125.04 - 1934.136*JC));\r\n  var dec = toDeg(Math.asin(Math.sin(toRad(O))*Math.sin(toRad(Lapp))));\r\n  var y2 = Math.tan(toRad(O/2)); y2 = y2*y2;\r\n  var EoT = 4*toDeg(y2*Math.sin(2*toRad(L0)) - 2*e*Math.sin(toRad(M)) + 4*e*y2*Math.sin(toRad(M))*Math.cos(2*toRad(L0)) - 0.5*y2*y2*Math.sin(4*toRad(L0)) - 1.25*e*e*Math.sin(2*toRad(M)));\r\n  var arg = Math.cos(toRad(90.833))/(Math.cos(toRad(lat))*Math.cos(toRad(dec))) - Math.tan(toRad(lat))*Math.tan(toRad(dec));\r\n  var H; if(arg>1){ H=0; } else if(arg<-1){ H=180; } else { H=toDeg(Math.acos(arg)); }\r\n  var noon = (720 - 4*lng - EoT + tz*60)/1440;\r\n  var rise = (720 - 4*(lng + H) - EoT + tz*60)/1440;\r\n  var set = (720 - 4*(lng - H) - EoT + tz*60)/1440;\r\n  var dayLen = 8*H/60;\r\n  return { sunrise: fracToHHMM(rise), sunset: fracToHHMM(set), solarNoon: fracToHHMM(noon),\r\n           declination: Math.round(dec*100)/100, dayLengthHours: Math.round(dayLen*100)/100,\r\n           valid: isFinite(rise)&&isFinite(set) };\r\n}\r\nvar EXPORTS={sunTimes:sunTimes};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SunriseForgePure = EXPORTS; }\r\n\r\n"
+}

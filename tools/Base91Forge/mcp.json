@@ -1,0 +1,50 @@
+{
+  "id": "Base91Forge",
+  "name": "base91_forge",
+  "title": "Base91Forge",
+  "description": "Base91 编码：比 Base64 更紧凑的二进制文本编码（91 字符字母表，自适应位宽）。",
+  "entry": "b91enc",
+  "entries": {
+    "b91enc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "data"
+      ],
+      "fields": []
+    },
+    "b91dec": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "bytesToHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "hexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "输入（data）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar A91 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~\"';\r\nfunction b91enc(data){\r\n  var str=''; var b=BigInt(0), n=0;\r\n  for(var i=0;i<data.length;i++){\r\n    b |= (BigInt(data[i]) << BigInt(n)); n += 8;\r\n    while(n > 13){\r\n      var v = b & BigInt(8191);\r\n      if(v > BigInt(88)){ b >>= BigInt(13); n -= 13; }\r\n      else { v = b & BigInt(16383); b >>= BigInt(14); n -= 14; }\r\n      str += A91[Number(v % BigInt(91))] + A91[Number(v / BigInt(91))];\r\n    }\r\n  }\r\n  if(n > 0){\r\n    str += A91[Number(b % BigInt(91))];\r\n    if(n > 7 || b > BigInt(90)) str += A91[Number(b / BigInt(91))];\r\n  }\r\n  return str;\r\n}\r\nfunction b91dec(str){\r\n  var bytes=[]; var b=BigInt(0), n=0; var v=-1;\r\n  for(var i=0;i<str.length;i++){\r\n    var c = A91.indexOf(str[i]);\r\n    if(c < 0) continue;\r\n    if(v < 0){ v = c; }\r\n    else {\r\n      v += c * 91;\r\n      var v13 = v & 8191;\r\n      b |= (BigInt(v) << BigInt(n)); n += (v13 > 88 ? 13 : 14);\r\n      while(n >= 8){ bytes.push(Number(b & BigInt(0xFF))); b >>= BigInt(8); n -= 8; }\r\n      v = -1;\r\n    }\r\n  }\r\n  if(v !== -1){ b |= (BigInt(v) << BigInt(n)); bytes.push(Number(b & BigInt(0xFF))); }\r\n  return bytes;\r\n}\r\nfunction bytesToHex(b){var s='';for(var i=0;i<b.length;i++)s+=('0'+b[i].toString(16)).slice(-2);return s;}\r\nfunction hexToBytes(h){h=(h||'').replace(/[^0-9a-fA-F]/g,'');if(h.length%2)h='0'+h;var b=[];for(var i=0;i<h.length;i+=2)b.push(parseInt(h.substr(i,2),16));return b;}\r\nvar EXPORTS = { b91enc:b91enc, b91dec:b91dec, bytesToHex:bytesToHex, hexToBytes:hexToBytes };\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.Base91ForgePure = EXPORTS; }\r\n\r\n"
+}

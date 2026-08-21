@@ -1,0 +1,50 @@
+{
+  "id": "IsbnForge",
+  "name": "isbn_forge",
+  "title": "IsbnForge",
+  "description": "校验 ISBN-10 / ISBN-13，并在两者间互转。",
+  "entry": "is13",
+  "entries": {
+    "is13": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "is10": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "to13": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "to10": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function is13(s){ s=String(s).replace(/[\\s-]/g,''); if(!/^\\d{13}$/.test(s)) return false; var sum=0; for(var i=0;i<13;i++) sum+=(+s[i])*(i%2===0?1:3); return sum%10===0; }\r\n  function is10(s){ s=String(s).replace(/[\\s-]/g,'').toUpperCase(); if(!/^\\d{9}[0-9X]$/.test(s)) return false; var sum=0; for(var i=0;i<10;i++){ var v=s[i]==='X'?10:+s[i]; sum+=v*(10-i); } return sum%11===0; }\r\n  function to13(s){ s=String(s).replace(/[\\s-]/g,'').toUpperCase(); if(!/^\\d{9}[0-9X]$/.test(s)) return {error:'非 ISBN-10'};\r\n    var base='978'+s.slice(0,9), sum=0; for(var i=0;i<12;i++) sum+=(+base[i])*(i%2===0?1:3); var check=(10-(sum%10))%10; return {value:base+check}; }\r\n  function to10(s){ s=String(s).replace(/[\\s-]/g,''); if(!/^978\\d{10}$/.test(s)) return {error:'需以 978 开头的 ISBN-13'};\r\n    var base=s.slice(3,12), sum=0; for(var i=0;i<9;i++) sum+=(+base[i])*(10-i); var rem=sum%11, c=11-rem; var ch= c===10?'X':(c===11?'0':String(c)); return {value:base+ch}; }\r\n  var API={is13:is13,is10:is10,to13:to13,to10:to10};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__IsbnForge__=API;\r\n})();\r\n"
+}

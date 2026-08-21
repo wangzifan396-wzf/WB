@@ -1,0 +1,34 @@
+{
+  "id": "OddsForge",
+  "name": "odds_forge",
+  "title": "赔率转换",
+  "description": "在十进制/分数/美式赔率之间互转并给出隐含概率，离线。",
+  "entry": "oddsConvert",
+  "entries": {
+    "oddsConvert": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "input",
+        "type"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "第 1 个参数（input）"
+      },
+      "type": {
+        "type": "string",
+        "description": "第 2 个参数（type）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction decToFraction(d){ var best={a:1,b:1},be=1e9; for(var b=1;b<=20;b++){ var a=Math.round(d*b); var e=Math.abs(a/b-d); if(e<be){be=e;best={a:a,b:b};} } return best.a+'/'+best.b; }\r\nfunction oddsConvert(input, type){\r\n  var dec;\r\n  if(type==='decimal') dec=+input;\r\n  else if(type==='fractional'){ var p=String(input).split('/'); dec=(+p[0])/(+p[1]); }\r\n  else if(type==='american'){ var n=+input; dec = n>0 ? 1+n/100 : 1+(-100/n); }\r\n  else return {error:'未知类型'};\r\n  if(!(dec>1)) return {error:'赔率须大于 1'};\r\n  var prob=Math.round(1/dec*1000)/1000;\r\n  var amer = dec>=2 ? '+'+Math.round((dec-1)*100) : Math.round(-100/(dec-1));\r\n  return {decimal:Math.round(dec*1000)/1000, fractional:decToFraction(dec), american:String(amer), impliedProb:prob}; }\r\nvar EXPORTS={oddsConvert:oddsConvert};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.OddsForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,91 @@
+{
+  "id": "QLearningForge",
+  "name": "q_learning_forge",
+  "title": "QLearningForge",
+  "description": "Q-learning 强化学习：智能体在 4×4 网格里靠试错学习到终点的最短路径，实时展示策略。",
+  "entry": "qInit",
+  "entries": {
+    "qInit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "cols"
+      ],
+      "fields": []
+    },
+    "qBest": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "Q",
+        "s"
+      ],
+      "fields": []
+    },
+    "qStep": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "Q",
+        "rows",
+        "cols",
+        "s",
+        "a",
+        "r",
+        "ns",
+        "terminal",
+        "alpha",
+        "gamma"
+      ],
+      "fields": []
+    },
+    "gwStep": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "cols",
+        "s",
+        "a"
+      ],
+      "fields": []
+    },
+    "gwReward": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "goal"
+      ],
+      "fields": []
+    },
+    "gwTerminal": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "goal"
+      ],
+      "fields": []
+    },
+    "_rng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "rows": {
+        "type": "string",
+        "description": "第 1 个参数（rows）"
+      },
+      "cols": {
+        "type": "string",
+        "description": "第 2 个参数（cols）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _rng(seed){ var s=seed>>>0||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction qInit(rows,cols){ var Q=[]; for(var r=0;r<rows;r++) for(var c=0;c<cols;c++) Q.push([0,0,0,0]); return Q; }\r\nfunction qBest(Q,s){ var b=0,bv=Q[s][0]; for(var i=1;i<4;i++) if(Q[s][i]>bv){bv=Q[s][i];b=i;} return b; }\r\nfunction qStep(Q,rows,cols,s,a,r,ns,terminal,alpha,gamma){\r\n  var maxNext=0; if(!terminal){ var nq=Q[ns]; for(var i=0;i<4;i++) if(nq[i]>maxNext) maxNext=nq[i]; }\r\n  var target=r+gamma*maxNext; Q[s][a]+=alpha*(target-Q[s][a]); return Q[s][a]; }\r\n// gridworld: 4x4, goal at (rows-1,cols-1). actions 0 up,1 down,2 left,3 right\r\nfunction gwStep(rows,cols,s,a){ var r=Math.floor(s/cols), c=s%cols;\r\n  if(a===0) r=Math.max(0,r-1); else if(a===1) r=Math.min(rows-1,r+1); else if(a===2) c=Math.max(0,c-1); else if(a===3) c=Math.min(cols-1,c+1);\r\n  return r*cols+c; }\r\nfunction gwReward(s,goal){ return s===goal?10:-1; }\r\nfunction gwTerminal(s,goal){ return s===goal; }\r\nvar EXPORTS={qInit:qInit, qBest:qBest, qStep:qStep, gwStep:gwStep, gwReward:gwReward, gwTerminal:gwTerminal, _rng:_rng};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.QLearningForgePure = EXPORTS; }\r\n\r\n"
+}

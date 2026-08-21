@@ -1,0 +1,37 @@
+{
+  "id": "LnavForge",
+  "name": "lnav_forge",
+  "title": "LnavForge",
+  "description": "日志分析与查询：自动识别 ERROR/WARN/INFO 等级与时间戳，支持类 SQL 过滤（WHERE level / time / msg、ORDER BY、LIMIT），本地解析不上传。",
+  "entry": "parse",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "query": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "sql"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function parse(text){\r\n    var lines=String(text||'').split(/\\r?\\n/), rows=[];\r\n    for(var i=0;i<lines.length;i++){\r\n      var ln=lines[i]; if(!ln.trim())continue;\r\n      var lvl='', m=ln.match(/\\b(TRACE|DEBUG|INFO|WARN|WARNING|ERROR|ERR|FATAL|CRITICAL)\\b/i);\r\n      if(m){ lvl=m[1].toUpperCase(); if(lvl==='ERR')lvl='ERROR'; if(lvl==='WARNING')lvl='WARN'; }\r\n      var tm=ln.match(/(\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?|\\d{2}:\\d{2}:\\d{2})/);\r\n      rows.push({n:i+1, raw:ln, level:lvl, time:tm?tm[1]:'', msg:ln});\r\n    }\r\n    return {value:rows};\r\n  }\r\n  function query(rows, sql){\r\n    var r=rows, wm=String(sql||'').match(/where\\s+(level|time|msg|n)\\s*(=|like|!=|<>)\\s*('([^']*)'|\"([^\"]*)\")/i);\r\n    if(wm){ var col=wm[1].toLowerCase(), op=wm[2].toLowerCase(), val=wm[4]||wm[5]||'';\r\n      r=r.filter(function(x){ var fv=col==='n'?String(x.n):(x[col]||'');\r\n        if(op==='like'){ try{return new RegExp(val,'i').test(fv);}catch(e){return fv.toLowerCase().indexOf(val.toLowerCase())>=0;} }\r\n        if(op==='!='||op==='<>') return fv!==val; return fv===val; }); }\r\n    if(/order\\s+by\\s+time/i.test(sql)) r=r.slice().sort(function(a,b){return a.time<b.time?-1:a.time>b.time?1:0;});\r\n    if(/order\\s+by\\s+n/i.test(sql)) r=r.slice().sort(function(a,b){return a.n-b.n;});\r\n    var lm=sql.match(/limit\\s+(\\d+)/i); if(lm) r=r.slice(0,+lm[1]);\r\n    return {value:r};\r\n  }\r\n  var API={parse:parse, query:query};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__LnavForge__=API;\r\n})();\r\n"
+}

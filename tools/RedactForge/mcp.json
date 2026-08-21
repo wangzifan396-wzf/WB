@@ -1,0 +1,61 @@
+{
+  "id": "RedactForge",
+  "name": "redact_forge",
+  "title": "RedactForge",
+  "description": "文本脱敏（Redact）工具：一键遮蔽文本里的邮箱、手机号、银行卡号、IPv4 地址等敏感信息，保留可辨识的前缀或末四位，方便在截图、日志、演示中分享而不泄露隐私。纯本地处理，零依赖。",
+  "entry": "rdMask",
+  "entries": {
+    "rdMask": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "keepStart",
+        "keepEnd",
+        "ch"
+      ],
+      "fields": []
+    },
+    "rdEmail": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "keep",
+        "ch"
+      ],
+      "fields": []
+    },
+    "rdRedact": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opt"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "第 1 个参数（str）"
+      },
+      "keepStart": {
+        "type": "string",
+        "description": "第 2 个参数（keepStart）"
+      },
+      "keepEnd": {
+        "type": "string",
+        "description": "第 3 个参数（keepEnd）"
+      },
+      "ch": {
+        "type": "string",
+        "description": "第 4 个参数（ch）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rdMask(str, keepStart, keepEnd, ch){ ch=ch||'■'; var n=str.length; if(n<=keepStart+keepEnd) return str; var mid=n-keepStart-keepEnd; var s=str.slice(0,keepStart); for(var i=0;i<mid;i++) s+=ch; s+=str.slice(n-keepEnd); return s; }\r\nfunction rdEmail(s, keep, ch){ ch=ch||'■'; keep=keep||1; return s.replace(/([\\w.+-]+)@([\\w-]+\\.[\\w.-]+)/g, function(_,u,d){ return rdMask(u,keep,0,ch)+'@'+d; }); }\r\nfunction rdRedact(text, opt){ opt=opt||{}; var ch=opt.ch||'■'; var keep=opt.keep||1; var t=text;\r\n  t=t.replace(/\\b(?:\\d[ -]?){13,16}\\b/g, function(m){ var d=m.replace(/[ -]/g,''); return rdMask(d,0,4,ch); });\r\n  t=t.replace(/\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b/g, function(m){ var p=m.split('.'); p[3]=rdMask(p[3],0,0,ch); return p.join('.'); });\r\n  t=rdEmail(t, keep, ch);\r\n  t=t.replace(/(\\+?\\d[\\d\\s-]{6,}\\d)/g, function(m){ return rdMask(m.replace(/\\s/g,''),0,4,ch); });\r\n  return t;\r\n}\r\nvar EXPORTS={rdMask:rdMask, rdEmail:rdEmail, rdRedact:rdRedact};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RedactForgePure = EXPORTS; }\r\n\r\n"
+}

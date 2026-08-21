@@ -1,0 +1,36 @@
+{
+  "id": "ExpenseForge",
+  "name": "expense_forge",
+  "title": "ExpenseForge",
+  "description": "记账与预算：录入收支、按分类与月份汇总，本地保存，离线可用。",
+  "entry": "expenseParseEntry",
+  "entries": {
+    "expenseParseEntry": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "expenseSummary": {
+      "paramStyle": "single",
+      "paramNames": [
+        "list"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction expenseParseEntry(s){\r\n  s=String(s||'').trim(); if(!s) return { error:'空' };\r\n  var parts = s.indexOf(',')>=0 ? s.split(',') : s.split(/\\s+/);\r\n  var amount=Number(parts[0]);\r\n  if(!isFinite(amount)) return { error:'金额非法' };\r\n  return { amount:amount, cat:(parts[1]||'').trim(), date:(parts[2]||'').trim(), note:(parts[3]||'').trim() };\r\n}\r\nfunction expenseSummary(list){\r\n  var total=0, byCat={}, byMonth={};\r\n  for(var i=0;i<list.length;i++){ var e=list[i]; total+=e.amount;\r\n    var c=e.cat||'未分类'; byCat[c]=(byCat[c]||0)+e.amount;\r\n    var mk=String(e.date||'').slice(0,7); if(mk) byMonth[mk]=(byMonth[mk]||0)+e.amount;\r\n  }\r\n  function rnd(x){ return Math.round(x*100)/100; }\r\n  var bc={}, bm={};\r\n  for(var k in byCat) bc[k]=rnd(byCat[k]);\r\n  for(var k2 in byMonth) bm[k2]=rnd(byMonth[k2]);\r\n  return { total:rnd(total), byCat:bc, byMonth:bm };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { expenseParseEntry:expenseParseEntry, expenseSummary:expenseSummary };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ExpenseForgePure = { expenseParseEntry:expenseParseEntry, expenseSummary:expenseSummary };\r\n}\r\n"
+}

@@ -1,0 +1,48 @@
+{
+  "id": "MannWhitneyForge",
+  "name": "mann_whitney_forge",
+  "title": "MannWhitneyForge",
+  "description": "曼-惠特尼 U 检验：两独立样本秩和检验，输出 U、正态近似 z 与双尾 p 值（含结校正），离线。",
+  "entry": "mannWhitney",
+  "entries": {
+    "mannWhitney": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "xs",
+        "ys"
+      ],
+      "fields": []
+    },
+    "normalCdf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "z"
+      ],
+      "fields": []
+    },
+    "erf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "x"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "xs": {
+        "type": "string",
+        "description": "第 1 个参数（xs）"
+      },
+      "ys": {
+        "type": "string",
+        "description": "第 2 个参数（ys）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction erf(x){\r\n  var s=x<0?-1:1; x=Math.abs(x);\r\n  var t=1/(1+0.3275911*x);\r\n  var y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);\r\n  return s*y;\r\n}\r\nfunction normalCdf(z){ return 0.5*(1+erf(z/Math.SQRT2)); }\r\nfunction rankAll(arr){ var idx=arr.map(function(v,i){return [v,i];}).sort(function(p,q){return p[0]-q[0];});\r\n  var r=new Array(arr.length), i=0;\r\n  while(i<arr.length){ var j=i; while(j+1<arr.length && idx[j+1][0]===idx[i][0]) j++;\r\n    var avg=(i+j)/2+1; for(var k=i;k<=j;k++) r[idx[k][1]]=avg; i=j+1; }\r\n  return r; }\r\nfunction mannWhitney(xs, ys){\r\n  var n1=xs.length, n2=ys.length; if(n1<1||n2<1) return null;\r\n  var all=xs.concat(ys); var ranks=rankAll(all);\r\n  var R1=0; for(var i=0;i<n1;i++) R1+=ranks[i];\r\n  var U1=R1 - n1*(n1+1)/2;\r\n  var U2=n1*n2 - U1;\r\n  var U=Math.min(U1,U2);\r\n  var N=n1+n2;\r\n  var meanU=n1*n2/2;\r\n  var sorted=all.slice().sort(function(a,b){return a-b;});\r\n  var ties=0, t=0; while(t<sorted.length){ var u=t; while(u+1<sorted.length && sorted[u+1]===sorted[t]) u++; var g=u-t+1; if(g>1) ties+=g*g*g-g; t=u+1; }\r\n  var varU=(n1*n2/(N*(N-1)))*(N*N/4 - ties/12);\r\n  var z = varU>0 ? (U - meanU)/Math.sqrt(varU) : 0;\r\n  var p = 2*(1-normalCdf(Math.abs(z)));\r\n  return {U:U, U1:U1, U2:U2, R1:R1, z:z, p:p};\r\n}\r\nvar EXPORTS={mannWhitney:mannWhitney, normalCdf:normalCdf, erf:erf};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MannWhitneyForgePure = EXPORTS; }\r\n\r\n"
+}

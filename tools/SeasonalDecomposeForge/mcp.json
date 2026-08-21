@@ -1,0 +1,34 @@
+{
+  "id": "SeasonalDecomposeForge",
+  "name": "seasonal_decompose_forge",
+  "title": "SeasonalDecomposeForge",
+  "description": "季节分解（加性模型）：用居中移动平均提取趋势，再估计季节项与残差，离线精确。",
+  "entry": "decompose",
+  "entries": {
+    "decompose": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "series",
+        "period"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "series": {
+        "type": "string",
+        "description": "第 1 个参数（series）"
+      },
+      "period": {
+        "type": "string",
+        "description": "第 2 个参数（period）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction decompose(series, period){\r\n  var n=series.length;\r\n  if(n<2*period) return null;\r\n  var trend=new Array(n).fill(null);\r\n  var w=(period%2===1)? period : period+1;\r\n  var half=Math.floor(w/2);\r\n  for(var i=0;i<n;i++){ var s=0,cnt=0; for(var j=i-half;j<=i+half;j++){ if(j>=0&&j<n){ var wj=1; if(w!==period && (j===i-half||j===i+half)) wj=0.5; s+=series[j]*wj; cnt+=wj; } } if(cnt>0) trend[i]=s/cnt; }\r\n  if(period%2===0){ var t2=new Array(n).fill(null); for(var i=0;i<n;i++){ var a=(i>0&&trend[i-1]!=null)?trend[i-1]:null; var bb=trend[i]; if(a!=null&&bb!=null) t2[i]=(a+bb)/2; } trend=t2; }\r\n  var detr=new Array(n).fill(0);\r\n  for(var i=0;i<n;i++){ if(trend[i]!=null) detr[i]=series[i]-trend[i]; }\r\n  var sums=new Array(period).fill(0), counts=new Array(period).fill(0);\r\n  for(var i=0;i<n;i++){ if(trend[i]!=null){ var p=i%period; sums[p]+=detr[i]; counts[p]++; } }\r\n  var seasAvg=new Array(period).fill(0);\r\n  for(var p=0;p<period;p++){ if(counts[p]>0) seasAvg[p]=sums[p]/counts[p]; }\r\n  var seasMean=seasAvg.reduce(function(a,b){return a+b;},0)/period;\r\n  var seasonal=new Array(n).fill(0);\r\n  for(var i=0;i<n;i++) seasonal[i]=seasAvg[i%period]-seasMean;\r\n  var resid=new Array(n).fill(0);\r\n  for(var i=0;i<n;i++){ if(trend[i]!=null) resid[i]=series[i]-trend[i]-seasonal[i]; }\r\n  return {trend:trend, seasonal:seasonal, resid:resid};\r\n}\r\nvar EXPORTS={decompose:decompose};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SeasonalDecomposeForgePure = EXPORTS; }\r\n\r\n"
+}

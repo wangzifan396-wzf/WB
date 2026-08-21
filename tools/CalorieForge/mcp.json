@@ -1,0 +1,36 @@
+{
+  "id": "CalorieForge",
+  "name": "calorie_forge",
+  "title": "CalorieForge",
+  "description": "卡路里与营养记账：记录饮食热量与蛋白 / 碳水 / 脂肪，本机保存，离线可用。",
+  "entry": "calParse",
+  "entries": {
+    "calParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "calSummary": {
+      "paramStyle": "single",
+      "paramNames": [
+        "entries"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "line": {
+        "type": "string",
+        "description": "输入（line）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction calParse(line){\r\n  var t=String(line||'').trim(); if(!t) return { error:'空行' };\r\n  var toks=t.split(/\\s+/);\r\n  var ki=-1;\r\n  for(var i=0;i<toks.length;i++){ if(/^\\d+(\\.\\d+)?$/.test(toks[i])){ ki=i; break; } }\r\n  if(ki<0) return { error:'缺少热量(kcal)：'+t };\r\n  var kcal=parseFloat(toks[ki]);\r\n  var name=toks.slice(0,ki).join(' ');\r\n  var protein=0,carbs=0,fat=0;\r\n  for(var j=ki+1;j<toks.length;j++){\r\n    var mp=toks[j].match(/^p(\\d+(?:\\.\\d+)?)$/i); if(mp){ protein=+mp[1]; continue; }\r\n    var mc=toks[j].match(/^c(\\d+(?:\\.\\d+)?)$/i); if(mc){ carbs=+mc[1]; continue; }\r\n    var mf=toks[j].match(/^f(\\d+(?:\\.\\d+)?)$/i); if(mf){ fat=+mf[1]; continue; }\r\n  }\r\n  return { error:null, name:name||'食物', kcal:kcal, protein:protein, carbs:carbs, fat:fat };\r\n}\r\nfunction calSummary(entries){\r\n  var t={kcal:0,protein:0,carbs:0,fat:0};\r\n  for(var i=0;i<entries.length;i++){ t.kcal+=entries[i].kcal; t.protein+=entries[i].protein; t.carbs+=entries[i].carbs; t.fat+=entries[i].fat; }\r\n  return t;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { calParse:calParse, calSummary:calSummary };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.CalorieForgePure = { calParse:calParse, calSummary:calSummary };\r\n}\r\n\r\n"
+}

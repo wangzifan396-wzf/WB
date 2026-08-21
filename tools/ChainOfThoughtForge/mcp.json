@@ -1,0 +1,44 @@
+{
+  "id": "ChainOfThoughtForge",
+  "name": "chain_of_thought_forge",
+  "title": "思维链提示词",
+  "description": "生成零样本/含示例/自一致性三种风格的思维链（CoT）提示词，离线。",
+  "entry": "cotPrompt",
+  "entries": {
+    "cotPrompt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "task",
+        "steps",
+        "style",
+        "lang"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "task": {
+        "type": "string",
+        "description": "第 1 个参数（task）"
+      },
+      "steps": {
+        "type": "string",
+        "description": "第 2 个参数（steps）"
+      },
+      "style": {
+        "type": "string",
+        "description": "第 3 个参数（style）"
+      },
+      "lang": {
+        "type": "string",
+        "description": "第 4 个参数（lang）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction cotPrompt(task, steps, style, lang){\r\n  task=(task||'').trim(); if(!task) return {error:'请描述任务'};\r\n  steps=Math.max(1,Math.min(10,(+steps)||3));\r\n  style=(style||'zeroshot').toLowerCase();\r\n  var L=(lang||'zh').toLowerCase()==='en';\r\n  var head = L? 'Task: '+task : '任务：'+task;\r\n  var stepLines=[];\r\n  for(var i=1;i<=steps;i++){ stepLines.push((L?'Step '+i+': ':'第 '+i+' 步：')+'<'+ (L?'reasoning':'推理') +'>'); }\r\n  var tail;\r\n  if(style==='fewshot'){\r\n    tail = L? '\\nExample:\\nQ: ...\\nA: Let us think step by step. ...\\n\\nNow apply the same reasoning to the task above.'\r\n            : '\\n示例：\\n问：…\\n答：我们一步步思考。…\\n\\n请对上面的任务套用同样的推理。';\r\n  } else if(style==='selfconsistency'){\r\n    tail = L? '\\nSolve the task in '+steps+' different step-by-step ways, then pick the most consistent answer.'\r\n            : '\\n用 '+steps+' 种不同的逐步推理各解一遍，再取最一致的结论。';\r\n  } else {\r\n    tail = L? '\\nThink step by step, then give the final answer.'\r\n            : '\\n请一步步思考，再给出最终答案。';\r\n  }\r\n  var prompt = head+'\\n'+stepLines.join('\\n')+'\\n'+tail;\r\n  return {prompt:prompt, style:style, steps:steps};\r\n}\r\nvar EXPORTS={cotPrompt:cotPrompt};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ChainOfThoughtForgePure = EXPORTS; }\r\n\r\n"
+}

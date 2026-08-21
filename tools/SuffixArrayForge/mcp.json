@@ -1,0 +1,45 @@
+{
+  "id": "SuffixArrayForge",
+  "name": "suffix_array_forge",
+  "title": "SuffixArrayForge",
+  "description": "后缀数组（Suffix Array）与 LCP：将字符串所有后缀排序并计数子串出现次数，离线精确。",
+  "entry": "buildSA",
+  "entries": {
+    "buildSA": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "lcp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "sa"
+      ],
+      "fields": []
+    },
+    "count": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "sub"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction buildSA(s){ var n=s.length; var sa=[]; for(var i=0;i<n;i++) sa.push(i);\r\n  sa.sort(function(a,b){ var x=s.substr(a), y=s.substr(b); return x<y?-1:(x>y?1:0); }); return sa; }\r\nfunction lcp(s, sa){ var n=s.length; var rank=new Array(n); for(var i=0;i<n;i++) rank[sa[i]]=i;\r\n  var L=new Array(n).fill(0); var k=0;\r\n  for(var i=0;i<n;i++){ if(rank[i]===n-1){ k=0; continue; }\r\n    var j=sa[rank[i]+1]; while(i+k<n && j+k<n && s[i+k]===s[j+k]) k++;\r\n    L[rank[i]]=k; if(k>0) k--; }\r\n  return L; }\r\nfunction count(s, sub){ var sa=buildSA(s); var n=s.length;\r\n  function cmp(idx){ for(var k=0;k<sub.length;k++){ if(idx+k>=n) return -1; if(s[idx+k]<sub[k]) return -1; if(s[idx+k]>sub[k]) return 1; } return 0; }\r\n  var lo=0,hi=n; while(lo<hi){ var m=(lo+hi)>>1; var c=cmp(sa[m]); if(c<0) lo=m+1; else hi=m; }\r\n  var l=lo; hi=n; lo=0; while(lo<hi){ var m=(lo+hi)>>1; var c=cmp(sa[m]); if(c<=0) lo=m+1; else hi=m; }\r\n  return lo-l; }\r\nvar EXPORTS={buildSA:buildSA, lcp:lcp, count:count};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SuffixArrayForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,43 @@
+{
+  "id": "ShikakuForge",
+  "name": "shikaku_forge",
+  "title": "ShikakuForge",
+  "description": "四角拼连（Shikaku）：把网格划分成若干矩形，使每格数字正好等于所在矩形的面积；内置生成与解法。",
+  "entry": "shGen",
+  "entries": {
+    "shGen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "seed"
+      ],
+      "fields": []
+    },
+    "shSolve": {
+      "paramStyle": "object",
+      "paramNames": [
+        "puz"
+      ],
+      "fields": [
+        "rects"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "第 1 个参数（n）"
+      },
+      "seed": {
+        "type": "string",
+        "description": "第 2 个参数（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }\r\nfunction _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }\r\nfunction _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nfunction _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }\r\n\r\nfunction shGen(n, seed){ var rnd=_rng(seed); var rects=[];\r\n  function split(x,y,w,h){ if(w===1&&h===1){ rects.push({x:x,y:y,w:w,h:h}); return; } if(w>=h&&w>1){ var cut=1+Math.floor(rnd()*(w-1)); split(x,y,cut,h); split(x+cut,y,w-cut,h); } else if(h>1){ var cut=1+Math.floor(rnd()*(h-1)); split(x,y,w,cut); split(x,y+cut,w,h-cut); } else { rects.push({x:x,y:y,w:w,h:h}); } }\r\n  split(0,0,n,n);\r\n  rects.forEach(function(r){ r.area=r.w*r.h; r.cx=r.x+Math.floor(rnd()*r.w); r.cy=r.y+Math.floor(rnd()*r.h); });\r\n  return {n:n, rects:rects};\r\n}\r\nfunction shSolve(puz){ return puz.rects; }\r\nvar EXPORTS={shGen:shGen, shSolve:shSolve};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ShikakuForgePure = EXPORTS; }\r\n\r\n"
+}

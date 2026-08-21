@@ -1,0 +1,104 @@
+{
+  "id": "MetaForge",
+  "name": "meta_forge",
+  "title": "MetaForge",
+  "description": "离线 Meta 标签生成器：基础 + Open Graph + Twitter Card 全套，SEO 长度检查。",
+  "entry": "buildMeta",
+  "entries": {
+    "esc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "metaTag": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "name",
+        "content"
+      ],
+      "fields": []
+    },
+    "ogTag": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "prop",
+        "content"
+      ],
+      "fields": []
+    },
+    "buildMeta": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "title",
+        "desc",
+        "ogType",
+        "url",
+        "image",
+        "siteName",
+        "lang",
+        "twitterCard",
+        "twitterHandle"
+      ]
+    },
+    "checkLengths": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "title",
+        "desc"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "description": "参数 title"
+      },
+      "desc": {
+        "type": "string",
+        "description": "参数 desc"
+      },
+      "ogType": {
+        "type": "string",
+        "description": "参数 ogType"
+      },
+      "url": {
+        "type": "string",
+        "description": "参数 url"
+      },
+      "image": {
+        "type": "string",
+        "description": "参数 image"
+      },
+      "siteName": {
+        "type": "string",
+        "description": "参数 siteName"
+      },
+      "lang": {
+        "type": "string",
+        "description": "参数 lang"
+      },
+      "twitterCard": {
+        "type": "string",
+        "description": "参数 twitterCard"
+      },
+      "twitterHandle": {
+        "type": "string",
+        "description": "参数 twitterHandle"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction esc(s){\r\n  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');\r\n}\r\nfunction metaTag(name,content){ return '<meta name=\"'+esc(name)+'\" content=\"'+esc(content)+'\">'; }\r\nfunction ogTag(prop,content){ return '<meta property=\"'+esc(prop)+'\" content=\"'+esc(content)+'\">'; }\r\nfunction buildMeta(opt){\r\n  opt=opt||{};\r\n  var title=String(opt.title||'').trim();\r\n  if(!title) throw new Error('标题不能为空');\r\n  var desc=String(opt.desc||'').trim();\r\n  var L=[];\r\n  L.push('<!-- 基础 -->');\r\n  L.push('<meta charset=\"UTF-8\">');\r\n  L.push('<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">');\r\n  L.push('<title>'+esc(title)+'</title>');\r\n  if(desc) L.push(metaTag('description',desc));\r\n  L.push('');\r\n  L.push('<!-- Open Graph -->');\r\n  L.push(ogTag('og:type',opt.ogType||'website'));\r\n  L.push(ogTag('og:title',title));\r\n  if(desc) L.push(ogTag('og:description',desc));\r\n  if(opt.url) L.push(ogTag('og:url',opt.url));\r\n  if(opt.image) L.push(ogTag('og:image',opt.image));\r\n  if(opt.siteName) L.push(ogTag('og:site_name',opt.siteName));\r\n  if(opt.lang) L.push(ogTag('og:locale',String(opt.lang).replace('-','_')));\r\n  L.push('');\r\n  L.push('<!-- Twitter Card -->');\r\n  L.push(metaTag('twitter:card',opt.twitterCard||'summary_large_image'));\r\n  L.push(metaTag('twitter:title',title));\r\n  if(desc) L.push(metaTag('twitter:description',desc));\r\n  if(opt.image) L.push(metaTag('twitter:image',opt.image));\r\n  if(opt.twitterHandle){\r\n    var h=String(opt.twitterHandle).trim(); if(h && h[0]!=='@') h='@'+h;\r\n    L.push(metaTag('twitter:site',h));\r\n  }\r\n  return L.join('\\n');\r\n}\r\nfunction checkLengths(opt){\r\n  var warns=[];\r\n  var t=String((opt&&opt.title)||''), d=String((opt&&opt.desc)||'');\r\n  if(t.length>60) warns.push('标题超过 60 字符（'+t.length+'），搜索结果可能被截断');\r\n  if(d.length>160) warns.push('描述超过 160 字符（'+d.length+'），搜索结果可能被截断');\r\n  if(d && d.length<50) warns.push('描述少于 50 字符，建议补充');\r\n  return warns;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { esc:esc, metaTag:metaTag, ogTag:ogTag, buildMeta:buildMeta, checkLengths:checkLengths };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MetaForgePure = { esc:esc, metaTag:metaTag, ogTag:ogTag, buildMeta:buildMeta, checkLengths:checkLengths };\r\n}\r\n"
+}

@@ -1,0 +1,43 @@
+{
+  "id": "ElfForge",
+  "name": "elf_forge",
+  "title": "ElfForge",
+  "description": "ELF 二进制解析器：读取 32/64 位 ELF 头，列出 e_type、机器架构、入口点与节区/程序头表，标注可执行/可重定位/共享对象，检查节区标志与危险权限位。分析 Linux 二进制、排查链接与加载问题，零依赖、离线可用。",
+  "entry": "parseElf",
+  "entries": {
+    "parseElf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "hexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "hx": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "输入（input）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n\r\n  function hexToBytes(s){\r\n    var t = String(s||'').replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,'');\r\n    if(t.length%2) t = t.slice(0,-1);\r\n    var out = new Uint8Array(t.length/2);\r\n    for(var i=0;i<out.length;i++) out[i]=parseInt(t.substr(i*2,2),16);\r\n    return out;\r\n  }\r\n  function hex(n,w){ var s=(n>>>0).toString(16); while(s.length<(w||2)) s='0'+s; return '0x'+s; }\r\n  function u8(b,o){ return b[o]; }\r\n  function u16(b,o,le){ return le ? (b[o]|b[o+1]<<8) : (b[o]<<8|b[o+1]); }\r\n  function u32(b,o,le){ return (le ? (b[o]|b[o+1]<<8|b[o+2]<<16|b[o+3]<<24) : (b[o]<<24|b[o+1]<<16|b[o+2]<<8|b[o+3]))>>>0; }\r\n  function u64(b,o,le){\r\n    var lo = le ? u32(b,o,1) : u32(b,o+4,0);\r\n    var hi = le ? u32(b,o+4,1) : u32(b,o,0);\r\n    return hi*4294967296 + lo;\r\n  }\r\n  function hx(n){ if(n<0) return String(n); var s=n.toString(16); return '0x'+s; }\r\n\r\n  var ET={0:'NONE',1:'REL 可重定位',2:'EXEC 可执行',3:'DYN 共享/PIE',4:'CORE 核心转储'};\r\n  var EM={0:'None',2:'SPARC',3:'x86',8:'MIPS',20:'PowerPC',21:'PowerPC64',22:'S390',\r\n          40:'ARM',42:'SuperH',43:'SPARCv9',50:'IA-64',62:'x86-64',183:'AArch64',\r\n          243:'RISC-V',258:'LoongArch'};\r\n  var OSABI={0:'System V',1:'HP-UX',2:'NetBSD',3:'Linux',6:'Solaris',9:'FreeBSD',12:'OpenBSD'};\r\n  var PT={0:'NULL',1:'LOAD',2:'DYNAMIC',3:'INTERP',4:'NOTE',5:'SHLIB',6:'PHDR',7:'TLS',\r\n          1685382480:'GNU_EH_FRAME',1685382481:'GNU_STACK',1685382482:'GNU_RELRO',1685382483:'GNU_PROPERTY'};\r\n  var SHT={0:'NULL',1:'PROGBITS',2:'SYMTAB',3:'STRTAB',4:'RELA',5:'HASH',6:'DYNAMIC',7:'NOTE',\r\n           8:'NOBITS',9:'REL',11:'DYNSYM',14:'INIT_ARRAY',15:'FINI_ARRAY',\r\n           1879048182:'GNU_HASH',1879048190:'GNU_verneed',1879048191:'GNU_versym'};\r\n\r\n  function pflags(f){ return ((f&4)?'R':'-')+((f&2)?'W':'-')+((f&1)?'X':'-'); }\r\n  function shflags(f){\r\n    var m=[[1,'WRITE'],[2,'ALLOC'],[4,'EXEC'],[16,'MERGE'],[32,'STRINGS'],[64,'INFO_LINK'],[512,'TLS']], o=[];\r\n    for(var i=0;i<m.length;i++) if(f & m[i][0]) o.push(m[i][1]);\r\n    return o.join('|') || '-';\r\n  }\r\n  function cstr(b,o){ var s=''; while(o<b.length && b[o]){ s+=String.fromCharCode(b[o]); o++; } return s; }\r\n\r\n  function parseElf(input){\r\n    var b = (input instanceof Uint8Array) ? input : hexToBytes(input);\r\n    if(b.length < 16) return {value:null,error:'字节不足 16，无法读取 e_ident'};\r\n    if(!(b[0]===0x7F && b[1]===0x45 && b[2]===0x4C && b[3]===0x46))\r\n      return {value:null,error:'魔数不匹配：期望 7F 45 4C 46 (\"\\\\x7fELF\")'};\r\n    var cls=b[4], data=b[5];\r\n    if(cls!==1 && cls!==2) return {value:null,error:'EI_CLASS 非法：'+cls+'（应为 1=32 位 或 2=64 位）'};\r\n    if(data!==1 && data!==2) return {value:null,error:'EI_DATA 非法：'+data+'（应为 1=小端 或 2=大端）'};\r\n    var w64 = cls===2, le = data===1;\r\n    var need = w64?64:52;\r\n    if(b.length < need) return {value:null,error:'ELF 头需要 '+need+' 字节，实际 '+b.length};\r\n\r\n    var h = {\r\n      class: w64?'ELF64':'ELF32',\r\n      endian: le?'小端 LSB':'大端 MSB',\r\n      version: b[6], osabi: OSABI[b[7]]||('未知('+b[7]+')'), abiversion: b[8],\r\n      type: ET[u16(b,16,le)] || ('未知('+u16(b,16,le)+')'),\r\n      typeRaw: u16(b,16,le),\r\n      machine: EM[u16(b,18,le)] || ('未知('+u16(b,18,le)+')'),\r\n      machineRaw: u16(b,18,le)\r\n    };\r\n    var o = 24;\r\n    if(w64){ h.entry=u64(b,o,le); h.phoff=u64(b,o+8,le); h.shoff=u64(b,o+16,le); o+=24; }\r\n    else   { h.entry=u32(b,o,le); h.phoff=u32(b,o+4,le); h.shoff=u32(b,o+8,le); o+=12; }\r\n    h.flags=u32(b,o,le); h.ehsize=u16(b,o+4,le); h.phentsize=u16(b,o+6,le); h.phnum=u16(b,o+8,le);\r\n    h.shentsize=u16(b,o+10,le); h.shnum=u16(b,o+12,le); h.shstrndx=u16(b,o+14,le);\r\n\r\n    var phs=[], i, base;\r\n    for(i=0;i<h.phnum;i++){\r\n      base = h.phoff + i*h.phentsize;\r\n      if(base + h.phentsize > b.length) break;\r\n      if(w64) phs.push({type:PT[u32(b,base,le)]||hx(u32(b,base,le)), flags:pflags(u32(b,base+4,le)),\r\n                        offset:u64(b,base+8,le), vaddr:u64(b,base+16,le),\r\n                        filesz:u64(b,base+32,le), memsz:u64(b,base+40,le), align:u64(b,base+48,le)});\r\n      else    phs.push({type:PT[u32(b,base,le)]||hx(u32(b,base,le)), flags:pflags(u32(b,base+24,le)),\r\n                        offset:u32(b,base+4,le), vaddr:u32(b,base+8,le),\r\n                        filesz:u32(b,base+16,le), memsz:u32(b,base+20,le), align:u32(b,base+28,le)});\r\n    }\r\n\r\n    var shs=[], strOff=-1;\r\n    if(h.shnum && h.shstrndx < h.shnum){\r\n      var sb = h.shoff + h.shstrndx*h.shentsize;\r\n      if(sb + h.shentsize <= b.length) strOff = w64 ? u64(b,sb+24,le) : u32(b,sb+16,le);\r\n    }\r\n    for(i=0;i<h.shnum;i++){\r\n      base = h.shoff + i*h.shentsize;\r\n      if(base + h.shentsize > b.length) break;\r\n      var nameIdx = u32(b,base,le), sh;\r\n      if(w64) sh={type:SHT[u32(b,base+4,le)]||hx(u32(b,base+4,le)), flags:shflags(u64(b,base+8,le)),\r\n                  addr:u64(b,base+16,le), offset:u64(b,base+24,le), size:u64(b,base+32,le)};\r\n      else    sh={type:SHT[u32(b,base+4,le)]||hx(u32(b,base+4,le)), flags:shflags(u32(b,base+8,le)),\r\n                  addr:u32(b,base+12,le), offset:u32(b,base+16,le), size:u32(b,base+20,le)};\r\n      sh.name = (strOff>=0 && strOff+nameIdx < b.length) ? cstr(b, strOff+nameIdx) : ('@'+nameIdx);\r\n      shs.push(sh);\r\n    }\r\n    return {value:{header:h, programs:phs, sections:shs, truncated: (phs.length<h.phnum || shs.length<h.shnum)}, error:''};\r\n  }\r\n\r\n  var API = {parseElf:parseElf, hexToBytes:hexToBytes, hx:hx};\r\n  if(typeof module!=='undefined' && module.exports) module.exports = API;\r\n  if(typeof window!=='undefined') window.__ElfForge__ = API;\r\n})();\r\n\r\n"
+}

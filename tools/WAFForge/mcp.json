@@ -1,0 +1,125 @@
+{
+  "id": "WAFForge",
+  "name": "waf_forge",
+  "title": "WAFForge",
+  "description": "WAF 规则生成：ModSecurity / OWASP-CRS 风格 SecRule 与等价 JSON 策略同时产出，内置 SQLi、XSS、路径遍历、IP 封禁、限流模板与 rule id、phase、动作体检，离线可用。",
+  "entry": "buildSecRule",
+  "entries": {
+    "sanitizeRuleId": {
+      "paramStyle": "single",
+      "paramNames": [
+        "id"
+      ],
+      "fields": []
+    },
+    "buildSecRule": {
+      "paramStyle": "object",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": [
+        "id",
+        "variable",
+        "operator",
+        "phase",
+        "action",
+        "msg",
+        "transforms",
+        "log",
+        "severity",
+        "chain",
+        "tag"
+      ]
+    },
+    "buildPolicy": {
+      "paramStyle": "object",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": [
+        "name",
+        "id",
+        "phase",
+        "variable",
+        "operator",
+        "transforms",
+        "action",
+        "msg",
+        "severity",
+        "tag"
+      ]
+    },
+    "lintRule": {
+      "paramStyle": "object",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": [
+        "id",
+        "variable",
+        "operator",
+        "phase",
+        "action",
+        "transforms"
+      ]
+    },
+    "templates": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "参数 id"
+      },
+      "variable": {
+        "type": "string",
+        "description": "参数 variable"
+      },
+      "operator": {
+        "type": "string",
+        "description": "参数 operator"
+      },
+      "phase": {
+        "type": "string",
+        "description": "参数 phase"
+      },
+      "action": {
+        "type": "string",
+        "description": "参数 action"
+      },
+      "msg": {
+        "type": "string",
+        "description": "参数 msg"
+      },
+      "transforms": {
+        "type": "array",
+        "description": "参数 transforms"
+      },
+      "log": {
+        "type": "string",
+        "description": "参数 log"
+      },
+      "severity": {
+        "type": "string",
+        "description": "参数 severity"
+      },
+      "chain": {
+        "type": "string",
+        "description": "参数 chain"
+      },
+      "tag": {
+        "type": "string",
+        "description": "参数 tag"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar PHASES = {1:'请求头',2:'请求体',3:'响应头',4:'响应体',5:'日志/审计'};\r\nvar VALID_ACTIONS = {block:1,deny:1,allow:1,pass:1,log:1,redirect:1,'pass,log':1,'deny,log':1,'allow,log':1};\r\nvar DEFAULT_VARS = ['REQUEST_URI','REQUEST_HEADERS:User-Agent','REQUEST_BODY','ARGS','ARGS_GET','ARGS_POST','REQUEST_HEADERS:Host','REMOTE_ADDR','REQUEST_LINE','REQUEST_METHOD'];\r\n\r\nfunction sanitizeRuleId(id){\r\n  var n=parseInt(String(id==null?'':id).replace(/\\D/g,''),10);\r\n  if(!isFinite(n)||n<1||n>999999) return null;\r\n  return n;\r\n}\r\nfunction escapeQuotes(s){ return String(s==null?'':s).replace(/\\\\/g,'\\\\\\\\').replace(/\"/g,'\\\\\"'); }\r\n\r\nfunction buildSecRule(spec){\r\n  spec=spec||{};\r\n  var id=sanitizeRuleId(spec.id);\r\n  if(!id) return { error:'rule id 必须是 1–999999 的整数', value:'' };\r\n  var variable=String(spec.variable||'').trim();\r\n  if(!variable) return { error:'缺少匹配变量 variable', value:'' };\r\n  var operator=String(spec.operator||'').trim();\r\n  if(!operator) return { error:'缺少操作符 operator（如 @rx 或 @pm）', value:'' };\r\n  var phase=parseInt(spec.phase,10);\r\n  if(!(phase>=1&&phase<=5)) return { error:'phase 必须是 1–5', value:'' };\r\n  var action=String(spec.action||'block').toLowerCase();\r\n  var actionStr = action==='block'||action==='deny' ? 'deny,status:403' :\r\n                  action==='allow' ? 'allow' : action==='log' ? 'pass,log' :\r\n                  action==='pass' ? 'pass' : action;\r\n  var parts=[];\r\n  parts.push('id:'+id);\r\n  parts.push('phase:'+phase);\r\n  if(spec.msg) parts.push(\"msg:'\"+escapeQuotes(spec.msg)+\"'\");\r\n  (spec.transforms||[]).forEach(function(t){ if(t) parts.push('t:'+t); });\r\n  parts.push(actionStr);\r\n  if(spec.log==='no'||spec.log===false) parts.push('nolog');\r\n  else parts.push('log');\r\n  if(spec.severity) parts.push('severity:'+spec.severity);\r\n  if(spec.chain) parts.push('chain');\r\n  if(spec.tag) parts.push(\"tag:'\"+escapeQuotes(spec.tag)+\"'\");\r\n  return { error:null,\r\n    value:'SecRule '+variable+' \"'+operator.replace(/^@?/, '@')+'\" \"'+parts.join(',')+'\"' };\r\n}\r\n\r\nfunction buildPolicy(spec){\r\n  spec=spec||{};\r\n  var r=buildSecRule(spec);\r\n  if(r.error) return { error:r.error, value:null };\r\n  return { error:null, value: {\r\n    name: spec.name || ('rule-'+spec.id),\r\n    engine: 'modsecurity-v3',\r\n    rule: {\r\n      id: sanitizeRuleId(spec.id),\r\n      phase: parseInt(spec.phase,10),\r\n      variable: String(spec.variable||'').trim(),\r\n      operator: spec.operator,\r\n      transforms: spec.transforms||[],\r\n      action: String(spec.action||'block').toLowerCase(),\r\n      msg: spec.msg||'',\r\n      severity: spec.severity||'',\r\n      tag: spec.tag||''\r\n    }\r\n  } };\r\n}\r\n\r\nfunction lintRule(spec){\r\n  spec=spec||{};\r\n  var issues=[];\r\n  if(!sanitizeRuleId(spec.id)) issues.push({level:'bad',msg:'rule id 必须是 1–999999 的整数'});\r\n  if(!String(spec.variable||'').trim()) issues.push({level:'bad',msg:'缺少匹配变量 variable'});\r\n  if(!String(spec.operator||'').trim()) issues.push({level:'bad',msg:'缺少操作符 operator'});\r\n  var ph=parseInt(spec.phase,10);\r\n  if(!(ph>=1&&ph<=5)) issues.push({level:'bad',msg:'phase 必须是 1–5'});\r\n  var act=String(spec.action||'').toLowerCase();\r\n  if(act && !VALID_ACTIONS[act] && !VALID_ACTIONS[act+',log']) issues.push({level:'warn',msg:'动作 \"'+act+'\" 不在常见集合（block/allow/log/pass）'});\r\n  if(spec.transforms && spec.transforms.some(function(t){ return !/^(lowercase|uppercase|urlDecode|urlDecodeUni|htmlEntityDecode|compressWhitespace|removeWhitespace|normalisePath|base64Decode|cmdLine|none)$/.test(t); }))\r\n    issues.push({level:'warn',msg:'存在不常见的 transform（t:）'});\r\n  var score=100; issues.forEach(function(i){ score-=(i.level==='bad'?25:10); });\r\n  return { issues:issues, score:Math.max(0,score) };\r\n}\r\n\r\nfunction templates(){\r\n  return [\r\n    {id:'100001',name:'SQL 注入 (CRS)', variable:'ARGS|REQUEST_HEADERS', operator:'detectSQLi', phase:2, action:'block', transforms:['lowercase'], msg:'SQLi', tag:'OWASP_CRS/WEB_ATTACK/SQL_INJECTION', severity:'CRITICAL'},\r\n    {id:'100002',name:'XSS (CRS)', variable:'ARGS|REQUEST_HEADERS', operator:'detectXSS', phase:2, action:'block', transforms:['lowercase'], msg:'XSS', tag:'OWASP_CRS/WEB_ATTACK/XSS', severity:'CRITICAL'},\r\n    {id:'100003',name:'路径遍历', variable:'REQUEST_URI', operator:'../', phase:1, action:'block', transforms:['urlDecodeUni','lowercase'], msg:'path traversal', tag:'attack/traversal', severity:'CRITICAL'},\r\n    {id:'100004',name:'IP 封禁', variable:'REMOTE_ADDR', operator:'@ipMatch 1.2.3.4', phase:1, action:'deny', msg:'blocked IP', severity:'ALERT'},\r\n    {id:'100005',name:'限流 10r/s', variable:'IP', operator:'@rlimit 10', phase:1, action:'block', msg:'rate limit', severity:'WARNING'},\r\n    {id:'100006',name:'恶意爬虫', variable:'REQUEST_HEADERS:User-Agent', operator:'@pm badbot scraper', phase:1, action:'block', transforms:['lowercase'], msg:'bad bot', tag:'bot', severity:'WARNING'},\r\n    {id:'100007',name:'缺少 UA', variable:'&REQUEST_HEADERS:User-Agent', operator:'@eq 0', phase:1, action:'block', msg:'empty UA', severity:'WARNING'}\r\n  ];\r\n}\r\n\r\nvar WAFForgePure = {\r\n  sanitizeRuleId: sanitizeRuleId, buildSecRule: buildSecRule, buildPolicy: buildPolicy,\r\n  lintRule: lintRule, templates: templates, PHASES: PHASES, VALID_ACTIONS: VALID_ACTIONS,\r\n  DEFAULT_VARS: DEFAULT_VARS\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = WAFForgePure;\r\nif (typeof window !== 'undefined') window.WAFForgePure = WAFForgePure;\r\n\r\n"
+}

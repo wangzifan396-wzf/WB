@@ -1,0 +1,93 @@
+{
+  "id": "HammingForge",
+  "name": "hamming_forge",
+  "title": "HammingForge",
+  "description": "汉明码实验台：按 (7,4)、(15,11) 等参数编码数据位与校验位，支持 SECDED 扩展位，注入单/双比特错误后做综合征定位与纠错，验证 UTF-8 文本往返与冗余开销。学习差错控制编码、演示纠错位如何工作，零依赖、离线可用。",
+  "entry": "encode",
+  "entries": {
+    "encode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "dataBits",
+        "extended"
+      ],
+      "fields": []
+    },
+    "decode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "codeStr",
+        "extended"
+      ],
+      "fields": []
+    },
+    "flip": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "codeStr",
+        "pos1"
+      ],
+      "fields": []
+    },
+    "bits": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "parityCount": {
+      "paramStyle": "single",
+      "paramNames": [
+        "k"
+      ],
+      "fields": []
+    },
+    "isPow2": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "textToBits": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "bitsToText": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "overhead": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "k",
+        "extended"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "dataBits": {
+        "type": "string",
+        "description": "第 1 个参数（dataBits）"
+      },
+      "extended": {
+        "type": "string",
+        "description": "第 2 个参数（extended）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  function bits(s){\r\n    var t=String(s||'').replace(/[^01]/g,'');\r\n    var o=[]; for(var i=0;i<t.length;i++) o.push(t.charCodeAt(i)-48);\r\n    return o;\r\n  }\r\n  function str(b){ return b.join(''); }\r\n  function isPow2(n){ return n>0 && (n & (n-1))===0; }\r\n  function parityCount(k){\r\n    var r=0;\r\n    while(Math.pow(2,r) < k+r+1) r++;\r\n    return r;\r\n  }\r\n  // 编码：数据位放非 2 的幂位置，校验位放 2 的幂位置（1-based）\r\n  function encode(dataBits, extended){\r\n    var d=bits(dataBits);\r\n    if(!d.length) return {value:null, error:'数据位为空'};\r\n    if(d.length>64) return {value:null, error:'数据位过多（'+d.length+'），上限 64'};\r\n    var k=d.length, r=parityCount(k), n=k+r;\r\n    var cw=new Array(n+1).fill(0);   // 1-based\r\n    var di=0;\r\n    for(var p=1;p<=n;p++) if(!isPow2(p)) cw[p]=d[di++];\r\n    var parities=[];\r\n    for(var b=0;b<r;b++){\r\n      var pos=Math.pow(2,b), x=0, covers=[];\r\n      for(var q=1;q<=n;q++){\r\n        if(q===pos) continue;\r\n        if(q & pos){ x^=cw[q]; covers.push(q); }\r\n      }\r\n      cw[pos]=x;\r\n      parities.push({pos:pos, value:x, covers:covers});\r\n    }\r\n    var out=cw.slice(1);\r\n    var res={code:str(out), n:n, k:k, r:r, parities:parities, rate:k+'/'+n,\r\n             scheme:'Hamming('+n+','+k+')'};\r\n    if(extended){\r\n      var overall=0;\r\n      for(var i=0;i<out.length;i++) overall^=out[i];\r\n      res.code = String(overall)+res.code;   // P0 在最前\r\n      res.n = n+1;\r\n      res.overall = overall;\r\n      res.scheme = 'Extended Hamming('+(n+1)+','+k+') SECDED';\r\n    }\r\n    return {value:res, error:''};\r\n  }\r\n\r\n  function decode(codeStr, extended){\r\n    var c=bits(codeStr);\r\n    if(!c.length) return {value:null, error:'码字为空'};\r\n    var overall=null, body=c;\r\n    if(extended){\r\n      if(c.length<2) return {value:null, error:'扩展汉明码至少需要 2 位'};\r\n      overall=c[0]; body=c.slice(1);\r\n    }\r\n    var n=body.length;\r\n    var r=0; while(Math.pow(2,r)<=n) r++;\r\n    // n = k + r，需满足 2^r >= n+1\r\n    while(Math.pow(2,r) < n+1) r++;\r\n    var k=n-r;\r\n    if(k<1) return {value:null, error:'码字长度 '+n+' 太短，无有效数据位'};\r\n    var cw=[0].concat(body);\r\n    var syn=0, checks=[];\r\n    for(var b=0;b<r;b++){\r\n      var pos=Math.pow(2,b), x=0;\r\n      for(var q=1;q<=n;q++) if(q & pos) x^=cw[q];\r\n      checks.push({pos:pos, fail:x===1});\r\n      if(x) syn|=pos;\r\n    }\r\n    var res={n:body.length, k:k, r:r, syndrome:syn, checks:checks,\r\n             scheme:(extended?'Extended Hamming('+(n+1)+','+k+') SECDED':'Hamming('+n+','+k+')')};\r\n    if(extended){\r\n      var parityAll=overall;\r\n      for(var i=0;i<body.length;i++) parityAll^=body[i];\r\n      res.overallFail = parityAll===1;\r\n      if(syn===0 && !res.overallFail){ res.status='无错误'; }\r\n      else if(syn!==0 && res.overallFail){ res.status='检出 1 位错误，已纠正'; res.errorPos=syn; }\r\n      else if(syn===0 && res.overallFail){ res.status='总校验位 P0 自身出错，数据可用'; res.errorPos=0; }\r\n      else { res.status='检出 2 位错误，无法纠正'; res.uncorrectable=true; }\r\n    } else {\r\n      if(syn===0) res.status='无错误';\r\n      else if(syn>n){ res.status='综合征 '+syn+' 超出码长，检出错误但无法定位'; res.uncorrectable=true; }\r\n      else { res.status='检出 1 位错误，已纠正'; res.errorPos=syn; }\r\n    }\r\n    var fixed=cw.slice();\r\n    if(res.errorPos && res.errorPos<=n) fixed[res.errorPos] ^= 1;\r\n    var dataOut=[];\r\n    for(var p=1;p<=n;p++) if(!isPow2(p)) dataOut.push(fixed[p]);\r\n    res.corrected = str(fixed.slice(1));\r\n    res.data = res.uncorrectable ? null : str(dataOut);\r\n    return {value:res, error:''};\r\n  }\r\n\r\n  function flip(codeStr, pos1){\r\n    var c=bits(codeStr);\r\n    if(pos1<1 || pos1>c.length) return codeStr;\r\n    c[pos1-1] ^= 1;\r\n    return str(c);\r\n  }\r\n  function textToBits(s){\r\n    var o='';\r\n    for(var i=0;i<s.length;i++){\r\n      var v=s.charCodeAt(i)&255, t=v.toString(2);\r\n      while(t.length<8) t='0'+t;\r\n      o+=t;\r\n    }\r\n    return o;\r\n  }\r\n  function bitsToText(b){\r\n    var t=bits(b), s='';\r\n    for(var i=0;i+7<t.length;i+=8){\r\n      var v=0; for(var j=0;j<8;j++) v=(v<<1)|t[i+j];\r\n      s+=String.fromCharCode(v);\r\n    }\r\n    return s;\r\n  }\r\n  function overhead(k, extended){\r\n    var r=parityCount(k);\r\n    var n=k+r+(extended?1:0);\r\n    return {n:n, r:r+(extended?1:0), percent:Math.round((n-k)/k*1000)/10};\r\n  }\r\n\r\n  var API={encode:encode, decode:decode, flip:flip, bits:bits, parityCount:parityCount,\r\n           isPow2:isPow2, textToBits:textToBits, bitsToText:bitsToText, overhead:overhead};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__HammingForge__=API;\r\n})();\r\n\r\n"
+}

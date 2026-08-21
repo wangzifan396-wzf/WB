@@ -1,0 +1,49 @@
+{
+  "id": "AudioSplitForge",
+  "name": "audio_split_forge",
+  "title": "AudioSplitForge",
+  "description": "按固定时长或静音区间切分音频采样。",
+  "entry": "splitByDuration",
+  "entries": {
+    "splitByDuration": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr",
+        "segSec"
+      ],
+      "fields": []
+    },
+    "findSilence": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr",
+        "threshold",
+        "minSec"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "sr": {
+        "type": "string",
+        "description": "第 2 个参数（sr）"
+      },
+      "segSec": {
+        "type": "string",
+        "description": "第 3 个参数（segSec）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitByDuration(samples, sr, segSec){\r\n  if(!(sr>0)||!(segSec>0)||!samples||!samples.length) return [];\r\n  var segLen=Math.max(1,Math.round(segSec*sr)), out=[];\r\n  for(var i=0;i<samples.length;i+=segLen){ out.push(samples.slice(i,i+segLen)); }\r\n  return out;\r\n}\r\nfunction findSilence(samples, sr, threshold, minSec){\r\n  threshold=(threshold==null)?0.01:threshold; minSec=(minSec==null)?0.2:minSec;\r\n  if(!(sr>0)||!samples) return [];\r\n  var minN=Math.max(1,Math.floor(minSec*sr)), inSil=false, start=0, res=[];\r\n  for(var i=0;i<samples.length;i++){ var s=Math.abs(samples[i])<threshold;\r\n    if(s&&!inSil){ inSil=true; start=i; }\r\n    else if(!s&&inSil){ if(i-start>=minN) res.push([start,i-1]); inSil=false; } }\r\n  if(inSil && (samples.length-start)>=minN) res.push([start,samples.length-1]);\r\n  return res;\r\n}\r\nvar EXPORTS={splitByDuration:splitByDuration,findSilence:findSilence};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.AudioSplitForgePure = EXPORTS; }\r\n\r\n"
+}

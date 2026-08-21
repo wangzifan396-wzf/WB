@@ -1,0 +1,50 @@
+{
+  "id": "TarjanForge",
+  "name": "tarjan_forge",
+  "title": "TarjanForge",
+  "description": "Tarjan 强连通分量：一次 DFS 求 SCC，缩点 DAG 与环检测。",
+  "entry": "tarjanScc",
+  "entries": {
+    "tarjanScc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "edges"
+      ],
+      "fields": []
+    },
+    "sccCondense": {
+      "paramStyle": "single",
+      "paramNames": [
+        "edges"
+      ],
+      "fields": []
+    },
+    "sccHasCycle": {
+      "paramStyle": "single",
+      "paramNames": [
+        "edges"
+      ],
+      "fields": []
+    },
+    "parseEdges": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "edges": {
+        "type": "string",
+        "description": "输入（edges）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction tarjanScc(edges){\r\n  var adj={}, nodes=[], seen={};\r\n  function addNode(v){ if(!seen[v]){ seen[v]=1; nodes.push(v); adj[v]=adj[v]||[]; } }\r\n  for(var i=0;i<edges.length;i++){\r\n    var e=edges[i];\r\n    addNode(e[0]); addNode(e[1]);\r\n    adj[e[0]].push(e[1]);\r\n  }\r\n  var index={}, low={}, onStack={}, stack=[], counter={n:0}, sccs=[];\r\n  function strongconnect(v){\r\n    index[v]=counter.n; low[v]=counter.n; counter.n++;\r\n    stack.push(v); onStack[v]=true;\r\n    var nbrs=adj[v]||[];\r\n    for(var j=0;j<nbrs.length;j++){\r\n      var w=nbrs[j];\r\n      if(index[w]===undefined){\r\n        strongconnect(w);\r\n        if(low[w]<low[v]) low[v]=low[w];\r\n      } else if(onStack[w]){\r\n        if(index[w]<low[v]) low[v]=index[w];\r\n      }\r\n    }\r\n    if(low[v]===index[v]){\r\n      var comp=[], u;\r\n      do { u=stack.pop(); onStack[u]=false; comp.push(u); } while(u!==v);\r\n      comp.sort();\r\n      sccs.push(comp);\r\n    }\r\n  }\r\n  for(var k=0;k<nodes.length;k++){\r\n    if(index[nodes[k]]===undefined) strongconnect(nodes[k]);\r\n  }\r\n  return sccs;\r\n}\r\nfunction sccCondense(edges){\r\n  var sccs=tarjanScc(edges);\r\n  var compOf={};\r\n  for(var i=0;i<sccs.length;i++){\r\n    for(var j=0;j<sccs[i].length;j++) compOf[sccs[i][j]]=i;\r\n  }\r\n  var dedup={}, dagEdges=[];\r\n  for(var k=0;k<edges.length;k++){\r\n    var a=compOf[edges[k][0]], b=compOf[edges[k][1]];\r\n    if(a!==b){\r\n      var key=a+'->'+b;\r\n      if(!dedup[key]){ dedup[key]=1; dagEdges.push([a,b]); }\r\n    }\r\n  }\r\n  return { sccs:sccs, compOf:compOf, dagEdges:dagEdges };\r\n}\r\nfunction sccHasCycle(edges){\r\n  var sccs=tarjanScc(edges);\r\n  for(var i=0;i<sccs.length;i++) if(sccs[i].length>1) return true;\r\n  var self={};\r\n  for(var k=0;k<edges.length;k++) if(edges[k][0]===edges[k][1]) return true;\r\n  return false;\r\n}\r\nfunction parseEdges(text){\r\n  var out=[];\r\n  var lines=String(text).split('\\n');\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i].trim();\r\n    if(!ln) continue;\r\n    var mm=ln.split('->');\r\n    if(mm.length!==2) return {value:null, error:'第 '+(i+1)+' 行格式错误（需 a->b）'};\r\n    var a=mm[0].trim(), b=mm[1].trim();\r\n    if(!a||!b) return {value:null, error:'第 '+(i+1)+' 行节点为空'};\r\n    out.push([a,b]);\r\n  }\r\n  return {value:out, error:null};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tarjanScc:tarjanScc, sccCondense:sccCondense, sccHasCycle:sccHasCycle, parseEdges:parseEdges };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TarjanForgePure = { tarjanScc:tarjanScc, sccCondense:sccCondense, sccHasCycle:sccHasCycle, parseEdges:parseEdges };\r\n}\r\n"
+}

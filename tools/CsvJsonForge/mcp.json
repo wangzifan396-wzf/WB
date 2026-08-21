@@ -1,0 +1,43 @@
+{
+  "id": "CsvJsonForge",
+  "name": "csv_json_forge",
+  "title": "CsvJsonForge",
+  "description": "CSV 与 JSON 互转：首行作表头，把 CSV 解析为对象数组，或把 JSON 数组导出为 CSV，正确处理引号与逗号。",
+  "entry": "toJson",
+  "entries": {
+    "toJson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "csv"
+      ],
+      "fields": []
+    },
+    "toCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "json"
+      ],
+      "fields": []
+    },
+    "parseCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "csv": {
+        "type": "string",
+        "description": "输入（csv）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function parseCsv(text){\r\n    text=String(text==null?'':text).replace(/\\r\\n|\\r/g,'\\n');\r\n    var rows=[], row=[], field='', i=0, q=false;\r\n    while(i<text.length){ var c=text[i];\r\n      if(q){ if(c==='\"'){ if(text[i+1]==='\"'){field+='\"';i++;} else q=false; } else field+=c; }\r\n      else { if(c==='\"') q=true;\r\n        else if(c===','){ row.push(field); field=''; }\r\n        else if(c==='\\n'){ row.push(field); rows.push(row); row=[]; field=''; }\r\n        else field+=c; }\r\n      i++; }\r\n    if(field!==''||row.length){ row.push(field); rows.push(row); }\r\n    return rows;\r\n  }\r\n  function toJson(csv){\r\n    var rows=parseCsv(csv); if(rows.length<1) return {value:'[]'};\r\n    var head=rows[0], out=[];\r\n    for(var r=1;r<rows.length;r++){ var o={}; for(var c=0;c<head.length;c++){ o[head[c]]= rows[r][c]===undefined?'':rows[r][c]; } out.push(o); }\r\n    return {value:JSON.stringify(out,null,2)};\r\n  }\r\n  function csvCell(v){ v=String(v==null?'':v); if(/[\",\\n]/.test(v)) return '\"'+v.replace(/\"/g,'\"\"')+'\"'; return v; }\r\n  function toCsv(json){\r\n    var arr; try{ arr=JSON.parse(json); }catch(e){ return {error:'JSON 解析失败: '+e.message}; }\r\n    if(!Array.isArray(arr)||arr.length===0) return {value:''};\r\n    var keys=Object.keys(arr[0]); var lines=[keys.map(csvCell).join(',')];\r\n    arr.forEach(function(o){ lines.push(keys.map(function(k){return csvCell(o[k]);}).join(',')); });\r\n    return {value:lines.join('\\n')};\r\n  }\r\n  var API={toJson:toJson,toCsv:toCsv,parseCsv:parseCsv};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__CsvJsonForge__=API;\r\n})();\r\n"
+}

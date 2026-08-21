@@ -1,0 +1,36 @@
+{
+  "id": "EzaForge",
+  "name": "eza_forge",
+  "title": "EzaForge",
+  "description": "目录树生成：把一组文件路径渲染成带分支线条的树状结构，模拟 eza / ls 的可视化输出，粘贴路径即可查看层级。",
+  "entry": "build",
+  "entries": {
+    "tree": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "build": {
+      "paramStyle": "single",
+      "paramNames": [
+        "paths"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "paths": {
+        "type": "string",
+        "description": "输入（paths）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function build(paths){\r\n    var root={children:{}, order:[]};\r\n    for(var i=0;i<paths.length;i++){\r\n      var parts=paths[i].split('/');\r\n      var node=root;\r\n      for(var j=0;j<parts.length;j++){\r\n        var name=parts[j];\r\n        if(name==='') continue;\r\n        if(!node.children[name]){ node.children[name]={name:name, children:{}, order:[]}; node.order.push(name); }\r\n        node=node.children[name];\r\n      }\r\n    }\r\n    return root;\r\n  }\r\n  function render(node, prefix, out){\r\n    var keys=node.order;\r\n    for(var i=0;i<keys.length;i++){\r\n      var k=keys[i], child=node.children[k], last=(i===keys.length-1);\r\n      var branch= last?'└── ':'├── ';\r\n      out.push(prefix+branch+k+(Object.keys(child.children).length?'/':''));\r\n      var cp=prefix+(last?'    ':'│   ');\r\n      render(child, cp, out);\r\n    }\r\n  }\r\n  function tree(text){\r\n    var paths=String(text||'').split(/\\r?\\n/).map(function(s){return s.trim();}).filter(function(s){return s;});\r\n    var root=build(paths), out=[];\r\n    out.push('.');\r\n    render(root, '', out);\r\n    return {value: out.join('\\n')};\r\n  }\r\n  var API={tree:tree, build:build};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__EzaForge__=API;\r\n})();\r\n"
+}

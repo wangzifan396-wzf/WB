@@ -1,0 +1,69 @@
+{
+  "id": "CuckooForge",
+  "name": "cuckoo_forge",
+  "title": "CuckooForge",
+  "description": "布谷鸟过滤器：可删除的概率型成员判定，指纹 + 双桶 + 踢出重放。",
+  "entry": "cuckooCreate",
+  "entries": {
+    "cuckooCreate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "buckets",
+        "bucketSize"
+      ],
+      "fields": []
+    },
+    "cuckooInsert": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cf",
+        "item"
+      ],
+      "fields": []
+    },
+    "cuckooContains": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cf",
+        "item"
+      ],
+      "fields": []
+    },
+    "cuckooDelete": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cf",
+        "item"
+      ],
+      "fields": []
+    },
+    "loadFactor": {
+      "paramStyle": "object",
+      "paramNames": [
+        "cf"
+      ],
+      "fields": [
+        "count",
+        "m",
+        "b"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "buckets": {
+        "type": "string",
+        "description": "第 1 个参数（buckets）"
+      },
+      "bucketSize": {
+        "type": "number",
+        "description": "第 2 个参数（bucketSize）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction fnv1a(str, seed){\r\n  var h=(0x811c9dc5 ^ (seed>>>0))>>>0;\r\n  for(var i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193)>>>0; }\r\n  return h>>>0;\r\n}\r\nfunction fingerprint(item){\r\n  var f=fnv1a(String(item), 0x1234) & 0xff;\r\n  return f===0 ? 1 : f;\r\n}\r\nfunction cuckooCreate(buckets, bucketSize){\r\n  if((buckets & (buckets-1))!==0 || buckets<2) throw new Error('BUCKETS_POW2');\r\n  var b=[];\r\n  for(var i=0;i<buckets;i++) b.push([]);\r\n  return { m:buckets, b:(bucketSize||4), buckets:b, count:0 };\r\n}\r\nfunction idx1(item, m){ return fnv1a(String(item), 0) % m; }\r\nfunction altIndex(i, fp, m){ return (i ^ (fnv1a(String(fp), 0x5bd1) % m)) % m; }\r\nfunction cuckooInsert(cf, item){\r\n  var fp=fingerprint(item);\r\n  var i1=idx1(item, cf.m), i2=altIndex(i1, fp, cf.m);\r\n  if(cf.buckets[i1].length<cf.b){ cf.buckets[i1].push(fp); cf.count++; return { ok:true, kicks:0 }; }\r\n  if(cf.buckets[i2].length<cf.b){ cf.buckets[i2].push(fp); cf.count++; return { ok:true, kicks:0 }; }\r\n  var i=Math.random()<0.5?i1:i2, cur=fp;\r\n  for(var k=0;k<500;k++){\r\n    var slot=Math.floor(Math.random()*cf.b);\r\n    var evicted=cf.buckets[i][slot];\r\n    cf.buckets[i][slot]=cur;\r\n    cur=evicted;\r\n    i=altIndex(i, cur, cf.m);\r\n    if(cf.buckets[i].length<cf.b){ cf.buckets[i].push(cur); cf.count++; return { ok:true, kicks:k+1 }; }\r\n  }\r\n  return { ok:false, kicks:500 };\r\n}\r\nfunction cuckooContains(cf, item){\r\n  var fp=fingerprint(item);\r\n  var i1=idx1(item, cf.m), i2=altIndex(i1, fp, cf.m);\r\n  return cf.buckets[i1].indexOf(fp)>=0 || cf.buckets[i2].indexOf(fp)>=0;\r\n}\r\nfunction cuckooDelete(cf, item){\r\n  var fp=fingerprint(item);\r\n  var i1=idx1(item, cf.m), i2=altIndex(i1, fp, cf.m);\r\n  var p=cf.buckets[i1].indexOf(fp);\r\n  if(p>=0){ cf.buckets[i1].splice(p,1); cf.count--; return true; }\r\n  p=cf.buckets[i2].indexOf(fp);\r\n  if(p>=0){ cf.buckets[i2].splice(p,1); cf.count--; return true; }\r\n  return false;\r\n}\r\nfunction loadFactor(cf){ return cf.count/(cf.m*cf.b); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { fnv1a:fnv1a, fingerprint:fingerprint, cuckooCreate:cuckooCreate,\r\n    cuckooInsert:cuckooInsert, cuckooContains:cuckooContains, cuckooDelete:cuckooDelete,\r\n    loadFactor:loadFactor, altIndex:altIndex, idx1:idx1 };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.CuckooForgePure = { cuckooCreate:cuckooCreate, cuckooInsert:cuckooInsert,\r\n    cuckooContains:cuckooContains, cuckooDelete:cuckooDelete, loadFactor:loadFactor };\r\n}\r\n"
+}

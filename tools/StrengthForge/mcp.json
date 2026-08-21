@@ -1,0 +1,78 @@
+{
+  "id": "StrengthForge",
+  "name": "strength_forge",
+  "title": "StrengthForge",
+  "description": "密码强度估计：按字符集熵估算强度等级与暴力破解耗时，识别常见弱口令与模式，离线可用。",
+  "entry": "strengthClasses",
+  "entries": {
+    "strengthClasses": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pw"
+      ],
+      "fields": []
+    },
+    "strengthCharset": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pw"
+      ],
+      "fields": []
+    },
+    "strengthEntropy": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pw"
+      ],
+      "fields": []
+    },
+    "strengthScore": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ent"
+      ],
+      "fields": []
+    },
+    "strengthPenalty": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pw"
+      ],
+      "fields": []
+    },
+    "strengthCrack": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ent"
+      ],
+      "fields": []
+    },
+    "strengthAnalyze": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pw"
+      ],
+      "fields": []
+    },
+    "strengthRand": {
+      "paramStyle": "single",
+      "paramNames": [
+        "len"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pw": {
+        "type": "string",
+        "description": "输入（pw）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar STRENGTH_SYMBOLS=\" !\\\"#$%&'()*+,-./:;<=>?@[\\\\]^_`{|}~\";\r\nvar STRENGTH_COMMON=[\"password\",\"123456\",\"12345678\",\"qwerty\",\"abc123\",\"admin\",\"welcome\",\"iloveyou\",\"111111\",\"letmein\"];\r\nfunction strengthClasses(pw){\r\n  var c={lower:false,upper:false,digit:false,symbol:false};\r\n  for(var i=0;i<pw.length;i++){ var ch=pw[i];\r\n    if(ch>='a'&&ch<='z') c.lower=true;\r\n    else if(ch>='A'&&ch<='Z') c.upper=true;\r\n    else if(ch>='0'&&ch<='9') c.digit=true;\r\n    else c.symbol=true;\r\n  }\r\n  return c;\r\n}\r\nfunction strengthCharset(pw){\r\n  var c=strengthClasses(pw), n=0;\r\n  if(c.lower) n+=26; if(c.upper) n+=26; if(c.digit) n+=10; if(c.symbol) n+=STRENGTH_SYMBOLS.length;\r\n  return n;\r\n}\r\nfunction strengthEntropy(pw){\r\n  var cs=strengthCharset(pw); if(!cs) return 0;\r\n  return pw.length*Math.log(cs)/Math.log(2);\r\n}\r\nfunction strengthScore(ent){\r\n  if(ent<28) return 0; if(ent<36) return 1; if(ent<60) return 2; if(ent<120) return 3; return 4;\r\n}\r\nfunction strengthPenalty(pw){\r\n  var w=[];\r\n  if(pw.length<8) w.push('长度不足 8 位');\r\n  if(/^(.)\\1+$/.test(pw)) w.push('全部字符重复');\r\n  if(/(.)\\1{2,}/.test(pw)) w.push('存在连续重复字符');\r\n  var low=pw.toLowerCase();\r\n  if(STRENGTH_COMMON.indexOf(low)>=0) w.push('命中常见弱口令字典');\r\n  if(/^[a-z]+$/.test(low) && low.length>=3){\r\n    var seq='abcdefghijklmnopqrstuvwxyz', ok=false;\r\n    for(var i=0;i+low.length<=seq.length;i++){ if(seq.substr(i,low.length)===low){ok=true;break;} }\r\n    if(ok) w.push('连续字母序列');\r\n  }\r\n  return w;\r\n}\r\nfunction strengthCrack(ent){\r\n  var sps=1e9; var sec=Math.pow(2,ent)/sps;\r\n  if(sec<1) return '<1 秒';\r\n  if(sec<60) return Math.round(sec)+' 秒';\r\n  if(sec<3600) return Math.round(sec/60)+' 分钟';\r\n  if(sec<86400) return Math.round(sec/3600)+' 小时';\r\n  if(sec<31536000) return Math.round(sec/86400)+' 天';\r\n  if(sec<31536000*100) return Math.round(sec/31536000)+' 年';\r\n  return (sec/31536000).toExponential(1)+' 年';\r\n}\r\nfunction strengthAnalyze(pw){\r\n  if(pw==='') return { empty:true };\r\n  var ent=strengthEntropy(pw);\r\n  var pen=strengthPenalty(pw);\r\n  var score=strengthScore(ent);\r\n  if(pen.length) score=Math.max(0,score-1);\r\n  return { length:pw.length, charset:strengthCharset(pw), entropy:ent, score:score,\r\n    crack:strengthCrack(ent), warnings:pen };\r\n}\r\nfunction strengthRand(len){\r\n  len=len||16; var cs='abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*';\r\n  var s=''; for(var i=0;i<len;i++) s+=cs[Math.floor(Math.random()*cs.length)]; return s;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { strengthClasses:strengthClasses, strengthCharset:strengthCharset,\r\n    strengthEntropy:strengthEntropy, strengthScore:strengthScore, strengthPenalty:strengthPenalty,\r\n    strengthCrack:strengthCrack, strengthAnalyze:strengthAnalyze, strengthRand:strengthRand,\r\n    STRENGTH_SYMBOLS:STRENGTH_SYMBOLS };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.StrengthForgePure = { strengthClasses:strengthClasses, strengthCharset:strengthCharset,\r\n    strengthEntropy:strengthEntropy, strengthScore:strengthScore, strengthPenalty:strengthPenalty,\r\n    strengthCrack:strengthCrack, strengthAnalyze:strengthAnalyze, strengthRand:strengthRand,\r\n    STRENGTH_SYMBOLS:STRENGTH_SYMBOLS };\r\n}\r\n"
+}

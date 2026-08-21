@@ -1,0 +1,48 @@
+{
+  "id": "BloomFilterForge",
+  "name": "bloom_filter_forge",
+  "title": "BloomFilterForge",
+  "description": "布隆过滤器：用 k 个哈希函数做概率型集合成员判定，无假阴性、可能有假阳性，空间高效，离线。",
+  "entry": "makeBloom",
+  "entries": {
+    "makeBloom": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "m",
+        "k"
+      ],
+      "fields": []
+    },
+    "hash1": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "hash2": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "m": {
+        "type": "string",
+        "description": "第 1 个参数（m）"
+      },
+      "k": {
+        "type": "string",
+        "description": "第 2 个参数（k）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction hash1(s){ var h=2166136261>>>0; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return h>>>0; }\r\nfunction hash2(s){ var h=5381; for(var i=0;i<s.length;i++){ h=(((h<<5)+h)+s.charCodeAt(i))>>>0; } return h>>>0; }\r\nfunction Bloom(m,k){ this.m=m; this.k=k; this.bits=new Array(m).fill(0); }\r\nBloom.prototype.add=function(s){ for(var i=0;i<this.k;i++){ var h=(hash1(s)+i*hash2(s))>>>0; this.bits[h%this.m]=1; } };\r\nBloom.prototype.has=function(s){ for(var i=0;i<this.k;i++){ var h=(hash1(s)+i*hash2(s))>>>0; if(!this.bits[h%this.m]) return false; } return true; };\r\nfunction makeBloom(m,k){ return new Bloom(m,k); }\r\nvar EXPORTS={makeBloom:makeBloom, hash1:hash1, hash2:hash2};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BloomFilterForgePure = EXPORTS; }\r\n\r\n"
+}

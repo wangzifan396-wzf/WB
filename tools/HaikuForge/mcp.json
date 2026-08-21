@@ -1,0 +1,29 @@
+{
+  "id": "HaikuForge",
+  "name": "haiku_forge",
+  "title": "HaikuForge",
+  "description": "俳句生成器：严格 5-7-5 音节结构，预标注英文词库，离线可用。",
+  "entry": "generate",
+  "entries": {
+    "generate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seed": {
+        "type": "string",
+        "description": "输入（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar BANK={\r\n  1:['light','wind','leaf','moon','sky','rain','snow','stone','wave','star','tree','frog','path','mist','dusk','calm','bee','seed','cloud','ice','sun','sand','book','door','fish','bird','hand','fire','rose','air','sea','hill','lake','bell','song','dream','night'],\r\n  2:['river','silent','shadow','gentle','crimson','morning','evening','autumn','winter','summer','spring','ripple','emerald','lonely','hollow','golden','silver','frozen','distant','cricket','orange','purple','window','mountain','valley','garden','lantern','blossom','feather','willow','twilight','mirror','candle','ripples','footstep','sparkle','whisper','flower','meadow','forest','ocean','planet','spirit','wonder'],\r\n  3:['butterfly','horizon','afternoon','harmony','infinity','remember','september','chocolate','dinosaur','aquarium','mysterious','photography']\r\n};\r\nfunction pick(arr,rnd){ return arr[Math.floor(rnd()*arr.length)]; }\r\nfunction sylOf(w){ return BANK[1].indexOf(w)>=0?1:(BANK[2].indexOf(w)>=0?2:3); }\r\nfunction line(target,rnd){\r\n  var words=[]; var sum=0; var guard=0;\r\n  while(sum<target && guard<200){\r\n    var maxSyl=target-sum; var pool=[];\r\n    for(var s=1;s<=Math.min(3,maxSyl);s++) pool=pool.concat(BANK[s]);\r\n    var w=pick(pool,rnd); words.push(w); sum+=sylOf(w); guard++;\r\n  }\r\n  return {words:words, syllables:sum};\r\n}\r\nfunction generate(seed){\r\n  var rnd=(function(s){ s=(s||12345)>>>0; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; })(seed);\r\n  var l1=line(5,rnd), l2=line(7,rnd), l3=line(5,rnd);\r\n  return {lines:[l1.words.join(' '), l2.words.join(' '), l3.words.join(' ')], syllables:[l1.syllables,l2.syllables,l3.syllables]};\r\n}\r\nvar EXPORTS={generate:generate, BANK:BANK};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HaikuForgePure = EXPORTS; }\r\n\r\n"
+}

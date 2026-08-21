@@ -1,0 +1,108 @@
+{
+  "id": "BwtForge",
+  "name": "bwt_forge",
+  "title": "BwtForge",
+  "description": "Burrows-Wheeler 变换工作台：把 BWT、Move-to-Front 与 RLE 三步串成管线，展示旋转排序后的末列、MTF 零占比与熵/游程的逐段变化，并验证整条管线可逆、逆变换能精确还原原文。理解 bzip2 的预处理、观察重排如何提升压缩率，零依赖、离线可用。",
+  "entry": "bwt",
+  "entries": {
+    "bwt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "ibwt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "last",
+        "primary"
+      ],
+      "fields": []
+    },
+    "mtf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "imtf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "codes"
+      ],
+      "fields": []
+    },
+    "rle": {
+      "paramStyle": "single",
+      "paramNames": [
+        "nums"
+      ],
+      "fields": []
+    },
+    "irle": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pairs"
+      ],
+      "fields": []
+    },
+    "pipeline": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "toBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "fromBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "entropy": {
+      "paramStyle": "single",
+      "paramNames": [
+        "nums"
+      ],
+      "fields": []
+    },
+    "runs": {
+      "paramStyle": "single",
+      "paramNames": [
+        "nums"
+      ],
+      "fields": []
+    },
+    "preview": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "limit"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  var MAXLEN = 4000;\r\n\r\n  function toBytes(s){\r\n    // UTF-8 编码，保证任意文本可逆\r\n    var out=[];\r\n    for(var i=0;i<s.length;i++){\r\n      var c=s.charCodeAt(i);\r\n      if(c<0x80) out.push(c);\r\n      else if(c<0x800){ out.push(0xC0|(c>>6), 0x80|(c&63)); }\r\n      else if(c>=0xD800 && c<0xDC00 && i+1<s.length){\r\n        var c2=s.charCodeAt(i+1), cp=0x10000+((c-0xD800)<<10)+(c2-0xDC00); i++;\r\n        out.push(0xF0|(cp>>18), 0x80|((cp>>12)&63), 0x80|((cp>>6)&63), 0x80|(cp&63));\r\n      }\r\n      else { out.push(0xE0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n    }\r\n    return out;\r\n  }\r\n  function fromBytes(b){\r\n    var s='', i=0;\r\n    while(i<b.length){\r\n      var c=b[i++];\r\n      if(c<0x80) s+=String.fromCharCode(c);\r\n      else if((c&0xE0)===0xC0) s+=String.fromCharCode(((c&31)<<6)|(b[i++]&63));\r\n      else if((c&0xF0)===0xE0) s+=String.fromCharCode(((c&15)<<12)|((b[i++]&63)<<6)|(b[i++]&63));\r\n      else {\r\n        var cp=((c&7)<<18)|((b[i++]&63)<<12)|((b[i++]&63)<<6)|(b[i++]&63);\r\n        cp-=0x10000;\r\n        s+=String.fromCharCode(0xD800+(cp>>10), 0xDC00+(cp&1023));\r\n      }\r\n    }\r\n    return s;\r\n  }\r\n\r\n  /* ---- BWT：对所有旋转排序，取末列 ---- */\r\n  function bwt(bytes){\r\n    var n=bytes.length;\r\n    if(!n) return {last:[], index:0};\r\n    var idx=new Array(n);\r\n    for(var i=0;i<n;i++) idx[i]=i;\r\n    idx.sort(function(a,b){\r\n      for(var k=0;k<n;k++){\r\n        var x=bytes[(a+k)%n], y=bytes[(b+k)%n];\r\n        if(x!==y) return x-y;\r\n      }\r\n      return a-b;\r\n    });\r\n    var last=new Array(n), primary=0;\r\n    for(var j=0;j<n;j++){\r\n      last[j]=bytes[(idx[j]+n-1)%n];\r\n      if(idx[j]===0) primary=j;\r\n    }\r\n    return {last:last, index:primary, order:idx};\r\n  }\r\n  function ibwt(last, primary){\r\n    var n=last.length;\r\n    if(!n) return [];\r\n    if(primary<0 || primary>=n) return null;\r\n    var counts=new Array(256).fill(0);\r\n    for(var i=0;i<n;i++) counts[last[i]]++;\r\n    var starts=new Array(256), sum=0;\r\n    for(var c=0;c<256;c++){ starts[c]=sum; sum+=counts[c]; }\r\n    var next=new Array(n), seen=new Array(256).fill(0);\r\n    for(var j=0;j<n;j++){ next[starts[last[j]]+seen[last[j]]++] = j; }\r\n    var out=new Array(n), p=next[primary];\r\n    for(var k=0;k<n;k++){ out[k]=last[p]; p=next[p]; }\r\n    return out;\r\n  }\r\n\r\n  /* ---- MTF ---- */\r\n  function mtf(bytes){\r\n    var tbl=[]; for(var i=0;i<256;i++) tbl.push(i);\r\n    var out=[];\r\n    for(var j=0;j<bytes.length;j++){\r\n      var v=bytes[j], pos=tbl.indexOf(v);\r\n      out.push(pos);\r\n      tbl.splice(pos,1); tbl.unshift(v);\r\n    }\r\n    return out;\r\n  }\r\n  function imtf(codes){\r\n    var tbl=[]; for(var i=0;i<256;i++) tbl.push(i);\r\n    var out=[];\r\n    for(var j=0;j<codes.length;j++){\r\n      var pos=codes[j];\r\n      if(pos<0||pos>255) return null;\r\n      var v=tbl[pos];\r\n      out.push(v);\r\n      tbl.splice(pos,1); tbl.unshift(v);\r\n    }\r\n    return out;\r\n  }\r\n\r\n  /* ---- RLE（对 MTF 输出的 0 游程做编码：[值, 次数]） ---- */\r\n  function rle(nums){\r\n    var out=[], i=0;\r\n    while(i<nums.length){\r\n      var v=nums[i], n=1;\r\n      while(i+n<nums.length && nums[i+n]===v) n++;\r\n      out.push([v,n]);\r\n      i+=n;\r\n    }\r\n    return out;\r\n  }\r\n  function irle(pairs){\r\n    var out=[];\r\n    for(var i=0;i<pairs.length;i++){\r\n      for(var j=0;j<pairs[i][1];j++) out.push(pairs[i][0]);\r\n    }\r\n    return out;\r\n  }\r\n\r\n  function entropy(nums){\r\n    if(!nums.length) return 0;\r\n    var f={};\r\n    for(var i=0;i<nums.length;i++) f[nums[i]]=(f[nums[i]]||0)+1;\r\n    var h=0;\r\n    for(var k in f){ var p=f[k]/nums.length; h -= p*Math.log(p)/Math.LN2; }\r\n    return Math.round(h*1000)/1000;\r\n  }\r\n  function runs(nums){\r\n    if(!nums.length) return 0;\r\n    var r=1;\r\n    for(var i=1;i<nums.length;i++) if(nums[i]!==nums[i-1]) r++;\r\n    return r;\r\n  }\r\n\r\n  function pipeline(text){\r\n    var s=String(text||'');\r\n    if(!s) return {value:null, error:'输入为空'};\r\n    var bytes=toBytes(s);\r\n    if(bytes.length>MAXLEN) return {value:null, error:'输入 '+bytes.length+' 字节，超过上限 '+MAXLEN+'（旋转排序是 O(n² log n)）'};\r\n    var t=bwt(bytes);\r\n    var m=mtf(t.last);\r\n    var r=rle(m);\r\n    // 校验可逆\r\n    var back=irle(r);\r\n    var un=imtf(back);\r\n    var orig=ibwt(un, t.index);\r\n    var restored = orig ? fromBytes(orig) : null;\r\n    var zeros=0;\r\n    for(var i=0;i<m.length;i++) if(m[i]===0) zeros++;\r\n    return {value:{\r\n      bytes:bytes, n:bytes.length,\r\n      bwt:t.last, index:t.index,\r\n      mtf:m, rle:r,\r\n      restored:restored, lossless: restored===s,\r\n      stats:{\r\n        srcEntropy:entropy(bytes), bwtEntropy:entropy(t.last), mtfEntropy:entropy(m),\r\n        srcRuns:runs(bytes), bwtRuns:runs(t.last),\r\n        mtfZeros:zeros, mtfZeroPct: m.length?Math.round(zeros/m.length*1000)/10:0,\r\n        rlePairs:r.length, rleRatio: m.length?Math.round(r.length*2/m.length*1000)/10:0\r\n      }\r\n    }, error:''};\r\n  }\r\n\r\n  function preview(bytes, limit){\r\n    limit=limit||120;\r\n    var s='';\r\n    for(var i=0;i<Math.min(bytes.length,limit);i++){\r\n      var c=bytes[i];\r\n      s += (c>=32 && c<127) ? String.fromCharCode(c) : ('·');\r\n    }\r\n    return s + (bytes.length>limit?'…':'');\r\n  }\r\n\r\n  var API={bwt:bwt, ibwt:ibwt, mtf:mtf, imtf:imtf, rle:rle, irle:irle,\r\n           pipeline:pipeline, toBytes:toBytes, fromBytes:fromBytes,\r\n           entropy:entropy, runs:runs, preview:preview, MAXLEN:MAXLEN};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__BwtForge__=API;\r\n})();\r\n\r\n"
+}

@@ -1,0 +1,75 @@
+{
+  "id": "GomokuForge",
+  "name": "gomoku_forge",
+  "title": "GomokuForge",
+  "description": "五子棋：15×15 棋盘，启发式 AI 先攻后守，自动判定五连胜负。",
+  "entry": "gmNew",
+  "entries": {
+    "gmNew": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "gmClone": {
+      "paramStyle": "single",
+      "paramNames": [
+        "g"
+      ],
+      "fields": []
+    },
+    "gmIn": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "x",
+        "y"
+      ],
+      "fields": []
+    },
+    "gmWin": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "x",
+        "y",
+        "p"
+      ],
+      "fields": []
+    },
+    "gmPlace": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "x",
+        "y",
+        "p"
+      ],
+      "fields": []
+    },
+    "gmScorePoint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "x",
+        "y",
+        "p"
+      ],
+      "fields": []
+    },
+    "gmAi": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "ai",
+        "human"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\nvar N=15;\r\nfunction gmNew(){ var g=[]; for(var r=0;r<N;r++){ g.push(new Array(N).fill(0)); } return g; }\r\nfunction gmClone(g){ return g.map(function(r){ return r.slice(); }); }\r\nfunction gmIn(x,y){ return x>=0&&x<N&&y>=0&&y<N; }\r\nfunction gmWin(board, x, y, p){\r\n  var dirs=[[1,0],[0,1],[1,1],[1,-1]];\r\n  for(var d=0;d<4;d++){\r\n    var dx=dirs[d][0], dy=dirs[d][1], cnt=1, i;\r\n    for(i=1;i<5;i++){ var nx=x+dx*i, ny=y+dy*i; if(gmIn(nx,ny)&&board[ny][nx]===p) cnt++; else break; }\r\n    for(i=1;i<5;i++){ var nx=x-dx*i, ny=y-dy*i; if(gmIn(nx,ny)&&board[ny][nx]===p) cnt++; else break; }\r\n    if(cnt>=5) return true;\r\n  }\r\n  return false;\r\n}\r\nfunction gmPlace(board, x, y, p){ var g=gmClone(board); g[y][x]=p; return g; }\r\nfunction gmScorePoint(board, x, y, p){\r\n  var dirs=[[1,0],[0,1],[1,1],[1,-1]], score=0;\r\n  for(var d=0;d<4;d++){\r\n    var dx=dirs[d][0], dy=dirs[d][1], cnt=1, empty=0, i;\r\n    for(i=1;i<5;i++){ var nx=x+dx*i, ny=y+dy*i; if(!gmIn(nx,ny)) break; var v=board[ny][nx]; if(v===p) cnt++; else if(v===0){ empty++; break; } else break; }\r\n    for(i=1;i<5;i++){ var nx=x-dx*i, ny=y-dy*i; if(!gmIn(nx,ny)) break; var v=board[ny][nx]; if(v===p) cnt++; else if(v===0){ empty++; break; } else break; }\r\n    if(cnt>=5) score+=100000; else if(cnt===4&&empty>=1) score+=10000; else if(cnt===3&&empty>=1) score+=1000; else if(cnt===2&&empty>=1) score+=100;\r\n  }\r\n  return score;\r\n}\r\nfunction gmAi(board, ai, human){\r\n  var best=null, bestScore=-1, win=null, block=null;\r\n  for(var y=0;y<N;y++) for(var x=0;x<N;x++){\r\n    if(board[y][x]!==0) continue;\r\n    if(gmWin(gmPlace(board,x,y,ai), x, y, ai)){ win=[x,y]; }\r\n    if(gmWin(gmPlace(board,x,y,human), x, y, human)){ block=[x,y]; }\r\n  }\r\n  if(win) return win;\r\n  if(block) return block;\r\n  for(var y=0;y<N;y++) for(var x=0;x<N;x++){\r\n    if(board[y][x]!==0) continue;\r\n    var s=gmScorePoint(board,x,y,ai)+gmScorePoint(board,x,y,human)*0.9;\r\n    if(s>bestScore){ bestScore=s; best=[x,y]; }\r\n  }\r\n  return best || [7,7];\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { N:N, gmNew:gmNew, gmClone:gmClone, gmIn:gmIn, gmWin:gmWin, gmPlace:gmPlace, gmScorePoint:gmScorePoint, gmAi:gmAi };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.GomokuForgePure = { N:N, gmNew:gmNew, gmClone:gmClone, gmIn:gmIn, gmWin:gmWin, gmPlace:gmPlace, gmScorePoint:gmScorePoint, gmAi:gmAi };\r\n}\r\n"
+}

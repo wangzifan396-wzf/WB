@@ -1,0 +1,80 @@
+{
+  "id": "WaterfallForge",
+  "name": "waterfall_forge",
+  "title": "WaterfallForge",
+  "description": "瀑布图：期初到期末的增减归因，红涨绿跌符合 A 股习惯，自动累计与连接线、贡献度排序与 SVG 导出，离线可用。",
+  "entry": "parseSeries",
+  "entries": {
+    "parseSeries": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "compute": {
+      "paramStyle": "single",
+      "paramNames": [
+        "items"
+      ],
+      "fields": []
+    },
+    "analyze": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "layout": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "opt"
+      ],
+      "fields": []
+    },
+    "toSvg": {
+      "paramStyle": "object",
+      "paramNames": [
+        "lay"
+      ],
+      "fields": [
+        "empty",
+        "width",
+        "height",
+        "ticks",
+        "padL",
+        "bars"
+      ]
+    },
+    "niceStep": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "range",
+        "target"
+      ],
+      "fields": []
+    },
+    "fmtNum": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar WF_UP = '#EF4444';\r\nvar WF_DOWN = '#10B981';\r\nvar WF_TOTAL = '#5E6AD2';\r\n\r\nfunction parseSeries(text){\r\n  var lines = String(text == null ? '' : text).split(/\\r?\\n/);\r\n  var items = [], errors = [];\r\n  for (var i = 0; i < lines.length; i++){\r\n    var l = lines[i].trim();\r\n    if (!l || l.charAt(0) === '#') continue;\r\n    var m = /^(.*?)[\\s:：|,，]+([=+\\-]?[\\d,]*\\.?\\d*)$/.exec(l);\r\n    if (!m){ errors.push({ line:i + 1, text:l, why:'格式应为 标签 数值 / 标签 =' }); continue; }\r\n    var label = m[1].trim(), raw = m[2].trim();\r\n    if (!label){ errors.push({ line:i + 1, text:l, why:'缺少标签' }); continue; }\r\n    if (raw === '='){ items.push({ label:label, type:'subtotal', value:0 }); continue; }\r\n    var signed = raw.charAt(0) === '+' || raw.charAt(0) === '-';\r\n    var num = parseFloat(raw.replace(/,/g, ''));\r\n    if (!isFinite(num)){ errors.push({ line:i + 1, text:l, why:'数值无法解析' }); continue; }\r\n    if (signed) items.push({ label:label, type:'delta', value:num });\r\n    else if (items.length === 0) items.push({ label:label, type:'start', value:num });\r\n    else items.push({ label:label, type:'absolute', value:num });\r\n  }\r\n  return { items:items, errors:errors };\r\n}\r\n\r\nfunction compute(items){\r\n  var rows = [], running = 0, started = false;\r\n  for (var i = 0; i < items.length; i++){\r\n    var it = items[i];\r\n    if (it.type === 'start'){\r\n      running = it.value; started = true;\r\n      rows.push({ label:it.label, type:'start', delta:it.value, start:0, end:running, cumulative:running });\r\n    } else if (it.type === 'delta'){\r\n      var s = running; running += it.value;\r\n      rows.push({ label:it.label, type:'delta', delta:it.value, start:s, end:running, cumulative:running });\r\n      started = true;\r\n    } else if (it.type === 'absolute'){\r\n      var s2 = running, d = it.value - running; running = it.value;\r\n      rows.push({ label:it.label, type:'absolute', delta:d, start:s2, end:running, cumulative:running });\r\n      started = true;\r\n    } else if (it.type === 'subtotal'){\r\n      rows.push({ label:it.label, type:'subtotal', delta:running, start:0, end:running, cumulative:running });\r\n    }\r\n  }\r\n  return { rows:rows, total:round2(running), started:started };\r\n}\r\n\r\nfunction round2(n){ return Math.round(n * 100) / 100; }\r\n\r\nfunction analyze(rows){\r\n  var up = 0, down = 0, biggestUp = null, biggestDown = null, start = null, end = 0;\r\n  for (var i = 0; i < rows.length; i++){\r\n    var r = rows[i];\r\n    if (r.type === 'start'){ start = r.end; continue; }\r\n    if (r.type === 'subtotal') continue;\r\n    if (r.delta > 0){ up += r.delta; if (!biggestUp || r.delta > biggestUp.delta) biggestUp = r; }\r\n    else if (r.delta < 0){ down += r.delta; if (!biggestDown || r.delta < biggestDown.delta) biggestDown = r; }\r\n  }\r\n  if (rows.length) end = rows[rows.length - 1].cumulative;\r\n  if (start === null) start = 0;\r\n  var net = end - start;\r\n  return {\r\n    start:round2(start), end:round2(end), net:round2(net),\r\n    pct: start !== 0 ? Math.round(net / Math.abs(start) * 1000) / 10 : null,\r\n    gain:round2(up), loss:round2(down),\r\n    biggestUp:biggestUp, biggestDown:biggestDown,\r\n    contributions: rows.filter(function(r){ return r.type === 'delta' || r.type === 'absolute'; })\r\n      .map(function(r){ return { label:r.label, delta:round2(r.delta), share: up - down !== 0 ? Math.round(Math.abs(r.delta) / (up - down) * 1000) / 10 : 0 }; })\r\n      .sort(function(a, b){ return Math.abs(b.delta) - Math.abs(a.delta); })\r\n  };\r\n}\r\n\r\nfunction niceStep(range, target){\r\n  if (!(range > 0)) return 1;\r\n  var raw = range / (target || 5);\r\n  var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));\r\n  var norm = raw / mag;\r\n  var step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;\r\n  return step * mag;\r\n}\r\n\r\nfunction layout(rows, opt){\r\n  opt = opt || {};\r\n  var W = opt.width || 680, H = opt.height || 340;\r\n  var padL = opt.padL || 56, padR = 14, padT = 16, padB = 52;\r\n  if (!rows.length) return { bars:[], width:W, height:H, empty:true, ticks:[] };\r\n  var lo = 0, hi = 0;\r\n  for (var i = 0; i < rows.length; i++){\r\n    lo = Math.min(lo, rows[i].start, rows[i].end);\r\n    hi = Math.max(hi, rows[i].start, rows[i].end);\r\n  }\r\n  if (hi === lo) hi = lo + 1;\r\n  var pad = (hi - lo) * 0.08;\r\n  hi += pad; lo -= pad;\r\n  var plotH = H - padT - padB, plotW = W - padL - padR;\r\n  var y = function(v){ return padT + (hi - v) / (hi - lo) * plotH; };\r\n  var slot = plotW / rows.length, bw = Math.max(6, Math.min(48, slot * 0.62));\r\n  var bars = [];\r\n  for (var j = 0; j < rows.length; j++){\r\n    var r = rows[j];\r\n    var cx = padL + slot * j + slot / 2;\r\n    var yTop = y(Math.max(r.start, r.end)), yBot = y(Math.min(r.start, r.end));\r\n    var color = r.type === 'start' || r.type === 'subtotal' ? WF_TOTAL : (r.delta >= 0 ? WF_UP : WF_DOWN);\r\n    bars.push({ label:r.label, type:r.type, delta:round2(r.delta), cumulative:round2(r.cumulative),\r\n                x:cx - bw / 2, y:yTop, w:bw, h:Math.max(1.5, yBot - yTop), cx:cx, color:color,\r\n                connectorY:y(r.end) });\r\n  }\r\n  var step = niceStep(hi - lo, 5), ticks = [];\r\n  var t0 = Math.ceil(lo / step) * step;\r\n  for (var t = t0; t <= hi + 1e-9; t += step) ticks.push({ value:round2(t), y:y(t) });\r\n  return { bars:bars, ticks:ticks, width:W, height:H, padL:padL, padT:padT, plotW:plotW, plotH:plotH, zeroY:y(0), empty:false };\r\n}\r\n\r\nfunction escXml(s){\r\n  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\r\n}\r\n\r\nfunction fmtNum(n){\r\n  var a = Math.abs(n);\r\n  if (a >= 1e8) return (Math.round(n / 1e7) / 10) + '亿';\r\n  if (a >= 1e4) return (Math.round(n / 1e3) / 10) + '万';\r\n  return String(Math.round(n * 100) / 100);\r\n}\r\n\r\nfunction toSvg(lay){\r\n  if (!lay || lay.empty) return '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"' + ((lay && lay.width) || 680) + '\" height=\"' + ((lay && lay.height) || 340) + '\"></svg>';\r\n  var out = ['<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ' + lay.width + ' ' + lay.height + '\" width=\"100%\" height=\"' + lay.height + '\" role=\"img\" aria-label=\"瀑布图\">'];\r\n  out.push('<rect width=\"' + lay.width + '\" height=\"' + lay.height + '\" fill=\"#0A0A0B\"/>');\r\n  for (var t = 0; t < lay.ticks.length; t++){\r\n    var tk = lay.ticks[t];\r\n    out.push('<line x1=\"' + lay.padL + '\" y1=\"' + r2(tk.y) + '\" x2=\"' + (lay.width - 14) + '\" y2=\"' + r2(tk.y) + '\" stroke=\"rgba(255,255,255,.08)\"/>');\r\n    out.push('<text x=\"' + (lay.padL - 8) + '\" y=\"' + r2(tk.y + 4) + '\" fill=\"#71717A\" font-size=\"10\" text-anchor=\"end\" font-family=\"system-ui,sans-serif\">' + escXml(fmtNum(tk.value)) + '</text>');\r\n  }\r\n  for (var i = 0; i < lay.bars.length; i++){\r\n    var b = lay.bars[i];\r\n    if (i > 0){\r\n      var prev = lay.bars[i - 1];\r\n      out.push('<line x1=\"' + r2(prev.cx + prev.w / 2) + '\" y1=\"' + r2(prev.connectorY) + '\" x2=\"' + r2(b.cx - b.w / 2) + '\" y2=\"' + r2(prev.connectorY) + '\" stroke=\"rgba(255,255,255,.22)\" stroke-dasharray=\"3 3\"/>');\r\n    }\r\n    out.push('<rect x=\"' + r2(b.x) + '\" y=\"' + r2(b.y) + '\" width=\"' + r2(b.w) + '\" height=\"' + r2(b.h) + '\" rx=\"2\" fill=\"' + b.color + '\"><title>' + escXml(b.label + ': ' + (b.delta >= 0 && b.type === 'delta' ? '+' : '') + b.delta + ' → ' + b.cumulative) + '</title></rect>');\r\n    out.push('<text x=\"' + r2(b.cx) + '\" y=\"' + r2(b.y - 5) + '\" fill=\"#FFFFFF\" font-size=\"10\" text-anchor=\"middle\" font-family=\"system-ui,sans-serif\">' + escXml((b.type === 'delta' && b.delta > 0 ? '+' : '') + fmtNum(b.delta)) + '</text>');\r\n    out.push('<text x=\"' + r2(b.cx) + '\" y=\"' + (lay.height - 28) + '\" fill=\"#A1A1AA\" font-size=\"10\" text-anchor=\"middle\" font-family=\"system-ui,sans-serif\">' + escXml(b.label) + '</text>');\r\n  }\r\n  out.push('</svg>');\r\n  return out.join('');\r\n}\r\n\r\nfunction r2(n){ return Math.round(n * 100) / 100; }\r\n\r\nvar WaterfallForgePure = {\r\n  parseSeries: parseSeries, compute: compute, analyze: analyze, layout: layout, toSvg: toSvg,\r\n  niceStep: niceStep, fmtNum: fmtNum, UP: WF_UP, DOWN: WF_DOWN, TOTAL: WF_TOTAL\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = WaterfallForgePure;\r\nif (typeof window !== 'undefined') window.WaterfallForgePure = WaterfallForgePure;\r\n\r\n"
+}

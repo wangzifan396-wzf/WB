@@ -1,0 +1,46 @@
+{
+  "id": "YieldForge",
+  "name": "yield_forge",
+  "title": "YieldForge",
+  "description": "从已配平方程式与各反应物用量找出限制反应物、理论产量，并算百分产率。",
+  "entry": "parseEquation",
+  "entries": {
+    "parseEquation": {
+      "paramStyle": "single",
+      "paramNames": [
+        "eq"
+      ],
+      "fields": []
+    },
+    "limiting": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "eq",
+        "amounts",
+        "target"
+      ],
+      "fields": []
+    },
+    "percentYield": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "actual",
+        "theoretical"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "eq": {
+        "type": "string",
+        "description": "输入（eq）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseCounts(form){\r\n  form=String(form).replace(/[\\s·×*]/g,'.');\r\n  var i=0, n=form.length;\r\n  function readFactor(){\r\n    var map={};\r\n    while(i<n){\r\n      var c=form[i];\r\n      if(c==='('){ i++; var g=readFactor();\r\n        var num=1; if(i<n && /[0-9]/.test(form[i])){num=0;while(i<n&&/[0-9]/.test(form[i])){num=num*10+(form[i].charCodeAt(0)-48);i++;}}\r\n        for(var k in g) map[k]=(map[k]||0)+g[k]*num;\r\n        continue;\r\n      }\r\n      if(c===')'){ i++; break; }\r\n      if(c==='.'){ i++;\r\n        var mult=1; if(i<n && /[0-9]/.test(form[i])){mult=0;while(i<n&&/[0-9]/.test(form[i])){mult=mult*10+(form[i].charCodeAt(0)-48);i++;}}\r\n        var rest=readFactor();\r\n        for(var k in rest) map[k]=(map[k]||0)+rest[k]*mult;\r\n        break;\r\n      }\r\n      if(/[A-Z]/.test(c)){\r\n        var sym=c; i++;\r\n        while(i<n && /[a-z]/.test(form[i])){ sym+=form[i]; i++; }\r\n        var cnt=1; if(i<n && /[0-9]/.test(form[i])){cnt=0;while(i<n&&/[0-9]/.test(form[i])){cnt=cnt*10+(form[i].charCodeAt(0)-48);i++;}}\r\n        map[sym]=(map[sym]||0)+cnt;\r\n        continue;\r\n      }\r\n      i++;\r\n    }\r\n    return map;\r\n  }\r\n  return readFactor();\r\n}\r\n\r\nfunction parseEquation(eq){\r\n  var sides=eq.split(/\\s*(?:->|→|=)\\s*/); if(sides.length!==2) return null;\r\n  function side(s){ return s.split('+').map(function(p){ p=p.trim(); var m=p.match(/^(\\d+)?\\s*([A-Za-z0-9().]+)$/);\r\n    if(!m) return null; return {formula:m[2], coeff:m[1]?parseInt(m[1],10):1}; }).filter(Boolean); }\r\n  return {reactants:side(sides[0]), products:side(sides[1])};\r\n}\r\nfunction limiting(eq, amounts, target){\r\n  // amounts: {formula: molesAvailable}; target: product formula\r\n  var p=parseEquation(eq); if(!p) return {error:\"方程式格式错误\"};\r\n  var tgt=null; for(var i=0;i<p.products.length;i++) if(p.products[i].formula===target) tgt=p.products[i];\r\n  if(!tgt) return {error:\"目标产物 \"+target+\" 不在方程式中\"};\r\n  var lim=null, theo=Infinity;\r\n  for(var i=0;i<p.reactants.length;i++){ var r=p.reactants[i];\r\n    var avail=amounts[r.formula]; if(avail==null) return {error:\"缺少反应物 \"+r.formula+\" 的量\"};\r\n    var possible=avail*tgt.coeff/r.coeff;\r\n    if(possible<theo){ theo=possible; lim=r.formula; }\r\n  }\r\n  return {ok:true, limiting:lim, theoretical:theo};\r\n}\r\nfunction percentYield(actual, theoretical){ if(theoretical<=0) return null; return actual/theoretical*100; }\r\nvar EXPORTS={parseEquation:parseEquation, limiting:limiting, percentYield:percentYield};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.YieldForgePure = EXPORTS; }\r\n\r\n"
+}

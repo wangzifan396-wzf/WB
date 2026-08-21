@@ -1,0 +1,60 @@
+{
+  "id": "LinearForge",
+  "name": "linear_forge",
+  "title": "LinearForge",
+  "description": "一元线性回归：最小二乘拟合、R²、残差与 RMSE、预测。",
+  "entry": "linParse",
+  "entries": {
+    "linParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "linFit": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pts"
+      ],
+      "fields": []
+    },
+    "linPredict": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "x"
+      ],
+      "fields": []
+    },
+    "linResiduals": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "pts"
+      ],
+      "fields": []
+    },
+    "linRmse": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "pts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction linParse(text){\r\n  var pts=[];\r\n  var lines=String(text).split('\\n');\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i].trim();\r\n    if(!ln) continue;\r\n    var parts=ln.split(/[,\\t]+/).map(function(x){ return Number(x.trim()); });\r\n    if(parts.length<2||isNaN(parts[0])||isNaN(parts[1]))\r\n      return {value:null, error:'第 '+(i+1)+' 行格式错误（需 x,y）'};\r\n    pts.push([parts[0], parts[1]]);\r\n  }\r\n  return {value:pts, error:null};\r\n}\r\nfunction linFit(pts){\r\n  var n=pts.length;\r\n  if(n<2) return {value:null, error:'至少需要 2 个点'};\r\n  var sx=0, sy=0, sxx=0, sxy=0, syy=0;\r\n  for(var i=0;i<n;i++){\r\n    var x=pts[i][0], y=pts[i][1];\r\n    sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; syy+=y*y;\r\n  }\r\n  var den=n*sxx-sx*sx;\r\n  if(den===0) return {value:null, error:'x 全部相同，无法拟合'};\r\n  var slope=(n*sxy-sx*sy)/den;\r\n  var intercept=(sy-slope*sx)/n;\r\n  var meanY=sy/n, ssTot=0, ssRes=0;\r\n  for(var j=0;j<n;j++){\r\n    var pred=slope*pts[j][0]+intercept;\r\n    ssTot+=(pts[j][1]-meanY)*(pts[j][1]-meanY);\r\n    ssRes+=(pts[j][1]-pred)*(pts[j][1]-pred);\r\n  }\r\n  var r2 = ssTot===0 ? 1 : 1-ssRes/ssTot;\r\n  var covDen=Math.sqrt((n*sxx-sx*sx)*(n*syy-sy*sy));\r\n  var r = covDen===0 ? 0 : (n*sxy-sx*sy)/covDen;\r\n  return {value:{slope:slope, intercept:intercept, r2:r2, r:r, n:n}, error:null};\r\n}\r\nfunction linPredict(model, x){ return model.slope*x+model.intercept; }\r\nfunction linResiduals(model, pts){\r\n  return pts.map(function(p){ return p[1]-linPredict(model, p[0]); });\r\n}\r\nfunction linRmse(model, pts){\r\n  var res=linResiduals(model, pts);\r\n  var s=0;\r\n  for(var i=0;i<res.length;i++) s+=res[i]*res[i];\r\n  return Math.sqrt(s/res.length);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { linParse:linParse, linFit:linFit, linPredict:linPredict, linResiduals:linResiduals, linRmse:linRmse };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.LinearForgePure = { linParse:linParse, linFit:linFit, linPredict:linPredict, linResiduals:linResiduals, linRmse:linRmse };\r\n}\r\n"
+}

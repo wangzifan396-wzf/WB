@@ -1,0 +1,75 @@
+{
+  "id": "SrtForge",
+  "name": "srt_forge",
+  "title": "SrtForge",
+  "description": "字幕工具：SRT 与 WebVTT 互转、时间轴平移与速率缩放、重叠检测与统计，离线可用。",
+  "entry": "srtParseTime",
+  "entries": {
+    "srtParseTime": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "srtFmtTime": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ms",
+        "vtt"
+      ],
+      "fields": []
+    },
+    "srtParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "srtShift": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cues",
+        "deltaMs"
+      ],
+      "fields": []
+    },
+    "srtScale": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cues",
+        "factor"
+      ],
+      "fields": []
+    },
+    "srtStringify": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cues",
+        "vtt"
+      ],
+      "fields": []
+    },
+    "srtStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cues"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction srtParseTime(s){\r\n  var m=String(s).trim().match(/^(\\d{1,2}):(\\d{2}):(\\d{2})[,.](\\d{1,3})$/);\r\n  if(!m) return null;\r\n  return ((+m[1])*3600 + (+m[2])*60 + (+m[3]))*1000 + Number((m[4]+'00').slice(0,3));\r\n}\r\nfunction srtFmtTime(ms, vtt){\r\n  if(ms<0) ms=0;\r\n  var h=Math.floor(ms/3600000), mi=Math.floor(ms%3600000/60000), se=Math.floor(ms%60000/1000), mss=ms%1000;\r\n  function p(n,w){ n=String(n); while(n.length<w) n='0'+n; return n; }\r\n  return p(h,2)+':'+p(mi,2)+':'+p(se,2)+(vtt?'.':',')+p(mss,3);\r\n}\r\nfunction srtParse(text){\r\n  if(!text || !String(text).trim()) return { error:'请输入字幕内容' };\r\n  var body=String(text).replace(/^\\uFEFF/,'').replace(/\\r\\n?/g,'\\n').replace(/^WEBVTT[^\\n]*\\n+/,'');\r\n  var blocks=body.split(/\\n{2,}/), cues=[], bad=[];\r\n  for(var i=0;i<blocks.length;i++){\r\n    var lines=blocks[i].split('\\n').filter(function(l){ return l.trim()!==''; });\r\n    if(!lines.length) continue;\r\n    if(/^\\d+$/.test(lines[0].trim()) && lines.length>1) lines.shift();\r\n    var tm=lines[0] && lines[0].match(/(\\S+)\\s*-->\\s*(\\S+)/);\r\n    if(!tm){ bad.push(i+1); continue; }\r\n    var a=srtParseTime(tm[1]), b=srtParseTime(tm[2]);\r\n    if(a===null||b===null){ bad.push(i+1); continue; }\r\n    cues.push({ start:a, end:b, text:lines.slice(1).join('\\n') });\r\n  }\r\n  if(!cues.length) return { error:'未解析到有效字幕块' };\r\n  return { error:null, cues:cues, bad:bad };\r\n}\r\nfunction srtShift(cues, deltaMs){\r\n  return cues.map(function(c){\r\n    return { start:Math.max(0,c.start+deltaMs), end:Math.max(0,c.end+deltaMs), text:c.text };\r\n  });\r\n}\r\nfunction srtScale(cues, factor){\r\n  if(!(factor>0)) return cues;\r\n  return cues.map(function(c){\r\n    return { start:Math.round(c.start*factor), end:Math.round(c.end*factor), text:c.text };\r\n  });\r\n}\r\nfunction srtStringify(cues, vtt){\r\n  var out = vtt ? 'WEBVTT\\n\\n' : '';\r\n  for(var i=0;i<cues.length;i++){\r\n    var c=cues[i];\r\n    if(!vtt) out += (i+1)+'\\n';\r\n    out += srtFmtTime(c.start,vtt)+' --> '+srtFmtTime(c.end,vtt)+'\\n'+c.text+'\\n\\n';\r\n  }\r\n  return out.replace(/\\n+$/,'\\n');\r\n}\r\nfunction srtStats(cues){\r\n  var dur=0, chars=0, overlap=0;\r\n  for(var i=0;i<cues.length;i++){\r\n    dur += Math.max(0, cues[i].end-cues[i].start);\r\n    chars += cues[i].text.replace(/\\s/g,'').length;\r\n    if(i && cues[i].start < cues[i-1].end) overlap++;\r\n  }\r\n  return { count:cues.length, duration:dur, chars:chars, overlap:overlap,\r\n           span: cues.length? cues[cues.length-1].end - cues[0].start : 0 };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { srtParseTime:srtParseTime, srtFmtTime:srtFmtTime, srtParse:srtParse,\r\n                     srtShift:srtShift, srtScale:srtScale, srtStringify:srtStringify, srtStats:srtStats };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SrtForgePure = { srtParseTime:srtParseTime, srtFmtTime:srtFmtTime, srtParse:srtParse,\r\n                     srtShift:srtShift, srtScale:srtScale, srtStringify:srtStringify, srtStats:srtStats };\r\n}\r\n\r\n"
+}

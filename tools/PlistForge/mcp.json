@@ -1,0 +1,103 @@
+{
+  "id": "PlistForge",
+  "name": "plist_forge",
+  "title": "PlistForge",
+  "description": "Apple plist 解析器：同时支持二进制 bplist00 与 XML 两种格式，递归还原字典/数组/日期/数据/字符串，提示键序与孤儿值，把 Base64 数据单独高亮。分析 macOS/iOS 偏好与配置、提取嵌入信息，零依赖、离线可用。",
+  "entry": "parse",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "parseBinary": {
+      "paramStyle": "object",
+      "paramNames": [
+        "b"
+      ],
+      "fields": [
+        "subarray"
+      ]
+    },
+    "parseXml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "toJson": {
+      "paramStyle": "object",
+      "paramNames": [
+        "node"
+      ],
+      "fields": [
+        "type",
+        "value"
+      ]
+    },
+    "countNodes": {
+      "paramStyle": "object",
+      "paramNames": [
+        "node"
+      ],
+      "fields": [
+        "type",
+        "value"
+      ]
+    },
+    "lines": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "node",
+        "key",
+        "depth",
+        "out"
+      ],
+      "fields": []
+    },
+    "hexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "b64ToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "toHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "appleDate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "secs"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "输入（input）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  function hexToBytes(s){\r\n    var t=String(s||'').replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,'');\r\n    if(t.length%2) t=t.slice(0,-1);\r\n    var o=new Uint8Array(t.length/2);\r\n    for(var i=0;i<o.length;i++) o[i]=parseInt(t.substr(i*2,2),16);\r\n    return o;\r\n  }\r\n  function b64ToBytes(s){\r\n    var t=String(s||'').replace(/[^A-Za-z0-9+/=]/g,'');\r\n    var A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\n    var out=[],buf=0,bits=0;\r\n    for(var i=0;i<t.length;i++){\r\n      if(t[i]==='=') break;\r\n      var v=A.indexOf(t[i]); if(v<0) continue;\r\n      buf=(buf<<6)|v; bits+=6;\r\n      if(bits>=8){ bits-=8; out.push((buf>>bits)&255); }\r\n    }\r\n    return new Uint8Array(out);\r\n  }\r\n  function toHex(b){ var o=[]; for(var i=0;i<b.length;i++){var x=b[i].toString(16); o.push(x.length<2?'0'+x:x);} return o.join(''); }\r\n  function appleDate(secs){\r\n    var ms = Date.UTC(2001,0,1) + secs*1000;\r\n    var d = new Date(ms);\r\n    return isNaN(d.getTime()) ? ('date '+secs) : d.toISOString().replace('.000','');\r\n  }\r\n  function readUInt(b,p,n){ var v=0; for(var i=0;i<n;i++) v=v*256+b[p+i]; return v; }\r\n  function readSInt(b,p,n){\r\n    if(n<=6){ var v=readUInt(b,p,n); if(b[p]&128) v-=Math.pow(2,n*8); return v; }\r\n    // 8/16 字节整数：bplist 中 8 字节整数为有符号\r\n    var hi=readUInt(b,p,4), lo=readUInt(b,p+4,4);\r\n    if(n===8 && (b[p]&128)) return hi*4294967296+lo - Math.pow(2,64);\r\n    return hi*4294967296+lo;\r\n  }\r\n  function readReal(b,p,n){\r\n    var dv=new DataView(b.buffer, b.byteOffset+p, n);\r\n    return n===4 ? dv.getFloat32(0,false) : dv.getFloat64(0,false);\r\n  }\r\n  function utf16be(b,p,len){\r\n    var s='';\r\n    for(var i=0;i<len;i++) s+=String.fromCharCode((b[p+i*2]<<8)|b[p+i*2+1]);\r\n    return s;\r\n  }\r\n  function ascii(b,p,len){ var s=''; for(var i=0;i<len;i++) s+=String.fromCharCode(b[p+i]); return s; }\r\n\r\n  /* ---------------- 二进制 plist ---------------- */\r\n  function parseBinary(b){\r\n    var warns=[];\r\n    if(b.length<40) throw new Error('文件过短（'+b.length+' 字节），不足魔数 + 32 字节尾部');\r\n    var magic = ascii(b,0,8);\r\n    if(magic.slice(0,6)!=='bplist') throw new Error('缺少 bplist 魔数（当前 \"'+magic.slice(0,6)+'\"）');\r\n    var ver = magic.slice(6,8);\r\n    if(ver!=='00') warns.push('版本 '+ver+' 非 00，字段布局可能不同');\r\n\r\n    var tp = b.length-32;\r\n    var offsetIntSize = b[tp+6], objectRefSize = b[tp+7];\r\n    var numObjects = readUInt(b,tp+8,8);\r\n    var topObject  = readUInt(b,tp+16,8);\r\n    var tableOff   = readUInt(b,tp+24,8);\r\n    if(!offsetIntSize || offsetIntSize>8) throw new Error('offsetIntSize='+offsetIntSize+' 非法');\r\n    if(!objectRefSize || objectRefSize>8) throw new Error('objectRefSize='+objectRefSize+' 非法');\r\n    if(tableOff + numObjects*offsetIntSize > b.length) throw new Error('偏移表越界（表位于 '+tableOff+'，共 '+numObjects+' 项）');\r\n    if(topObject >= numObjects) throw new Error('topObject='+topObject+' 超出对象数 '+numObjects);\r\n\r\n    var offsets=[];\r\n    for(var i=0;i<numObjects;i++) offsets.push(readUInt(b, tableOff+i*offsetIntSize, offsetIntSize));\r\n\r\n    var seen = {};\r\n    function obj(idx, depth){\r\n      if(depth>64) throw new Error('嵌套超过 64 层，疑似循环引用');\r\n      if(idx>=numObjects) throw new Error('对象引用 #'+idx+' 越界');\r\n      var p = offsets[idx];\r\n      if(p>=b.length) throw new Error('对象 #'+idx+' 偏移 '+p+' 越界');\r\n      var m = b[p], hi = m>>4, lo = m&15, q = p+1;\r\n      function count(){\r\n        if(lo!==15) return lo;\r\n        var mk=b[q++]; if((mk>>4)!==1) throw new Error('对象 #'+idx+' 的扩展长度标记非法');\r\n        var n=Math.pow(2, mk&15), c=readUInt(b,q,n); q+=n; return c;\r\n      }\r\n      if(m===0x00) return {type:'null', value:null};\r\n      if(m===0x08) return {type:'bool', value:false};\r\n      if(m===0x09) return {type:'bool', value:true};\r\n      if(m===0x0F) return {type:'fill', value:null};\r\n      if(hi===1){ var n1=Math.pow(2,lo); return {type:'int', value:readSInt(b,q,n1)}; }\r\n      if(hi===2){ var n2=Math.pow(2,lo); return {type:'real', value:readReal(b,q,n2)}; }\r\n      if(hi===3){ var s=readReal(b,q,8); return {type:'date', value:appleDate(s), raw:s}; }\r\n      if(hi===4){ var c4=count(); return {type:'data', value:toHex(b.subarray(q,q+c4)), bytes:c4}; }\r\n      if(hi===5){ var c5=count(); return {type:'string', value:ascii(b,q,c5)}; }\r\n      if(hi===6){ var c6=count(); return {type:'string', value:utf16be(b,q,c6), utf16:true}; }\r\n      if(hi===8){ return {type:'uid', value:readUInt(b,q,lo+1)}; }\r\n      if(hi===10 || hi===12){\r\n        var ca=count(), arr=[];\r\n        for(var a=0;a<ca;a++){ arr.push(obj(readUInt(b,q+a*objectRefSize,objectRefSize), depth+1)); }\r\n        return {type: hi===10?'array':'set', value:arr};\r\n      }\r\n      if(hi===13){\r\n        var cd=count(), ents=[], keyBase=q, valBase=q+cd*objectRefSize, prev=null;\r\n        for(var d=0;d<cd;d++){\r\n          var kNode = obj(readUInt(b,keyBase+d*objectRefSize,objectRefSize), depth+1);\r\n          var vNode = obj(readUInt(b,valBase+d*objectRefSize,objectRefSize), depth+1);\r\n          var k = String(kNode.value);\r\n          if(prev!==null && k<prev) warns.push('字典键未按升序排列：\"'+prev+'\" 之后出现 \"'+k+'\"');\r\n          prev=k;\r\n          ents.push({key:k, value:vNode});\r\n        }\r\n        return {type:'dict', value:ents};\r\n      }\r\n      throw new Error('未知对象标记 0x'+m.toString(16)+'（对象 #'+idx+' @'+p+'）');\r\n    }\r\n    var root = obj(topObject, 0);\r\n    return {format:'binary', version:ver, numObjects:numObjects, topObject:topObject,\r\n            offsetIntSize:offsetIntSize, objectRefSize:objectRefSize, root:root, warnings:warns};\r\n  }\r\n\r\n  /* ---------------- XML plist ---------------- */\r\n  function unent(s){\r\n    return s.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'\"')\r\n            .replace(/&apos;/g,\"'\").replace(/&#(\\d+);/g,function(_,d){return String.fromCharCode(+d);})\r\n            .replace(/&amp;/g,'&');\r\n  }\r\n  function parseXml(text){\r\n    var warns=[];\r\n    var s = String(text).replace(/<\\?xml[\\s\\S]*?\\?>/g,'').replace(/<!DOCTYPE[\\s\\S]*?>/g,'')\r\n                        .replace(/<!--[\\s\\S]*?-->/g,'');\r\n    var re=/<(\\/?)([A-Za-z0-9_:-]+)([^>]*?)(\\/?)>|([^<]+)/g, m, stack=[], root=null, pendingKey=null, keyBuf=null;\r\n    function attach(node){\r\n      if(!stack.length){ if(root) warns.push('根节点之后出现多余元素'); root=node; return; }\r\n      var top=stack[stack.length-1];\r\n      if(top.type==='dict'){\r\n        if(pendingKey===null){ warns.push('字典中出现无 <key> 的值：'+node.type); return; }\r\n        top.value.push({key:pendingKey, value:node}); pendingKey=null;\r\n      } else if(top.type==='array'){ top.value.push(node); }\r\n      else warns.push('容器 '+top.type+' 不能包含子元素');\r\n    }\r\n    while((m=re.exec(s))!==null){\r\n      if(m[5]!==undefined){\r\n        var txt=m[5];\r\n        if(keyBuf!==null) keyBuf+=txt;\r\n        else if(stack.length && stack[stack.length-1].pending!==undefined) stack[stack.length-1].pending+=txt;\r\n        continue;\r\n      }\r\n      var close=m[1]==='/', tag=m[2].toLowerCase(), self=m[4]==='/';\r\n      if(tag==='plist') continue;\r\n      if(!close && !self){\r\n        if(tag==='key'){ keyBuf=''; continue; }\r\n        if(tag==='dict'||tag==='array'){ var n={type:tag, value:[]}; attach(n); stack.push(n); continue; }\r\n        stack.push({type:tag, pending:'', value:null, leaf:true}); continue;\r\n      }\r\n      if(self){\r\n        if(tag==='true'||tag==='false'){ attach({type:'bool', value:tag==='true'}); continue; }\r\n        if(tag==='dict'||tag==='array'){ attach({type:tag, value:[]}); continue; }\r\n        attach({type:tag, value:null}); continue;\r\n      }\r\n      // 闭合\r\n      if(tag==='key'){ pendingKey=unent(keyBuf||''); keyBuf=null; continue; }\r\n      var top=stack.pop();\r\n      if(!top){ warns.push('多余的闭合标签 </'+tag+'>'); continue; }\r\n      if(top.type!==tag){ warns.push('标签不匹配：<'+top.type+'> 被 </'+tag+'> 闭合'); }\r\n      if(top.leaf){\r\n        var raw=(top.pending||'');\r\n        var node;\r\n        if(tag==='string') node={type:'string', value:unent(raw)};\r\n        else if(tag==='integer') node={type:'int', value:parseInt(raw.trim(),10)};\r\n        else if(tag==='real') node={type:'real', value:parseFloat(raw.trim())};\r\n        else if(tag==='date') node={type:'date', value:raw.trim()};\r\n        else if(tag==='data') node={type:'data', value:toHex(b64ToBytes(raw)), bytes:b64ToBytes(raw).length};\r\n        else if(tag==='true'||tag==='false') node={type:'bool', value:tag==='true'};\r\n        else { node={type:tag, value:unent(raw)}; warns.push('未知标签 <'+tag+'>'); }\r\n        attach(node);\r\n      }\r\n    }\r\n    if(!root) throw new Error('未找到根节点（需要 <dict>/<array>/标量）');\r\n    if(stack.length) warns.push('有 '+stack.length+' 个标签未闭合');\r\n    return {format:'xml', version:'1.0', root:root, warnings:warns, numObjects:null};\r\n  }\r\n\r\n  function parse(input){\r\n    var raw = String(input||'').trim();\r\n    if(!raw) return {value:null, error:'输入为空'};\r\n    try{\r\n      if(/^\\s*</.test(raw)) return {value:parseXml(raw), error:''};\r\n      var b;\r\n      if(/^[0-9a-fA-F\\s]+$/.test(raw)) b=hexToBytes(raw);\r\n      else b=b64ToBytes(raw);\r\n      if(b.length>=6 && ascii(b,0,6)==='bplist') return {value:parseBinary(b), error:''};\r\n      if(b.length && b[0]===0x3C) return {value:parseXml(ascii(b,0,b.length)), error:''};\r\n      return {value:null, error:'无法识别输入：既不是 XML plist，也没有 bplist 魔数'};\r\n    }catch(e){ return {value:null, error:e.message}; }\r\n  }\r\n\r\n  function toJson(node){\r\n    if(!node) return null;\r\n    if(node.type==='dict'){ var o={}; for(var i=0;i<node.value.length;i++) o[node.value[i].key]=toJson(node.value[i].value); return o; }\r\n    if(node.type==='array'||node.type==='set'){ var a=[]; for(var j=0;j<node.value.length;j++) a.push(toJson(node.value[j])); return a; }\r\n    return node.value;\r\n  }\r\n  function countNodes(node){\r\n    if(!node) return 0;\r\n    var n=1;\r\n    if(node.type==='dict'){ for(var i=0;i<node.value.length;i++) n+=countNodes(node.value[i].value); }\r\n    else if(node.type==='array'||node.type==='set'){ for(var j=0;j<node.value.length;j++) n+=countNodes(node.value[j]); }\r\n    return n;\r\n  }\r\n  function lines(node, key, depth, out){\r\n    out=out||[]; depth=depth||0;\r\n    var pad=new Array(depth+1).join('  ');\r\n    var label = key!==null && key!==undefined ? key+': ' : '';\r\n    if(node.type==='dict'){\r\n      out.push(pad+label+'{ '+node.value.length+' 项 }');\r\n      for(var i=0;i<node.value.length;i++) lines(node.value[i].value, node.value[i].key, depth+1, out);\r\n    } else if(node.type==='array'||node.type==='set'){\r\n      out.push(pad+label+'[ '+node.value.length+' 项 ]');\r\n      for(var j=0;j<node.value.length;j++) lines(node.value[j], null, depth+1, out);\r\n    } else {\r\n      var v=node.value;\r\n      if(node.type==='data') v='<'+node.bytes+' 字节: '+String(v).slice(0,32)+(String(v).length>32?'…':'')+'>';\r\n      if(node.type==='string') v=JSON.stringify(v);\r\n      out.push(pad+label+String(v)+'   ('+node.type+')');\r\n    }\r\n    return out;\r\n  }\r\n\r\n  var API={parse:parse, parseBinary:parseBinary, parseXml:parseXml, toJson:toJson,\r\n           countNodes:countNodes, lines:lines, hexToBytes:hexToBytes, b64ToBytes:b64ToBytes,\r\n           toHex:toHex, appleDate:appleDate};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__PlistForge__=API;\r\n})();\r\n\r\n"
+}

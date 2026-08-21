@@ -1,0 +1,50 @@
+{
+  "id": "BookForge",
+  "name": "book_forge",
+  "title": "BookForge",
+  "description": "离线书签生成器：粘贴 JavaScript 一键生成可拖入书签栏的 javascript: 书签，支持反向解析与语法校验。",
+  "entry": "toBookmarklet",
+  "entries": {
+    "toBookmarklet": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "fromBookmarklet": {
+      "paramStyle": "single",
+      "paramNames": [
+        "url"
+      ],
+      "fields": []
+    },
+    "validateJs": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "stripShebang": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "输入（code）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction stripShebang(code){ return String(code).replace(/^#!.*(\\r?\\n)/,''); }\r\nfunction wrapIife(code){ return '(function(){\"use strict\";\\n'+code+'\\n})();'; }\r\nfunction toBookmarklet(code){\r\n  var src=stripShebang(code);\r\n  return 'javascript:'+encodeURIComponent(wrapIife(src));\r\n}\r\nfunction fromBookmarklet(url){\r\n  url=String(url||'').trim();\r\n  var pre='javascript:';\r\n  if(url.indexOf(pre)===0) url=url.slice(pre.length);\r\n  var dec;\r\n  try{ dec=decodeURIComponent(url); }catch(e){ dec=url; }\r\n  var m=dec.match(/^\\(function\\(\\)\\{\"use strict\";([\\s\\S]*)\\}\\)\\(\\);?$/);\r\n  return m?m[1].replace(/^\\s+|\\s+$/g,'') : dec;\r\n}\r\nfunction validateJs(code){\r\n  try{ new Function(stripShebang(code)); return {ok:true,error:''}; }\r\n  catch(e){ return {ok:false,error:String((e&&e.message)||e)}; }\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports={ toBookmarklet:toBookmarklet, fromBookmarklet:fromBookmarklet, validateJs:validateJs, stripShebang:stripShebang };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.BookForgePure={ toBookmarklet:toBookmarklet, fromBookmarklet:fromBookmarklet, validateJs:validateJs, stripShebang:stripShebang };\r\n}\r\n"
+}

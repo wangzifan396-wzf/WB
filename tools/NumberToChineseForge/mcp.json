@@ -1,0 +1,36 @@
+{
+  "id": "NumberToChineseForge",
+  "name": "number_to_chinese_forge",
+  "title": "NumberToChineseForge",
+  "description": "数字转中文：支持整数转中文小写（一二三）与人民币大写（壹贰叁），含万/亿节处理，离线精确。",
+  "entry": "numToCN",
+  "entries": {
+    "numToCN": {
+      "paramStyle": "single",
+      "paramNames": [
+        "num"
+      ],
+      "fields": []
+    },
+    "toRMB": {
+      "paramStyle": "single",
+      "paramNames": [
+        "yuan"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "num": {
+        "type": "string",
+        "description": "输入（num）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar DIG=['零','一','二','三','四','五','六','七','八','九'];\r\nvar BIG=['','十','百','千'];\r\nvar SEC=['','万','亿','兆'];\r\nfunction sectionToCN(n, top){\r\n  if(n===0) return '';\r\n  var ds=[]; var t=n; while(t>0){ds.unshift(t%10);t=Math.floor(t/10);}\r\n  var len=ds.length; var s='';\r\n  for(var i=0;i<len;i++){ var d=ds[i]; var pos=len-1-i;\r\n    if(d===0){ if(s && s[s.length-1]!=='零') s+='零'; }\r\n    else { if(top && pos===1 && d===1 && i===0) s+=BIG[pos]; else s+=DIG[d]+BIG[pos]; }\r\n  }\r\n  return s.replace(/零+$/,'');\r\n}\r\nfunction numToCN(num){\r\n  if(num===0) return '零';\r\n  var neg=num<0; num=Math.abs(Math.floor(num));\r\n  var secs=[]; while(num>0){secs.unshift(num%10000);num=Math.floor(num/10000);}\r\n  var out='';\r\n  for(var i=0;i<secs.length;i++){ var sec=secs[i]; var str=sectionToCN(sec, i===0);\r\n    if(str===''){ if(out && out[out.length-1]!=='零') out+='零'; continue; }\r\n    out+=str; if(i<secs.length-1) out+=SEC[secs.length-1-i];\r\n  }\r\n  out=out.replace(/零+/g,'零').replace(/零$/,'');\r\n  return (neg?'负':'')+out;\r\n}\r\nvar UD=['零','壹','贰','叁','肆','伍','陆','柒','捌','玖'];\r\nvar UU=['','拾','佰','仟']; var USEC=['','万','亿'];\r\nfunction secToRMB(n){ if(n===0)return ''; var ds=[];var t=n;while(t>0){ds.unshift(t%10);t=Math.floor(t/10);}var len=ds.length;var s='';\r\n  for(var i=0;i<len;i++){var d=ds[i];var pos=len-1-i; if(d===0){if(s&&s[s.length-1]!=='零')s+='零';}else s+=UD[d]+UU[pos];} return s.replace(/零+$/,''); }\r\nfunction intToRMB(n){ if(n===0)return '零'; var secs=[];while(n>0){secs.unshift(n%10000);n=Math.floor(n/10000);}var out='';\r\n  for(var i=0;i<secs.length;i++){var sec=secs[i];var str=secToRMB(sec);if(str===''){if(out&&out[out.length-1]!=='零')out+='零';continue;}out+=str+USEC[secs.length-1-i];}\r\n  out=out.replace(/零+/g,'零').replace(/零$/,''); return out; }\r\nfunction toRMB(yuan){ if(yuan===0) return '零圆整'; var neg=yuan<0; yuan=Math.abs(yuan);\r\n  var total=Math.round(yuan*100); var yp=Math.floor(total/100); var jiao=Math.floor((total%100)/10); var fen=total%10;\r\n  var s=''; if(yp>0) s=intToRMB(yp)+'圆'; if(jiao>0) s+=UD[jiao]+'角'; else if(fen>0 && yp>0) s+='零'; if(fen>0) s+=UD[fen]+'分'; else if(yp>0 && jiao===0) s+='整';\r\n  return (neg?'负':'')+s; }\r\nvar EXPORTS={numToCN:numToCN, toRMB:toRMB};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.NumberToChineseForgePure = EXPORTS; }\r\n\r\n"
+}

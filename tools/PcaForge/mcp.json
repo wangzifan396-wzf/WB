@@ -1,0 +1,51 @@
+{
+  "id": "PcaForge",
+  "name": "pca_forge",
+  "title": "PcaForge",
+  "description": "主成分分析（PCA）：计算二维数据的协方差矩阵并求最大主方向，展示方差最大的投影轴。",
+  "entry": "pcaCenter",
+  "entries": {
+    "pcaCenter": {
+      "paramStyle": "single",
+      "paramNames": [
+        "X"
+      ],
+      "fields": []
+    },
+    "pcaCov": {
+      "paramStyle": "single",
+      "paramNames": [
+        "Xc"
+      ],
+      "fields": []
+    },
+    "pcaEig2": {
+      "paramStyle": "single",
+      "paramNames": [
+        "C"
+      ],
+      "fields": []
+    },
+    "pcaProject": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "Xc",
+        "v"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "X": {
+        "type": "string",
+        "description": "输入（X）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pcaCenter(X){ var n=X.length,d=X[0].length,mean=[],i,j; for(j=0;j<d;j++){var s=0;for(i=0;i<n;i++)s+=X[i][j];mean.push(s/n);} var Xc=[]; for(i=0;i<n;i++){var r=[];for(j=0;j<d;j++)r.push(X[i][j]-mean[j]);Xc.push(r);} return Xc; }\r\nfunction pcaCov(Xc){ var n=Xc.length,d=Xc[0].length,C=[],i,a,b; for(a=0;a<d;a++)C.push(new Array(d).fill(0));\r\n  for(i=0;i<n;i++) for(a=0;a<d;a++) for(b=0;b<d;b++) C[a][b]+=Xc[i][a]*Xc[i][b];\r\n  for(a=0;a<d;a++) for(b=0;b<d;b++) C[a][b]/=n; return C; }\r\nfunction pcaEig2(C){ var a=C[0][0],b=C[0][1],d=C[1][1]; var tr=(a+d)/2, det=a*d-b*b, disc=Math.sqrt(Math.max(0,tr*tr-det)), l1=tr+disc, l2=tr-disc, v;\r\n  if(Math.abs(b)>1e-9){ v=[l1-d, b]; } else { v = Math.abs(a-d)<1e-9 ? [1,1] : (a>=d?[1,0]:[0,1]); }\r\n  var nrm=Math.sqrt(v[0]*v[0]+v[1]*v[1])||1; return {l1:l1,l2:l2, v:[v[0]/nrm, v[1]/nrm]}; }\r\nfunction pcaProject(Xc,v){ return Xc.map(function(r){return r[0]*v[0]+r[1]*v[1];}); }\r\nvar EXPORTS={pcaCenter:pcaCenter, pcaCov:pcaCov, pcaEig2:pcaEig2, pcaProject:pcaProject};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PcaForgePure = EXPORTS; }\r\n\r\n"
+}

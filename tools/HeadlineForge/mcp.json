@@ -1,0 +1,29 @@
+{
+  "id": "HeadlineForge",
+  "name": "headline_forge",
+  "title": "HeadlineForge",
+  "description": "分析标题长度、词数、朗读时长与质量评分",
+  "entry": "analyze",
+  "entries": {
+    "analyze": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction analyze(text){ text=text||''; var words=(text.match(/\\S+/g)||[]); var wc=words.length;\r\n  var charsNoSpace=(text.replace(/\\s/g,'')).length; var chars=text.length;\r\n  var upper=0; for(var i=0;i<text.length;i++){ var ch=text[i]; if(ch>='A'&&ch<='Z') upper++; }\r\n  var upperRatio= chars? upper/chars:0;\r\n  var hasQ=/[?？]/.test(text), hasEx=/[!！]/.test(text);\r\n  var readingSec=Math.round(wc/200*60*10)/10;\r\n  var score=50;\r\n  if(wc>=5&&wc<=12) score+=15; else if(wc<5) score-=10; else if(wc>15) score-=10;\r\n  if(charsNoSpace>=20&&charsNoSpace<=60) score+=15; else if(charsNoSpace>80) score-=15;\r\n  if(hasQ) score+=5; if(/\\d/.test(text)) score+=5; if(upperRatio>0.5&&wc>3) score-=10;\r\n  score=Math.max(0,Math.min(100,score));\r\n  return {chars:chars, charsNoSpace:charsNoSpace, words:wc, readingSec:readingSec,\r\n          upperRatio:Math.round(upperRatio*100)/100, hasQuestion:hasQ, hasExclaim:hasEx, score:score}; }\r\nvar EXPORTS={analyze:analyze};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HeadlineForgePure = EXPORTS; }\r\n\r\n"
+}

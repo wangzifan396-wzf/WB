@@ -1,0 +1,44 @@
+{
+  "id": "ProcsForge",
+  "name": "procs_forge",
+  "title": "ProcsForge",
+  "description": "进程列表：把 PID / 名称 / CPU% / 内存% 的纯文本渲染成可排序表格，支持按 CPU、内存、PID 排序并汇总占用。",
+  "entry": "analyze",
+  "entries": {
+    "analyze": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "sortBy": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "key"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function parse(text){\r\n    var lines=String(text||'').split(/\\r?\\n/).map(function(s){return s.trim();}).filter(function(s){return s;});\r\n    var rows=[];\r\n    for(var i=0;i<lines.length;i++){\r\n      var p=lines[i].split(/\\s+/);\r\n      if(p.length<2) continue;\r\n      rows.push({pid:p[0], name:p[1], cpu:parseFloat(p[2])||0, mem:parseFloat(p[3])||0});\r\n    }\r\n    return rows;\r\n  }\r\n  function sortBy(rows, key){\r\n    var c=rows.slice();\r\n    c.sort(function(a,b){ return (b[key]||0)-(a[key]||0); });\r\n    return c;\r\n  }\r\n  function analyze(text){\r\n    var rows=parse(text), cpu=0, mem=0;\r\n    rows.forEach(function(r){ cpu+=r.cpu; mem+=r.mem; });\r\n    return {value:{rows:rows, totalCpu:cpu, totalMem:mem}};\r\n  }\r\n  var API={analyze:analyze, parse:parse, sortBy:sortBy};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__ProcsForge__=API;\r\n})();\r\n"
+}

@@ -1,0 +1,55 @@
+{
+  "id": "JsxForge",
+  "name": "jsx_forge",
+  "title": "JsxForge",
+  "description": "把 SVG 代码转成可直接使用的 React/JSX 组件：属性自动转驼峰、style 转对象、空元素自闭合，支持 TypeScript 签名与 props 透传，省去手工改写。",
+  "entry": "transform",
+  "entries": {
+    "transform": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "svg",
+        "opt"
+      ],
+      "fields": []
+    },
+    "camel": {
+      "paramStyle": "single",
+      "paramNames": [
+        "name"
+      ],
+      "fields": []
+    },
+    "styleObj": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "clean": {
+      "paramStyle": "single",
+      "paramNames": [
+        "svg"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "svg": {
+        "type": "string",
+        "description": "第 1 个参数（svg）"
+      },
+      "opt": {
+        "type": "object",
+        "description": "第 2 个参数（opt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  var KEEP=/^(data-|aria-)/;\r\n  var SPECIAL={'class':'className','for':'htmlFor','tabindex':'tabIndex','readonly':'readOnly',\r\n               'maxlength':'maxLength','colspan':'colSpan','rowspan':'rowSpan','usemap':'useMap',\r\n               'contenteditable':'contentEditable','crossorigin':'crossOrigin','datetime':'dateTime',\r\n               'enctype':'encType','autofocus':'autoFocus','autocomplete':'autoComplete',\r\n               'srcset':'srcSet','novalidate':'noValidate','accept-charset':'acceptCharset'};\r\n  var VOID={path:1,circle:1,rect:1,line:1,polyline:1,polygon:1,ellipse:1,use:1,stop:1,image:1,\r\n            br:1,img:1,input:1,hr:1,meta:1,link:1,area:1,base:1,col:1,embed:1,source:1,track:1,wbr:1};\r\n  function camel(name){\r\n    if(KEEP.test(name)) return name;\r\n    if(SPECIAL[name.toLowerCase()]) return SPECIAL[name.toLowerCase()];\r\n    return name.replace(/[:-]+([a-zA-Z0-9])/g,function(m,c){return c.toUpperCase();});\r\n  }\r\n  function styleObj(s){\r\n    var parts=String(s).split(';'),o=[];\r\n    for(var i=0;i<parts.length;i++){\r\n      var p=parts[i];\r\n      if(!p||p.indexOf(':')<0) continue;\r\n      var k=p.slice(0,p.indexOf(':')).trim(),v=p.slice(p.indexOf(':')+1).trim();\r\n      if(!k) continue;\r\n      var ck=(k.charAt(0)==='-')?k:k.replace(/-+([a-z])/g,function(m,c){return c.toUpperCase();});\r\n      o.push((/^[A-Za-z][A-Za-z0-9]*$/.test(ck)?ck:JSON.stringify(ck))+\": '\"+v.replace(/'/g,\"\\\\'\")+\"'\");\r\n    }\r\n    return '{{'+o.join(', ')+'}}';\r\n  }\r\n  var ATTR_RE=/([^\\s=\\/>]+)(\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s\"'>]+))?/g;\r\n  function convAttrs(raw,spread){\r\n    var out=[],m;\r\n    ATTR_RE.lastIndex=0;\r\n    while((m=ATTR_RE.exec(raw))){\r\n      var name=m[1],val=m[3];\r\n      if(!name) continue;\r\n      if(val==null){ out.push(camel(name)); continue; }\r\n      var q=val.charAt(0),body=(q==='\"'||q===\"'\")?val.slice(1,-1):val;\r\n      if(name.toLowerCase()==='style'){ out.push('style='+styleObj(body)); continue; }\r\n      out.push(camel(name)+'=\"'+body.replace(/\"/g,'&quot;')+'\"');\r\n    }\r\n    if(spread) out.push('{...props}');\r\n    return out.length?(' '+out.join(' ')):'';\r\n  }\r\n  function clean(svg){\r\n    return String(svg||'')\r\n      .replace(/<\\?xml[\\s\\S]*?\\?>/g,'')\r\n      .replace(/<!DOCTYPE[\\s\\S]*?>/gi,'')\r\n      .replace(/<!--[\\s\\S]*?-->/g,'')\r\n      .replace(/^\\s+|\\s+$/g,'');\r\n  }\r\n  function transform(svg,opt){\r\n    opt=opt||{};\r\n    var s=clean(svg);\r\n    if(!s) return {error:'请输入 SVG 源码'};\r\n    if(s.indexOf('<svg')<0) return {error:'未找到 svg 根元素'};\r\n    var first=true;\r\n    var out=s.replace(/<(\\/?)([A-Za-z][\\w:.-]*)((?:\\s+[^\\s=\\/>]+(?:\\s*=\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s\"'>]+))?)*)\\s*(\\/?)>/g,\r\n      function(all,slash,tag,attrs,selfc){\r\n        if(slash) return '</'+tag+'>';\r\n        var spread=(first&&opt.spread!==false&&tag.toLowerCase()==='svg');\r\n        var a=convAttrs(attrs||'',spread);\r\n        if(first) first=false;\r\n        var sc=(selfc==='/')||VOID[tag.toLowerCase()]===1;\r\n        return '<'+tag+a+(sc?' />':'>');\r\n      });\r\n    var name=String(opt.name||'Icon').replace(/[^A-Za-z0-9_]/g,'')||'Icon';\r\n    if(/^[0-9]/.test(name)) name='Icon'+name;\r\n    var body=out.split('\\n').map(function(l){return l?('    '+l):l;}).join('\\n');\r\n    var ts=!!opt.ts;\r\n    var sig=ts?('const '+name+' = (props: React.SVGProps<SVGSVGElement>) => (')\r\n              :('const '+name+' = (props) => (');\r\n    var code=\"import * as React from 'react';\\n\\n\"+sig+'\\n'+body+'\\n);\\n\\nexport default '+name+';\\n';\r\n    if(opt.wrap===false) code=out+'\\n';\r\n    var attrCount=(out.match(/[A-Za-z]+=\"/g)||[]).length;\r\n    return {value:{code:code,jsx:out,name:name,attrs:attrCount,bytes:code.length}};\r\n  }\r\n  var API={transform:transform,camel:camel,styleObj:styleObj,clean:clean};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__JsxForge__=API;\r\n})();\r\n\r\n"
+}

@@ -1,0 +1,70 @@
+{
+  "id": "DiceForge",
+  "name": "dice_forge",
+  "title": "DiceForge",
+  "description": "骰子投掷工具：支持 NdM 记号（如 3d6、2d20+3）、优势/劣势（D&D 5e 取高/取低），实时显示每颗点数、合计与丢弃值，结果可复制。",
+  "entry": "roll",
+  "entries": {
+    "roll": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opts"
+      ],
+      "fields": [
+        "rng",
+        "count",
+        "sides",
+        "mod",
+        "dropL",
+        "dropH"
+      ]
+    },
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "rngFrom": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "rng": {
+        "type": "string",
+        "description": "参数 rng"
+      },
+      "count": {
+        "type": "string",
+        "description": "参数 count"
+      },
+      "sides": {
+        "type": "string",
+        "description": "参数 sides"
+      },
+      "mod": {
+        "type": "string",
+        "description": "参数 mod"
+      },
+      "dropL": {
+        "type": "string",
+        "description": "参数 dropL"
+      },
+      "dropH": {
+        "type": "string",
+        "description": "参数 dropH"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function rngFrom(seed){var s=(seed>>>0)||1;return function(){s=(s*1664525+1013904223)>>>0;return s/4294967296;};}\r\n  function roll(opts){opts=opts||{};var rng=opts.rng||Math.random;var n=opts.count==null?1:opts.count,sides=opts.sides==null?6:opts.sides,mod=opts.mod==null?0:opts.mod;\r\n    if(n<1||n>1000)return{error:'次数须 1–1000'};if(sides<2||sides>1000)return{error:'面数须 2–1000'};\r\n    var rolls=[],i;for(i=0;i<n;i++)rolls.push(1+Math.floor(rng()*sides));\r\n    var total=rolls.reduce(function(a,b){return a+b;},0)+mod,dropped=null;\r\n    if(opts.dropL){var mi=rolls.indexOf(Math.min.apply(null,rolls));dropped={keep:rolls.filter(function(_,k){return k!==mi;}),drop:[rolls[mi]]};}\r\n    if(opts.dropH){var xi=rolls.indexOf(Math.max.apply(null,rolls));dropped={keep:rolls.filter(function(_,k){return k!==xi;}),drop:[rolls[xi]]};}\r\n    if(dropped){total=dropped.keep.reduce(function(a,b){return a+b;},0)+mod;}\r\n    return {value:{rolls:rolls,total:total,mod:mod,dropped:dropped}};\r\n  }\r\n  function parse(s){var m=String(s).trim().toLowerCase().match(/^(\\d*)d(\\d+)(?:([+-])(\\d+))?$/);if(!m)return null;return {count:m[1]?parseInt(m[1],10):1,sides:parseInt(m[2],10),mod:(m[3]==='-'?-1:1)*(m[4]?parseInt(m[4],10):0)};}\r\n  var API={roll:roll,parse:parse,rngFrom:rngFrom};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__DiceForge__=API;\r\n})();\r\n\r\n"
+}

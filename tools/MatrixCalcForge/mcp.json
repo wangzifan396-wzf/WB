@@ -1,0 +1,74 @@
+{
+  "id": "MatrixCalcForge",
+  "name": "matrix_calc_forge",
+  "title": "MatrixCalcForge",
+  "description": "矩阵加/减/乘/转置/行列式/求逆",
+  "entry": "parseMatrix",
+  "entries": {
+    "parseMatrix": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "add": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "sub": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "mul": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "transpose": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "det": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "inverse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseMatrix(text){ var lines=String(text).trim().split(/\\n/).filter(function(l){return l.trim().length;});\r\n  var rows=[]; for(var i=0;i<lines.length;i++){ var vals=lines[i].trim().split(/[\\s,;]+/).filter(function(x){return x.length;}).map(function(x){return parseFloat(x);});\r\n    if(vals.some(function(v){return isNaN(v);})) return {error:'第 '+(i+1)+' 行含非数字'}; rows.push(vals); }\r\n  if(!rows.length) return {error:'矩阵为空'};\r\n  var c=rows[0].length; for(var j=1;j<rows.length;j++){ if(rows[j].length!==c) return {error:'各行列数不一致'}; }\r\n  return {m:rows};\r\n}\r\nfunction add(a,b){ if(a.length!==b.length||a[0].length!==b[0].length) return {error:'维度不匹配'};\r\n  return a.map(function(r,i){return r.map(function(v,j){return v+b[i][j];});}); }\r\nfunction sub(a,b){ if(a.length!==b.length||a[0].length!==b[0].length) return {error:'维度不匹配'};\r\n  return a.map(function(r,i){return r.map(function(v,j){return v-b[i][j];});}); }\r\nfunction mul(a,b){ if(a[0].length!==b.length) return {error:'A列数须等于B行数'};\r\n  var out=[]; for(var i=0;i<a.length;i++){ out[i]=[]; for(var j=0;j<b[0].length;j++){ var s=0; for(var k=0;k<b.length;k++) s+=a[i][k]*b[k][j]; out[i][j]=s; } } return out; }\r\nfunction transpose(a){ var out=[]; for(var j=0;j<a[0].length;j++){ out[j]=[]; for(var i=0;i<a.length;i++) out[j][i]=a[i][j]; } return out; }\r\nfunction det(a){ var n=a.length; if(n!==a[0].length) return {error:'须为方阵'};\r\n  var M=a.map(function(r){return r.slice();}); var d=1;\r\n  for(var i=0;i<n;i++){ var p=i; for(var r=i+1;r<n;r++) if(Math.abs(M[r][i])>Math.abs(M[p][i])) p=r;\r\n    if(p!==i){ var t=M[p];M[p]=M[i];M[i]=t; d=-d; }\r\n    if(Math.abs(M[i][i])<1e-12) return 0;\r\n    for(var r2=i+1;r2<n;r2++){ var f=M[r2][i]/M[i][i]; for(var c=i;c<n;c++) M[r2][c]-=f*M[i][c]; } }\r\n  for(var k=0;k<n;k++) d*=M[k][k]; return d; }\r\nfunction inverse(a){ var n=a.length; if(n!==a[0].length) return {error:'须为方阵'};\r\n  var D=det(a); if(typeof D==='object') return D; if(Math.abs(D)<1e-12) return {error:'行列式为 0，不可逆'};\r\n  var M=a.map(function(r,i){return r.slice().concat(identityRow(n,i));});\r\n  for(var i=0;i<n;i++){ var p=i; for(var r=i+1;r<n;r++) if(Math.abs(M[r][i])>Math.abs(M[p][i])) p=r;\r\n    var t=M[p];M[p]=M[i];M[i]=t; var iv=1/M[i][i]; for(var c=0;c<2*n;c++) M[i][c]*=iv;\r\n    for(var r2=0;r2<n;r2++){ if(r2===i) continue; var f=M[r2][i]; for(var c2=0;c2<2*n;c2++) M[r2][c2]-=f*M[i][c2]; } }\r\n  return M.map(function(r){return r.slice(n);}); }\r\nfunction identityRow(n,i){ var r=[]; for(var j=0;j<n;j++) r[j]=(j===i)?1:0; return r; }\r\nvar EXPORTS={parseMatrix:parseMatrix,add:add,sub:sub,mul:mul,transpose:transpose,det:det,inverse:inverse};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MatrixCalcForgePure = EXPORTS; }\r\n\r\n"
+}

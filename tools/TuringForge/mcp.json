@@ -1,0 +1,37 @@
+{
+  "id": "TuringForge",
+  "name": "turing_forge",
+  "title": "TuringForge",
+  "description": "图灵机：用 DSL 定义纸带/状态/转移，单步或连续推演，可视化磁带与读写头。",
+  "entry": "tmParse",
+  "entries": {
+    "tmParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": []
+    },
+    "tmRun": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "program",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "type": "string",
+        "description": "输入（spec）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction tmParse(spec){\r\n  var lines = spec.split(/\\r?\\n/);\r\n  var blank='_', start='q0', accept='qa', reject='qr', tapeStr='', trans={};\r\n  for(var i=0;i<lines.length;i++){\r\n    var line=lines[i].trim();\r\n    if(!line || line[0]==='#') continue;\r\n    var m;\r\n    if((m=line.match(/^tape:\\s*(.*)$/))) tapeStr=m[1];\r\n    else if((m=line.match(/^start:\\s*(\\S+)$/))) start=m[1];\r\n    else if((m=line.match(/^accept:\\s*(\\S+)$/))) accept=m[1];\r\n    else if((m=line.match(/^reject:\\s*(\\S+)$/))) reject=m[1];\r\n    else if((m=line.match(/^blank:\\s*(\\S+)$/))) blank=m[1];\r\n    else if((m=line.match(/^([^,]+),\\s*([^ ]+)\\s*->\\s*([^,]+),\\s*([^,]+),\\s*([LRS])$/))){\r\n      trans[m[1].trim()+'\\u0000'+m[2].trim()]={state:m[3].trim(), write:m[4].trim(), dir:m[5].trim()};\r\n    } else throw new Error('无法解析规则: '+line);\r\n  }\r\n  return {blank:blank, start:start, accept:accept, reject:reject, transitions:trans, tape:tapeStr};\r\n}\r\nfunction tmRun(program, opts){\r\n  opts=opts||{};\r\n  var maxSteps=opts.maxSteps||1000, blank=program.blank;\r\n  var tape=String(program.tape||'').split('');\r\n  if(opts.initTape!==undefined) tape=String(opts.initTape).split('');\r\n  var head=opts.head||0, state=program.start, steps=0, trace=[];\r\n  function snap(){ trace.push({state:state, head:head, tape:tape.join('')}); }\r\n  snap();\r\n  while(steps<maxSteps){\r\n    while(head<0){ tape.unshift(blank); head=0; }\r\n    while(head>=tape.length){ tape.push(blank); }\r\n    var key=state+'\\u0000'+tape[head];\r\n    var rule=program.transitions[key];\r\n    if(!rule) return {steps:steps,status:'halt',state:state,head:head,tape:tape.join(''),trace:trace,accepted:state===program.accept};\r\n    tape[head]=rule.write; state=rule.state;\r\n    if(rule.dir==='L') head--; else if(rule.dir==='R') head++;\r\n    steps++; snap();\r\n    if(state===program.accept) return {steps:steps,status:'accept',state:state,head:head,tape:tape.join(''),trace:trace,accepted:true};\r\n    if(state===program.reject) return {steps:steps,status:'reject',state:state,head:head,tape:tape.join(''),trace:trace,accepted:false};\r\n  }\r\n  return {steps:steps,status:'timeout',state:state,head:head,tape:tape.join(''),trace:trace,accepted:false};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tmParse:tmParse, tmRun:tmRun };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TuringForgePure = { tmParse:tmParse, tmRun:tmRun };\r\n}\r\n"
+}

@@ -1,0 +1,49 @@
+{
+  "id": "NeedlemanForge",
+  "name": "needleman_forge",
+  "title": "NeedlemanForge",
+  "description": "全局序列比对（Needleman-Wunsch）：带得分矩阵的动态规划与回溯，离线可用。",
+  "entry": "needleman",
+  "entries": {
+    "needleman": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s1",
+        "s2",
+        "match",
+        "mismatch",
+        "gap"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s1": {
+        "type": "string",
+        "description": "第 1 个参数（s1）"
+      },
+      "s2": {
+        "type": "string",
+        "description": "第 2 个参数（s2）"
+      },
+      "match": {
+        "type": "string",
+        "description": "第 3 个参数（match）"
+      },
+      "mismatch": {
+        "type": "string",
+        "description": "第 4 个参数（mismatch）"
+      },
+      "gap": {
+        "type": "string",
+        "description": "第 5 个参数（gap）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction needleman(s1, s2, match, mismatch, gap){\r\n  match=(match===undefined)?1:match; mismatch=(mismatch===undefined)?(-1):mismatch; gap=(gap===undefined)?(-1):gap;\r\n  var n=s1.length, m=s2.length; var dp=[]; for(var i=0;i<=n;i++){ var row=[]; for(var j=0;j<=m;j++) row.push(0); dp.push(row); }\r\n  for(var i=1;i<=n;i++) dp[i][0]=i*gap;\r\n  for(var j=1;j<=m;j++) dp[0][j]=j*gap;\r\n  for(var i=1;i<=n;i++) for(var j=1;j<=m;j++){\r\n    var diag=dp[i-1][j-1]+(s1[i-1]===s2[j-1]?match:mismatch);\r\n    var up=dp[i-1][j]+gap, left=dp[i][j-1]+gap;\r\n    dp[i][j]=Math.max(diag,up,left);\r\n  }\r\n  var a1='',a2=''; var i=n,j=m;\r\n  while(i>0&&j>0){ var diag=dp[i-1][j-1]+(s1[i-1]===s2[j-1]?match:mismatch);\r\n    if(dp[i][j]===diag){ a1=s1[i-1]+a1; a2=s2[j-1]+a2; i--; j--; }\r\n    else if(dp[i][j]===dp[i-1][j]+gap){ a1=s1[i-1]+a1; a2='-'+a2; i--; }\r\n    else { a1='-'+a1; a2=s2[j-1]+a2; j--; } }\r\n  while(i>0){ a1=s1[i-1]+a1; a2='-'+a2; i--; }\r\n  while(j>0){ a1='-'+a1; a2=s2[j-1]+a2; j--; }\r\n  return {score:dp[n][m], a1:a1, a2:a2};\r\n}\r\nvar EXPORTS={needleman:needleman};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.NeedlemanForgePure = EXPORTS; }\r\n\r\n"
+}

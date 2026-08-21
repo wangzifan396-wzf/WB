@@ -1,0 +1,53 @@
+{
+  "id": "SoundexForge",
+  "name": "soundex_forge",
+  "title": "SoundexForge",
+  "description": "Soundex + Metaphone 语音编码：人名纠错与同音异拼分组。",
+  "entry": "sxSoundex",
+  "entries": {
+    "sxSoundex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "word"
+      ],
+      "fields": []
+    },
+    "sxMetaphone": {
+      "paramStyle": "single",
+      "paramNames": [
+        "word"
+      ],
+      "fields": []
+    },
+    "sxGroup": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "words",
+        "algo"
+      ],
+      "fields": []
+    },
+    "sxMatch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "query",
+        "words",
+        "algo"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "word": {
+        "type": "string",
+        "description": "输入（word）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction sxSoundex(word){\r\n  var w=String(word).toUpperCase().replace(/[^A-Z]/g,'');\r\n  if(!w) return { value:null, error:'需要至少一个英文字母' };\r\n  var codes={ B:'1',F:'1',P:'1',V:'1', C:'2',G:'2',J:'2',K:'2',Q:'2',S:'2',X:'2',Z:'2',\r\n    D:'3',T:'3', L:'4', M:'5',N:'5', R:'6' };\r\n  var first=w[0], out=first, prev=codes[first]||'';\r\n  for(var i=1;i<w.length;i++){\r\n    var ch=w[i], c=codes[ch]||'';\r\n    if(ch==='H'||ch==='W') continue; // H/W transparent: keep prev\r\n    if(c && c!==prev) out+=c;\r\n    prev=c;\r\n  }\r\n  out=(out+'000').slice(0,4);\r\n  return { value:out, error:null };\r\n}\r\nfunction sxMetaphone(word){\r\n  var w=String(word).toUpperCase().replace(/[^A-Z]/g,'');\r\n  if(!w) return { value:null, error:'需要至少一个英文字母' };\r\n  // simplified metaphone: transformations on common digraphs\r\n  var s=w;\r\n  s=s.replace(/^KN|^GN|^PN|^WR|^AE/,function(m){ return m.slice(1); });\r\n  s=s.replace(/^X/,'S');\r\n  s=s.replace(/MB$/,'M');\r\n  s=s.replace(/PH/g,'F').replace(/TH/g,'0').replace(/SH/g,'X').replace(/CH/g,'X');\r\n  s=s.replace(/CK/g,'K').replace(/SCH/g,'SK');\r\n  s=s.replace(/C(?=[IEY])/g,'S').replace(/C/g,'K');\r\n  s=s.replace(/G(?=[IEY])/g,'J').replace(/GH(?![AEIOU])/g,'').replace(/G/g,'K');\r\n  s=s.replace(/D(?=G[IEY])/g,'J').replace(/D/g,'T');\r\n  s=s.replace(/Z/g,'S').replace(/V/g,'F').replace(/Q/g,'K').replace(/W(?![AEIOU])/g,'').replace(/Y(?![AEIOU])/g,'');\r\n  s=s.replace(/X/g,'KS');\r\n  var first=s[0]||'';\r\n  var rest=s.slice(1).replace(/[AEIOU]/g,'');\r\n  s=first+rest;\r\n  s=s.replace(/(.)\\1+/g,'$1');\r\n  return { value:s, error:null };\r\n}\r\nfunction sxGroup(words, algo){\r\n  if(!Array.isArray(words)||!words.length) return { value:null, error:'单词列表为空' };\r\n  var f=algo==='metaphone'?sxMetaphone:sxSoundex;\r\n  var map={};\r\n  for(var i=0;i<words.length;i++){\r\n    var r=f(words[i]);\r\n    if(r.error) return { value:null, error:'\"'+words[i]+'\": '+r.error };\r\n    (map[r.value]=map[r.value]||[]).push(words[i]);\r\n  }\r\n  return { value:map, error:null };\r\n}\r\nfunction sxMatch(query, words, algo){\r\n  var f=algo==='metaphone'?sxMetaphone:sxSoundex;\r\n  var q=f(query);\r\n  if(q.error) return { value:null, error:q.error };\r\n  var out=[];\r\n  for(var i=0;i<words.length;i++){\r\n    var r=f(words[i]);\r\n    if(!r.error && r.value===q.value) out.push(words[i]);\r\n  }\r\n  return { value:{ code:q.value, matches:out }, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { sxSoundex:sxSoundex, sxMetaphone:sxMetaphone, sxGroup:sxGroup, sxMatch:sxMatch };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SoundexForgePure = { sxSoundex:sxSoundex, sxMetaphone:sxMetaphone, sxGroup:sxGroup, sxMatch:sxMatch };\r\n}\r\n"
+}

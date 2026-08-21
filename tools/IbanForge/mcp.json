@@ -1,0 +1,72 @@
+{
+  "id": "IbanForge",
+  "name": "iban_forge",
+  "title": "IbanForge",
+  "description": "IBAN 与银行卡校验：mod-97 校验位推算、41 国长度表、四位分组格式化、Luhn 校验，离线可用。",
+  "entry": "ibNormalize",
+  "entries": {
+    "ibNormalize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "ibMod97": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "ibToNumeric": {
+      "paramStyle": "single",
+      "paramNames": [
+        "iban"
+      ],
+      "fields": []
+    },
+    "ibValidate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "ibFormat": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "ibCheckDigits": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cc",
+        "bban"
+      ],
+      "fields": []
+    },
+    "ibLuhn": {
+      "paramStyle": "single",
+      "paramNames": [
+        "num"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar IB_LEN = { AD:24,AE:23,AT:20,BE:16,BG:22,CH:21,CY:28,CZ:24,DE:22,DK:18,EE:20,ES:24,\r\n  FI:18,FR:27,GB:22,GI:23,GR:27,HR:21,HU:28,IE:22,IL:23,IS:26,IT:27,LI:21,LT:20,LU:20,\r\n  LV:21,MC:27,MT:31,NL:18,NO:15,PL:28,PT:25,RO:24,RS:22,SA:24,SE:24,SI:19,SK:24,SM:27,TR:26,UA:29 };\r\nfunction ibNormalize(s){ return String(s==null?'':s).toUpperCase().replace(/[\\s-]/g,''); }\r\nfunction ibMod97(str){\r\n  var rem=0;\r\n  for(var i=0;i<str.length;i++) rem=(rem*10+(str.charCodeAt(i)-48))%97;\r\n  return rem;\r\n}\r\nfunction ibToNumeric(iban){\r\n  var re=iban.slice(4)+iban.slice(0,4), out='';\r\n  for(var i=0;i<re.length;i++){\r\n    var c=re.charCodeAt(i);\r\n    if(c>=65 && c<=90) out += (c-55);\r\n    else out += re[i];\r\n  }\r\n  return out;\r\n}\r\nfunction ibValidate(input){\r\n  var s=ibNormalize(input);\r\n  if(!s) return { error:'\\u8bf7\\u8f93\\u5165 IBAN' };\r\n  if(!/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(s))\r\n    return { error:null, valid:false, reason:'\\u683c\\u5f0f\\u5e94\\u4e3a 2 \\u4f4d\\u56fd\\u5bb6\\u7801 + 2 \\u4f4d\\u6821\\u9a8c\\u4f4d + \\u5b57\\u6bcd\\u6570\\u5b57', iban:s };\r\n  var cc=s.slice(0,2), want=IB_LEN[cc];\r\n  if(want && s.length!==want)\r\n    return { error:null, valid:false, reason:cc+' \\u7684 IBAN \\u957f\\u5ea6\\u5e94\\u4e3a '+want+'\\uff0c\\u5b9e\\u9645 '+s.length, iban:s, country:cc };\r\n  var mod=ibMod97(ibToNumeric(s));\r\n  return { error:null, valid:mod===1, iban:s, country:cc, known:!!want, mod:mod,\r\n           reason: mod===1 ? '' : 'mod-97 \\u6821\\u9a8c\\u5931\\u8d25\\uff08\\u4f59\\u6570 '+mod+'\\uff0c\\u5e94\\u4e3a 1\\uff09' };\r\n}\r\nfunction ibFormat(input){\r\n  var s=ibNormalize(input);\r\n  return s.replace(/(.{4})/g,'$1 ').trim();\r\n}\r\nfunction ibCheckDigits(cc, bban){\r\n  var body=ibNormalize(cc)+'00'+ibNormalize(bban);\r\n  var mod=ibMod97(ibToNumeric(body));\r\n  var cd=98-mod;\r\n  return (cd<10?'0':'')+cd;\r\n}\r\nfunction ibLuhn(num){\r\n  var s=String(num==null?'':num).replace(/[\\s-]/g,'');\r\n  if(!/^\\d+$/.test(s) || s.length<2) return { valid:false, reason:'\\u8bf7\\u8f93\\u5165\\u81f3\\u5c11 2 \\u4f4d\\u6570\\u5b57' };\r\n  var sum=0, alt=false;\r\n  for(var i=s.length-1;i>=0;i--){\r\n    var d=s.charCodeAt(i)-48;\r\n    if(alt){ d*=2; if(d>9) d-=9; }\r\n    sum+=d; alt=!alt;\r\n  }\r\n  return { valid: sum%10===0, sum:sum, reason: sum%10===0 ? '' : 'Luhn \\u6821\\u9a8c\\u4f4d\\u4e0d\\u6b63\\u786e' };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { ibNormalize:ibNormalize, ibMod97:ibMod97, ibToNumeric:ibToNumeric,\r\n                     ibValidate:ibValidate, ibFormat:ibFormat, ibCheckDigits:ibCheckDigits, ibLuhn:ibLuhn, IB_LEN:IB_LEN };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.IbanForgePure = { ibNormalize:ibNormalize, ibMod97:ibMod97, ibToNumeric:ibToNumeric,\r\n                     ibValidate:ibValidate, ibFormat:ibFormat, ibCheckDigits:ibCheckDigits, ibLuhn:ibLuhn, IB_LEN:IB_LEN };\r\n}\r\n\r\n"
+}

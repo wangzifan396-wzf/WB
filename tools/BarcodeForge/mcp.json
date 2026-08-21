@@ -1,0 +1,66 @@
+{
+  "id": "BarcodeForge",
+  "name": "barcode_forge",
+  "title": "BarcodeForge",
+  "description": "离线一维条码生成器：Code 128 / EAN-13 / UPC-A（含校验位），矢量 SVG 导出，零依赖。",
+  "entry": "expandPattern",
+  "entries": {
+    "expandPattern": {
+      "paramStyle": "single",
+      "paramNames": [
+        "p"
+      ],
+      "fields": []
+    },
+    "code128B": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "ean13Checksum": {
+      "paramStyle": "single",
+      "paramNames": [
+        "d12"
+      ],
+      "fields": []
+    },
+    "ean13": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "upca": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "renderSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "modules",
+        "label",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "p": {
+        "type": "string",
+        "description": "输入（p）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ===== 纯函数区（第一个无属性 script）：可被 Node _test.js 提取并断言 ===== */\r\n// Code 128 图案表（符号 0..106，6 元素宽度，停符 7 元素）\r\nvar C128 = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213',\r\n'221312','231212','112232','122132','122231','113222','123122','123221','223211','221132',\r\n'221231','213212','223112','312131','311222','321122','321221','312212','322112','322211',\r\n'212123','212321','232121','111323','131123','131321','112313','132113','132311','211313',\r\n'231113','231311','112133','112331','132131','113123','113321','133121','313121','211331',\r\n'231131','213113','213311','213131','311123','311321','331121','312113','312311','332111',\r\n'314111','221411','431111','111224','111422','121124','121421','141122','141221','112214',\r\n'112412','122114','122411','142112','142211','241211','221114','413111','241112','134111',\r\n'111242','121142','121241','114212','124112','124211','411212','421112','421211','212141',\r\n'214121','214211','412121','111143','111341','131141','114113','114311','411113','411311',\r\n'113141','114131','311141','411131','211412','211214','2331112'];\r\n\r\nfunction expandPattern(p){\r\n  var mods='', i;\r\n  for(i=0;i<p.length;i++){\r\n    var ch = (i % 2 === 0) ? '1' : '0';\r\n    mods += ch.repeat(parseInt(p[i],10));\r\n  }\r\n  return mods;\r\n}\r\nfunction code128B(text){\r\n  var vals=[105], i;\r\n  for(i=0;i<text.length;i++){\r\n    var c=text.charCodeAt(i);\r\n    var v = (c>=32 && c<=126) ? (c-32) : 31; // 31 = '?'\r\n    vals.push(v);\r\n  }\r\n  var sum=105;\r\n  for(i=0;i<text.length;i++) sum += (i+1)*vals[i+1];\r\n  vals.push(sum % 103);\r\n  vals.push(106);\r\n  var mods='';\r\n  for(i=0;i<vals.length;i++) mods += expandPattern(C128[vals[i]]);\r\n  return { modules: mods, text: text };\r\n}\r\n// EAN-13: 返回 13 位（含校验位），校验位缺失时计算\r\nfunction ean13Checksum(d12){\r\n  var s=0;\r\n  for(var i=0;i<12;i++){\r\n    var d=parseInt(d12[i],10);\r\n    s += (i % 2 === 0) ? d : d*3; // i 从 0 起：奇位×1，偶位×3\r\n  }\r\n  return (10 - (s % 10)) % 10;\r\n}\r\nvar EAN_L = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];\r\nvar EAN_G = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];\r\nvar EAN_R = ['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];\r\nvar EAN_PARITY = ['AAAAAA','AABABB','AABBAB','AABBBA','ABAABB','ABBAAB','ABBBAA','ABABAB','ABABBA','ABBABA'];\r\nfunction ean13(input){\r\n  var d = String(input).replace(/\\D/g,'');\r\n  if(d.length === 12) d = d + ean13Checksum(d);\r\n  if(d.length !== 13) return null;\r\n  var first = parseInt(d[0],10);\r\n  var mods = '101'; // 起始保护\r\n  for(var i=1;i<=6;i++){\r\n    var v = parseInt(d[i],10);\r\n    mods += (EAN_PARITY[first][i-1] === 'A') ? EAN_L[v] : EAN_G[v];\r\n  }\r\n  mods += '01010'; // 中间保护\r\n  for(var j=7;j<=12;j++){\r\n    mods += EAN_R[parseInt(d[j],10)];\r\n  }\r\n  mods += '101'; // 结束保护\r\n  return { modules: mods, text: d };\r\n}\r\nfunction upca(input){\r\n  var d = String(input).replace(/\\D/g,'');\r\n  if(d.length === 11) d = d + ean13Checksum('0'+d);\r\n  if(d.length === 12) d = '0' + d; // 转为 EAN-13（首位 0）\r\n  if(d.length !== 13) return null;\r\n  var r = ean13(d);\r\n  if(!r) return null;\r\n  // UPC-A 标签：首数字在左、末数字在右（视觉约定）\r\n  return { modules: r.modules, text: r.text.slice(1), upcaLabel: d.slice(1,7)+' '+d.slice(7,12) };\r\n}\r\nfunction escapeXml(s){\r\n  return String(s).replace(/[<>&'\"]/g, function(c){\r\n    return {'<':'&lt;','>':'&gt;','&':'&amp;',\"'\":'&apos;','\"':'&quot;'}[c];\r\n  });\r\n}\r\nfunction renderSvg(modules, label, opts){\r\n  opts = opts || {};\r\n  var mw = opts.moduleWidth || 3, height = opts.height || 110, qz = opts.quiet || 10;\r\n  var totalMods = modules.length + qz*2;\r\n  var width = totalMods * mw;\r\n  var bars='', x = qz*mw, i;\r\n  for(i=0;i<modules.length;i++){\r\n    if(modules[i]==='1') bars += '<rect x=\"'+x+'\" y=\"0\" width=\"'+mw+'\" height=\"'+height+'\" fill=\"#0A0A0B\"/>';\r\n    x += mw;\r\n  }\r\n  return '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+width+'\" height=\"'+(height+28)+'\" viewBox=\"0 0 '+width+' '+(height+28)+'\">'\r\n    + '<rect x=\"0\" y=\"0\" width=\"'+width+'\" height=\"'+(height+28)+'\" fill=\"#FFFFFF\"/>'\r\n    + bars\r\n    + '<text x=\"'+(width/2)+'\" y=\"'+(height+20)+'\" text-anchor=\"middle\" font-family=\"monospace\" font-size=\"16\" fill=\"#0A0A0B\">'+escapeXml(label)+'</text>'\r\n    + '</svg>';\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { C128:C128, expandPattern:expandPattern, code128B:code128B, ean13Checksum:ean13Checksum,\r\n    ean13:ean13, upca:upca, renderSvg:renderSvg };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.BarcodeForgePure = { C128:C128, expandPattern:expandPattern, code128B:code128B, ean13Checksum:ean13Checksum,\r\n    ean13:ean13, upca:upca, renderSvg:renderSvg };\r\n}\r\n"
+}

@@ -1,0 +1,59 @@
+{
+  "id": "CsvForge",
+  "name": "csv_forge",
+  "title": "CsvForge",
+  "description": "离线 CSV 工具箱：解析 / 转 JSON / 转置 / 概览，零上传。",
+  "entry": "parseCsv",
+  "entries": {
+    "parseCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "toCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "toObjects": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "header"
+      ],
+      "fields": []
+    },
+    "transpose": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "summarize": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "header"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction parseCsv(text){\r\n  var rows=[]; var row=[]; var field=''; var i=0; var inQ=false;\r\n  text=String(text);\r\n  while(i<text.length){\r\n    var c=text[i];\r\n    if(inQ){\r\n      if(c==='\"'){ if(text[i+1]==='\"'){ field+='\"'; i+=2; continue; } inQ=false; i++; continue; }\r\n      field+=c; i++; continue;\r\n    } else {\r\n      if(c==='\"'){ inQ=true; i++; continue; }\r\n      if(c===','){ row.push(field); field=''; i++; continue; }\r\n      if(c==='\\n'){ row.push(field); rows.push(row); row=[]; field=''; i++; continue; }\r\n      if(c==='\\r'){ i++; continue; }\r\n      field+=c; i++; continue;\r\n    }\r\n  }\r\n  row.push(field); rows.push(row);\r\n  if(rows.length && rows[rows.length-1].length===1 && rows[rows.length-1][0]==='' && /\\n$/.test(text)) rows.pop();\r\n  return rows;\r\n}\r\nfunction toCsv(rows){\r\n  return rows.map(function(r){\r\n    return r.map(function(f){\r\n      f=String(f);\r\n      if(/[\",\\n\\r]/.test(f)) return '\"'+f.replace(/\"/g,'\"\"')+'\"';\r\n      return f;\r\n    }).join(',');\r\n  }).join('\\n');\r\n}\r\nfunction toObjects(rows, header){\r\n  if(!rows.length) return [];\r\n  if(header){\r\n    var keys=rows[0]; var out=[];\r\n    for(var r=1;r<rows.length;r++){ var o={}; for(var c=0;c<keys.length;c++) o[keys[c]]=rows[r][c]; out.push(o); }\r\n    return out;\r\n  }\r\n  return rows;\r\n}\r\nfunction transpose(rows){\r\n  if(!rows.length) return [];\r\n  var cols=rows[0].length; var out=[];\r\n  for(var c=0;c<cols;c++){ var nr=[]; for(var r=0;r<rows.length;r++) nr.push(rows[r][c]); out.push(nr); }\r\n  return out;\r\n}\r\nfunction summarize(rows, header){\r\n  var cols = rows.length? rows[0].length : 0;\r\n  return { rows: rows.length, cols: cols, headers: (header && rows.length)? rows[0] : [] };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parseCsv:parseCsv, toCsv:toCsv, toObjects:toObjects, transpose:transpose, summarize:summarize };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.CsvForgePure = { parseCsv:parseCsv, toCsv:toCsv, toObjects:toObjects, transpose:transpose, summarize:summarize };\r\n}\r\n"
+}

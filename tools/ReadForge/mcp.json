@@ -1,0 +1,57 @@
+{
+  "id": "ReadForge",
+  "name": "read_forge",
+  "title": "ReadForge",
+  "description": "文本可读性评分：Flesch Reading Ease 与 Flesch-Kincaid 年级，写作质量。",
+  "entry": "countSyllables",
+  "entries": {
+    "countSyllables": {
+      "paramStyle": "single",
+      "paramNames": [
+        "word"
+      ],
+      "fields": []
+    },
+    "countWords": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "countSentences": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fleschReadingEase": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fleschKincaidGrade": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "word": {
+        "type": "string",
+        "description": "输入（word）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction countSyllables(word){\r\n  word=word.toLowerCase().replace(/[^a-z]/g,'');\r\n  if(word.length===0) return 0;\r\n  if(word.length<=3) return 1;\r\n  word=word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/,'');\r\n  word=word.replace(/^y/,'');\r\n  var m=word.match(/[aeiouy]+/g);\r\n  return m?m.length:1;\r\n}\r\nfunction countWords(text){ var m=text.trim().match(/\\S+/g); return m?m.length:0; }\r\nfunction countSentences(text){ var n=(text.match(/[.!?]+/g)||[]).length; return n>0?n:1; }\r\nfunction fleschReadingEase(text){\r\n  var w=countWords(text), s=countSentences(text), syl=0;\r\n  (text.match(/\\S+/g)||[]).forEach(function(x){ syl+=countSyllables(x); });\r\n  if(w===0) return {error:'empty', score:0};\r\n  var score=206.835 - 1.015*(w/s) - 84.6*(syl/w);\r\n  return {words:w, sentences:s, syllables:syl, score:Math.round(score*10)/10, error:null};\r\n}\r\nfunction fleschKincaidGrade(text){\r\n  var w=countWords(text), s=countSentences(text), syl=0;\r\n  (text.match(/\\S+/g)||[]).forEach(function(x){ syl+=countSyllables(x); });\r\n  if(w===0) return {error:'empty'};\r\n  var grade=0.39*(w/s)+11.8*(syl/w)-15.59;\r\n  return {grade:Math.round(grade*10)/10, words:w, sentences:s, syllables:syl, error:null};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { countSyllables:countSyllables, countWords:countWords, countSentences:countSentences,\r\n    fleschReadingEase:fleschReadingEase, fleschKincaidGrade:fleschKincaidGrade };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ReadForgePure = { countSyllables:countSyllables, countWords:countWords, countSentences:countSentences,\r\n    fleschReadingEase:fleschReadingEase, fleschKincaidGrade:fleschKincaidGrade };\r\n}\r\n"
+}

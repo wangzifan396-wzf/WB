@@ -1,0 +1,145 @@
+{
+  "id": "KanbanForge",
+  "name": "kanban_forge",
+  "title": "KanbanForge",
+  "description": "离线看板：多列拖拽卡片，优先级 / 标签 / 搜索筛选，导出 Markdown / JSON，数据永不离机。",
+  "entry": "esc",
+  "entries": {
+    "esc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "uid": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "defaultBoard": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "findColumn": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "colId"
+      ],
+      "fields": []
+    },
+    "findCard": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "cardId"
+      ],
+      "fields": []
+    },
+    "addColumn": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "title"
+      ],
+      "fields": []
+    },
+    "removeColumn": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "colId"
+      ],
+      "fields": []
+    },
+    "addCard": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "colId",
+        "title"
+      ],
+      "fields": []
+    },
+    "removeCard": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "cardId"
+      ],
+      "fields": []
+    },
+    "moveCard": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "cardId",
+        "toColId",
+        "toIndex"
+      ],
+      "fields": []
+    },
+    "parseTags": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "matchCard": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "card",
+        "query"
+      ],
+      "fields": []
+    },
+    "boardStats": {
+      "paramStyle": "object",
+      "paramNames": [
+        "board"
+      ],
+      "fields": [
+        "columns"
+      ]
+    },
+    "toMarkdown": {
+      "paramStyle": "object",
+      "paramNames": [
+        "board"
+      ],
+      "fields": [
+        "columns"
+      ]
+    },
+    "toJSON": {
+      "paramStyle": "single",
+      "paramNames": [
+        "board"
+      ],
+      "fields": []
+    },
+    "fromJSON": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ================= KanbanForge pure functions (top-level, testable) ================= */\r\nfunction esc(s){\r\n  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');\r\n}\r\nfunction uid(){\r\n  return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);\r\n}\r\nvar COL_COLORS = ['#5E6AD2','#F5A623','#10B981','#22D3EE','#A78BFA','#F472B6','#FB923C'];\r\nfunction defaultBoard(){\r\n  return { columns:[\r\n    { id:'c1', title:'待办', color:COL_COLORS[0], cards:[\r\n      { id:'k1', title:'双击卡片可以编辑', desc:'', priority:'mid', tags:['上手'] },\r\n      { id:'k2', title:'拖拽卡片到其他列', desc:'', priority:'', tags:[] }\r\n    ]},\r\n    { id:'c2', title:'进行中', color:COL_COLORS[1], cards:[\r\n      { id:'k3', title:'体验 KanbanForge', desc:'离线看板，数据存在浏览器本地。', priority:'high', tags:['本地优先'] }\r\n    ]},\r\n    { id:'c3', title:'已完成', color:COL_COLORS[2], cards:[] }\r\n  ]};\r\n}\r\nfunction findColumn(board, colId){\r\n  for (var i=0;i<board.columns.length;i++) if (board.columns[i].id===colId) return board.columns[i];\r\n  return null;\r\n}\r\nfunction findCard(board, cardId){\r\n  for (var i=0;i<board.columns.length;i++){\r\n    var col=board.columns[i];\r\n    for (var j=0;j<col.cards.length;j++) if (col.cards[j].id===cardId) return { col:col, card:col.cards[j], index:j };\r\n  }\r\n  return null;\r\n}\r\nfunction addColumn(board, title){\r\n  var col={ id:uid(), title:title||'新列', color:COL_COLORS[board.columns.length%COL_COLORS.length], cards:[] };\r\n  board.columns.push(col);\r\n  return col;\r\n}\r\nfunction removeColumn(board, colId){\r\n  var before=board.columns.length;\r\n  board.columns=board.columns.filter(function(c){return c.id!==colId;});\r\n  return board.columns.length<before;\r\n}\r\nfunction addCard(board, colId, title){\r\n  var col=findColumn(board,colId);\r\n  if(!col) return null;\r\n  var card={ id:uid(), title:title||'新卡片', desc:'', priority:'', tags:[] };\r\n  col.cards.push(card);\r\n  return card;\r\n}\r\nfunction removeCard(board, cardId){\r\n  var hit=findCard(board,cardId);\r\n  if(!hit) return false;\r\n  hit.col.cards.splice(hit.index,1);\r\n  return true;\r\n}\r\nfunction moveCard(board, cardId, toColId, toIndex){\r\n  var hit=findCard(board,cardId);\r\n  var toCol=findColumn(board,toColId);\r\n  if(!hit||!toCol) return false;\r\n  hit.col.cards.splice(hit.index,1);\r\n  var idx=(typeof toIndex==='number'&&toIndex>=0)?Math.min(toIndex,toCol.cards.length):toCol.cards.length;\r\n  toCol.cards.splice(idx,0,hit.card);\r\n  return true;\r\n}\r\nfunction parseTags(s){\r\n  return String(s==null?'':s).split(/[,，]/).map(function(t){return t.trim();}).filter(Boolean);\r\n}\r\nfunction matchCard(card, query){\r\n  var q=String(query==null?'':query).trim().toLowerCase();\r\n  if(!q) return true;\r\n  if(q.charAt(0)==='#'){\r\n    var tq=q.slice(1);\r\n    return (card.tags||[]).some(function(t){return t.toLowerCase().indexOf(tq)>=0;});\r\n  }\r\n  var hay=(card.title+' '+(card.desc||'')+' '+(card.tags||[]).join(' ')).toLowerCase();\r\n  return hay.indexOf(q)>=0;\r\n}\r\nfunction boardStats(board){\r\n  var cols=board.columns.length, cards=0, high=0, done=0;\r\n  board.columns.forEach(function(c,i){\r\n    cards+=c.cards.length;\r\n    c.cards.forEach(function(k){ if(k.priority==='high') high++; });\r\n    if(i===board.columns.length-1) done=c.cards.length;\r\n  });\r\n  return { columns:cols, cards:cards, high:high, lastColCards:done };\r\n}\r\nfunction toMarkdown(board){\r\n  var out=['# 看板',''];\r\n  board.columns.forEach(function(c){\r\n    out.push('## '+c.title+' ('+c.cards.length+')');\r\n    c.cards.forEach(function(k){\r\n      var line='- [ ] '+k.title;\r\n      if(k.priority) line+=' `'+({high:'高',mid:'中',low:'低'})[k.priority]+'`';\r\n      if(k.tags&&k.tags.length) line+=' '+k.tags.map(function(t){return '#'+t;}).join(' ');\r\n      out.push(line);\r\n      if(k.desc) out.push('  - '+k.desc.replace(/\\n/g,' '));\r\n    });\r\n    out.push('');\r\n  });\r\n  return out.join('\\n').replace(/\\n+$/,'\\n');\r\n}\r\nfunction toJSON(board){\r\n  return JSON.stringify({ app:'KanbanForge', version:1, board:board }, null, 2);\r\n}\r\nfunction fromJSON(text){\r\n  var data=JSON.parse(text);\r\n  var b=data&&data.board?data.board:data;\r\n  if(!b||!Array.isArray(b.columns)) throw new Error('invalid board');\r\n  b.columns.forEach(function(c){\r\n    if(typeof c.id!=='string'||typeof c.title!=='string'||!Array.isArray(c.cards)) throw new Error('invalid column');\r\n    if(!c.color) c.color=COL_COLORS[0];\r\n    c.cards.forEach(function(k){\r\n      if(typeof k.id!=='string'||typeof k.title!=='string') throw new Error('invalid card');\r\n      if(!Array.isArray(k.tags)) k.tags=[];\r\n      if(typeof k.desc!=='string') k.desc='';\r\n      if(typeof k.priority!=='string') k.priority='';\r\n    });\r\n  });\r\n  return b;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { esc:esc, uid:uid, defaultBoard:defaultBoard, findColumn:findColumn, findCard:findCard,\r\n    addColumn:addColumn, removeColumn:removeColumn, addCard:addCard, removeCard:removeCard, moveCard:moveCard,\r\n    parseTags:parseTags, matchCard:matchCard, boardStats:boardStats, toMarkdown:toMarkdown, toJSON:toJSON, fromJSON:fromJSON };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.KanbanForgePure = { esc:esc, uid:uid, defaultBoard:defaultBoard, findColumn:findColumn, findCard:findCard,\r\n    addColumn:addColumn, removeColumn:removeColumn, addCard:addCard, removeCard:removeCard, moveCard:moveCard,\r\n    parseTags:parseTags, matchCard:matchCard, boardStats:boardStats, toMarkdown:toMarkdown, toJSON:toJSON, fromJSON:fromJSON };\r\n}\r\n"
+}

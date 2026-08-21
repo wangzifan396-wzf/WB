@@ -1,0 +1,52 @@
+{
+  "id": "VlsmForge",
+  "name": "vlsm_forge",
+  "title": "VlsmForge",
+  "description": "在基础网络内按各子网主机需求（从大到小）做 VLSM 变长划分。",
+  "entry": "parseIp",
+  "entries": {
+    "parseIp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ip"
+      ],
+      "fields": []
+    },
+    "toDecimal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "o"
+      ],
+      "fields": []
+    },
+    "intToIp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "vlsm": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "baseIp",
+        "basePrefix",
+        "reqs"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "ip": {
+        "type": "string",
+        "description": "输入（ip）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseIp(ip){var p=String(ip).trim().split('.');if(p.length!==4)return null;var o=[];for(var i=0;i<4;i++){var x=parseInt(p[i],10);if(isNaN(x)||x<0||x>255)return null;o.push(x);}return o;}\r\nfunction toDecimal(o){return ((o[0]<<24)|(o[1]<<16)|(o[2]<<8)|o[3])>>>0;}\r\nfunction intToIp(n){n=n>>>0;return [(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255];}\r\nfunction vlsm(baseIp,basePrefix,reqs){\r\n  var o=parseIp(baseIp);if(!o)return {error:'IP 非法'};\r\n  basePrefix=+basePrefix;if(basePrefix<0||basePrefix>32)return {error:'前缀非法'};\r\n  var baseMask=basePrefix===0?0:((0xFFFFFFFF<<(32-basePrefix))>>>0);\r\n  var baseInt=(toDecimal(o)&baseMask)>>>0;var baseSize=Math.pow(2,32-basePrefix);\r\n  var sorted=reqs.slice().sort(function(a,b){return b-a;});var alloc=[];var cur=baseInt;\r\n  for(var i=0;i<sorted.length;i++){var h=sorted[i];var p;\r\n    for(p=32;p>=0;p--){var cap=p>=31?(p===32?1:2):Math.pow(2,32-p)-2;if(cap>=h)break;}\r\n    if(p<basePrefix)return {error:'需求 '+h+' 超过基础网络可划分粒度'};\r\n    var size=Math.pow(2,32-p);if(cur+size>baseInt+baseSize)return {error:'地址空间不足，无法容纳全部需求'};\r\n    var mask=((0xFFFFFFFF<<(32-p))>>>0);var cap2=p>=31?(p===32?1:2):Math.pow(2,32-p)-2;\r\n    alloc.push({network:intToIp(cur).join('.'),prefix:p,mask:intToIp(mask).join('.'),capacity:cap2,usable:p>=31?cap2:cap2-2});\r\n    cur+=size;}\r\n  return {subnets:alloc};}\r\nvar EXPORTS={parseIp:parseIp,toDecimal:toDecimal,intToIp:intToIp,vlsm:vlsm};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.VlsmForgePure = EXPORTS; }\r\n\r\n"
+}

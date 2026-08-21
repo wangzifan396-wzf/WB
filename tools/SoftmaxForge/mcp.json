@@ -1,0 +1,46 @@
+{
+  "id": "SoftmaxForge",
+  "name": "softmax_forge",
+  "title": "SoftmaxForge",
+  "description": "演示 softmax 概率、top-k 与 top-p 采样（可复现种子）。",
+  "entry": "softmax",
+  "entries": {
+    "softmax": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "topK": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "arr",
+        "k"
+      ],
+      "fields": []
+    },
+    "topP": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "arr",
+        "p",
+        "rng"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "arr": {
+        "type": "string",
+        "description": "输入（arr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction softmax(arr){\r\n  if(!arr||!arr.length) return [];\r\n  var mx=Math.max.apply(null,arr), sum=0, e=arr.map(function(x){ var v=Math.exp(x-mx); sum+=v; return v; });\r\n  return e.map(function(x){ return x/sum; });\r\n}\r\nfunction topK(arr,k){ var idx=arr.map(function(v,i){return {v:v,i:i};}).sort(function(a,b){return b.v-a.v;}); return idx.slice(0,k).map(function(o){return o.i;}); }\r\nfunction topP(arr,p,rng){\r\n  rng=rng||Math.random; var probs=softmax(arr); var idx=probs.map(function(v,i){return {v:v,i:i};}).sort(function(a,b){return b.v-a.v;});\r\n  var cum=0, pool=[], pick=null;\r\n  for(var j=0;j<idx.length;j++){ cum+=idx[j].v; pool.push(idx[j].i); if(cum>=p){ pick=pool[Math.floor(rng()*pool.length)]; break; } }\r\n  return pick;\r\n}\r\nvar EXPORTS={softmax:softmax,topK:topK,topP:topP};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SoftmaxForgePure = EXPORTS; }\r\n\r\n"
+}

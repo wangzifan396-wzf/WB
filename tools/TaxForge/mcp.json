@@ -1,0 +1,50 @@
+{
+  "id": "TaxForge",
+  "name": "tax_forge",
+  "title": "TaxForge",
+  "description": "按累进税档估算税额、边际税率与实际税率（内置示例税档，可替换）。",
+  "entry": "computeTax",
+  "entries": {
+    "computeTax": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "income",
+        "brackets"
+      ],
+      "fields": []
+    },
+    "marginalRate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "income",
+        "brackets"
+      ],
+      "fields": []
+    },
+    "effectiveRate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "income",
+        "brackets"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "income": {
+        "type": "string",
+        "description": "第 1 个参数（income）"
+      },
+      "brackets": {
+        "type": "string",
+        "description": "第 2 个参数（brackets）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar DEFAULT_BRACKETS = [   // 美国联邦单身 2023（累进）\r\n  {upTo:11000,  rate:0.10},\r\n  {upTo:44725,  rate:0.12},\r\n  {upTo:95375,  rate:0.22},\r\n  {upTo:182100, rate:0.24},\r\n  {upTo:231250, rate:0.32},\r\n  {upTo:578125, rate:0.35},\r\n  {upTo:Infinity, rate:0.37}\r\n];\r\nfunction computeTax(income, brackets){\r\n  brackets=brackets||DEFAULT_BRACKETS;\r\n  var tax=0, prev=0;\r\n  for(var i=0;i<brackets.length;i++){\r\n    var top=brackets[i].upTo, rate=brackets[i].rate;\r\n    var taxable=Math.min(income, top) - prev;\r\n    if(taxable>0) tax += taxable*rate;\r\n    prev=top;\r\n    if(income<=top) break;\r\n  }\r\n  return tax;\r\n}\r\nfunction marginalRate(income, brackets){\r\n  brackets=brackets||DEFAULT_BRACKETS;\r\n  for(var i=0;i<brackets.length;i++){ if(income<=brackets[i].upTo) return brackets[i].rate; }\r\n  return brackets[brackets.length-1].rate;\r\n}\r\nfunction effectiveRate(income, brackets){ var t=computeTax(income,brackets); return income>0? t/income : NaN; }\r\nvar EXPORTS={ DEFAULT_BRACKETS:DEFAULT_BRACKETS, computeTax:computeTax, marginalRate:marginalRate, effectiveRate:effectiveRate };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TaxForgePure = EXPORTS; }\r\n\r\n"
+}

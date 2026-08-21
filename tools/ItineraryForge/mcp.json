@@ -1,0 +1,46 @@
+{
+  "id": "ItineraryForge",
+  "name": "itinerary_forge",
+  "title": "行程与打包清单",
+  "description": "按目的地 / 天数 / 节奏生成每日行程骨架与打包清单，离线。",
+  "entry": "buildItinerary",
+  "entries": {
+    "buildItinerary": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "dest",
+        "days",
+        "pace"
+      ],
+      "fields": []
+    },
+    "slotsForPace": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pace"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "dest": {
+        "type": "string",
+        "description": "第 1 个参数（dest）"
+      },
+      "days": {
+        "type": "string",
+        "description": "第 2 个参数（days）"
+      },
+      "pace": {
+        "type": "string",
+        "description": "第 3 个参数（pace）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar ACT=['抵达与安顿','老城漫游','博物馆 / 展览','自然与户外','在地美食探索','自由活动',\r\n         '周边短途','夜游漫步','手信与购物','温泉与放松'];\r\nvar PACK=['证件 / 护照','充电宝与充电器','常备药品','换洗衣物','舒适步行鞋','雨具','现金与银行卡','行程单备份'];\r\nfunction slotsForPace(pace){\r\n  if(pace==='relaxed') return ['10:30','15:30'];\r\n  if(pace==='packed') return ['09:00','11:00','14:00','17:00','19:30'];\r\n  return ['09:30','13:00','16:30'];\r\n}\r\nfunction buildItinerary(dest, days, pace){\r\n  days=Math.round(+days);\r\n  if(isNaN(days)||days<1) return {error:'天数须为正整数'};\r\n  if(days>30) days=30;\r\n  var times=slotsForPace(pace); var out=[]; var k=0;\r\n  for(var d=1; d<=days; d++){\r\n    var slots=[];\r\n    for(var i=0;i<times.length;i++){ slots.push({time:times[i], activity:ACT[k%ACT.length]}); k++; }\r\n    out.push({day:d, slots:slots});\r\n  }\r\n  return {dest:String(dest||'目的地'), days:days, pace:pace, daysOut:out, packing:PACK};\r\n}\r\nvar EXPORTS={buildItinerary:buildItinerary, slotsForPace:slotsForPace, ACT:ACT, PACK:PACK};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ItineraryForgePure = EXPORTS; }\r\n\r\n"
+}

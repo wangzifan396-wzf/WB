@@ -1,0 +1,80 @@
+{
+  "id": "NmeaForge",
+  "name": "nmea_forge",
+  "title": "NmeaForge",
+  "description": "NMEA-0183 报文解析器：校验 $/! 语句与 * 后的 XOR 校验和，逐字段解读 GGA/RMC/GSA/GSV/VTG 等常见语句的经纬度、时间、卫星与航向，批量汇总定位点，并重算标准语句的校验和。调试 GPS 模块、预处理船载/车载日志，零依赖、离线可用。",
+  "entry": "build",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseLine": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "checksum": {
+      "paramStyle": "single",
+      "paramNames": [
+        "body"
+      ],
+      "fields": []
+    },
+    "build": {
+      "paramStyle": "single",
+      "paramNames": [
+        "body"
+      ],
+      "fields": []
+    },
+    "coord": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "hemi"
+      ],
+      "fields": []
+    },
+    "dms": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "dec",
+        "isLat"
+      ],
+      "fields": []
+    },
+    "utc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "dmy": {
+      "paramStyle": "single",
+      "paramNames": [
+        "d"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "body": {
+        "type": "string",
+        "description": "输入（body）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  var TALKERS={GP:'GPS',GL:'GLONASS',GA:'Galileo',GB:'BeiDou',BD:'BeiDou (旧)',GQ:'QZSS',GN:'多星座组合',\r\n               GI:'NavIC',HC:'磁罗盘',II:'综合仪器',IN:'惯导',EC:'ECDIS',AI:'AIS',SD:'测深仪',VW:'水速'};\r\n  var FIX={0:'无定位',1:'GPS 单点',2:'差分 DGPS',3:'PPS',4:'RTK 固定解',5:'RTK 浮动解',6:'惯导推算',7:'手动输入',8:'仿真'};\r\n  var STATUS={A:'有效',V:'无效/警告'};\r\n  var MODE={A:'自主',D:'差分',E:'推算',M:'手动',S:'仿真',N:'无效',R:'RTK 固定',F:'RTK 浮动',P:'精密'};\r\n\r\n  function checksum(body){\r\n    var s=0;\r\n    for(var i=0;i<body.length;i++) s ^= body.charCodeAt(i) & 255;\r\n    var h=s.toString(16).toUpperCase();\r\n    return h.length<2 ? '0'+h : h;\r\n  }\r\n  function num(v){ if(v===''||v===undefined||v===null) return null; var n=parseFloat(v); return isNaN(n)?null:n; }\r\n  function intv(v){ if(v===''||v===undefined) return null; var n=parseInt(v,10); return isNaN(n)?null:n; }\r\n\r\n  // ddmm.mmmm / dddmm.mmmm + N/S/E/W → 十进制度\r\n  function coord(v, hemi){\r\n    if(!v) return null;\r\n    var dot=v.indexOf('.');\r\n    var degLen = dot>=0 ? dot-2 : v.length-2;\r\n    if(degLen<1) return null;\r\n    var deg=parseInt(v.slice(0,degLen),10), min=parseFloat(v.slice(degLen));\r\n    if(isNaN(deg)||isNaN(min)) return null;\r\n    if(min>=60) return null;\r\n    var d = deg + min/60;\r\n    if(hemi==='S'||hemi==='W') d=-d;\r\n    return Math.round(d*1e7)/1e7;\r\n  }\r\n  function dms(dec, isLat){\r\n    if(dec===null) return '—';\r\n    var hemi = isLat ? (dec<0?'S':'N') : (dec<0?'W':'E');\r\n    var a=Math.abs(dec), d=Math.floor(a), mf=(a-d)*60, m=Math.floor(mf), s=(mf-m)*60;\r\n    return d+'° '+m+\"' \"+s.toFixed(2)+'\" '+hemi;\r\n  }\r\n  function utc(t){\r\n    if(!t||t.length<6) return null;\r\n    return t.slice(0,2)+':'+t.slice(2,4)+':'+t.slice(4);\r\n  }\r\n  function dmy(d){\r\n    if(!d||d.length!==6) return null;\r\n    var yy=parseInt(d.slice(4),10);\r\n    return (yy<80?2000+yy:1900+yy)+'-'+d.slice(2,4)+'-'+d.slice(0,2);\r\n  }\r\n\r\n  function describe(type, f){\r\n    var o={};\r\n    if(type==='GGA'){\r\n      o['UTC 时间']=utc(f[1]);\r\n      o['纬度']=coord(f[2],f[3]); o['经度']=coord(f[4],f[5]);\r\n      o['定位质量']=(FIX[intv(f[6])]||'未知')+' ('+f[6]+')';\r\n      o['使用卫星数']=intv(f[7]); o['水平精度因子 HDOP']=num(f[8]);\r\n      o['海拔']=num(f[9])!==null?(num(f[9])+' '+(f[10]||'M')):null;\r\n      o['大地水准面差']=num(f[11])!==null?(num(f[11])+' '+(f[12]||'M')):null;\r\n      o['差分龄期']=num(f[13]); o['差分基准站']=f[14]||null;\r\n    } else if(type==='RMC'){\r\n      o['UTC 时间']=utc(f[1]); o['状态']=(STATUS[f[2]]||f[2]||'—');\r\n      o['纬度']=coord(f[3],f[4]); o['经度']=coord(f[5],f[6]);\r\n      o['对地速度']=num(f[7])!==null?(num(f[7])+' kn  ('+(num(f[7])*1.852).toFixed(2)+' km/h)'):null;\r\n      o['航向']=num(f[8])!==null?(num(f[8])+'°'):null;\r\n      o['日期']=dmy(f[9]);\r\n      o['磁偏角']=num(f[10])!==null?(num(f[10])+'° '+(f[11]||'')):null;\r\n      if(f[12]) o['定位模式']=(MODE[f[12].charAt(0)]||f[12]);\r\n    } else if(type==='GSA'){\r\n      o['模式']=f[1]==='A'?'自动 2D/3D':(f[1]==='M'?'手动':f[1]);\r\n      o['定位维度']=({1:'未定位',2:'2D',3:'3D'})[intv(f[2])]||f[2];\r\n      var prns=[];\r\n      for(var i=3;i<=14;i++) if(f[i]) prns.push(f[i]);\r\n      o['参与解算 PRN']=prns.length?prns.join(', '):'—';\r\n      o['PDOP']=num(f[15]); o['HDOP']=num(f[16]); o['VDOP']=num(f[17]);\r\n    } else if(type==='GSV'){\r\n      o['本组消息数']=intv(f[1]); o['当前第几条']=intv(f[2]); o['可见卫星总数']=intv(f[3]);\r\n      var sats=[];\r\n      for(var k=4;k+3<f.length;k+=4){\r\n        if(!f[k]) continue;\r\n        sats.push({prn:f[k], elev:intv(f[k+1]), az:intv(f[k+2]), snr:intv(f[k+3])});\r\n      }\r\n      o['本条卫星']=sats.length?sats.map(function(s){\r\n        return 'PRN '+s.prn+' 仰角'+(s.elev===null?'—':s.elev)+'° 方位'+(s.az===null?'—':s.az)+'° SNR '+(s.snr===null?'—':s.snr);\r\n      }).join('\\n'):'—';\r\n      o.__sats=sats;\r\n    } else if(type==='VTG'){\r\n      o['真北航向']=num(f[1])!==null?(num(f[1])+'°'):null;\r\n      o['磁北航向']=num(f[3])!==null?(num(f[3])+'°'):null;\r\n      o['速度(节)']=num(f[5]); o['速度(km/h)']=num(f[7]);\r\n      if(f[9]) o['定位模式']=(MODE[f[9].charAt(0)]||f[9]);\r\n    } else if(type==='GLL'){\r\n      o['纬度']=coord(f[1],f[2]); o['经度']=coord(f[3],f[4]);\r\n      o['UTC 时间']=utc(f[5]); o['状态']=STATUS[f[6]]||f[6];\r\n      if(f[7]) o['定位模式']=(MODE[f[7].charAt(0)]||f[7]);\r\n    } else if(type==='ZDA'){\r\n      o['UTC 时间']=utc(f[1]);\r\n      o['日期']=(f[4]||'????')+'-'+(f[3]||'??')+'-'+(f[2]||'??');\r\n      o['本地时区']=(f[5]||'0')+'h '+(f[6]||'0')+'min';\r\n    } else if(type==='HDT'){\r\n      o['真北艏向']=num(f[1])!==null?(num(f[1])+'°'):null;\r\n    } else if(type==='DBT'){\r\n      o['水深(英尺)']=num(f[1]); o['水深(米)']=num(f[3]); o['水深(英寻)']=num(f[5]);\r\n    } else {\r\n      for(var z=1;z<f.length;z++) o['字段 '+z]=f[z];\r\n    }\r\n    return o;\r\n  }\r\n\r\n  function parseLine(line){\r\n    var raw=String(line||'').trim();\r\n    if(!raw) return null;\r\n    var res={raw:raw, ok:false, error:'', type:'', talker:'', talkerName:'', fields:[], data:{}, checksum:null, expected:null};\r\n    var head=raw.charAt(0);\r\n    if(head!=='$' && head!=='!'){ res.error='语句必须以 $ 或 ! 开头'; return res; }\r\n    res.encapsulated = head==='!';\r\n    var star=raw.lastIndexOf('*');\r\n    var body, given=null;\r\n    if(star>=0){ body=raw.slice(1,star); given=raw.slice(star+1).trim().toUpperCase(); }\r\n    else { body=raw.slice(1); res.error='缺少 * 校验和分隔符'; }\r\n    res.expected=checksum(body);\r\n    res.checksum=given;\r\n    if(given!==null){\r\n      if(!/^[0-9A-F]{2}$/.test(given)) res.error='校验和格式非法：\"'+given+'\"';\r\n      else if(given!==res.expected) res.error='校验和不匹配：报文 '+given+'，实算 '+res.expected;\r\n    }\r\n    var f=body.split(',');\r\n    res.fields=f;\r\n    var addr=f[0]||'';\r\n    if(/^[A-Z]{2}[A-Z0-9]{3}$/.test(addr)){\r\n      res.talker=addr.slice(0,2); res.type=addr.slice(2);\r\n      res.talkerName=TALKERS[res.talker]||('未知 '+res.talker);\r\n    } else if(/^P/.test(addr)){\r\n      res.talker='P'; res.talkerName='厂商专有'; res.type=addr.slice(1);\r\n    } else {\r\n      res.type=addr; res.talkerName='—';\r\n      if(!res.error) res.error='地址字段 \"'+addr+'\" 不符合 5 字符规范';\r\n    }\r\n    if(raw.length>82) res.error = res.error || '语句长度 '+raw.length+' 超过 NMEA 0183 的 82 字符上限';\r\n    res.data=describe(res.type, f);\r\n    res.ok = !res.error;\r\n    return res;\r\n  }\r\n\r\n  function parse(text){\r\n    var lines=String(text||'').split(/\\r?\\n/), out=[], okc=0, badc=0;\r\n    for(var i=0;i<lines.length;i++){\r\n      if(!lines[i].trim()) continue;\r\n      var r=parseLine(lines[i]);\r\n      if(!r) continue;\r\n      out.push(r);\r\n      if(r.ok) okc++; else badc++;\r\n    }\r\n    if(!out.length) return {value:null, error:'没有可解析的语句'};\r\n    // 汇总位置\r\n    var pos=null, sats=null, fix=null;\r\n    for(var k=0;k<out.length;k++){\r\n      var s=out[k];\r\n      if(!s.ok) continue;\r\n      if(s.type==='GGA'){\r\n        if(s.data['纬度']!==null && s.data['经度']!==null) pos={lat:s.data['纬度'], lon:s.data['经度']};\r\n        sats=s.data['使用卫星数']; fix=s.data['定位质量'];\r\n      } else if(s.type==='RMC' && !pos && s.data['纬度']!==null){\r\n        pos={lat:s.data['纬度'], lon:s.data['经度']};\r\n      }\r\n    }\r\n    return {value:{sentences:out, ok:okc, bad:badc, position:pos, satellites:sats, fix:fix}, error:''};\r\n  }\r\n\r\n  function build(body){\r\n    var b=String(body||'').replace(/^[$!]/,'').replace(/\\*.*$/,'');\r\n    return '$'+b+'*'+checksum(b);\r\n  }\r\n\r\n  var API={parse:parse, parseLine:parseLine, checksum:checksum, build:build,\r\n           coord:coord, dms:dms, utc:utc, dmy:dmy, TALKERS:TALKERS, FIX:FIX};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__NmeaForge__=API;\r\n})();\r\n\r\n"
+}

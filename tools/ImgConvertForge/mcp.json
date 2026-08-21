@@ -1,0 +1,76 @@
+{
+  "id": "ImgConvertForge",
+  "name": "img_convert_forge",
+  "title": "ImgConvertForge",
+  "description": "图片格式转换：浏览器内将 PNG/JPEG/WebP 互转，可调质量与最大边长，Canvas 实时预览并下载，零上传、离线可用。",
+  "entry": "icMime",
+  "entries": {
+    "icMime": {
+      "paramStyle": "single",
+      "paramNames": [
+        "fmt"
+      ],
+      "fields": []
+    },
+    "icExt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "fmt"
+      ],
+      "fields": []
+    },
+    "icName": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "orig",
+        "fmt"
+      ],
+      "fields": []
+    },
+    "icQuality": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fmt",
+        "q"
+      ],
+      "fields": []
+    },
+    "icFit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h",
+        "maxW",
+        "maxH"
+      ],
+      "fields": []
+    },
+    "icSizeLabel": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "icDataUrlBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "durl"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "fmt": {
+        "type": "string",
+        "description": "输入（fmt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction icMime(fmt){ var m={png:'image/png',jpeg:'image/jpeg',jpg:'image/jpeg',webp:'image/webp'}; return m[String(fmt||'').toLowerCase()]||'image/png'; }\r\nfunction icExt(fmt){ var mime=icMime(fmt); return mime==='image/jpeg'?'jpg':mime.split('/')[1]; }\r\nfunction icName(orig,fmt){ var base=String(orig||'image').replace(/\\.[^.]+$/,''); if(!base) base='image'; return base+'.'+icExt(fmt); }\r\nfunction icQuality(fmt,q){ if(icMime(fmt)==='image/png') return undefined; var v=Number(q); if(!isFinite(v)) v=0.92; return Math.min(1,Math.max(0.05,v)); }\r\nfunction icFit(w,h,maxW,maxH){ w=Math.max(1,Math.floor(Number(w)||1)); h=Math.max(1,Math.floor(Number(h)||1)); var s=1; if(maxW>0&&w*s>maxW) s=maxW/w; if(maxH>0&&h*s>maxH) s=Math.min(s,maxH/h); var nw=Math.max(1,Math.round(w*s)), nh=Math.max(1,Math.round(h*s)); return {w:nw,h:nh,scale:s}; }\r\nfunction icSizeLabel(bytes){ var b=Number(bytes); if(!isFinite(b)||b<0) return '0 B'; if(b<1024) return Math.round(b)+' B'; if(b<1048576) return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(2)+' MB'; }\r\nfunction icDataUrlBytes(durl){ var s=String(durl||''); var i=s.indexOf(','); if(i<0) return 0; var b64=s.slice(i+1); var pad=(b64.match(/=+$/)||[''])[0].length; return Math.max(0, Math.floor(b64.length*3/4)-pad); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { icMime:icMime, icExt:icExt, icName:icName, icQuality:icQuality, icFit:icFit, icSizeLabel:icSizeLabel, icDataUrlBytes:icDataUrlBytes };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ImgConvertForgePure = { icMime:icMime, icExt:icExt, icName:icName, icQuality:icQuality, icFit:icFit, icSizeLabel:icSizeLabel, icDataUrlBytes:icDataUrlBytes };\r\n}\r\n"
+}

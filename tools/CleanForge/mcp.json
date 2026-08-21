@@ -1,0 +1,34 @@
+{
+  "id": "CleanForge",
+  "name": "clean_forge",
+  "title": "CleanForge",
+  "description": "文本清洗：去行尾空白、删空行、压缩连续空行、去重、Tab 转空格并统一换行符。",
+  "entry": "cleanText",
+  "entries": {
+    "cleanText": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "o"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "o": {
+        "type": "object",
+        "description": "第 2 个参数（o）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction cleanText(text, o){\r\n  o=o||{};\r\n  var eol = o.eol==='crlf' ? '\\r\\n' : (o.eol==='cr' ? '\\r' : '\\n');\r\n  var lines = text.split(/\\r\\n|\\r|\\n/);\r\n  if(o.tabsToSpaces){ var sp=''; for(var t=0;t<(o.tabSize||2);t++) sp+=' '; lines=lines.map(function(l){return l.replace(/\\t/g,sp);}); }\r\n  if(o.trimTail) lines = lines.map(function(l){return l.replace(/[ \\t]+$/,'')});\r\n  if(o.dropEmpty) lines = lines.filter(function(l){return l.replace(/\\s/g,'').length>0;});\r\n  if(o.collapse){ var r=[],pe=false; for(var i=0;i<lines.length;i++){var e=lines[i].replace(/\\s/g,'').length===0; if(e&&pe)continue; r.push(lines[i]); pe=e;} lines=r; }\r\n  if(o.dedup){ var seen={},r2=[]; for(var j=0;j<lines.length;j++){var k=lines[j]; if(o.dedupCI)k=k.toLowerCase(); if(seen[k])continue; seen[k]=1; r2.push(lines[j]);} lines=r2; }\r\n  var out=lines.join(eol);\r\n  if(o.noFinalNewline) out=out.replace(/\\n+$/,'');\r\n  return out;\r\n}\r\nvar EXPORTS={cleanText:cleanText};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CleanForgePure = EXPORTS; }\r\n\r\n"
+}

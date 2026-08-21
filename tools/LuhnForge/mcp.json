@@ -1,0 +1,57 @@
+{
+  "id": "LuhnForge",
+  "name": "luhn_forge",
+  "title": "LuhnForge",
+  "description": "离线 Luhn 校验：银行卡号模 10 校验、卡组织识别（Visa/银联等）、校验位补全。",
+  "entry": "luhnValidate",
+  "entries": {
+    "luhnValidate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "luhnCheckDigit": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cardBrand": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "formatCard": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "luhnClean": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction luhnClean(s){\r\n  var t=String(s).replace(/[\\s-]/g,'');\r\n  if(!/^\\d+$/.test(t)) throw new Error('仅允许数字、空格和短横线');\r\n  return t;\r\n}\r\nfunction luhnChecksum(digits){\r\n  var sum=0, alt=false;\r\n  for(var i=digits.length-1;i>=0;i--){\r\n    var d=digits.charCodeAt(i)-48;\r\n    if(alt){ d*=2; if(d>9) d-=9; }\r\n    sum+=d; alt=!alt;\r\n  }\r\n  return sum%10;\r\n}\r\nfunction luhnValidate(s){\r\n  var t=luhnClean(s);\r\n  if(t.length<2) throw new Error('号码至少 2 位');\r\n  return luhnChecksum(t)===0;\r\n}\r\nfunction luhnCheckDigit(s){\r\n  var t=luhnClean(s);\r\n  return String((10-luhnChecksum(t+'0'))%10);\r\n}\r\nfunction cardBrand(s){\r\n  var t=luhnClean(s);\r\n  if(/^4\\d{12}(\\d{3})?(\\d{3})?$/.test(t)) return 'Visa';\r\n  if(/^(5[1-5]\\d{14}|2(2[2-9]\\d{12}|[3-6]\\d{13}|7[01]\\d{12}|720\\d{12}))$/.test(t)) return 'Mastercard';\r\n  if(/^3[47]\\d{13}$/.test(t)) return 'American Express';\r\n  if(/^62\\d{14,17}$/.test(t)) return 'UnionPay 银联';\r\n  if(/^(6011|65\\d{2}|64[4-9]\\d)\\d{12,15}$/.test(t)) return 'Discover';\r\n  if(/^35(2[89]|[3-8]\\d)\\d{12}$/.test(t)) return 'JCB';\r\n  if(/^3(0[0-5]|[68]\\d)\\d{11}$/.test(t)) return 'Diners Club';\r\n  return '未知卡组织';\r\n}\r\nfunction formatCard(s){\r\n  var t=luhnClean(s), out=[];\r\n  for(var i=0;i<t.length;i+=4) out.push(t.slice(i,i+4));\r\n  return out.join(' ');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { luhnValidate:luhnValidate, luhnCheckDigit:luhnCheckDigit, cardBrand:cardBrand, formatCard:formatCard, luhnClean:luhnClean };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.LuhnForgePure = { luhnValidate:luhnValidate, luhnCheckDigit:luhnCheckDigit, cardBrand:cardBrand, formatCard:formatCard, luhnClean:luhnClean };\r\n}\r\n"
+}

@@ -1,0 +1,59 @@
+{
+  "id": "JcForge",
+  "name": "jc_forge",
+  "title": "JcForge",
+  "description": "CLI 输出结构化：把 df / ls -l / uptime / ping / ps 的纯文本解析成 JSON 对象数组，便于程序消费与比对。",
+  "entry": "convert",
+  "entries": {
+    "convert": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cmd",
+        "text"
+      ],
+      "fields": []
+    },
+    "df": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "ls": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "uptime": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "ping": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "ps": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "cmd": {
+        "type": "string",
+        "description": "第 1 个参数（cmd）"
+      },
+      "text": {
+        "type": "string",
+        "description": "第 2 个参数（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function df(text){\r\n    var lines=String(text||'').split(/\\r?\\n/).filter(function(s){return s.trim()&&!/Filesystem/.test(s);});\r\n    return lines.map(function(l){ var p=l.split(/\\s+/); return {filesystem:p[0], size:p[1], used:p[2], avail:p[3], use:p[4], mounted:p[5]}; });\r\n  }\r\n  function ls(text){\r\n    var lines=String(text||'').split(/\\r?\\n/).filter(function(s){return /^[/\\-]/.test(s);});\r\n    return lines.map(function(l){ var p=l.split(/\\s+/); return {perm:p[0], links:p[1], owner:p[2], group:p[3], size:p[4], name:p[p.length-1]}; });\r\n  }\r\n  function uptime(text){\r\n    var s=String(text||'');\r\n    var m=s.match(/load average:\\s*([\\d.]+),\\s*([\\d.]+),\\s*([\\d.]+)/);\r\n    var up=s.match(/up\\s+(.+?),\\s+\\d+\\s+user/);\r\n    return {uptime: up?up[1]:null, load: m?[m[1],m[2],m[3]].map(Number):[]};\r\n  }\r\n  function ping(text){\r\n    var lines=String(text||'').split(/\\r?\\n/), rtt=[];\r\n    lines.forEach(function(l){ var m=l.match(/time=([\\d.]+)\\s*ms/); if(m) rtt.push(Number(m[1])); });\r\n    var loss=String(text||'').match(/(\\d+)% packet loss/);\r\n    return {rtt:rtt, loss: loss?loss[1]+'%':null};\r\n  }\r\n  function ps(text){\r\n    var lines=String(text||'').split(/\\r?\\n/).filter(function(s){return /^\\s*\\d+/.test(s);});\r\n    return lines.map(function(l){ var p=l.trim().split(/\\s+/); return {pid:p[0], tty:p[1], time:p[2], cmd:p.slice(3).join(' ')}; });\r\n  }\r\n  function convert(cmd, text){\r\n    cmd=(cmd||'').toLowerCase();\r\n    if(cmd==='df') return {value: df(text)};\r\n    if(cmd==='ls') return {value: ls(text)};\r\n    if(cmd==='uptime') return {value: uptime(text)};\r\n    if(cmd==='ping') return {value: ping(text)};\r\n    if(cmd==='ps') return {value: ps(text)};\r\n    return {error:'暂不支持的命令: '+cmd+'（支持 df/ls/uptime/ping/ps）'};\r\n  }\r\n  function wrap(fn){ return function(t){ try{ return {value: fn(t)}; }catch(e){ return {error:'解析失败: '+e.message}; } }; }\r\n  var API={convert:convert, df:wrap(df), ls:wrap(ls), uptime:wrap(uptime), ping:wrap(ping), ps:wrap(ps)};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__JcForge__=API;\r\n})();\r\n"
+}

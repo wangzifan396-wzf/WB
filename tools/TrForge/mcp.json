@@ -1,0 +1,56 @@
+{
+  "id": "TrForge",
+  "name": "tr_forge",
+  "title": "TrForge",
+  "description": "字符集变换：像 tr 一样把一组字符映射为另一组，支持删除(-d)、压缩重复(-s)与 a-z 区间展开。",
+  "entry": "run",
+  "entries": {
+    "run": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "set1",
+        "set2",
+        "del",
+        "sq"
+      ],
+      "fields": []
+    },
+    "expand": {
+      "paramStyle": "single",
+      "paramNames": [
+        "set"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "set1": {
+        "type": "string",
+        "description": "第 2 个参数（set1）"
+      },
+      "set2": {
+        "type": "string",
+        "description": "第 3 个参数（set2）"
+      },
+      "del": {
+        "type": "string",
+        "description": "第 4 个参数（del）"
+      },
+      "sq": {
+        "type": "string",
+        "description": "第 5 个参数（sq）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function expand(set){\r\n    var out=[]; var i=0;\r\n    while(i<set.length){\r\n      if(set[i+1]==='-'&&i+2<set.length){ var a=set.charCodeAt(i), b=set.charCodeAt(i+2);\r\n        for(var c=a;c<=b;c++) out.push(String.fromCharCode(c)); i+=3; }\r\n      else { out.push(set[i]); i++; }\r\n    }\r\n    return out;\r\n  }\r\n  function run(text,set1,set2,del,sq){\r\n    text=String(text==null?'':text);\r\n    var s1=expand(set1);\r\n    if(del){ var drop={}; s1.forEach(function(c){drop[c]=1;}); return {value: text.split('').filter(function(c){return !drop[c];}).join('')}; }\r\n    var s2=expand(set2); var map={};\r\n    for(var i=0;i<s1.length;i++){ map[s1[i]]= s2.length? s2[Math.min(i,s2.length-1)] : s1[i]; }\r\n    var res=text.split('').map(function(c){ return map.hasOwnProperty(c)? map[c] : c; }).join('');\r\n    if(sq){ res=res.replace(/(.)\\1+/g,function(m,c){ return c; }); }\r\n    return {value:res};\r\n  }\r\n  var API={run:run,expand:expand};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__TrForge__=API;\r\n})();\r\n"
+}

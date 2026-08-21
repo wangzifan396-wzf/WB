@@ -1,0 +1,42 @@
+{
+  "id": "EscapeForge",
+  "name": "escape_forge",
+  "title": "EscapeForge",
+  "description": "多格式转义：在 HTML/XML、JS/JSON、SQL 与 URL 之间转义或反转义特殊字符，便于在代码与数据中安全嵌入文本。",
+  "entry": "esc",
+  "entries": {
+    "esc": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "fmt"
+      ],
+      "fields": []
+    },
+    "unesc": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "fmt"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "第 1 个参数（s）"
+      },
+      "fmt": {
+        "type": "string",
+        "description": "第 2 个参数（fmt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function escStr(c){\r\n    var code=c.charCodeAt(0);\r\n    if(code===92) return String.fromCharCode(92,92);\r\n    if(code===34) return String.fromCharCode(92,34);\r\n    if(code===39) return String.fromCharCode(92,39);\r\n    if(code===10) return String.fromCharCode(92,110);\r\n    if(code===13) return String.fromCharCode(92,114);\r\n    if(code===9)  return String.fromCharCode(92,116);\r\n    if(code===8)  return String.fromCharCode(92,98);\r\n    if(code===12) return String.fromCharCode(92,102);\r\n    return c;\r\n  }\r\n  function unescStr(s){\r\n    return s.replace(/\\\\n/g,'\\n').replace(/\\\\r/g,'\\r').replace(/\\\\t/g,'\\t')\r\n           .replace(/\\\\b/g,'\\b').replace(/\\\\f/g,'\\f')\r\n           .replace(/\\\\\"/g,'\"').replace(/\\\\'/g,\"'\").replace(/\\\\\\\\/g,'\\\\');\r\n  }\r\n  var NAMED={'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'};\r\n  var UN={'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'\"','&#39;':\"'\"};\r\n  function esc(s,fmt){ s=String(s==null?'':s);\r\n    if(fmt==='html'||fmt==='xml'){ return {value: s.replace(/[&<>\"']/g,function(c){return NAMED[c];})}; }\r\n    if(fmt==='js'||fmt==='json'){ var o=''; for(var i=0;i<s.length;i++){ o+=escStr(s[i]); } return {value:o}; }\r\n    if(fmt==='sql'){ return {value: s.replace(/'/g,\"''\")}; }\r\n    if(fmt==='url'){ try{ return {value: encodeURIComponent(s)}; }catch(e){ return {error:String(e)}; } }\r\n    return {error:'未知格式'}; }\r\n  function unesc(s,fmt){ s=String(s==null?'':s);\r\n    if(fmt==='html'||fmt==='xml'){ return {value: s.replace(/&(amp|lt|gt|quot|#39);/g,function(m){return UN[m]||m;})}; }\r\n    if(fmt==='js'||fmt==='json'){ return {value: unescStr(s)}; }\r\n    if(fmt==='sql'){ return {value: s.replace(/''/g,\"'\")}; }\r\n    if(fmt==='url'){ try{ return {value: decodeURIComponent(s)}; }catch(e){ return {error:String(e)}; } }\r\n    return {error:'未知格式'}; }\r\n  var API={esc:esc,unesc:unesc};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__EscapeForge__=API;\r\n})();\r\n"
+}

@@ -1,0 +1,62 @@
+{
+  "id": "ShellForge",
+  "name": "shell_forge",
+  "title": "ShellForge",
+  "description": "Shell 脚本静态检查：内置未加引号变量、反引号、cd 无兜底、危险 rm、$? 判断、read 缺 -r、未使用变量等 18 条高频缺陷规则，逐行给出行号、说明与修复建议。",
+  "entry": "lint",
+  "entries": {
+    "lint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "src",
+        "opt"
+      ],
+      "fields": []
+    },
+    "quoteMap": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "stripComment": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "detectShell": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "severityRank": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "src": {
+        "type": "string",
+        "description": "第 1 个参数（src）"
+      },
+      "opt": {
+        "type": "object",
+        "description": "第 2 个参数（opt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n'use strict';\r\nvar META={\r\n SC2148:{s:'error',m:'缺少 shebang，脚本解释器不确定',f:'首行加 #!/usr/bin/env bash'},\r\n SC2086:{s:'warning',m:'变量展开未加引号，含空格/通配符时会被拆词',f:'改为 \"$VAR\"'},\r\n SC2046:{s:'warning',m:'命令替换未加引号，输出会被拆词',f:'改为 \"$(cmd)\"'},\r\n SC2006:{s:'style',m:'使用了过时的反引号命令替换',f:'改为 $(cmd)'},\r\n SC2164:{s:'warning',m:'cd 可能失败却继续执行后续命令',f:'改为 cd dir || exit 1'},\r\n SC2115:{s:'error',m:'变量为空时 rm -rf 会删到根路径',f:'改为 \"${VAR:?}/...\"'},\r\n SC2181:{s:'style',m:'用 $? 判断退出码不如直接判断命令',f:'改为 if cmd; then'},\r\n SC2162:{s:'info',m:'read 未加 -r，反斜杠会被吞掉',f:'改为 read -r'},\r\n SC2166:{s:'warning',m:'[ ] 内的 -a/-o 行为未定义',f:'拆成 [ x ] && [ y ]'},\r\n SC2035:{s:'info',m:'通配符开头的文件名会被当成选项',f:'改为 ./* 形式'},\r\n SC2002:{s:'style',m:'cat 单文件再管道是多余的',f:'改为 cmd < file'},\r\n SC2196:{s:'style',m:'egrep/fgrep 已废弃',f:'改为 grep -E / grep -F'},\r\n SC2044:{s:'warning',m:'for 遍历 find 输出遇空格会断行',f:'改为 find ... -print0 | while IFS= read -r -d \"\"'},\r\n SC2059:{s:'info',m:'printf 的格式串含变量，可能被当格式符解析',f:'改为 printf \"%s\" \"$var\"'},\r\n SC3010:{s:'warning',m:'sh 下使用了 bash 专有语法 [[ ]]',f:'改用 [ ] 或把 shebang 换成 bash'},\r\n SC2034:{s:'info',m:'变量被赋值但从未使用',f:'删除该变量或加 export'},\r\n SC2154:{s:'warning',m:'变量被引用但从未赋值',f:'检查拼写或先赋默认值'},\r\n NANO01:{s:'info',m:'未启用严格模式，出错时脚本会继续跑',f:'加 set -euo pipefail'}\r\n};\r\nfunction quoteMap(line){\r\n  var m=new Array(line.length),q=0,i,c;\r\n  for(i=0;i<line.length;i++){\r\n    c=line.charAt(i);\r\n    if(q===0){\r\n      if(c===\"'\"){q=1;m[i]=1;continue;}\r\n      if(c==='\"'){q=2;m[i]=2;continue;}\r\n      m[i]=0;\r\n    } else if(q===1){ m[i]=1; if(c===\"'\")q=0; }\r\n    else { m[i]=2; if(c==='\\\\'){ if(i+1<line.length){m[i+1]=2;i++;} continue;} if(c==='\"')q=0; }\r\n  }\r\n  return m;\r\n}\r\nfunction stripComment(line){\r\n  var qm=quoteMap(line),i;\r\n  for(i=0;i<line.length;i++){\r\n    if(line.charAt(i)==='#'&&qm[i]===0&&(i===0||/\\s/.test(line.charAt(i-1)))) return line.slice(0,i);\r\n  }\r\n  return line;\r\n}\r\nfunction detectShell(src){\r\n  var m=/^#!\\s*(\\S+)/.exec(src);\r\n  if(!m) return '';\r\n  var p=m[1];\r\n  if(/env$/.test(p)){ var m2=/^#!\\s*\\S+\\s+(\\S+)/.exec(src); p=m2?m2[1]:p; }\r\n  return p.split('/').pop();\r\n}\r\nfunction lint(src,opt){\r\n  if(typeof src!=='string'||!src.trim()) return {value:null,error:'请输入 Shell 脚本内容'};\r\n  opt=opt||{};\r\n  var lines=src.split(/\\r?\\n/),issues=[],i,raw,line,qm,shell=detectShell(src);\r\n  var isSh=(shell==='sh'||shell==='dash');\r\n  function add(code,ln,col,extra){\r\n    var d=META[code];\r\n    issues.push({code:code,sev:d.s,line:ln,col:col||1,msg:d.m+(extra?('（'+extra+'）'):''),fix:d.f});\r\n  }\r\n  var firstReal='';\r\n  for(i=0;i<lines.length;i++){ if(lines[i].trim()){ firstReal=lines[i]; break; } }\r\n  if(firstReal.indexOf('#!')!==0) add('SC2148',1,1);\r\n  if(!/\\bset\\s+-[a-zA-Z]*e/.test(src)) add('NANO01',1,1);\r\n  var assigned={},used={};\r\n  for(i=0;i<lines.length;i++){\r\n    raw=lines[i]; line=stripComment(raw); qm=quoteMap(line);\r\n    var ln=i+1;\r\n    if(!line.trim()) continue;\r\n    var re,m;\r\n    // 赋值 / 使用采集\r\n    re=/(^|[;&|]\\s*)(?:local\\s+|export\\s+|declare\\s+(?:-\\w+\\s+)?)?([A-Za-z_][A-Za-z0-9_]*)=/g;\r\n    while((m=re.exec(line))){ if(qm[m.index+m[0].length-1]===0) assigned[m[2]]=assigned[m[2]]||ln; }\r\n    re=/\\$\\{?([A-Za-z_][A-Za-z0-9_]*)\\}?/g;\r\n    while((m=re.exec(line))){ if(qm[m.index]!==1) used[m[1]]=true; }\r\n    if(/\\bexport\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*$/.test(line)) used[/\\bexport\\s+([A-Za-z_][A-Za-z0-9_]*)/.exec(line)[1]]=true;\r\n    // SC2006 反引号\r\n    for(var k=0;k<line.length;k++){ if(line.charAt(k)==='`'&&qm[k]!==1){ add('SC2006',ln,k+1); break; } }\r\n    // SC2046 未加引号的命令替换\r\n    re=/\\$\\(/g;\r\n    while((m=re.exec(line))){\r\n      if(qm[m.index]===0&&!/^\\s*(?:local\\s+|export\\s+)?[A-Za-z_][A-Za-z0-9_]*=\\s*\\$\\($/.test(line.slice(0,m.index+2))\r\n         &&!/\\(\\(/.test(line.slice(m.index,m.index+3))){ add('SC2046',ln,m.index+1); break; }\r\n    }\r\n    // SC2086 未加引号的变量\r\n    re=/\\$\\{?([A-Za-z_][A-Za-z0-9_]*)\\}?/g;\r\n    var inArith=/\\(\\(/.test(line)||/\\[\\[/.test(line);\r\n    while((m=re.exec(line))){\r\n      if(qm[m.index]!==0) continue;\r\n      if(inArith) continue;\r\n      var before=line.slice(0,m.index);\r\n      if(/=\\s*$/.test(before)) continue;\r\n      if(/^\\s*(?:local|export|declare|readonly)\\b/.test(line)&&/=\\s*$/.test(before)) continue;\r\n      add('SC2086',ln,m.index+1,'$'+m[1]);\r\n      break;\r\n    }\r\n    // SC2164 cd 无兜底\r\n    if(/^\\s*cd\\s+[^\\s;]/.test(line)&&!/\\|\\||&&|exit|return/.test(line)) add('SC2164',ln,1);\r\n    // SC2115 危险 rm\r\n    if(/\\brm\\s+(-\\w+\\s+)*[\"']?\\$\\{?[A-Za-z_][A-Za-z0-9_]*\\}?\\//.test(line)&&line.indexOf(':?')<0) add('SC2115',ln,1);\r\n    // SC2181 $? 判断\r\n    if(/\\[\\[?\\s*\\$\\?\\s*(-ne|-eq|!=|==)/.test(line)) add('SC2181',ln,1);\r\n    // SC2162 read 无 -r\r\n    if(/(^|[;&|]\\s*)read\\s+/.test(line)&&!/\\bread\\s+(-\\w*r\\w*|-\\w+\\s+-\\w*r)/.test(line)) add('SC2162',ln,1);\r\n    // SC2166 [ -a / -o ]\r\n    if(/\\[\\s[^\\]]*\\s-(a|o)\\s[^\\]]*\\]/.test(line)&&line.indexOf('[[')<0) add('SC2166',ln,1);\r\n    // SC2035 通配符首字符\r\n    if(/(^|[;&|]\\s*)(rm|cp|mv|chmod|chown|tar)\\s+(-\\w+\\s+)*\\*/.test(line)) add('SC2035',ln,1);\r\n    // SC2002 无用 cat\r\n    if(/^\\s*cat\\s+[^|]+\\|/.test(line)&&!/\\*/.test(line.split('|')[0])) add('SC2002',ln,1);\r\n    // SC2196 egrep/fgrep\r\n    if(/(^|[\\s|;])(egrep|fgrep)\\s/.test(line)) add('SC2196',ln,1);\r\n    // SC2044 for + find\r\n    if(/for\\s+\\w+\\s+in\\s+\\$\\(\\s*find\\b/.test(line)) add('SC2044',ln,1);\r\n    // SC2059 printf 变量格式串\r\n    if(/printf\\s+[\"'][^\"']*\\$\\{?[A-Za-z_]/.test(line)) add('SC2059',ln,1);\r\n    // SC3010 sh 用 [[\r\n    if(isSh&&line.indexOf('[[')>=0) add('SC3010',ln,1);\r\n  }\r\n  var name;\r\n  for(name in assigned){ if(!used[name]&&name!=='IFS'&&name!=='PATH') add('SC2034',assigned[name],1,name); }\r\n  var ENVOK={HOME:1,PATH:1,USER:1,PWD:1,SHELL:1,IFS:1,LANG:1,TERM:1,HOSTNAME:1,UID:1,EUID:1,RANDOM:1,SECONDS:1,LINENO:1,BASH_SOURCE:1,FUNCNAME:1,OPTARG:1,OPTIND:1,REPLY:1,PS1:1,TMPDIR:1};\r\n  for(name in used){ if(!assigned[name]&&!ENVOK[name]) add('SC2154',1,1,name); }\r\n  issues.sort(function(a,b){ return a.line-b.line||a.col-b.col||(a.code<b.code?-1:1); });\r\n  var stats={error:0,warning:0,info:0,style:0};\r\n  for(i=0;i<issues.length;i++) stats[issues[i].sev]++;\r\n  return {value:{issues:issues,stats:stats,shell:shell||'(未声明)',lines:lines.length,\r\n                 score:Math.max(0,100-stats.error*15-stats.warning*7-stats.info*3-stats.style*1)},error:null};\r\n}\r\nfunction severityRank(s){ return {error:0,warning:1,info:2,style:3}[s]; }\r\nvar API={lint:lint,quoteMap:quoteMap,stripComment:stripComment,detectShell:detectShell,severityRank:severityRank,META:META};\r\nif(typeof module!=='undefined'&&module.exports) module.exports=API;\r\nif(typeof window!=='undefined') window.__ShellForge__=API;\r\n})();\r\n\r\n"
+}

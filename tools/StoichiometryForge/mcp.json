@@ -1,0 +1,38 @@
+{
+  "id": "StoichiometryForge",
+  "name": "stoichiometry_forge",
+  "title": "StoichiometryForge",
+  "description": "输入已配平方程式与某物质的量，按系数比例求其它物质的物质的量。",
+  "entry": "parseEquation",
+  "entries": {
+    "parseEquation": {
+      "paramStyle": "single",
+      "paramNames": [
+        "eq"
+      ],
+      "fields": []
+    },
+    "compute": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "eq",
+        "knownFormula",
+        "knownMoles"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "eq": {
+        "type": "string",
+        "description": "输入（eq）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseCounts(form){\r\n  form=String(form).replace(/[\\s·×*]/g,'.');\r\n  var i=0, n=form.length;\r\n  function readFactor(){\r\n    var map={};\r\n    while(i<n){\r\n      var c=form[i];\r\n      if(c==='('){ i++; var g=readFactor();\r\n        var num=1; if(i<n && /[0-9]/.test(form[i])){num=0;while(i<n&&/[0-9]/.test(form[i])){num=num*10+(form[i].charCodeAt(0)-48);i++;}}\r\n        for(var k in g) map[k]=(map[k]||0)+g[k]*num;\r\n        continue;\r\n      }\r\n      if(c===')'){ i++; break; }\r\n      if(c==='.'){ i++;\r\n        var mult=1; if(i<n && /[0-9]/.test(form[i])){mult=0;while(i<n&&/[0-9]/.test(form[i])){mult=mult*10+(form[i].charCodeAt(0)-48);i++;}}\r\n        var rest=readFactor();\r\n        for(var k in rest) map[k]=(map[k]||0)+rest[k]*mult;\r\n        break;\r\n      }\r\n      if(/[A-Z]/.test(c)){\r\n        var sym=c; i++;\r\n        while(i<n && /[a-z]/.test(form[i])){ sym+=form[i]; i++; }\r\n        var cnt=1; if(i<n && /[0-9]/.test(form[i])){cnt=0;while(i<n&&/[0-9]/.test(form[i])){cnt=cnt*10+(form[i].charCodeAt(0)-48);i++;}}\r\n        map[sym]=(map[sym]||0)+cnt;\r\n        continue;\r\n      }\r\n      i++;\r\n    }\r\n    return map;\r\n  }\r\n  return readFactor();\r\n}\r\n\r\nfunction parseEquation(eq){\r\n  var sides=eq.split(/\\s*(?:->|→|=)\\s*/);\r\n  if(sides.length!==2) return null;\r\n  function side(s){ return s.split('+').map(function(p){ p=p.trim(); if(!p) return null;\r\n    var m=p.match(/^(\\d+)?\\s*([A-Za-z0-9().]+)$/); if(!m) return null;\r\n    var coeff=m[1]?parseInt(m[1],10):1; return {formula:m[2], coeff:coeff, counts:parseCounts(m[2])};\r\n  }).filter(Boolean); }\r\n  return {reactants:side(sides[0]), products:side(sides[1])};\r\n}\r\nfunction compute(eq, knownFormula, knownMoles){\r\n  var p=parseEquation(eq); if(!p) return {error:\"方程式格式错误\"};\r\n  var all=p.reactants.concat(p.products);\r\n  var known=null; for(var i=0;i<all.length;i++) if(all[i].formula===knownFormula) known=all[i];\r\n  if(!known) return {error:\"未知物质 \"+knownFormula};\r\n  var out={};\r\n  all.forEach(function(s){ if(s===known) return; out[s.formula]= knownMoles * s.coeff / known.coeff; });\r\n  return {ok:true, out:out};\r\n}\r\nvar EXPORTS={parseEquation:parseEquation, compute:compute};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.StoichiometryForgePure = EXPORTS; }\r\n\r\n"
+}

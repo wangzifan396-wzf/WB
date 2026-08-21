@@ -1,0 +1,50 @@
+{
+  "id": "DagForge",
+  "name": "dag_forge",
+  "title": "DagForge",
+  "description": "DAG 工作流分析器：任务依赖 DSL 一键得到拓扑执行顺序、关键路径与总工期，自带环检测，离线可用。",
+  "entry": "dagParse",
+  "entries": {
+    "dagParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "dagTopo": {
+      "paramStyle": "object",
+      "paramNames": [
+        "g"
+      ],
+      "fields": [
+        "nodes",
+        "edges"
+      ]
+    },
+    "dagCritical": {
+      "paramStyle": "object",
+      "paramNames": [
+        "g"
+      ],
+      "fields": [
+        "nodes",
+        "edges",
+        "dur"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction dagParse(text){\r\n  var dur={}, edges=[], nodes=[], seen={};\r\n  function add(x){ if(!seen[x]){ seen[x]=1; nodes.push(x); if(!(x in dur)) dur[x]=1; } }\r\n  var lines=String(text||'').split('\\n');\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i].trim();\r\n    if(!ln || ln.charAt(0)==='#') continue;\r\n    var me=/^(.+?)\\s*->\\s*(.+)$/.exec(ln);\r\n    if(me){ var a=me[1].trim(), b=me[2].trim();\r\n      if(!a||!b) return { error:'第 '+(i+1)+' 行节点为空' };\r\n      add(a); add(b); edges.push([a,b]); continue; }\r\n    var md=/^(.+?)\\s*=\\s*([\\d.]+)$/.exec(ln);\r\n    if(md){ var t=Number(md[2]);\r\n      if(!isFinite(t)||t<0) return { error:'第 '+(i+1)+' 行工期非法' };\r\n      dur[md[1].trim()]=t; add(md[1].trim()); continue; }\r\n    return { error:'第 '+(i+1)+' 行格式错误（A=3 或 A -> B）' };\r\n  }\r\n  return { error:null, nodes:nodes, edges:edges, dur:dur };\r\n}\r\nfunction dagTopo(g){\r\n  var indeg={}, adj={}, i;\r\n  for(i=0;i<g.nodes.length;i++){ indeg[g.nodes[i]]=0; adj[g.nodes[i]]=[]; }\r\n  for(i=0;i<g.edges.length;i++){ adj[g.edges[i][0]].push(g.edges[i][1]); indeg[g.edges[i][1]]++; }\r\n  var q=[], order=[];\r\n  for(i=0;i<g.nodes.length;i++) if(indeg[g.nodes[i]]===0) q.push(g.nodes[i]);\r\n  q.sort();\r\n  while(q.length){\r\n    var u=q.shift(); order.push(u);\r\n    var ready=[];\r\n    for(i=0;i<adj[u].length;i++){ var v=adj[u][i]; if(--indeg[v]===0) ready.push(v); }\r\n    ready.sort(); q=q.concat(ready); q.sort();\r\n  }\r\n  if(order.length!==g.nodes.length) return { error:'检测到环，非法 DAG', order:[] };\r\n  return { error:null, order:order };\r\n}\r\nfunction dagCritical(g){\r\n  var t=dagTopo(g);\r\n  if(t.error) return { error:t.error };\r\n  var finish={}, prev={}, i, j;\r\n  var adjIn={}; for(i=0;i<g.nodes.length;i++) adjIn[g.nodes[i]]=[];\r\n  for(i=0;i<g.edges.length;i++) adjIn[g.edges[i][1]].push(g.edges[i][0]);\r\n  for(i=0;i<t.order.length;i++){\r\n    var u=t.order[i], best=0, bp=null, ins=adjIn[u];\r\n    for(j=0;j<ins.length;j++) if(finish[ins[j]]>best){ best=finish[ins[j]]; bp=ins[j]; }\r\n    finish[u]=best+g.dur[u]; prev[u]=bp;\r\n  }\r\n  var end=null, total=0;\r\n  for(i=0;i<g.nodes.length;i++) if(finish[g.nodes[i]]>total){ total=finish[g.nodes[i]]; end=g.nodes[i]; }\r\n  var path=[]; var cur=end;\r\n  while(cur!==null && cur!==undefined){ path.unshift(cur); cur=prev[cur]; }\r\n  return { error:null, total:total, path:path, finish:finish };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { dagParse:dagParse, dagTopo:dagTopo, dagCritical:dagCritical };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.DagForgePure = { dagParse:dagParse, dagTopo:dagTopo, dagCritical:dagCritical };\r\n}\r\n"
+}

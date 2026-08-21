@@ -1,0 +1,58 @@
+{
+  "id": "WfcForge",
+  "name": "wfc_forge",
+  "title": "WfcForge",
+  "description": "波函数坍缩（WFC）地形生成器：海/滩/草/林/山邻接约束，最小熵坍缩 + 约束传播，种子可复现，SVG 网格渲染，离线可用。",
+  "entry": "wfcTiles",
+  "entries": {
+    "wfcTiles": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "wfcRng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "wfcRun": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h",
+        "seed"
+      ],
+      "fields": []
+    },
+    "wfcValidate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "grid"
+      ],
+      "fields": []
+    },
+    "wfcSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "grid"
+      ],
+      "fields": []
+    },
+    "wfcCounts": {
+      "paramStyle": "single",
+      "paramNames": [
+        "grid"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\nfunction wfcTiles(){\r\n  return {\r\n    names:['sea','sand','grass','forest','rock'],\r\n    colors:{ sea:'#22D3EE', sand:'#F5A623', grass:'#10B981', forest:'#0B7A55', rock:'#71717A' },\r\n    adj:{\r\n      sea:['sea','sand'],\r\n      sand:['sea','sand','grass'],\r\n      grass:['sand','grass','forest'],\r\n      forest:['grass','forest','rock'],\r\n      rock:['forest','rock']\r\n    }\r\n  };\r\n}\r\nfunction wfcRng(seed){\r\n  var t=seed>>>0;\r\n  return function(){\r\n    t += 0x6D2B79F5;\r\n    var r=Math.imul(t ^ (t>>>15), 1|t);\r\n    r = (r + Math.imul(r ^ (r>>>7), 61|r)) ^ r;\r\n    return ((r ^ (r>>>14))>>>0)/4294967296;\r\n  };\r\n}\r\nfunction wfcRun(w, h, seed){\r\n  var T=wfcTiles(), rng=wfcRng(seed), N=T.names, i;\r\n  var cells=[];\r\n  for(i=0;i<w*h;i++) cells.push(N.slice());\r\n  function propagate(idx){\r\n    var stack=[idx];\r\n    while(stack.length){\r\n      var cur=stack.pop(), cx=cur%w, cy=Math.floor(cur/w);\r\n      var allowed={};\r\n      for(var a=0;a<cells[cur].length;a++){\r\n        var opts=T.adj[cells[cur][a]];\r\n        for(var b=0;b<opts.length;b++) allowed[opts[b]]=1;\r\n      }\r\n      var nbs=[];\r\n      if(cx>0) nbs.push(cur-1);\r\n      if(cx<w-1) nbs.push(cur+1);\r\n      if(cy>0) nbs.push(cur-w);\r\n      if(cy<h-1) nbs.push(cur+w);\r\n      for(var k=0;k<nbs.length;k++){\r\n        var nb=nbs[k], before=cells[nb].length;\r\n        cells[nb]=cells[nb].filter(function(t){ return allowed[t]; });\r\n        if(!cells[nb].length) return false;\r\n        if(cells[nb].length<before) stack.push(nb);\r\n      }\r\n    }\r\n    return true;\r\n  }\r\n  for(var step=0;step<w*h;step++){\r\n    var best=-1, bestE=1e9;\r\n    for(i=0;i<w*h;i++) if(cells[i].length>1 && cells[i].length<bestE){ bestE=cells[i].length; best=i; }\r\n    if(best<0) break;\r\n    var pick=cells[best][Math.floor(rng()*cells[best].length)];\r\n    cells[best]=[pick];\r\n    if(!propagate(best)) return { error:'坍缩矛盾（种子 '+seed+'）', grid:null };\r\n  }\r\n  var grid=[];\r\n  for(var y=0;y<h;y++){\r\n    var row=[];\r\n    for(var x=0;x<w;x++) row.push(cells[y*w+x][0]);\r\n    grid.push(row);\r\n  }\r\n  return { error:null, grid:grid };\r\n}\r\nfunction wfcValidate(grid){\r\n  var T=wfcTiles(), h=grid.length, w=grid[0].length;\r\n  function okPair(a,b){ return T.adj[a].indexOf(b)>=0; }\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    if(x+1<w && !okPair(grid[y][x],grid[y][x+1])) return false;\r\n    if(y+1<h && !okPair(grid[y][x],grid[y+1][x])) return false;\r\n  }\r\n  return true;\r\n}\r\nfunction wfcSvg(grid){\r\n  var T=wfcTiles(), h=grid.length, w=grid[0].length, C=22;\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+(w*C)+'\" height=\"'+(h*C)+'\" viewBox=\"0 0 '+(w*C)+' '+(h*C)+'\">';\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++)\r\n    s+='<rect x=\"'+(x*C)+'\" y=\"'+(y*C)+'\" width=\"'+C+'\" height=\"'+C+'\" fill=\"'+T.colors[grid[y][x]]+'\" stroke=\"#0A0A0B\" stroke-width=\"1\"/>';\r\n  return s+'</svg>';\r\n}\r\nfunction wfcCounts(grid){\r\n  var out={};\r\n  for(var y=0;y<grid.length;y++) for(var x=0;x<grid[0].length;x++) out[grid[y][x]]=(out[grid[y][x]]||0)+1;\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { wfcTiles:wfcTiles, wfcRng:wfcRng, wfcRun:wfcRun, wfcValidate:wfcValidate, wfcSvg:wfcSvg, wfcCounts:wfcCounts };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.WfcForgePure = { wfcTiles:wfcTiles, wfcRng:wfcRng, wfcRun:wfcRun, wfcValidate:wfcValidate, wfcSvg:wfcSvg, wfcCounts:wfcCounts };\r\n}\r\n"
+}

@@ -1,0 +1,71 @@
+{
+  "id": "LangtonForge",
+  "name": "langton_forge",
+  "title": "LangtonForge",
+  "description": "Langton's Ant 元胞自动机：支持多只蚂蚁在环面上推演，观察简单规则涌现的高速公路与混沌图案，实时步进，离线可用。",
+  "entry": "laInit",
+  "entries": {
+    "laInit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h",
+        "nAnts"
+      ],
+      "fields": []
+    },
+    "laStep": {
+      "paramStyle": "object",
+      "paramNames": [
+        "st"
+      ],
+      "fields": [
+        "grid",
+        "ants",
+        "w",
+        "h",
+        "steps"
+      ]
+    },
+    "laRun": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "st",
+        "n"
+      ],
+      "fields": []
+    },
+    "laCount": {
+      "paramStyle": "object",
+      "paramNames": [
+        "st"
+      ],
+      "fields": [
+        "h",
+        "w",
+        "grid"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "w": {
+        "type": "string",
+        "description": "第 1 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 2 个参数（h）"
+      },
+      "nAnts": {
+        "type": "string",
+        "description": "第 3 个参数（nAnts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction laInit(w,h,nAnts){\r\n  w=Math.max(8,Math.floor(w)); h=Math.max(8,Math.floor(h));\r\n  nAnts=Math.max(1,Math.min(8,Math.floor(nAnts)||1));\r\n  var grid=[];\r\n  for(var y=0;y<h;y++){ var row=[]; for(var x=0;x<w;x++){ row.push(0); } grid.push(row); }\r\n  var ants=[];\r\n  for(var i=0;i<nAnts;i++){\r\n    ants.push({ x: Math.floor(w/2 + (i%4)*7 - 10), y: Math.floor(h/2 + Math.floor(i/4)*7 - 3), dir: i%4 });\r\n  }\r\n  ants=ants.map(function(a){ return { x:((a.x%w)+w)%w, y:((a.y%h)+h)%h, dir:a.dir }; });\r\n  return { w:w, h:h, grid:grid, ants:ants, steps:0 };\r\n}\r\nfunction laStep(st){\r\n  var grid=st.grid.map(function(row){ return row.slice(); });\r\n  var dx=[0,1,0,-1], dy=[-1,0,1,0];\r\n  var ants=st.ants.map(function(a){\r\n    var cell=grid[a.y][a.x];\r\n    var dir = cell===0 ? (a.dir+1)%4 : (a.dir+3)%4;\r\n    grid[a.y][a.x] = cell===0 ? 1 : 0;\r\n    var nx=((a.x+dx[dir])%st.w+st.w)%st.w;\r\n    var ny=((a.y+dy[dir])%st.h+st.h)%st.h;\r\n    return { x:nx, y:ny, dir:dir };\r\n  });\r\n  return { w:st.w, h:st.h, grid:grid, ants:ants, steps:st.steps+1 };\r\n}\r\nfunction laRun(st,n){ for(var i=0;i<n;i++){ st=laStep(st); } return st; }\r\nfunction laCount(st){ var c=0; for(var y=0;y<st.h;y++){ for(var x=0;x<st.w;x++){ if(st.grid[y][x]) c++; } } return c; }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { laInit:laInit, laStep:laStep, laRun:laRun, laCount:laCount };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.LangtonForgePure = { laInit:laInit, laStep:laStep, laRun:laRun, laCount:laCount };\r\n}\r\n"
+}

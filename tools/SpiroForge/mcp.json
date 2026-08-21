@@ -1,0 +1,76 @@
+{
+  "id": "SpiroForge",
+  "name": "spiro_forge",
+  "title": "SpiroForge",
+  "description": "万花尺：内/外旋轮线曲线，周期计算与 SVG 导出。",
+  "entry": "spGcd",
+  "entries": {
+    "spGcd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "spPeriods": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "R",
+        "r"
+      ],
+      "fields": []
+    },
+    "spPoint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "kind",
+        "R",
+        "r",
+        "d",
+        "t"
+      ],
+      "fields": []
+    },
+    "spCurve": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "kind",
+        "R",
+        "r",
+        "d",
+        "steps"
+      ],
+      "fields": []
+    },
+    "spSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "kind",
+        "R",
+        "r",
+        "d",
+        "size",
+        "color"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "number",
+        "description": "第 1 个参数（a）（数值）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 2 个参数（b）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction spGcd(a, b){ a = Math.abs(Math.round(a)); b = Math.abs(Math.round(b)); while(b){ var t = a % b; a = b; b = t; } return a || 1; }\r\nfunction spPeriods(R, r){ return Math.round(r / spGcd(R, r)); }\r\nfunction spPoint(kind, R, r, d, t){\r\n  if(kind === 'epi'){\r\n    var k = (R + r) / r;\r\n    return { x: (R + r) * Math.cos(t) - d * Math.cos(k * t), y: (R + r) * Math.sin(t) - d * Math.sin(k * t) };\r\n  }\r\n  var k2 = (R - r) / r;\r\n  return { x: (R - r) * Math.cos(t) + d * Math.cos(k2 * t), y: (R - r) * Math.sin(t) - d * Math.sin(k2 * t) };\r\n}\r\nfunction spCurve(kind, R, r, d, steps){\r\n  var per = spPeriods(R, r), total = Math.PI * 2 * per;\r\n  var n = steps || Math.max(720, per * 240), pts = [];\r\n  for(var i=0;i<=n;i++) pts.push(spPoint(kind, R, r, d, total * i / n));\r\n  return pts;\r\n}\r\nfunction spSvg(kind, R, r, d, size, color){\r\n  var pts = spCurve(kind, R, r, d);\r\n  var maxR = kind === 'epi' ? R + r + d : Math.abs(R - r) + d;\r\n  var sc = (size/2 - 10) / Math.max(maxR, 1);\r\n  var path = '';\r\n  for(var i=0;i<pts.length;i++){\r\n    var x = (size/2 + pts[i].x * sc).toFixed(2), y = (size/2 + pts[i].y * sc).toFixed(2);\r\n    path += (i === 0 ? 'M' : 'L') + x + ' ' + y;\r\n  }\r\n  return '<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ' + size + ' ' + size + '\" width=\"' + size + '\" height=\"' + size + '\">'\r\n    + '<rect width=\"' + size + '\" height=\"' + size + '\" fill=\"#0A0A0B\"/>'\r\n    + '<path d=\"' + path + '\" fill=\"none\" stroke=\"' + (color || '#22D3EE') + '\" stroke-width=\"1.2\" stroke-opacity=\"0.9\"/></svg>';\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { spGcd:spGcd, spPeriods:spPeriods, spPoint:spPoint, spCurve:spCurve, spSvg:spSvg };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SpiroForgePure = { spGcd:spGcd, spPeriods:spPeriods, spPoint:spPoint, spCurve:spCurve, spSvg:spSvg };\r\n}\r\n"
+}

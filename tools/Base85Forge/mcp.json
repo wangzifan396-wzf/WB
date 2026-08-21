@@ -1,0 +1,64 @@
+{
+  "id": "Base85Forge",
+  "name": "base85_forge",
+  "title": "Base85Forge",
+  "description": "Ascii85 + Z85 编解码：z 压缩、尾组截断、RFC 向量校验。",
+  "entry": "b85Encode",
+  "entries": {
+    "b85Encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "b85Decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "z85Encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "z85Decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "b85StrToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "b85BytesToStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar Z85_CHARS='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#';\r\nfunction b85StrToBytes(s){\r\n  var out=[], str=String(s);\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.codePointAt(i);\r\n    if(c>0xFFFF) i++;\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xC0|(c>>6), 0x80|(c&63)); }\r\n    else if(c<0x10000){ out.push(0xE0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n    else { out.push(0xF0|(c>>18), 0x80|((c>>12)&63), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction b85BytesToStr(bytes){\r\n  var s='';\r\n  for(var i=0;i<bytes.length;){\r\n    var b=bytes[i];\r\n    if(b<0x80){ s+=String.fromCharCode(b); i++; }\r\n    else if(b<0xE0){ s+=String.fromCharCode(((b&31)<<6)|(bytes[i+1]&63)); i+=2; }\r\n    else if(b<0xF0){ s+=String.fromCharCode(((b&15)<<12)|((bytes[i+1]&63)<<6)|(bytes[i+2]&63)); i+=3; }\r\n    else { var cp=((b&7)<<18)|((bytes[i+1]&63)<<12)|((bytes[i+2]&63)<<6)|(bytes[i+3]&63);\r\n      s+=String.fromCodePoint(cp); i+=4; }\r\n  }\r\n  return s;\r\n}\r\nfunction b85Encode(bytes){\r\n  var out='';\r\n  for(var i=0;i<bytes.length;i+=4){\r\n    var chunk=bytes.slice(i,i+4), pad=4-chunk.length;\r\n    while(chunk.length<4) chunk.push(0);\r\n    var v=((chunk[0]*16777216)+(chunk[1]*65536)+(chunk[2]*256)+chunk[3]);\r\n    if(v===0&&pad===0){ out+='z'; continue; }\r\n    var cs=[];\r\n    for(var j=0;j<5;j++){ cs.unshift(String.fromCharCode(33+v%85)); v=Math.floor(v/85); }\r\n    out+=cs.join('').slice(0,5-pad);\r\n  }\r\n  return { value:'<~'+out+'~>', error:null };\r\n}\r\nfunction b85Decode(text){\r\n  var s=String(text).replace(/\\s+/g,'');\r\n  if(s.slice(0,2)==='<~') s=s.slice(2);\r\n  if(s.slice(-2)==='~>') s=s.slice(0,-2);\r\n  var out=[], group=[];\r\n  for(var i=0;i<s.length;i++){\r\n    var ch=s[i];\r\n    if(ch==='z'){\r\n      if(group.length) return { value:null, error:'z 出现在组内（位置 '+i+'）' };\r\n      out.push(0,0,0,0); continue;\r\n    }\r\n    var c=ch.charCodeAt(0);\r\n    if(c<33||c>117) return { value:null, error:'非法字符 \"'+ch+'\"（位置 '+i+'）' };\r\n    group.push(c-33);\r\n    if(group.length===5){\r\n      var v=0;\r\n      for(var j=0;j<5;j++) v=v*85+group[j];\r\n      if(v>4294967295) return { value:null, error:'组溢出（位置 '+i+'）' };\r\n      out.push(Math.floor(v/16777216)&255,(v>>>16)&255,(v>>>8)&255,v&255);\r\n      group=[];\r\n    }\r\n  }\r\n  if(group.length===1) return { value:null, error:'尾组长度不能为 1' };\r\n  if(group.length){\r\n    var pad=5-group.length, g2=group.slice();\r\n    for(var k=0;k<pad;k++) g2.push(84);\r\n    var v2=0;\r\n    for(var j2=0;j2<5;j2++) v2=v2*85+g2[j2];\r\n    var bs=[Math.floor(v2/16777216)&255,(v2>>>16)&255,(v2>>>8)&255,v2&255];\r\n    for(var t=0;t<4-pad;t++) out.push(bs[t]);\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nfunction z85Encode(bytes){\r\n  if(bytes.length%4!==0) return { value:null, error:'Z85 要求字节数为 4 的倍数（当前 '+bytes.length+'）' };\r\n  var out='';\r\n  for(var i=0;i<bytes.length;i+=4){\r\n    var v=(bytes[i]*16777216)+(bytes[i+1]*65536)+(bytes[i+2]*256)+bytes[i+3];\r\n    var cs=[];\r\n    for(var j=0;j<5;j++){ cs.unshift(Z85_CHARS[v%85]); v=Math.floor(v/85); }\r\n    out+=cs.join('');\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nfunction z85Decode(text){\r\n  var s=String(text).replace(/\\s+/g,'');\r\n  if(s.length%5!==0) return { value:null, error:'Z85 字符数须为 5 的倍数（当前 '+s.length+'）' };\r\n  var out=[];\r\n  for(var i=0;i<s.length;i+=5){\r\n    var v=0;\r\n    for(var j=0;j<5;j++){\r\n      var idx=Z85_CHARS.indexOf(s[i+j]);\r\n      if(idx<0) return { value:null, error:'非法字符 \"'+s[i+j]+'\"（位置 '+(i+j)+'）' };\r\n      v=v*85+idx;\r\n    }\r\n    if(v>4294967295) return { value:null, error:'组溢出（位置 '+i+'）' };\r\n    out.push(Math.floor(v/16777216)&255,(v>>>16)&255,(v>>>8)&255,v&255);\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { b85Encode:b85Encode, b85Decode:b85Decode, z85Encode:z85Encode, z85Decode:z85Decode,\r\n    b85StrToBytes:b85StrToBytes, b85BytesToStr:b85BytesToStr };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.Base85ForgePure = { b85Encode:b85Encode, b85Decode:b85Decode, z85Encode:z85Encode, z85Decode:z85Decode,\r\n    b85StrToBytes:b85StrToBytes, b85BytesToStr:b85BytesToStr };\r\n}\r\n"
+}

@@ -1,0 +1,37 @@
+{
+  "id": "WordForge",
+  "name": "word_forge",
+  "title": "WordForge",
+  "description": "离线文本统计：字符 / 词数 / 行数 / 句子 / 段落 / 阅读时长 + 高频英文词，中英文混排友好。",
+  "entry": "analyze",
+  "entries": {
+    "analyze": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "topWords": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction analyze(text){\r\n  text=String(text);\r\n  var chars=text.length;\r\n  var noSpace=text.replace(/\\s/g,'').length;\r\n  var latin=(text.match(/[A-Za-z0-9]+/g)||[]).length;\r\n  var cjk=(text.match(/[㐀-鿿豈-﫿]/g)||[]).length;\r\n  var lines=text.length? text.split(/\\n/).length : 0;\r\n  var sentences=(text.match(/[.!?。！？…]+/g)||[]).length;\r\n  var paras=text.split(/\\n\\s*\\n/).filter(function(p){return p.replace(/\\s/g,'').length;}).length;\r\n  var readingMin=Math.max(0.1, Math.round((cjk/300 + latin/200)*10)/10);\r\n  return {chars:chars,noSpace:noSpace,latin:latin,cjk:cjk,lines:lines,sentences:sentences,paragraphs:paras,readingMin:readingMin};\r\n}\r\nfunction topWords(text, n){\r\n  var m=text.toLowerCase().match(/[a-z0-9]+/g)||[];\r\n  var f={}; m.forEach(function(w){f[w]=(f[w]||0)+1;});\r\n  var arr=Object.keys(f).map(function(k){return [k,f[k]];});\r\n  arr.sort(function(a,b){return b[1]-a[1];});\r\n  return arr.slice(0, n||10);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports={analyze:analyze,topWords:topWords};\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.WordForgePure={analyze:analyze,topWords:topWords};\r\n}\r\n"
+}

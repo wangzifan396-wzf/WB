@@ -1,0 +1,203 @@
+{
+  "id": "PkceForge",
+  "name": "pkce_forge",
+  "title": "PkceForge",
+  "description": "OAuth 2.0 PKCE 全流程本地推演：verifier 与 S256 challenge 浏览器内生成、授权 URL 拼装、回调 state 校验与流程安全体检，离线可用。",
+  "entry": "buildAuthUrl",
+  "entries": {
+    "base64UrlFromBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "bytesFromBase64Url": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "sha256Base64Url": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "verifierFromBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "verifierFromEntropy": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "len"
+      ],
+      "fields": []
+    },
+    "entropyBits": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "validateVerifier": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "codeChallenge": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "verifier",
+        "method"
+      ],
+      "fields": []
+    },
+    "verifyChallenge": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "verifier",
+        "challenge",
+        "method"
+      ],
+      "fields": []
+    },
+    "buildAuthUrl": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "endpoint",
+        "responseType",
+        "clientId",
+        "redirectUri",
+        "scope",
+        "state",
+        "challenge",
+        "method",
+        "nonce",
+        "audience"
+      ]
+    },
+    "parseCallback": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "url",
+        "expectedState"
+      ],
+      "fields": []
+    },
+    "buildTokenRequest": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "code",
+        "redirectUri",
+        "clientId",
+        "verifier",
+        "endpoint"
+      ]
+    },
+    "curlToken": {
+      "paramStyle": "single",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": []
+    },
+    "lintFlow": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "method",
+        "verifier",
+        "endpoint",
+        "redirectUri",
+        "state",
+        "clientSecret",
+        "clientId",
+        "scope",
+        "nonce",
+        "responseType"
+      ]
+    },
+    "splitUri": {
+      "paramStyle": "single",
+      "paramNames": [
+        "uri"
+      ],
+      "fields": []
+    },
+    "gradeOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "score"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "description": "参数 endpoint"
+      },
+      "responseType": {
+        "type": "string",
+        "description": "参数 responseType"
+      },
+      "clientId": {
+        "type": "string",
+        "description": "参数 clientId"
+      },
+      "redirectUri": {
+        "type": "string",
+        "description": "参数 redirectUri"
+      },
+      "scope": {
+        "type": "string",
+        "description": "参数 scope"
+      },
+      "state": {
+        "type": "string",
+        "description": "参数 state"
+      },
+      "challenge": {
+        "type": "string",
+        "description": "参数 challenge"
+      },
+      "method": {
+        "type": "string",
+        "description": "参数 method"
+      },
+      "nonce": {
+        "type": "string",
+        "description": "参数 nonce"
+      },
+      "audience": {
+        "type": "string",
+        "description": "参数 audience"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8Bytes(str){\r\n  var out=[], s=String(str===undefined?'':str);\r\n  for(var i=0;i<s.length;i++){\r\n    var c=s.charCodeAt(i);\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xc0|(c>>6), 0x80|(c&63)); }\r\n    else if(c>=0xd800 && c<=0xdbff && i+1<s.length){\r\n      var c2=s.charCodeAt(i+1);\r\n      var cp=0x10000+((c-0xd800)<<10)+(c2-0xdc00); i++;\r\n      out.push(0xf0|(cp>>18), 0x80|((cp>>12)&63), 0x80|((cp>>6)&63), 0x80|(cp&63));\r\n    } else { out.push(0xe0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction rotr32(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }\r\nvar SHA256_K=[\r\n0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,\r\n0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,\r\n0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,\r\n0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,\r\n0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,\r\n0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,\r\n0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,\r\n0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\r\nfunction sha256Bytes(bytes){\r\n  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\r\n  var msg=bytes.slice(), bitLen=msg.length*8;\r\n  msg.push(0x80);\r\n  while(msg.length%64!==56) msg.push(0);\r\n  var hi=Math.floor(bitLen/4294967296)>>>0, lo=(bitLen>>>0);\r\n  msg.push((hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255);\r\n  msg.push((lo>>>24)&255,(lo>>>16)&255,(lo>>>8)&255,lo&255);\r\n  var w=new Array(64);\r\n  for(var i=0;i<msg.length;i+=64){\r\n    for(var t=0;t<16;t++) w[t]=((msg[i+t*4]<<24)|(msg[i+t*4+1]<<16)|(msg[i+t*4+2]<<8)|msg[i+t*4+3])>>>0;\r\n    for(t=16;t<64;t++){\r\n      var s0=(rotr32(w[t-15],7)^rotr32(w[t-15],18)^(w[t-15]>>>3))>>>0;\r\n      var s1=(rotr32(w[t-2],17)^rotr32(w[t-2],19)^(w[t-2]>>>10))>>>0;\r\n      w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;\r\n    }\r\n    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];\r\n    for(t=0;t<64;t++){\r\n      var S1=(rotr32(e,6)^rotr32(e,11)^rotr32(e,25))>>>0;\r\n      var ch=((e&f)^((~e)&g))>>>0;\r\n      var t1=(h+S1+ch+SHA256_K[t]+w[t])>>>0;\r\n      var S0=(rotr32(a,2)^rotr32(a,13)^rotr32(a,22))>>>0;\r\n      var maj=((a&b)^(a&c)^(b&c))>>>0;\r\n      var t2=(S0+maj)>>>0;\r\n      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;\r\n    }\r\n    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;\r\n    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;\r\n  }\r\n  var out=[];\r\n  for(var j=0;j<8;j++) out.push((H[j]>>>24)&255,(H[j]>>>16)&255,(H[j]>>>8)&255,H[j]&255);\r\n  return out;\r\n}\r\nfunction bytesToHex(bytes){\r\n  var s='';\r\n  for(var i=0;i<bytes.length;i++) s += ('0'+(bytes[i]&255).toString(16)).slice(-2);\r\n  return s;\r\n}\r\n\r\nvar B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';\r\nvar UNRESERVED = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';\r\n\r\nfunction base64UrlFromBytes(bytes){\r\n  var b = bytes || [], out = '', i = 0;\r\n  for (i = 0; i + 2 < b.length; i += 3){\r\n    var n = ((b[i] & 255) << 16) | ((b[i+1] & 255) << 8) | (b[i+2] & 255);\r\n    out += B64URL.charAt((n >>> 18) & 63) + B64URL.charAt((n >>> 12) & 63) +\r\n           B64URL.charAt((n >>> 6) & 63) + B64URL.charAt(n & 63);\r\n  }\r\n  var rem = b.length - i;\r\n  if (rem === 1){\r\n    var a = (b[i] & 255) << 16;\r\n    out += B64URL.charAt((a >>> 18) & 63) + B64URL.charAt((a >>> 12) & 63);\r\n  } else if (rem === 2){\r\n    var c = ((b[i] & 255) << 16) | ((b[i+1] & 255) << 8);\r\n    out += B64URL.charAt((c >>> 18) & 63) + B64URL.charAt((c >>> 12) & 63) + B64URL.charAt((c >>> 6) & 63);\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction bytesFromBase64Url(s){\r\n  var str = String(s == null ? '' : s).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');\r\n  var out = [], buf = 0, bits = 0;\r\n  for (var i = 0; i < str.length; i++){\r\n    var idx = B64URL.indexOf(str.charAt(i));\r\n    if (idx < 0) return null;\r\n    buf = (buf << 6) | idx; bits += 6;\r\n    if (bits >= 8){ bits -= 8; out.push((buf >>> bits) & 255); }\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction sha256Base64Url(text){\r\n  return base64UrlFromBytes(sha256Bytes(utf8Bytes(String(text == null ? '' : text))));\r\n}\r\n\r\nfunction verifierFromBytes(bytes){\r\n  return base64UrlFromBytes(bytes || []);\r\n}\r\n\r\nfunction verifierFromEntropy(bytes, len){\r\n  var n = parseInt(len, 10);\r\n  if (!isFinite(n)) n = 43;\r\n  n = Math.max(43, Math.min(128, n));\r\n  var b = bytes || [], out = '';\r\n  for (var i = 0; i < n; i++){\r\n    var v = b.length ? (b[i % b.length] & 255) : 0;\r\n    if (i >= b.length) v = (v + i * 31) & 255;\r\n    out += UNRESERVED.charAt(v % 66);\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction entropyBits(v){\r\n  var n = String(v == null ? '' : v).length;\r\n  return Math.round(n * Math.log(66) / Math.LN2);\r\n}\r\n\r\nfunction uniqChars(s){\r\n  var seen = {}, out = [];\r\n  for (var i = 0; i < s.length; i++){\r\n    var c = s.charAt(i);\r\n    if (!seen[c]){ seen[c] = 1; out.push(c); }\r\n  }\r\n  return out.join('');\r\n}\r\n\r\nfunction validateVerifier(v){\r\n  var s = String(v == null ? '' : v), issues = [];\r\n  if (s.length === 0) issues.push({ level:'bad', msg:'code_verifier 为空' });\r\n  else {\r\n    if (s.length < 43) issues.push({ level:'bad', msg:'长度 ' + s.length + '，低于 RFC 7636 规定的 43 字符下限' });\r\n    if (s.length > 128) issues.push({ level:'bad', msg:'长度 ' + s.length + '，超过 128 字符上限' });\r\n  }\r\n  var bad = s.replace(/[A-Za-z0-9\\-._~]/g, '');\r\n  if (bad.length) issues.push({ level:'bad', msg:'含 ' + bad.length + ' 个非 unreserved 字符：' + uniqChars(bad) });\r\n  var bits = entropyBits(s);\r\n  var hard = 0;\r\n  for (var i = 0; i < issues.length; i++) if (issues[i].level === 'bad') hard++;\r\n  if (!hard && bits < 256) issues.push({ level:'warn', msg:'熵约 ' + bits + ' bit，建议不低于 256 bit（43 字符）' });\r\n  return { ok: hard === 0, length: s.length, bits: bits, issues: issues };\r\n}\r\n\r\nfunction codeChallenge(verifier, method){\r\n  var m = String(method == null ? 'S256' : method).toUpperCase();\r\n  var v = String(verifier == null ? '' : verifier);\r\n  if (m === 'PLAIN') return { value: v, method: 'plain', error: null };\r\n  if (m !== 'S256') return { value: '', method: m, error: 'unsupported method: ' + m };\r\n  return { value: sha256Base64Url(v), method: 'S256', error: null };\r\n}\r\n\r\nfunction verifyChallenge(verifier, challenge, method){\r\n  var c = codeChallenge(verifier, method);\r\n  if (c.error) return { ok:false, reason:c.error, expected:'' };\r\n  var got = String(challenge == null ? '' : challenge).trim();\r\n  var exp = c.value;\r\n  if (got.length !== exp.length) return { ok:false, reason:'长度不一致，challenge 与 verifier 不匹配', expected:exp };\r\n  var diff = 0;\r\n  for (var i = 0; i < exp.length; i++) diff |= (exp.charCodeAt(i) ^ got.charCodeAt(i));\r\n  return { ok: diff === 0, reason: diff === 0 ? 'challenge 与 verifier 匹配' : 'challenge 不匹配', expected: exp };\r\n}\r\n\r\nfunction buildAuthUrl(opt){\r\n  opt = opt || {};\r\n  var base = String(opt.endpoint == null ? '' : opt.endpoint).trim();\r\n  if (!base) return { value:'', params:[], error:'缺少授权端点 authorization_endpoint' };\r\n  var params = [\r\n    ['response_type', opt.responseType || 'code'],\r\n    ['client_id', opt.clientId || ''],\r\n    ['redirect_uri', opt.redirectUri || ''],\r\n    ['scope', opt.scope || ''],\r\n    ['state', opt.state || ''],\r\n    ['code_challenge', opt.challenge || ''],\r\n    ['code_challenge_method', opt.method || 'S256']\r\n  ];\r\n  if (opt.nonce) params.push(['nonce', opt.nonce]);\r\n  if (opt.audience) params.push(['audience', opt.audience]);\r\n  var qs = [];\r\n  for (var i = 0; i < params.length; i++){\r\n    if (params[i][1] === '' || params[i][1] == null) continue;\r\n    qs.push(encodeURIComponent(params[i][0]) + '=' + encodeURIComponent(params[i][1]));\r\n  }\r\n  var sep = base.indexOf('?') >= 0 ? '&' : '?';\r\n  return { value: base + sep + qs.join('&'), params: params, error: null };\r\n}\r\n\r\nfunction parseCallback(url, expectedState){\r\n  var s = String(url == null ? '' : url).trim();\r\n  var query = '';\r\n  var qi = s.indexOf('?');\r\n  if (qi >= 0) query = s.slice(qi + 1).split('#')[0];\r\n  else {\r\n    var hi = s.indexOf('#');\r\n    if (hi >= 0) query = s.slice(hi + 1);\r\n    else if (s.indexOf('=') >= 0) query = s;\r\n  }\r\n  var out = { code:null, state:null, error:null, errorDescription:null, extra:{}, raw:query };\r\n  var parts = query ? query.split('&') : [];\r\n  for (var i = 0; i < parts.length; i++){\r\n    if (!parts[i]) continue;\r\n    var eq = parts[i].indexOf('=');\r\n    var k = eq < 0 ? parts[i] : parts[i].slice(0, eq);\r\n    var v = eq < 0 ? '' : parts[i].slice(eq + 1);\r\n    try { k = decodeURIComponent(k); } catch (e1){}\r\n    try { v = decodeURIComponent(v.replace(/\\+/g, ' ')); } catch (e2){}\r\n    if (k === 'code') out.code = v;\r\n    else if (k === 'state') out.state = v;\r\n    else if (k === 'error') out.error = v;\r\n    else if (k === 'error_description') out.errorDescription = v;\r\n    else out.extra[k] = v;\r\n  }\r\n  out.stateMatch = (expectedState == null || expectedState === '') ? null : (out.state === expectedState);\r\n  out.ok = !!out.code && !out.error && out.stateMatch !== false;\r\n  if (out.error) out.reason = '授权服务器返回错误：' + out.error + (out.errorDescription ? '（' + out.errorDescription + '）' : '');\r\n  else if (out.stateMatch === false) out.reason = 'state 不匹配，疑似 CSRF 或回调串号，必须丢弃';\r\n  else if (!out.code) out.reason = '回调中没有 code 参数';\r\n  else out.reason = '回调有效，可用 code 换取 token';\r\n  return out;\r\n}\r\n\r\nfunction buildTokenRequest(opt){\r\n  opt = opt || {};\r\n  var fields = [\r\n    ['grant_type', 'authorization_code'],\r\n    ['code', opt.code || ''],\r\n    ['redirect_uri', opt.redirectUri || ''],\r\n    ['client_id', opt.clientId || ''],\r\n    ['code_verifier', opt.verifier || '']\r\n  ];\r\n  var body = [];\r\n  for (var i = 0; i < fields.length; i++){\r\n    if (fields[i][1] === '' || fields[i][1] == null) continue;\r\n    body.push(encodeURIComponent(fields[i][0]) + '=' + encodeURIComponent(fields[i][1]));\r\n  }\r\n  return {\r\n    endpoint: opt.endpoint || '',\r\n    method: 'POST',\r\n    contentType: 'application/x-www-form-urlencoded',\r\n    body: body.join('&'),\r\n    fields: fields\r\n  };\r\n}\r\n\r\nfunction curlToken(opt){\r\n  var r = buildTokenRequest(opt);\r\n  var lines = [\"curl -sS -X POST '\" + (r.endpoint || 'https://auth.example.com/oauth/token') + \"' \\\\\"];\r\n  lines.push(\"  -H 'Content-Type: application/x-www-form-urlencoded' \\\\\");\r\n  lines.push(\"  --data-raw '\" + r.body.replace(/'/g, \"'\\\\''\") + \"'\");\r\n  return lines.join('\\n');\r\n}\r\n\r\nfunction isLoopback(host){\r\n  var h = String(host || '').toLowerCase();\r\n  return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1';\r\n}\r\n\r\nfunction splitUri(uri){\r\n  var m = /^([a-z][a-z0-9+.\\-]*):\\/\\/([^\\/?#]*)([^?#]*)/i.exec(String(uri || ''));\r\n  if (!m) return null;\r\n  var hostport = m[2];\r\n  var host = hostport.replace(/:\\d+$/, '');\r\n  return { scheme: m[1].toLowerCase(), host: host, path: m[3] || '' };\r\n}\r\n\r\nfunction lintFlow(opt){\r\n  opt = opt || {};\r\n  var issues = [];\r\n  var method = String(opt.method || 'S256').toUpperCase();\r\n  if (method === 'PLAIN') issues.push({ level:'bad', msg:'code_challenge_method=plain 起不到防截获作用，务必改用 S256' });\r\n  else if (method !== 'S256') issues.push({ level:'bad', msg:'未知 code_challenge_method：' + method });\r\n\r\n  var ve = validateVerifier(opt.verifier || '');\r\n  for (var i = 0; i < ve.issues.length; i++) issues.push(ve.issues[i]);\r\n\r\n  var ep = splitUri(opt.endpoint || '');\r\n  if (!ep) issues.push({ level:'bad', msg:'授权端点不是合法的绝对 URL' });\r\n  else if (ep.scheme !== 'https') issues.push({ level:'bad', msg:'授权端点使用 ' + ep.scheme + '，必须走 https' });\r\n\r\n  var ru = String(opt.redirectUri || '').trim();\r\n  if (!ru) issues.push({ level:'bad', msg:'缺少 redirect_uri，无法完成回跳' });\r\n  else {\r\n    var r = splitUri(ru);\r\n    if (!r) issues.push({ level:'bad', msg:'redirect_uri 不是合法的绝对 URI' });\r\n    else if (r.scheme === 'http' && !isLoopback(r.host)) issues.push({ level:'bad', msg:'redirect_uri 使用明文 http 且非回环地址，authorization code 会被中间人截获' });\r\n    if (ru.indexOf('*') >= 0) issues.push({ level:'bad', msg:'redirect_uri 含通配符，多数授权服务器会拒绝且存在开放重定向风险' });\r\n    if (/#/.test(ru)) issues.push({ level:'warn', msg:'redirect_uri 含 fragment，RFC 6749 要求不带片段' });\r\n  }\r\n\r\n  var st = String(opt.state || '');\r\n  if (!st) issues.push({ level:'bad', msg:'缺少 state，无法防御 CSRF 与回调串号' });\r\n  else if (st.length < 16) issues.push({ level:'warn', msg:'state 仅 ' + st.length + ' 字符，建议 ≥16 且随机生成' });\r\n\r\n  if (opt.clientSecret) issues.push({ level:'bad', msg:'公共客户端（SPA / 移动端）不应内置 client_secret，PKCE 的意义正是替代它' });\r\n  if (!opt.clientId) issues.push({ level:'bad', msg:'缺少 client_id' });\r\n\r\n  var scope = String(opt.scope || '');\r\n  if (!scope) issues.push({ level:'warn', msg:'未声明 scope，将拿到服务端默认权限，建议按最小权限显式声明' });\r\n  else if (/(^|\\s)\\*($|\\s)/.test(scope)) issues.push({ level:'bad', msg:'scope 含通配符 *，违反最小权限原则' });\r\n  if (/(^|\\s)openid($|\\s)/.test(scope) && !opt.nonce) issues.push({ level:'warn', msg:'OIDC 流程（scope 含 openid）建议同时带 nonce 以绑定 id_token' });\r\n\r\n  if (opt.responseType && String(opt.responseType).indexOf('token') >= 0) issues.push({ level:'bad', msg:'response_type 含 token 即隐式流，已被 OAuth 2.1 废弃，应只用 code' });\r\n\r\n  var score = 100;\r\n  for (var j = 0; j < issues.length; j++) score -= (issues[j].level === 'bad' ? 20 : 8);\r\n  score = Math.max(0, score);\r\n  return { issues: issues, score: score, grade: gradeOf(score) };\r\n}\r\n\r\nfunction gradeOf(score){\r\n  if (score >= 90) return 'A';\r\n  if (score >= 75) return 'B';\r\n  if (score >= 60) return 'C';\r\n  if (score >= 40) return 'D';\r\n  return 'F';\r\n}\r\n\r\nvar PkceForgePure = {\r\n  base64UrlFromBytes: base64UrlFromBytes, bytesFromBase64Url: bytesFromBase64Url,\r\n  sha256Base64Url: sha256Base64Url, verifierFromBytes: verifierFromBytes,\r\n  verifierFromEntropy: verifierFromEntropy, entropyBits: entropyBits,\r\n  validateVerifier: validateVerifier, codeChallenge: codeChallenge, verifyChallenge: verifyChallenge,\r\n  buildAuthUrl: buildAuthUrl, parseCallback: parseCallback, buildTokenRequest: buildTokenRequest,\r\n  curlToken: curlToken, lintFlow: lintFlow, splitUri: splitUri, gradeOf: gradeOf,\r\n  UNRESERVED: UNRESERVED\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = PkceForgePure;\r\nif (typeof window !== 'undefined') window.PkceForgePure = PkceForgePure;\r\n\r\n"
+}

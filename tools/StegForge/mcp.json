@@ -1,0 +1,69 @@
+{
+  "id": "StegForge",
+  "name": "steg_forge",
+  "title": "StegForge",
+  "description": "零宽隐写：把秘密消息藏进不可见字符，检测/提取/防篡改。",
+  "entry": "sgHide",
+  "entries": {
+    "sgHide": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cover",
+        "secret"
+      ],
+      "fields": []
+    },
+    "sgReveal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "sgDetect": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "sgStrip": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "sgUtf8Encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "sgUtf8Decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "cover": {
+        "type": "string",
+        "description": "第 1 个参数（cover）"
+      },
+      "secret": {
+        "type": "string",
+        "description": "第 2 个参数（secret）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar SG0='\\u200B', SG1='\\u200C', SGS='\\u200D', SGE='\\u2060';\r\nfunction sgUtf8Encode(str){\r\n  var out=[], i=0;\r\n  while(i<str.length){\r\n    var c=str.codePointAt(i);\r\n    i+=c>0xFFFF?2:1;\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xC0|(c>>6), 0x80|(c&63)); }\r\n    else if(c<0x10000){ out.push(0xE0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n    else { out.push(0xF0|(c>>18), 0x80|((c>>12)&63), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction sgUtf8Decode(bytes){\r\n  var s='', i=0;\r\n  while(i<bytes.length){\r\n    var b=bytes[i];\r\n    if(b<0x80){ s+=String.fromCodePoint(b); i++; }\r\n    else if((b&0xE0)===0xC0){\r\n      if(i+1>=bytes.length) return null;\r\n      s+=String.fromCodePoint(((b&31)<<6)|(bytes[i+1]&63)); i+=2;\r\n    } else if((b&0xF0)===0xE0){\r\n      if(i+2>=bytes.length) return null;\r\n      s+=String.fromCodePoint(((b&15)<<12)|((bytes[i+1]&63)<<6)|(bytes[i+2]&63)); i+=3;\r\n    } else if((b&0xF8)===0xF0){\r\n      if(i+3>=bytes.length) return null;\r\n      s+=String.fromCodePoint(((b&7)<<18)|((bytes[i+1]&63)<<12)|((bytes[i+2]&63)<<6)|(bytes[i+3]&63)); i+=4;\r\n    } else return null;\r\n  }\r\n  return s;\r\n}\r\nfunction sgHide(cover, secret){\r\n  if(typeof cover!=='string'||!cover.length) return { value:null, error:'载体文本为空' };\r\n  if(typeof secret!=='string'||!secret.length) return { value:null, error:'秘密消息为空' };\r\n  if(/[\\u200B\\u200C\\u200D\\u2060]/.test(cover)) return { value:null, error:'载体已含零宽字符（可能已有隐写）' };\r\n  var bytes=sgUtf8Encode(secret), bits='';\r\n  for(var i=0;i<bytes.length;i++){\r\n    var b=bytes[i].toString(2);\r\n    while(b.length<8) b='0'+b;\r\n    bits+=b;\r\n  }\r\n  var payload=SGS;\r\n  for(var j=0;j<bits.length;j++) payload+=bits.charAt(j)==='0'?SG0:SG1;\r\n  payload+=SGE;\r\n  var cut=Math.min(1, cover.length);\r\n  return { value:cover.slice(0,cut)+payload+cover.slice(cut), error:null };\r\n}\r\nfunction sgReveal(text){\r\n  if(typeof text!=='string'||!text.length) return { value:null, error:'文本为空' };\r\n  var s=text.indexOf(SGS), e=text.indexOf(SGE);\r\n  if(s===-1||e===-1||e<s) return { value:null, error:'未发现隐写载荷（缺起止标记）' };\r\n  var body=text.slice(s+1, e), bits='';\r\n  for(var i=0;i<body.length;i++){\r\n    var ch=body.charAt(i);\r\n    if(ch===SG0) bits+='0';\r\n    else if(ch===SG1) bits+='1';\r\n    else return { value:null, error:'载荷中混入非法字符' };\r\n  }\r\n  if(!bits.length||bits.length%8!==0) return { value:null, error:'载荷位数不是 8 的倍数（已损坏）' };\r\n  var bytes=[];\r\n  for(var k=0;k<bits.length;k+=8) bytes.push(parseInt(bits.slice(k,k+8),2));\r\n  var msg=sgUtf8Decode(bytes);\r\n  if(msg===null) return { value:null, error:'UTF-8 解码失败（载荷损坏）' };\r\n  return { value:msg, error:null };\r\n}\r\nfunction sgDetect(text){\r\n  if(typeof text!=='string') return { zeroWidthCount:0, hasPayload:false, visibleLength:0 };\r\n  var zw=(text.match(/[\\u200B\\u200C\\u200D\\u2060]/g)||[]).length;\r\n  return {\r\n    zeroWidthCount:zw,\r\n    hasPayload:text.indexOf(SGS)!==-1 && text.indexOf(SGE)>text.indexOf(SGS),\r\n    visibleLength:text.replace(/[\\u200B\\u200C\\u200D\\u2060]/g,'').length\r\n  };\r\n}\r\nfunction sgStrip(text){\r\n  return String(text).replace(/[\\u200B\\u200C\\u200D\\u2060]/g,'');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { sgHide:sgHide, sgReveal:sgReveal, sgDetect:sgDetect, sgStrip:sgStrip, sgUtf8Encode:sgUtf8Encode, sgUtf8Decode:sgUtf8Decode };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.StegForgePure = { sgHide:sgHide, sgReveal:sgReveal, sgDetect:sgDetect, sgStrip:sgStrip, sgUtf8Encode:sgUtf8Encode, sgUtf8Decode:sgUtf8Decode };\r\n}\r\n"
+}

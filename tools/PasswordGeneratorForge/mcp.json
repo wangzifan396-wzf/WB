@@ -1,0 +1,75 @@
+{
+  "id": "PasswordGeneratorForge",
+  "name": "password_generator_forge",
+  "title": "PasswordGeneratorForge",
+  "description": "强密码生成器：可定制字符集与排除项，实时估算熵（bits）与强度等级，离线可用。",
+  "entry": "buildCharset",
+  "entries": {
+    "generate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "length",
+        "opts"
+      ],
+      "fields": []
+    },
+    "entropyBits": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "length",
+        "charsetLen"
+      ],
+      "fields": []
+    },
+    "strength": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "length",
+        "charsetLen"
+      ],
+      "fields": []
+    },
+    "buildCharset": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "lower",
+        "upper",
+        "digit",
+        "symbol",
+        "exclude"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "lower": {
+        "type": "string",
+        "description": "参数 lower"
+      },
+      "upper": {
+        "type": "string",
+        "description": "参数 upper"
+      },
+      "digit": {
+        "type": "string",
+        "description": "参数 digit"
+      },
+      "symbol": {
+        "type": "string",
+        "description": "参数 symbol"
+      },
+      "exclude": {
+        "type": "string",
+        "description": "参数 exclude"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rngFactory(seed){ var s=seed>>>0; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction buildCharset(o){\r\n  o=o||{}; var c='';\r\n  if(o.lower!==false) c+='abcdefghijklmnopqrstuvwxyz';\r\n  if(o.upper!==false) c+='ABCDEFGHIJKLMNOPQRSTUVWXYZ';\r\n  if(o.digit!==false) c+='0123456789';\r\n  if(o.symbol) c+=\"!\\\"#$%&'()*+,-./:;<=>?@[]\\\\^_`{|}~\";\r\n  if(o.exclude) c=c.split('').filter(function(x){return o.exclude.indexOf(x)<0;}).join('');\r\n  return c;\r\n}\r\nfunction generate(length, opts){\r\n  opts=opts||{}; var charset=opts.charset || buildCharset(opts);\r\n  if(!charset) return '';\r\n  var rnd = opts.rng || Math.random;\r\n  var out='';\r\n  for(var i=0;i<length;i++){ out+=charset.charAt(Math.floor(rnd()*charset.length)); }\r\n  return out;\r\n}\r\nfunction entropyBits(length, charsetLen){ return length * (Math.log(charsetLen)/Math.log(2)); }\r\nfunction strength(length, charsetLen){\r\n  var b=entropyBits(length, charsetLen);\r\n  if(b<40) return '弱'; if(b<60) return '中'; if(b<120) return '强'; return '极强';\r\n}\r\nvar EXPORTS={generate:generate, entropyBits:entropyBits, strength:strength, buildCharset:buildCharset};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PasswordGeneratorForgePure = EXPORTS; }\r\n\r\n"
+}

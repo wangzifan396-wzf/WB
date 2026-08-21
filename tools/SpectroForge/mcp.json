@@ -1,0 +1,77 @@
+{
+  "id": "SpectroForge",
+  "name": "spectro_forge",
+  "title": "SpectroForge",
+  "description": "声谱台：纯 JS 手写 radix-2 FFT，把解码后的音频转成波形与频谱图（Hann 窗、热力色带），可拖入本地音频文件实时分析，离线可用。",
+  "entry": "fft",
+  "entries": {
+    "fft": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "re",
+        "im"
+      ],
+      "fields": []
+    },
+    "mag": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "re",
+        "im"
+      ],
+      "fields": []
+    },
+    "computeWaveform": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "buckets"
+      ],
+      "fields": []
+    },
+    "computeSpectrogram": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sampleRate",
+        "opts"
+      ],
+      "fields": []
+    },
+    "freqAt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bin",
+        "sampleRate",
+        "fftSize"
+      ],
+      "fields": []
+    },
+    "binAt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "freq",
+        "sampleRate",
+        "fftSize"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "re": {
+        "type": "string",
+        "description": "第 1 个参数（re）"
+      },
+      "im": {
+        "type": "string",
+        "description": "第 2 个参数（im）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n/* ============ SpectroForge 内核 ============\r\n   纯函数：迭代 radix-2 FFT、波形峰值、频谱图。 */\r\nvar SpectroForgePure = (function(){\r\n  // 原地迭代 FFT（Cooley-Tukey），re/im 等长且为 2 的幂。\r\n  function fft(re, im){\r\n    var n = re.length;\r\n    for(var i=1, j=0; i<n; i++){\r\n      var bit = n>>1;\r\n      for(; j & bit; bit>>=1) j ^= bit;\r\n      j ^= bit;\r\n      if(i < j){ var tr=re[i]; re[i]=re[j]; re[j]=tr; var ti=im[i]; im[i]=im[j]; im[j]=ti; }\r\n    }\r\n    for(var len=2; len<=n; len<<=1){\r\n      var ang = -2*Math.PI/len, wr=Math.cos(ang), wi=Math.sin(ang);\r\n      for(var i2=0; i2<n; i2+=len){\r\n        var cwr=1, cwi=0;\r\n        for(var k=0; k<len/2; k++){\r\n          var a=i2+k, b=i2+k+len/2;\r\n          var tr = re[b]*cwr - im[b]*cwi, ti = re[b]*cwi + im[b]*cwr;\r\n          re[b] = re[a]-tr; im[b] = im[a]-ti;\r\n          re[a] = re[a]+tr; im[a] = im[a]+ti;\r\n          var ncwr = cwr*wr - cwi*wi; cwi = cwr*wi + cwi*wr; cwr = ncwr;\r\n        }\r\n      }\r\n    }\r\n  }\r\n  function mag(re, im){ var o=[]; for(var i=0;i<re.length;i++) o.push(Math.sqrt(re[i]*re[i]+im[i]*im[i])); return o; }\r\n\r\n  function computeWaveform(samples, buckets){\r\n    buckets = buckets || 100;\r\n    var out=[], n=samples.length;\r\n    if(n===0) return [];\r\n    var per = n/buckets;\r\n    for(var i=0;i<buckets;i++){\r\n      var s=Math.floor(i*per), e=Math.min(n, Math.floor((i+1)*per)), mx=0;\r\n      for(var j=s;j<e;j++){ var v=Math.abs(samples[j]); if(v>mx) mx=v; }\r\n      out.push(mx);\r\n    }\r\n    return out;\r\n  }\r\n\r\n  function computeSpectrogram(samples, sampleRate, opts){\r\n    opts = opts || {};\r\n    var fftSize = opts.fftSize || 1024;\r\n    var hop = opts.hop || (fftSize>>1);\r\n    var win = opts.window || 'hann';\r\n    var n = samples.length;\r\n    if(n < fftSize) return {error:'音频太短，至少需要 '+fftSize+' 个采样点'};\r\n    if((fftSize & (fftSize-1)) !== 0) return {error:'fftSize 必须是 2 的幂'};\r\n    var w = new Array(fftSize);\r\n    for(var i=0;i<fftSize;i++) w[i] = (win==='hann') ? (0.5 - 0.5*Math.cos(2*Math.PI*i/(fftSize-1))) : 1;\r\n    var bins = fftSize>>1;\r\n    var cols = Math.floor((n - fftSize)/hop) + 1;\r\n    var data = [];\r\n    for(var c=0;c<cols;c++){\r\n      var off = c*hop, re=new Array(fftSize), im=new Array(fftSize);\r\n      for(var i2=0;i2<fftSize;i2++){ re[i2] = samples[off+i2]*w[i2]; im[i2]=0; }\r\n      fft(re, im);\r\n      var col=[];\r\n      for(var b=0;b<bins;b++) col.push(Math.sqrt(re[b]*re[b]+im[b]*im[b]) / fftSize);\r\n      data.push(col);\r\n    }\r\n    return { sampleRate:sampleRate, fftSize:fftSize, hop:hop, bins:bins, cols:cols, data:data };\r\n  }\r\n\r\n  function freqAt(bin, sampleRate, fftSize){ return bin * sampleRate / fftSize; }\r\n  function binAt(freq, sampleRate, fftSize){ return Math.round(freq * fftSize / sampleRate); }\r\n\r\n  return { fft:fft, mag:mag, computeWaveform:computeWaveform,\r\n           computeSpectrogram:computeSpectrogram, freqAt:freqAt, binAt:binAt };\r\n})();\r\nif (typeof module !== 'undefined' && module.exports) module.exports = SpectroForgePure;\r\nif (typeof window !== 'undefined') window.SpectroForgePure = SpectroForgePure;\r\n\r\n"
+}

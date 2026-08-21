@@ -1,0 +1,43 @@
+{
+  "id": "CarbonForge",
+  "name": "carbon_forge",
+  "title": "CarbonForge",
+  "description": "代码卡片生成器：把 JS/Python/Bash/JSON/HTML 片段渲染成 macOS 窗口风格的 SVG 代码卡片，支持语言高亮、明暗主题与一键导出 SVG/PNG，离线可用。",
+  "entry": "tokenize",
+  "entries": {
+    "tokenize": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "code",
+        "lang"
+      ],
+      "fields": []
+    },
+    "renderSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "code",
+        "lang",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "第 1 个参数（code）"
+      },
+      "lang": {
+        "type": "string",
+        "description": "第 2 个参数（lang）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n/* ============ CarbonForge 内核 ============\r\n   轻量语法高亮 tokenizer + SVG 渲染，全部纯函数、零依赖。 */\r\nvar CarbonForgePure = (function(){\r\n  var KW = {\r\n    js:['const','let','var','function','return','if','else','for','while','class','new','await','async','import','export','from','default','try','catch','throw','typeof','of','in','this','null','undefined','true','false','switch','case','break','continue','do','yield','static','extends','super','delete','void','interface','type','enum','implements','public','private','readonly','number','string','boolean','any','as'],\r\n    py:['def','return','if','elif','else','for','while','import','from','as','class','try','except','finally','with','lambda','None','True','False','and','or','not','in','is','pass','break','continue','raise','yield','global','nonlocal','assert','del','async','await'],\r\n    bash:['if','then','else','elif','fi','for','while','do','done','case','esac','function','echo','export','local','return','in','select','until','sudo'],\r\n    json:['true','false','null'],\r\n    html:['div','span','a','img','html','head','body','script','style','link','meta','input','button','p','ul','li','table','tr','td','h1','h2','h3','title']\r\n  };\r\n\r\n  function tokenize(code, lang){\r\n    lang = lang || 'js';\r\n    var kws = KW[lang] || KW.js; var set = {}; kws.forEach(function(k){ set[k]=1; });\r\n    var re, m, toks=[], i;\r\n    if(lang==='json'){\r\n      re = /(\"(?:\\\\.|[^\"\\\\])*\")|(-?\\d+\\.?\\d*(?:[eE][+-]?\\d+)?)|\\b(true|false|null)\\b|([{}\\[\\],:])|(\\s+)/g;\r\n      while((m=re.exec(code))){\r\n        if(m[1]!=null) toks.push({t:'string', v:m[1]});\r\n        else if(m[2]!=null) toks.push({t:'number', v:m[2]});\r\n        else if(m[3]!=null) toks.push({t:'keyword', v:m[3]});\r\n        else if(m[4]!=null) toks.push({t:'punct', v:m[4]});\r\n        else toks.push({t:'ws', v:m[5]});\r\n      }\r\n    } else {\r\n      re = /(\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/|#[^\\n]*)|(\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|`(?:\\\\.|[^`\\\\])*`)|\\b(0x[0-9a-fA-F]+|\\d+\\.?\\d*(?:[eE][+-]?\\d+)?)\\b|([A-Za-z_$][\\w$]*)|(\\s+)|([^\\sA-Za-z0-9_$])/g;\r\n      while((m=re.exec(code))){\r\n        if(m[1]!=null) toks.push({t:'comment', v:m[1]});\r\n        else if(m[2]!=null) toks.push({t:'string', v:m[2]});\r\n        else if(m[3]!=null) toks.push({t:'number', v:m[3]});\r\n        else if(m[4]!=null) toks.push({t:(set[m[4]]?'keyword':'ident'), v:m[4]});\r\n        else if(m[5]!=null) toks.push({t:'ws', v:m[5]});\r\n        else toks.push({t:'punct', v:m[6]});\r\n      }\r\n    }\r\n    // JSON key 识别：字符串后紧跟冒号\r\n    if(lang==='json'){\r\n      for(i=0;i<toks.length;i++){\r\n        if(toks[i].t==='string'){\r\n          var j=i+1; while(j<toks.length && toks[j].t==='ws') j++;\r\n          if(j<toks.length && toks[j].t==='punct' && toks[j].v===':') toks[i].t='key';\r\n        }\r\n      }\r\n    }\r\n    return toks;\r\n  }\r\n\r\n  var THEMES = {\r\n    dark:{bg:'#0A0A0B', fg:'#F8F8F2', comment:'#6272A4', string:'#50FA7B', number:'#BD93F9', keyword:'#FF79C6', key:'#8BE9FD', ident:'#F8F8F2', punct:'#FF79C6'},\r\n    light:{bg:'#FFFFFF', fg:'#383A42', comment:'#A0A1A7', string:'#50A14E', number:'#986801', keyword:'#A626A4', key:'#4078F2', ident:'#383A42', punct:'#383A42'}\r\n  };\r\n\r\n  function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }); }\r\n\r\n  function renderSvg(code, lang, opts){\r\n    opts = opts || {};\r\n    var theme = THEMES[opts.theme] || THEMES.dark;\r\n    var bg = opts.bg || theme.bg;\r\n    var font = opts.font || 15;\r\n    var pad = opts.pad || 40;\r\n    var lh = Math.round(font*1.6);\r\n    var chromH = 44;\r\n    var lines = String(code).split('\\n');\r\n    var cw = font*0.6;\r\n    var maxLen = 1;\r\n    lines.forEach(function(l){ if(l.length>maxLen) maxLen=l.length; });\r\n    var W = Math.ceil(pad*2 + maxLen*cw + 16);\r\n    var H = chromH + pad + lines.length*lh + pad - (lh-font);\r\n    var parts = ['<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 '+W+' '+H+'\" width=\"'+W+'\" height=\"'+H+'\">'];\r\n    parts.push('<rect width=\"'+W+'\" height=\"'+H+'\" rx=\"12\" fill=\"'+bg+'\"/>');\r\n    parts.push('<circle cx=\"'+(pad)+'\" cy=\"'+(chromH/2)+'\" r=\"6\" fill=\"#ff5f56\"/>');\r\n    parts.push('<circle cx=\"'+(pad+22)+'\" cy=\"'+(chromH/2)+'\" r=\"6\" fill=\"#ffbd2e\"/>');\r\n    parts.push('<circle cx=\"'+(pad+44)+'\" cy=\"'+(chromH/2)+'\" r=\"6\" fill=\"#27c93f\"/>');\r\n    parts.push('<text x=\"'+pad+'\" y=\"'+(chromH+pad-6)+'\" font-family=\"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace\" font-size=\"'+font+'\" xml:space=\"preserve\">');\r\n    var y = chromH + pad - 6;\r\n    lines.forEach(function(line, li){\r\n      var toks = tokenize(line, lang);\r\n      var inner = toks.map(function(tk){\r\n        if(tk.t==='ws') return esc(tk.v);\r\n        var col = theme[tk.t] || theme.fg;\r\n        return '<tspan fill=\"'+col+'\">'+esc(tk.v)+'</tspan>';\r\n      }).join('');\r\n      parts.push('<tspan x=\"'+pad+'\" dy=\"'+(li===0?0:lh)+'\">'+inner+'</tspan>');\r\n    });\r\n    parts.push('</text></svg>');\r\n    return parts.join('');\r\n  }\r\n\r\n  return { tokenize:tokenize, renderSvg:renderSvg, THEMES:THEMES };\r\n})();\r\nif (typeof module !== 'undefined' && module.exports) module.exports = CarbonForgePure;\r\nif (typeof window !== 'undefined') window.CarbonForgePure = CarbonForgePure;\r\n\r\n"
+}

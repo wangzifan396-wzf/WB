@@ -1,0 +1,51 @@
+{
+  "id": "SdForge",
+  "name": "sd_forge",
+  "title": "SdForge",
+  "description": "查找替换：支持纯文本与正则两种模式，可选全局、忽略大小写，实时显示替换处数与结果，等价于 sd / sed 的常用场景。",
+  "entry": "replace",
+  "entries": {
+    "replace": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "find",
+        "repl",
+        "opt"
+      ],
+      "fields": []
+    },
+    "escRe": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "find": {
+        "type": "string",
+        "description": "第 2 个参数（find）"
+      },
+      "repl": {
+        "type": "string",
+        "description": "第 3 个参数（repl）"
+      },
+      "opt": {
+        "type": "object",
+        "description": "第 4 个参数（opt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function escRe(s){ return String(s).replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&'); }\r\n  function replace(text, find, repl, opt){\r\n    opt=opt||{};\r\n    if(find==null||find==='') return {value:{result:String(text), count:0}};\r\n    var flags='';\r\n    if(opt.ignoreCase) flags+='i';\r\n    var re;\r\n    try{ re=new RegExp(opt.regex?find:escRe(find), flags+(opt.global?'g':'')); }\r\n    catch(e){ return {error:'正则无效: '+e.message}; }\r\n    var result=String(text).replace(re, repl);\r\n    var count = opt.global ? ((String(text).match(re)||[]).length)\r\n                            : (re.test(String(text))?1:0);\r\n    return {value:{result:result, count:count}};\r\n  }\r\n  var API={replace:replace, escRe:escRe};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__SdForge__=API;\r\n})();\r\n"
+}

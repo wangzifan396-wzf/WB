@@ -1,0 +1,39 @@
+{
+  "id": "ForceLayoutForge",
+  "name": "force_layout_forge",
+  "title": "ForceLayoutForge",
+  "description": "力导向图布局（Fruchterman-Reingold）：斥力与边引力迭代收敛，确定性可复现，离线可用。",
+  "entry": "forceLayout",
+  "entries": {
+    "forceLayout": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "nodes",
+        "edges",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "nodes": {
+        "type": "string",
+        "description": "第 1 个参数（nodes）"
+      },
+      "edges": {
+        "type": "string",
+        "description": "第 2 个参数（edges）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 3 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rng(seed){ var s=seed>>>0; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction forceLayout(nodes, edges, opts){\r\n  opts=opts||{}; var W=opts.width||200, H=opts.height||200;\r\n  var area=opts.area||(W*H); var k=opts.k||Math.sqrt(area/Math.max(1,nodes.length));\r\n  var iter=opts.iterations||300; var seed=opts.seed||12345; var r=rng(seed);\r\n  var pos={}; nodes.forEach(function(n){ pos[n]=[r()*W, r()*H]; });\r\n  var temp=W/2; var moves=[[1,0],[-1,0],[0,1],[0,-1]];\r\n  for(var it=0; it<iter; it++){\r\n    var disp={}; nodes.forEach(function(n){ disp[n]=[0,0]; });\r\n    for(var i=0;i<nodes.length;i++) for(var j=i+1;j<nodes.length;j++){\r\n      var a=nodes[i], b=nodes[j]; var dx=pos[a][0]-pos[b][0], dy=pos[a][1]-pos[b][1];\r\n      var d2=dx*dx+dy*dy; if(d2<0.01){ dx=r()-0.5; dy=r()-0.5; d2=dx*dx+dy*dy+0.01; }\r\n      var d=Math.sqrt(d2); var rep=k*k/d; var fx=dx/d*rep, fy=dy/d*rep;\r\n      disp[a][0]+=fx; disp[a][1]+=fy; disp[b][0]-=fx; disp[b][1]-=fy;\r\n    }\r\n    edges.forEach(function(e){ var a=e[0], b=e[1]; var dx=pos[a][0]-pos[b][0], dy=pos[a][1]-pos[b][1];\r\n      var d=Math.sqrt(dx*dx+dy*dy)||0.01; var att=d*d/k; var fx=dx/d*att, fy=dy/d*att;\r\n      disp[a][0]-=fx; disp[a][1]-=fy; disp[b][0]+=fx; disp[b][1]+=fy; });\r\n    nodes.forEach(function(n){ var dx=disp[n][0], dy=disp[n][1]; var dd=Math.sqrt(dx*dx+dy*dy)||0.01;\r\n      var lim=Math.min(dd,temp); pos[n][0]=Math.max(2,Math.min(W-2,pos[n][0]+dx/dd*lim));\r\n      pos[n][1]=Math.max(2,Math.min(H-2,pos[n][1]+dy/dd*lim)); });\r\n    temp*=0.97;\r\n  }\r\n  var out=[]; nodes.forEach(function(n){ out.push({id:n, x:Math.round(pos[n][0]*100)/100, y:Math.round(pos[n][1]*100)/100}); });\r\n  return out;\r\n}\r\nvar EXPORTS={forceLayout:forceLayout};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ForceLayoutForgePure = EXPORTS; }\r\n\r\n"
+}

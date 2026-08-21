@@ -1,0 +1,47 @@
+{
+  "id": "SokobanForge",
+  "name": "sokoban_forge",
+  "title": "SokobanForge",
+  "description": "推箱子：把箱子全部推到目标点。纯逻辑内核可断言移动/推动/胜利，内置多关卡，方向键操作，离线可用。",
+  "entry": "sbParse",
+  "entries": {
+    "sbParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "sbMove": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "st",
+        "dir"
+      ],
+      "fields": []
+    },
+    "sbWon": {
+      "paramStyle": "object",
+      "paramNames": [
+        "st"
+      ],
+      "fields": [
+        "goals",
+        "boxes"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "rows": {
+        "type": "string",
+        "description": "输入（rows）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction sbParse(rows){ var grid=[]; var player=null, boxes=[], goals=[]; for(var y=0;y<rows.length;y++){ var row=[]; for(var x=0;x<rows[y].length;x++){ var ch=rows[y][x]; row.push(ch==='#'?'#':' '); if(ch==='@') player=[x,y]; if(ch==='$') boxes.push([x,y]); if(ch==='.') goals.push([x,y]); if(ch==='*'){ boxes.push([x,y]); goals.push([x,y]); } if(ch==='+'){ player=[x,y]; goals.push([x,y]); } } grid.push(row); } return {grid:grid, player:player, boxes:boxes, goals:goals, w:rows[0].length, h:rows.length}; }\r\nfunction sbKey(a){ return a[0]+','+a[1]; }\r\nfunction sbMove(st, dir){ var dx={'U':[0,-1],'D':[0,1],'L':[-1,0],'R':[1,0]}[dir]; if(!dx) return st; var nx=st.player[0]+dx[0], ny=st.player[1]+dx[1]; if(ny<0||nx<0||ny>=st.h||nx>=st.w) return st; if(st.grid[ny][nx]==='#') return st; var bi=-1; for(var i=0;i<st.boxes.length;i++) if(st.boxes[i][0]===nx&&st.boxes[i][1]===ny) bi=i; if(bi>=0){ var bx=nx+dx[0], by=ny+dx[1]; if(by<0||bx<0||by>=st.h||bx>=st.w) return st; if(st.grid[by][bx]==='#') return st; for(var j=0;j<st.boxes.length;j++) if(st.boxes[j][0]===bx&&st.boxes[j][1]===by) return st; var nb=st.boxes.slice(); nb[bi]=[bx,by]; return {grid:st.grid, player:[nx,ny], boxes:nb, goals:st.goals, w:st.w, h:st.h}; } return {grid:st.grid, player:[nx,ny], boxes:st.boxes, goals:st.goals, w:st.w, h:st.h}; }\r\nfunction sbWon(st){ var g={}; st.goals.forEach(function(p){ g[sbKey(p)]=1; }); return st.boxes.every(function(b){ return g[sbKey(b)]; }); }\r\nvar EXPORTS={sbParse:sbParse, sbMove:sbMove, sbWon:sbWon};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SokobanForgePure = EXPORTS; }\r\n\r\n"
+}

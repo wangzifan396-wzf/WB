@@ -1,0 +1,85 @@
+{
+  "id": "SseForge",
+  "name": "sse_forge",
+  "title": "SseForge",
+  "description": "Server-Sent Events 工作台：内置符合 WHATWG 规范的 SSE 线格式解析器，正确处理 CRLF/CR/LF 混排、BOM、多行 data 拼接、空 data 不派发与非法 retry 忽略；支持逐字节分块投喂模拟、流体检、EventSource 实时客户端与 Nginx/Node 服务端速查，离线可用。",
+  "entry": "splitLines",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseField": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "createParser": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "parseStream": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "serialize": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "events",
+        "opts"
+      ],
+      "fields": []
+    },
+    "lint": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "stats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "parsed"
+      ],
+      "fields": []
+    },
+    "toCurl": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "url",
+        "headers"
+      ],
+      "fields": []
+    },
+    "serverSnippet": {
+      "paramStyle": "single",
+      "paramNames": [
+        "kind"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n/* ---- SSE wire format, per WHATWG HTML \"server-sent events\" section ---------------\r\n   一条流由若干行组成：\r\n     - 行分隔符可以是 CRLF、CR 或单个 LF\r\n     - 以 U+FEFF (BOM) 开头的流须先去掉 BOM\r\n     - 以 ':' 开头的行是注释（常用作心跳保活），整行忽略\r\n     - 'field:value'，冒号后若紧跟一个空格则去掉这一个空格（且只去一个）\r\n     - 没有冒号的行，整行视为字段名，值为空字符串\r\n     - 空行触发一次「派发」：data 缓冲非空才会真正产生事件\r\n     - data 字段可多次出现，用 '\\n' 连接；派发后若结尾有 '\\n' 需去掉最后一个\r\n     - retry 只有全数字才生效，否则忽略\r\n     - id 含 U+0000 时按规范忽略该 id\r\n------------------------------------------------------------------------------- */\r\n\r\nfunction splitLines(text){\r\n  var s = String(text==null?'':text);\r\n  if(s.charCodeAt(0)===0xFEFF) s = s.slice(1);\r\n  // 保留「最后一段是否以换行结束」的信息：不用 split 直接扫描\r\n  var lines=[], cur='', i=0, complete=[];\r\n  while(i < s.length){\r\n    var ch = s.charAt(i);\r\n    if(ch==='\\r'){\r\n      lines.push(cur); complete.push(true); cur='';\r\n      if(s.charAt(i+1)==='\\n') i+=2; else i+=1;\r\n    } else if(ch==='\\n'){\r\n      lines.push(cur); complete.push(true); cur=''; i+=1;\r\n    } else { cur+=ch; i+=1; }\r\n  }\r\n  if(cur!==''){ lines.push(cur); complete.push(false); }\r\n  return {lines:lines, complete:complete};\r\n}\r\n\r\nfunction parseField(line){\r\n  var l = String(line);\r\n  if(l===''){ return {kind:'blank'}; }\r\n  if(l.charAt(0)===':'){ return {kind:'comment', value:l.slice(1)}; }\r\n  var ci = l.indexOf(':');\r\n  if(ci<0) return {kind:'field', name:l, value:''};\r\n  var name = l.slice(0, ci);\r\n  var value = l.slice(ci+1);\r\n  if(value.charAt(0)===' ') value = value.slice(1);\r\n  return {kind:'field', name:name, value:value};\r\n}\r\n\r\nfunction createParser(){\r\n  var state = {dataBuf:'', eventType:'', lastId:'', retry:null, sawData:false, pending:''};\r\n  var lineNo = 0;\r\n\r\n  function dispatch(out){\r\n    if(!state.sawData){\r\n      state.dataBuf=''; state.eventType=''; state.sawData=false;\r\n      return;\r\n    }\r\n    var data = state.dataBuf;\r\n    if(data.charAt(data.length-1)==='\\n') data = data.slice(0, -1);\r\n    out.push({event: state.eventType || 'message', data: data, id: state.lastId,\r\n              retry: state.retry, lineNo: lineNo});\r\n    state.dataBuf=''; state.eventType=''; state.sawData=false;\r\n  }\r\n\r\n  function handleLine(line, out, comments){\r\n    lineNo++;\r\n    var f = parseField(line);\r\n    if(f.kind==='blank'){ dispatch(out); return; }\r\n    if(f.kind==='comment'){ comments.push({lineNo:lineNo, text:f.value}); return; }\r\n    switch(f.name){\r\n      case 'event': state.eventType = f.value; break;\r\n      case 'data': state.dataBuf += f.value + '\\n'; state.sawData = true; break;\r\n      case 'id': if(f.value.indexOf('\\u0000')<0) state.lastId = f.value; break;\r\n      case 'retry': if(/^[0-9]+$/.test(f.value)) state.retry = parseInt(f.value,10); break;\r\n      default: break; // 未知字段按规范忽略\r\n    }\r\n  }\r\n\r\n  return {\r\n    feed: function(chunk){\r\n      var out=[], comments=[];\r\n      var buf = state.pending + String(chunk==null?'':chunk);\r\n      state.pending = '';\r\n      var r = splitLines(buf);\r\n      for(var i=0;i<r.lines.length;i++){\r\n        if(r.complete[i]) handleLine(r.lines[i], out, comments);\r\n        else state.pending = r.lines[i];\r\n      }\r\n      return {events:out, comments:comments, pending:state.pending};\r\n    },\r\n    end: function(){\r\n      var out=[], comments=[];\r\n      if(state.pending){ handleLine(state.pending, out, comments); state.pending=''; }\r\n      return {events:out, comments:comments};\r\n    },\r\n    state: function(){ return {lastId:state.lastId, retry:state.retry, buffered:state.dataBuf, pending:state.pending}; }\r\n  };\r\n}\r\n\r\nfunction parseStream(text){\r\n  var p = createParser();\r\n  var r1 = p.feed(text);\r\n  var st = p.state();\r\n  return {events:r1.events, comments:r1.comments, incomplete:(st.buffered!=='' || st.pending!==''),\r\n          pendingData:st.buffered, pendingLine:st.pending, lastId:st.lastId, retry:st.retry};\r\n}\r\n\r\nfunction serialize(events, opts){\r\n  var o = opts||{};\r\n  var out = [];\r\n  (events||[]).forEach(function(e){\r\n    if(e.comment !== undefined && e.comment !== null){ out.push(':' + e.comment); out.push(''); return; }\r\n    if(e.id !== undefined && e.id !== null && e.id !== '') out.push('id: ' + e.id);\r\n    if(e.retry !== undefined && e.retry !== null && e.retry !== '') out.push('retry: ' + e.retry);\r\n    if(e.event && e.event !== 'message') out.push('event: ' + e.event);\r\n    var d = (e.data === undefined || e.data === null) ? '' : String(e.data);\r\n    d.split('\\n').forEach(function(line){ out.push('data: ' + line); });\r\n    out.push('');\r\n  });\r\n  // 每一行（含各事件末尾的空行）都必须自带换行，否则最后一条事件缺收尾空行、永远不会派发\r\n  var text = out.map(function(l){ return l + '\\n'; }).join('');\r\n  return o.crlf ? text.replace(/\\n/g, '\\r\\n') : text;\r\n}\r\n\r\nfunction lint(text){\r\n  var s = String(text==null?'':text);\r\n  var out = [];\r\n  function add(level, msg){ out.push({level:level, msg:msg}); }\r\n  if(!s){ add('info', '输入为空，粘贴一段 SSE 原始响应体即可开始分析。'); return out; }\r\n  if(s.charCodeAt(0)===0xFEFF) add('info', '流以 BOM (U+FEFF) 开头；规范要求解析器丢弃它，但很多手写解析器会把它当成字段名的一部分。');\r\n\r\n  var hasCRLF = /\\r\\n/.test(s);\r\n  var hasBareCR = /\\r(?!\\n)/.test(s);\r\n  var hasLF = /(^|[^\\r])\\n/.test(s);\r\n  if(hasCRLF && hasLF) add('warn', '同时出现 CRLF 与裸 LF 换行：规范允许，但手写解析器最容易在这里出错，建议统一。');\r\n  if(hasBareCR) add('warn', '出现裸 CR 换行：规范允许，但 curl、浏览器 DevTools 与多数日志工具都会显示异常。');\r\n\r\n  var r = parseStream(s);\r\n  if(!r.events.length) add('warn', '没有解析出任何事件：SSE 要求每条事件以一个空行结束，检查是否漏了空行。');\r\n  if(r.incomplete){\r\n    if(r.pendingData) add('warn', '流末尾有未派发的 data 缓冲（缺少收尾空行），最后一条事件不会送达客户端。');\r\n    if(r.pendingLine) add('warn', '流末尾有不完整的行「' + r.pendingLine.slice(0,40) + '」，通常表示响应被截断。');\r\n  }\r\n  if(!/\\n\\n$|\\r\\n\\r\\n$|\\r\\r$/.test(s)) add('info', '流未以空行结束；作为持续流是正常的，作为一次性响应体则会丢掉最后一条事件。');\r\n\r\n  var rawRetry = /(^|[\\r\\n])retry:\\s*([^\\r\\n]*)/g, mm;\r\n  while((mm = rawRetry.exec(s))){\r\n    var v = mm[2].trim();\r\n    if(!/^[0-9]+$/.test(v)) add('warn', 'retry 值「' + v + '」不是纯数字，按规范会被整条忽略（不会报错，只是静默失效）。');\r\n  }\r\n  if(/(^|[\\r\\n])id:[^\\r\\n]*\\u0000/.test(s)) add('warn', 'id 字段包含 U+0000，规范要求忽略该 id，Last-Event-ID 不会更新。');\r\n\r\n  if(!r.comments.length) add('info', '没有注释行：生产环境建议每 15–30 秒发一行「: keepalive」，防止 Nginx/ELB 的空闲超时切断长连接。');\r\n\r\n  var unknown = {};\r\n  var fieldRe = /(^|[\\r\\n])([A-Za-z][A-Za-z0-9_-]*):/g, fm;\r\n  while((fm = fieldRe.exec(s))){\r\n    var name = fm[2];\r\n    if(['event','data','id','retry'].indexOf(name)<0) unknown[name]=1;\r\n  }\r\n  Object.keys(unknown).forEach(function(k){\r\n    add('warn', '未知字段「' + k + '」会被规范要求的解析器静默丢弃；SSE 没有自定义字段扩展位，元数据请放进 data 的 JSON 里。');\r\n  });\r\n\r\n  r.events.forEach(function(e){\r\n    if(e.data==='') add('info', '第 ' + e.lineNo + ' 行附近有一条空 data 事件，多数客户端会照常触发回调。');\r\n  });\r\n  var noData = /(^|[\\r\\n])event:[^\\r\\n]*[\\r\\n]+[\\r\\n]/.test(s);\r\n  if(noData) add('warn', '存在只有 event: 而没有 data: 的块：data 缓冲为空时规范规定不派发，这条事件会凭空消失。');\r\n  return out;\r\n}\r\n\r\nfunction stats(parsed){\r\n  var p = parsed || {events:[], comments:[]};\r\n  var byType = {}, bytes = 0, ids = 0, maxLen = 0;\r\n  p.events.forEach(function(e){\r\n    byType[e.event] = (byType[e.event]||0) + 1;\r\n    var n = e.data.length;\r\n    bytes += n;\r\n    if(n>maxLen) maxLen = n;\r\n    if(e.id) ids++;\r\n  });\r\n  return {events:p.events.length, comments:(p.comments||[]).length, types:byType,\r\n          typeCount:Object.keys(byType).length, dataBytes:bytes, withId:ids,\r\n          maxDataLen:maxLen, lastId:p.lastId||'', retry:(p.retry===undefined?null:p.retry)};\r\n}\r\n\r\nfunction toCurl(url, headers){\r\n  var u = String(url||'').trim() || 'https://example.com/events';\r\n  var parts = ['curl -N', '-H \"Accept: text/event-stream\"'];\r\n  var h = headers||{};\r\n  Object.keys(h).forEach(function(k){\r\n    if(h[k]!=='' && h[k]!==null && h[k]!==undefined) parts.push('-H \"' + k + ': ' + String(h[k]).replace(/\"/g,'\\\\\"') + '\"');\r\n  });\r\n  parts.push('\"' + u + '\"');\r\n  return parts.join(' ');\r\n}\r\n\r\nfunction serverSnippet(kind){\r\n  if(kind==='nginx'){\r\n    return ['location /events {',\r\n            '  proxy_pass http://upstream;',\r\n            '  proxy_http_version 1.1;',\r\n            '  proxy_set_header Connection \"\";   # 关掉 keep-alive 复用外的 Connection 头',\r\n            '  proxy_buffering off;              # 关键：开着会把整条流缓存到结束才吐出',\r\n            '  proxy_cache off;',\r\n            '  proxy_read_timeout 3600s;         # 默认 60s 会把长连接切断',\r\n            '  chunked_transfer_encoding off;',\r\n            '}'].join('\\n');\r\n  }\r\n  if(kind==='node'){\r\n    return ['res.writeHead(200, {',\r\n            \"  'Content-Type': 'text/event-stream',\",\r\n            \"  'Cache-Control': 'no-cache, no-transform',  // no-transform 防止代理压缩改写\",\r\n            \"  'Connection': 'keep-alive',\",\r\n            \"  'X-Accel-Buffering': 'no'                   // 让 Nginx 别缓冲这一条响应\",\r\n            '});',\r\n            \"res.write('retry: 5000\\\\n\\\\n');\",\r\n            \"setInterval(() => res.write(': keepalive\\\\n\\\\n'), 20000);\",\r\n            \"res.write(`id: 42\\\\nevent: tick\\\\ndata: ${JSON.stringify({t: Date.now()})}\\\\n\\\\n`);\"].join('\\n');\r\n  }\r\n  return ['# Content-Type 必须是 text/event-stream',\r\n          '# 不要设置 Content-Length，SSE 是不定长流',\r\n          '# 关掉一切缓冲与压缩，否则事件会被攒住不发'].join('\\n');\r\n}\r\n\r\nvar SseForgePure = {\r\n  splitLines:splitLines, parseField:parseField, createParser:createParser, parseStream:parseStream,\r\n  serialize:serialize, lint:lint, stats:stats, toCurl:toCurl, serverSnippet:serverSnippet\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = SseForgePure;\r\nif (typeof window !== 'undefined') window.SseForgePure = SseForgePure;\r\n\r\n"
+}

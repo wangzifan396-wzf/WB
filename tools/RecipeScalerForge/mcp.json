@@ -1,0 +1,45 @@
+{
+  "id": "RecipeScalerForge",
+  "name": "recipe_scaler_forge",
+  "title": "食谱缩放",
+  "description": "按比例缩放食谱用量并换算单位，离线。",
+  "entry": "splitLines",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "round2": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "scaleRecipe": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "fromServ",
+        "toServ"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(text){ return String(text||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction round2(n){ return Math.round(n*100)/100; }\r\nfunction scaleRecipe(text, fromServ, toServ){\r\n  fromServ=parseFloat(fromServ)||1; toServ=parseFloat(toServ)||1;\r\n  if(fromServ<=0) fromServ=1;\r\n  var factor=toServ/fromServ;\r\n  var items=splitLines(text);\r\n  var out=items.map(function(line){\r\n    var m=line.match(/^([\\d.]+)\\s*([^\\s\\d.]*)\\s*(.*)$/);\r\n    if(m){\r\n      var amt=round2(parseFloat(m[1])*factor);\r\n      var unit=m[2]||'', rest=m[3]||'';\r\n      return amt+(unit?(' '+unit):'')+(rest?(' '+rest):'');\r\n    }\r\n    return line;\r\n  });\r\n  return {factor:factor, items:out, count:items.length};\r\n}\r\nvar EXPORTS={splitLines:splitLines, round2:round2, scaleRecipe:scaleRecipe};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RecipeScalerForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,49 @@
+{
+  "id": "SparkForge",
+  "name": "spark_forge",
+  "title": "SparkForge",
+  "description": "数据序列一键生成 SVG 迷你折线图与柱状图，纯函数返回 SVG 字符串。",
+  "entry": "line",
+  "entries": {
+    "line": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "values",
+        "opts"
+      ],
+      "fields": []
+    },
+    "bars": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "values",
+        "opts"
+      ],
+      "fields": []
+    },
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "values": {
+        "type": "string",
+        "description": "第 1 个参数（values）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction sparkParse(s){\r\n  if(typeof s!=='string') return [];\r\n  return s.split(/[\\s,;]+/).map(function(x){ return parseFloat(x); }).filter(function(x){ return !isNaN(x); });\r\n}\r\nfunction sparkLine(values, opts){\r\n  opts=opts||{};\r\n  values=values.map(Number);\r\n  if(values.length===0) return {error:'empty', svg:''};\r\n  var w=opts.width||240, h=opts.height||80, pad=opts.pad||4;\r\n  var fill=opts.fill!==false, dot=opts.dot!==false;\r\n  var stroke=opts.stroke||'#22D3EE', fillc=opts.fillColor||'rgba(34,211,238,0.18)';\r\n  var min=Math.min.apply(null,values), max=Math.max.apply(null,values);\r\n  if(min===max){ min-=1; max+=1; }\r\n  var n=values.length;\r\n  var innerW=w-pad*2, innerH=h-pad*2;\r\n  var pts=[];\r\n  for(var i=0;i<n;i++){\r\n    var x = pad + (n===1?innerW/2:(innerW*i/(n-1)));\r\n    var y = pad + innerH*(1-(values[i]-min)/(max-min));\r\n    pts.push([x,y]);\r\n  }\r\n  var poly=pts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' ');\r\n  var body='<polyline fill=\"none\" stroke=\"'+stroke+'\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"'+poly+'\"/>';\r\n  if(fill){\r\n    var areaPoly=poly+' '+pts[n-1][0].toFixed(1)+','+(h-pad).toFixed(1)+' '+pts[0][0].toFixed(1)+','+(h-pad).toFixed(1);\r\n    body='<polygon fill=\"'+fillc+'\" points=\"'+areaPoly+'\"/>'+body;\r\n  }\r\n  if(dot){\r\n    var last=pts[n-1];\r\n    body+='<circle cx=\"'+last[0].toFixed(1)+'\" cy=\"'+last[1].toFixed(1)+'\" r=\"3\" fill=\"'+stroke+'\"/>';\r\n  }\r\n  var svg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+w+'\" height=\"'+h+'\" viewBox=\"0 0 '+w+' '+h+'\">'+\r\n          '<rect width=\"'+w+'\" height=\"'+h+'\" fill=\"#0A0A0B\"/>'+body+'</svg>';\r\n  return {svg:svg, points:pts, min:min, max:max, error:null};\r\n}\r\nfunction sparkBars(values, opts){\r\n  opts=opts||{};\r\n  values=values.map(Number);\r\n  if(values.length===0) return {error:'empty', svg:''};\r\n  var w=opts.width||240, h=opts.height||80, pad=opts.pad||4;\r\n  var color=opts.color||'#5E6AD2';\r\n  var min=Math.min.apply(null,values), max=Math.max.apply(null,values);\r\n  if(min===max){ min=0; }\r\n  var n=values.length;\r\n  var innerW=w-pad*2, innerH=h-pad*2;\r\n  var bw=innerW/n;\r\n  var bars='';\r\n  for(var i=0;i<n;i++){\r\n    var vh=max===min?innerH:(innerH*(values[i]-min)/(max-min));\r\n    if(vh<1) vh=1;\r\n    var x=pad+bw*i, y=pad+innerH-vh;\r\n    bars+='<rect x=\"'+x.toFixed(1)+'\" y=\"'+y.toFixed(1)+'\" width=\"'+(bw*0.7).toFixed(1)+'\" height=\"'+vh.toFixed(1)+'\" rx=\"1\" fill=\"'+color+'\"/>';\r\n  }\r\n  var svg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+w+'\" height=\"'+h+'\" viewBox=\"0 0 '+w+' '+h+'\">'+\r\n          '<rect width=\"'+w+'\" height=\"'+h+'\" fill=\"#0A0A0B\"/>'+bars+'</svg>';\r\n  return {svg:svg, min:min, max:max, error:null};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { line:sparkLine, bars:sparkBars, parse:sparkParse };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SparkForgePure = { line:sparkLine, bars:sparkBars, parse:sparkParse };\r\n}\r\n"
+}

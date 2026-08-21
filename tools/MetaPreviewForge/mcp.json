@@ -1,0 +1,41 @@
+{
+  "id": "MetaPreviewForge",
+  "name": "meta_preview_forge",
+  "title": "MetaPreviewForge",
+  "description": "解析页面 HTML 的 title/description/OG/Twitter 标签，预览搜索与社交卡片。",
+  "entry": "parseMeta",
+  "entries": {
+    "parseMeta": {
+      "paramStyle": "single",
+      "paramNames": [
+        "html"
+      ],
+      "fields": []
+    },
+    "summarize": {
+      "paramStyle": "object",
+      "paramNames": [
+        "m"
+      ],
+      "fields": [
+        "title",
+        "description",
+        "og",
+        "twitter"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "html": {
+        "type": "string",
+        "description": "输入（html）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _attr(s,name){ var m=s.match(new RegExp(name+'\\\\s*=\\\\s*\"?([^\"\\\\s>]+)\"?','i')); return m?m[1]:null; }\r\nfunction parseMeta(html){\r\n  var title=null; var tm=html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i); if(tm) title=tm[1].trim();\r\n  var out={title:title, description:null, og:{}, twitter:{}};\r\n  var re=/<meta\\b([^>]*)>/gi, mm;\r\n  while((mm=re.exec(html))){\r\n    var tag=mm[1];\r\n    var n=_attr(tag,'name'), p=_attr(tag,'property'), c=_attr(tag,'content');\r\n    if(!c) continue;\r\n    if(n==='description') out.description=c;\r\n    else if(p && p.indexOf('og:')===0) out.og[p.slice(3)]=c;\r\n    else if(p && p.indexOf('twitter:')===0) out.twitter[p.slice(8)]=c;\r\n    else if(n && n.indexOf('twitter:')===0) out.twitter[n.slice(8)]=c;\r\n  }\r\n  return out;\r\n}\r\nfunction summarize(m){\r\n  return {title:m.title||'(无)',\r\n    desc:m.description||m.og.description||'(无)',\r\n    ogTitle:m.og.title||m.title||'(无)',\r\n    ogImage:m.og.image||'(无)',\r\n    ogUrl:m.og.url||'(无)',\r\n    twitterCard:m.twitter.card||'(无)'};\r\n}\r\nvar EXPORTS={parseMeta:parseMeta,summarize:summarize};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MetaPreviewForgePure = EXPORTS; }\r\n\r\n"
+}

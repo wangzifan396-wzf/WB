@@ -1,0 +1,46 @@
+{
+  "id": "CodeReviewForge",
+  "name": "code_review_forge",
+  "title": "代码评审清单",
+  "description": "按改动规模 / 风险 / 语言生成代码评审清单（含安全与性能门禁），离线。",
+  "entry": "buildChecklist",
+  "entries": {
+    "buildChecklist": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "scope",
+        "risk",
+        "lang",
+        "title"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "scope": {
+        "type": "string",
+        "description": "参数 scope"
+      },
+      "risk": {
+        "type": "string",
+        "description": "参数 risk"
+      },
+      "lang": {
+        "type": "string",
+        "description": "参数 lang"
+      },
+      "title": {
+        "type": "string",
+        "description": "参数 title"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction buildChecklist(o){\r\n  o=o||{};\r\n  var scope=String(o.scope||'中').trim()||'中';\r\n  var risk=String(o.risk||'中').trim()||'中';\r\n  var lang=String(o.lang||'').trim();\r\n  var title=String(o.title||'').trim();\r\n  var sections=[];\r\n  sections.push({name:'通用检查', items:['代码风格与可读性','单元测试覆盖','错误处理与边界条件','日志与监控埋点','必要文档与注释']});\r\n  if(scope==='中'||scope==='大'){\r\n    sections.push({name:'模块与接口', items: scope==='大'?['架构影响评估','依赖与版本变更审查','向下兼容 / API 兼容性']:['模块间接口与契约']});\r\n  }\r\n  if(risk==='中'||risk==='高'){\r\n    var perf= risk==='高'?'性能（时间/空间复杂度、N+1、缓存命中）':'性能影响评估';\r\n    var items=[];\r\n    if(risk==='高'){ items=['安全（注入 / XSS / 越权 / 密钥管理）', perf, '数据迁移与回滚方案', '灰度 / AB 与监控告警', '容量评估与压测']; }\r\n    else { items=['数据一致性与幂等', perf]; }\r\n    sections.push({name:'风险相关', items:items});\r\n  }\r\n  var rev = risk==='高'?'建议至少 2 名 reviewer（含 1 名资深工程师），并安排 pairwise 评审':(risk==='中'?'建议 1-2 名 reviewer':'建议 1 名 reviewer 即可');\r\n  var lines=[];\r\n  lines.push('# 代码评审清单'+(title?('：'+title):''));\r\n  lines.push('');\r\n  lines.push('- 改动规模：'+scope+'　风险等级：'+risk+(lang?('　语言：'+lang):''));\r\n  lines.push('- 评审人建议：'+rev);\r\n  lines.push('');\r\n  var total=0;\r\n  sections.forEach(function(s){\r\n    lines.push('## '+s.name);\r\n    s.items.forEach(function(it){ lines.push('- [ ] '+it); total++; });\r\n    lines.push('');\r\n  });\r\n  var hasSecurity= sections.some(function(s){return s.items.some(function(it){return it.indexOf('安全')>=0;});});\r\n  return {title:title||'代码评审', itemCount:total, sectionCount:sections.length, risk:risk, hasSecurity:hasSecurity, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={buildChecklist:buildChecklist};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CodeReviewForgePure = EXPORTS; }\r\n\r\n"
+}

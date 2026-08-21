@@ -1,0 +1,47 @@
+{
+  "id": "WordSearchForge",
+  "name": "word_search_forge",
+  "title": "WordSearchForge",
+  "description": "单词搜索：在字母网格里藏入一批单词（横 / 竖 / 斜、正向反向），自己找或用“显示答案”核对，可换词表与尺寸。",
+  "entry": "wsGen",
+  "entries": {
+    "wsGen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "words",
+        "n",
+        "seed"
+      ],
+      "fields": []
+    },
+    "wsFind": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "grid",
+        "word"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "words": {
+        "type": "string",
+        "description": "第 1 个参数（words）"
+      },
+      "n": {
+        "type": "string",
+        "description": "第 2 个参数（n）"
+      },
+      "seed": {
+        "type": "string",
+        "description": "第 3 个参数（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }\r\nfunction _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }\r\nfunction _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nfunction _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }\r\n\r\nvar WS_DIRS=[[1,0],[0,1],[1,1],[1,-1],[-1,0],[0,-1],[-1,-1],[-1,1]];\r\nfunction wsGen(words, n, seed){ var rnd=_rng(seed); words=words.map(function(w){return w.toUpperCase();}); var grid=[]; for(var y=0;y<n;y++){ grid.push([]); for(var x=0;x<n;x++) grid[y].push(''); }\r\n  var placements=[];\r\n  function tryPlace(w){ for(var a=0;a<80;a++){ var d=WS_DIRS[Math.floor(rnd()*WS_DIRS.length)]; var x=Math.floor(rnd()*n), y=Math.floor(rnd()*n); var L=w.length; var ex=x+d[0]*(L-1), ey=y+d[1]*(L-1); if(ex<0||ey<0||ex>=n||ey>=n) continue; var ok=true; for(var i=0;i<L;i++){ var cx=x+d[0]*i, cy=y+d[1]*i; var cur=grid[cy][cx]; if(cur && cur!==w[i]){ ok=false; break; } } if(!ok) continue; for(var i=0;i<L;i++){ var cx=x+d[0]*i, cy=y+d[1]*i; grid[cy][cx]=w[i]; } placements.push({word:w,x:x,y:y,dx:d[0],dy:d[1]}); return true; } return false; }\r\n  words.forEach(function(w){ tryPlace(w); });\r\n  var alpha='ABCDEFGHIJKLMNOPQRSTUVWXYZ'; for(var y=0;y<n;y++) for(var x=0;x<n;x++) if(!grid[y][x]) grid[y][x]=alpha[Math.floor(rnd()*26)];\r\n  return {grid:grid, placements:placements, n:n};\r\n}\r\nfunction wsFind(grid, word){ word=word.toUpperCase(); var n=grid.length;\r\n  for(var y=0;y<n;y++) for(var x=0;x<n;x++) for(var di=0;di<WS_DIRS.length;di++){ var d=WS_DIRS[di]; var s=''; for(var i=0;i<word.length;i++){ var cx=x+d[0]*i, cy=y+d[1]*i; if(cx<0||cy<0||cx>=n||cy>=n) break; s+=grid[cy][cx]; } if(s===word||s===word.split('').reverse().join('')) return true; } return false;\r\n}\r\nvar EXPORTS={wsGen:wsGen, wsFind:wsFind};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.WordSearchForgePure = EXPORTS; }\r\n\r\n"
+}

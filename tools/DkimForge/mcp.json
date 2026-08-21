@@ -1,0 +1,49 @@
+{
+  "id": "DkimForge",
+  "name": "dkim_forge",
+  "title": "DkimForge",
+  "description": "DKIM 记录分析：标签解读、密钥强度估算、防护评分分级、语法体检，离线可用。",
+  "entry": "dkParse",
+  "entries": {
+    "dkParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "record"
+      ],
+      "fields": []
+    },
+    "dkKeyBits": {
+      "paramStyle": "single",
+      "paramNames": [
+        "p"
+      ],
+      "fields": []
+    },
+    "dkScore": {
+      "paramStyle": "object",
+      "paramNames": [
+        "tags"
+      ],
+      "fields": [
+        "v",
+        "p",
+        "k",
+        "t",
+        "h"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "record": {
+        "type": "string",
+        "description": "输入（record）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction dkParse(record){\r\n  record=String(record||'').replace(/\\s+/g,' ').trim();\r\n  var segs=record.split(';').map(function(s){return s.trim();}).filter(Boolean);\r\n  var tags={};\r\n  for(var i=0;i<segs.length;i++){\r\n    var eq=segs[i].indexOf('=');\r\n    if(eq<0) continue;\r\n    var k=segs[i].slice(0,eq).trim().toLowerCase();\r\n    var v=segs[i].slice(eq+1).trim();\r\n    tags[k]=v;\r\n  }\r\n  return { version: tags.v||'', tags:tags, ok: !!(tags.v && tags.p) };\r\n}\r\nfunction dkKeyBits(p){\r\n  if(!p) return 0;\r\n  var clean=String(p).replace(/\\s+/g,'');\r\n  var bytes=Math.floor(clean.length*3/4);\r\n  return bytes*8;\r\n}\r\nfunction dkScore(tags){\r\n  var checks=[];\r\n  function add(name,pass,weight){ checks.push({name:name,pass:!!pass,weight:weight}); }\r\n  add('含 v=DKIM1 版本', /dkim1/i.test(tags.v||''), 10);\r\n  add('含公钥 p=', !!tags.p, 30);\r\n  add('指定密钥算法 k', !!tags.k, 10);\r\n  var bits=dkKeyBits(tags.p);\r\n  add('密钥长度 ≥ 1024', bits>=1024, 15);\r\n  add('密钥长度 ≥ 2048', bits>=2048, 15);\r\n  add('签名范围 t=s 已声明(可选)', !!tags.t, 10);\r\n  add('哈希算法 h 已声明(可选)', !!tags.h, 10);\r\n  var got=0,total=0;\r\n  for(var j=0;j<checks.length;j++){ total+=checks[j].weight; if(checks[j].pass) got+=checks[j].weight; }\r\n  var grade='F';\r\n  if(got>=90)grade='A'; else if(got>=75)grade='B'; else if(got>=60)grade='C'; else if(got>=40)grade='D';\r\n  return { score:got, max:total, grade:grade, bits:bits, checks:checks };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { dkParse:dkParse, dkKeyBits:dkKeyBits, dkScore:dkScore };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.DkimForgePure = { dkParse:dkParse, dkKeyBits:dkKeyBits, dkScore:dkScore };\r\n}\r\n\r\n"
+}

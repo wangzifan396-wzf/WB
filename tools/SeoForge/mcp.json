@@ -1,0 +1,69 @@
+{
+  "id": "SeoForge",
+  "name": "seo_forge",
+  "title": "SeoForge",
+  "description": "SEO 与元数据分析：标题/描述/OG/Twitter/结构化数据体检、评分分级、关键词密度，离线可用。",
+  "entry": "seoStripTags",
+  "entries": {
+    "seoStripTags": {
+      "paramStyle": "single",
+      "paramNames": [
+        "html"
+      ],
+      "fields": []
+    },
+    "seoExtractMeta": {
+      "paramStyle": "single",
+      "paramNames": [
+        "html"
+      ],
+      "fields": []
+    },
+    "seoScore": {
+      "paramStyle": "object",
+      "paramNames": [
+        "m"
+      ],
+      "fields": [
+        "title",
+        "description",
+        "og_title",
+        "og_description",
+        "og_image",
+        "canonical",
+        "viewport",
+        "jsonld",
+        "h1",
+        "lang"
+      ]
+    },
+    "seoKeywordDensity": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "topN"
+      ],
+      "fields": []
+    },
+    "seoLen": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "html": {
+        "type": "string",
+        "description": "输入（html）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction seoStripTags(html){\r\n  return String(html||'').replace(/<script[\\s\\S]*?<\\/script>/gi,'').replace(/<style[\\s\\S]*?<\\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\\s+/g,' ').trim();\r\n}\r\nfunction seoGet(html, re){\r\n  var m = String(html||'').match(re);\r\n  return m ? (m[1]!==undefined ? m[1] : m[0]) : '';\r\n}\r\nfunction seoExtractMeta(html){\r\n  var h = String(html||'');\r\n  var meta = {};\r\n  meta.title = seoGet(h, /<title[^>]*>([\\s\\S]*?)<\\/title>/i);\r\n  meta.description = seoGet(h, /<meta[^>]+name=[\"']description[\"'][^>]*content=[\"']([^\"']*)[\"']/i) || seoGet(h, /<meta[^>]+content=[\"']([^\"']*)[\"'][^>]*name=[\"']description[\"']/i);\r\n  var mm, ogRe = /<meta[^>]+property=[\"']og:([a-z]+)[\"'][^>]*content=[\"']([^\"']*)[\"']/gi;\r\n  while((mm = ogRe.exec(h))) meta['og_'+mm[1]] = mm[2];\r\n  var ogRe2 = /<meta[^>]+content=[\"']([^\"']*)[\"'][^>]*property=[\"']og:([a-z]+)[\"']/gi;\r\n  while((mm = ogRe2.exec(h))) if(!meta['og_'+mm[2]]) meta['og_'+mm[2]] = mm[1];\r\n  var twRe = /<meta[^>]+name=[\"']twitter:([a-z]+)[\"'][^>]*content=[\"']([^\"']*)[\"']/gi;\r\n  while((mm = twRe.exec(h))) meta['tw_'+mm[1]] = mm[2];\r\n  meta.canonical = seoGet(h, /<link[^>]+rel=[\"']canonical[\"'][^>]*href=[\"']([^\"']*)[\"']/i) || seoGet(h, /<link[^>]+href=[\"']([^\"']*)[\"'][^>]*rel=[\"']canonical[\"']/i);\r\n  meta.viewport = seoGet(h, /<meta[^>]+name=[\"']viewport[\"'][^>]*content=[\"']([^\"']*)[\"']/i);\r\n  meta.jsonld = (h.match(/application\\/ld\\+json/gi)||[]).length;\r\n  meta.h1 = (h.match(/<h1[\\s\\S]*?<\\/h1>/gi)||[]).length;\r\n  meta.h2 = (h.match(/<h2[\\s\\S]*?<\\/h2>/gi)||[]).length;\r\n  meta.lang = seoGet(h, /<html[^>]+lang=[\"']([^\"']*)[\"']/i);\r\n  return meta;\r\n}\r\nfunction seoLen(s){ return String(s||'').length; }\r\nfunction seoScore(m){\r\n  var checks = [];\r\n  function add(name, pass, weight){ checks.push({name:name, pass:!!pass, weight:weight||0}); }\r\n  add('标题存在', seoLen(m.title)>0, 15);\r\n  add('标题长度 30-60', seoLen(m.title)>=30 && seoLen(m.title)<=60, 5);\r\n  add('描述存在', seoLen(m.description)>0, 15);\r\n  add('描述长度 70-160', seoLen(m.description)>=70 && seoLen(m.description)<=160, 5);\r\n  add('og:title', seoLen(m.og_title)>0, 8);\r\n  add('og:description', seoLen(m.og_description)>0, 6);\r\n  add('og:image', seoLen(m.og_image)>0, 8);\r\n  add('canonical', seoLen(m.canonical)>0, 6);\r\n  add('viewport', seoLen(m.viewport)>0, 7);\r\n  add('结构化数据', m.jsonld>0, 10);\r\n  add('h1 恰好一个', m.h1===1, 8);\r\n  add('lang 属性', seoLen(m.lang)>0, 7);\r\n  var total=0, got=0;\r\n  for(var i=0;i<checks.length;i++){ total+=checks[i].weight; if(checks[i].pass) got+=checks[i].weight; }\r\n  return { score: got, max: total, checks: checks };\r\n}\r\nfunction seoKeywordDensity(text, topN){\r\n  var clean = String(text||'').toLowerCase().replace(/[^a-z\\u4e00-\\u9fa5\\s]/g,' ').split(/\\s+/).filter(function(w){ return w.length>1; });\r\n  var freq={}, i, total=clean.length;\r\n  for(i=0;i<clean.length;i++) freq[clean[i]]=(freq[clean[i]]||0)+1;\r\n  var arr=[];\r\n  for(var k in freq) arr.push({word:k, count:freq[k], density: total? Math.round(freq[k]/total*1000)/10 : 0});\r\n  arr.sort(function(a,b){ return b.count-a.count; });\r\n  return arr.slice(0, topN||10);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { seoStripTags:seoStripTags, seoExtractMeta:seoExtractMeta, seoScore:seoScore, seoKeywordDensity:seoKeywordDensity, seoLen:seoLen };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SeoForgePure = { seoStripTags:seoStripTags, seoExtractMeta:seoExtractMeta, seoScore:seoScore, seoKeywordDensity:seoKeywordDensity, seoLen:seoLen };\r\n}\r\n\r\n"
+}

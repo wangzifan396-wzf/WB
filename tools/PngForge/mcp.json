@@ -1,0 +1,29 @@
+{
+  "id": "PngForge",
+  "name": "png_forge",
+  "title": "PngForge",
+  "description": "PNG 元数据解析：读取 IHDR 尺寸/色彩类型/位深/交错、调色板与 ICC 标记、tEXt 文本块，离线可用。",
+  "entry": "pngParse",
+  "entries": {
+    "pngParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pngU32(b, off){ return ((b[off]<<24)|(b[off+1]<<16)|(b[off+2]<<8)|b[off+3])>>>0; }\r\nfunction pngParse(bytes){\r\n  var r={valid:false, chunks:[], width:0, height:0, bitDepth:0, colorType:0, colorTypeDesc:'',\r\n         compression:0, filter:0, interlace:0, metadata:{}, hasPalette:false, hasIcc:false, error:''};\r\n  if(!bytes || bytes.length<24){ r.error='文件过短'; return r; }\r\n  var sig=[137,80,78,71,13,10,26,10];\r\n  for(var i=0;i<8;i++){ if(bytes[i]!==sig[i]){ r.error='PNG 签名不符'; return r; } }\r\n  var p=8;\r\n  while(p+8<=bytes.length){\r\n    var len=pngU32(bytes,p);\r\n    var type=String.fromCharCode(bytes[p+4],bytes[p+5],bytes[p+6],bytes[p+7]);\r\n    var ds=p+8, de=ds+len;\r\n    r.chunks.push({type:type, length:len});\r\n    if(type==='IHDR'){\r\n      r.width=pngU32(bytes,ds);\r\n      r.height=pngU32(bytes,ds+4);\r\n      r.bitDepth=bytes[ds+8]; r.colorType=bytes[ds+9]; r.compression=bytes[ds+10];\r\n      r.filter=bytes[ds+11]; r.interlace=bytes[ds+12];\r\n      var ct={0:'灰度',2:'RGB',3:'索引色',4:'灰度+Alpha',6:'RGBA'};\r\n      r.colorTypeDesc=ct[r.colorType]||('未知'+r.colorType);\r\n    } else if(type==='PLTE'){ r.hasPalette=true; }\r\n    else if(type==='iCCP'){ r.hasIcc=true; }\r\n    else if(type==='tEXt'){\r\n      var s=''; for(var k=ds;k<de;k++) s+=String.fromCharCode(bytes[k]);\r\n      var idx=s.indexOf('\\u0000'); if(idx>=0) r.metadata[s.slice(0,idx)]=s.slice(idx+1);\r\n    } else if(type==='iTXt'){\r\n      var s2=''; for(var k2=ds;k2<de;k2++) s2+=String.fromCharCode(bytes[k2]);\r\n      var i0=s2.indexOf('\\u0000');\r\n      if(i0>=0){ var key=s2.slice(0,i0), rest=s2.slice(i0+1);\r\n        var n1=rest.indexOf('\\u0000',1);\r\n        if(n1>=0){ var n2=rest.indexOf('\\u0000',n1+1); if(n2>=0) r.metadata[key]=rest.slice(n2+1); }\r\n      }\r\n    }\r\n    p=de+4; if(type==='IEND') break; if(p>bytes.length) break;\r\n  }\r\n  if(r.width>0 && r.height>0) r.valid=true;\r\n  return r;\r\n}\r\nfunction pngBytesFromInput(arr){ return (arr instanceof Uint8Array)?arr:Uint8Array.from(arr); }\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { pngParse:pngParse }; }\r\nif (typeof window !== 'undefined') { window.PngForgePure = { pngParse:pngParse }; }\r\n\r\n"
+}

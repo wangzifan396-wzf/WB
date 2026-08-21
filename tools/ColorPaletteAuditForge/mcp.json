@@ -1,0 +1,65 @@
+{
+  "id": "ColorPaletteAuditForge",
+  "name": "color_palette_audit_forge",
+  "title": "调色板对比度审计",
+  "description": "对一组颜色做 WCAG 对比度两两审计，给出 AA/AAA 判定与最差组合，离线。",
+  "entry": "normHex",
+  "entries": {
+    "normHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    },
+    "hexToRgb": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    },
+    "contrastRatio": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "parseColors": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "auditPalette": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "levelFor": {
+      "paramStyle": "single",
+      "paramNames": [
+        "r"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "h": {
+        "type": "string",
+        "description": "输入（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction normHex(h){\r\n  h=String(h||'').trim().replace(/^#/,'');\r\n  if(/^[0-9a-fA-F]{3}$/.test(h)){ h=h.split('').map(function(c){return c+c;}).join(''); }\r\n  if(/^[0-9a-fA-F]{6}$/.test(h)) return '#'+h.toLowerCase();\r\n  return null;\r\n}\r\nfunction hexToRgb(h){ var n=parseInt(h.slice(1),16); return {r:(n>>16)&255, g:(n>>8)&255, b:n&255}; }\r\nfunction relLum(c){ function f(x){ x/=255; return x<=0.03928? x/12.92 : Math.pow((x+0.055)/1.055,2.4); }\r\n  return 0.2126*f(c.r)+0.7152*f(c.g)+0.0722*f(c.b); }\r\nfunction contrastRatio(a,b){ var la=relLum(a), lb=relLum(b); var hi=Math.max(la,lb), lo=Math.min(la,lb);\r\n  return Math.round((hi+0.05)/(lo+0.05)*100)/100; }\r\nfunction parseColors(text){\r\n  text=String(text||'');\r\n  var toks=text.split(/[\\s,;，；]+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});\r\n  var colors=[], invalid=[], seen={};\r\n  toks.forEach(function(t){ var h=normHex(t);\r\n    if(h){ if(!seen[h]){ seen[h]=1; colors.push(h); } }\r\n    else if(t) invalid.push(t);\r\n  });\r\n  return {colors:colors, invalid:invalid};\r\n}\r\nfunction levelFor(r){ if(r>=7) return 'AAA'; if(r>=4.5) return 'AA'; if(r>=3) return 'AA Large'; return 'Fail'; }\r\nfunction auditPalette(text){\r\n  var p=parseColors(text); var cols=p.colors;\r\n  if(cols.length<2) return {error:'至少需要 2 个有效颜色', colors:cols, invalid:p.invalid};\r\n  var pairs=[], worst=99, best=0;\r\n  for(var i=0;i<cols.length;i++){ for(var j=i+1;j<cols.length;j++){\r\n    var r=contrastRatio(hexToRgb(cols[i]), hexToRgb(cols[j]));\r\n    worst=Math.min(worst,r); best=Math.max(best,r);\r\n    pairs.push({a:cols[i], b:cols[j], ratio:r, level:levelFor(r), aa:r>=4.5, aaa:r>=7}); } }\r\n  var total=pairs.length, aaCount=pairs.filter(function(x){return x.aa;}).length,\r\n      aaaCount=pairs.filter(function(x){return x.aaa;}).length;\r\n  pairs.sort(function(x,y){return x.ratio-y.ratio;});\r\n  var score=Math.round(aaCount/total*100);\r\n  return {colors:cols, invalid:p.invalid, pairs:pairs, total:total, aaCount:aaCount,\r\n          aaaCount:aaaCount, worst:worst, best:best, score:score};\r\n}\r\nvar EXPORTS={normHex:normHex, hexToRgb:hexToRgb, contrastRatio:contrastRatio,\r\n             parseColors:parseColors, auditPalette:auditPalette, levelFor:levelFor};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ColorPaletteAuditForgePure = EXPORTS; }\r\n\r\n"
+}

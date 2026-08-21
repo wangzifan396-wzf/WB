@@ -1,0 +1,76 @@
+{
+  "id": "RateForge",
+  "name": "rate_forge",
+  "title": "RateForge",
+  "description": "限流算法模拟器：令牌桶与漏桶，refill/consume 纯函数推演，API 韧性设计。",
+  "entry": "TokenBucket",
+  "entries": {
+    "TokenBucket": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "capacity",
+        "refillPerSec"
+      ],
+      "fields": []
+    },
+    "tbRefill": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "now"
+      ],
+      "fields": []
+    },
+    "tbConsume": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "n",
+        "now"
+      ],
+      "fields": []
+    },
+    "LeakyBucket": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "capacity",
+        "leakPerSec"
+      ],
+      "fields": []
+    },
+    "lbRefill": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "now"
+      ],
+      "fields": []
+    },
+    "lbConsume": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "n",
+        "now"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "capacity": {
+        "type": "string",
+        "description": "第 1 个参数（capacity）"
+      },
+      "refillPerSec": {
+        "type": "string",
+        "description": "第 2 个参数（refillPerSec）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction TokenBucket(capacity, refillPerSec){\r\n  return { capacity:capacity, refillPerSec:refillPerSec, tokens:capacity, last:0 };\r\n}\r\nfunction tbRefill(b, now){\r\n  if(now<=b.last) return b;\r\n  var elapsed=(now-b.last)/1000;\r\n  var added=elapsed*b.refillPerSec;\r\n  var tokens=Math.min(b.capacity, b.tokens+added);\r\n  return { capacity:b.capacity, refillPerSec:b.refillPerSec, tokens:tokens, last:now };\r\n}\r\nfunction tbConsume(b, n, now){\r\n  var r=tbRefill(b, now);\r\n  n=(n||1);\r\n  if(r.tokens>=n){\r\n    return { allowed:true, tokensLeft:r.tokens-n, retryAfterMs:0,\r\n             state:{capacity:r.capacity,refillPerSec:r.refillPerSec,tokens:r.tokens-n,last:now} };\r\n  }\r\n  var deficit=n-r.tokens;\r\n  var ms=Math.ceil(deficit/r.refillPerSec*1000);\r\n  return { allowed:false, tokensLeft:r.tokens, retryAfterMs:ms, state:b };\r\n}\r\nfunction LeakyBucket(capacity, leakPerSec){\r\n  return { capacity:capacity, leakPerSec:leakPerSec, water:0, last:0 };\r\n}\r\nfunction lbRefill(b, now){\r\n  if(now<=b.last) return b;\r\n  var elapsed=(now-b.last)/1000;\r\n  var leaked=Math.min(b.water, elapsed*b.leakPerSec);\r\n  return { capacity:b.capacity, leakPerSec:b.leakPerSec, water:b.water-leaked, last:now };\r\n}\r\nfunction lbConsume(b, n, now){\r\n  var r=lbRefill(b, now);\r\n  n=(n||1);\r\n  if(r.water+n<=r.capacity){\r\n    return { allowed:true, waterLeft:r.water+n, retryAfterMs:0,\r\n             state:{capacity:r.capacity,leakPerSec:r.leakPerSec,water:r.water+n,last:now} };\r\n  }\r\n  var need=n-(r.capacity-r.water);\r\n  var ms=Math.ceil(need/r.leakPerSec*1000);\r\n  return { allowed:false, waterLeft:r.water, retryAfterMs:ms, state:b };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { TokenBucket:TokenBucket, tbRefill:tbRefill, tbConsume:tbConsume,\r\n    LeakyBucket:LeakyBucket, lbRefill:lbRefill, lbConsume:lbConsume };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.RateForgePure = { TokenBucket:TokenBucket, tbRefill:tbRefill, tbConsume:tbConsume,\r\n    LeakyBucket:LeakyBucket, lbRefill:lbRefill, lbConsume:lbConsume };\r\n}\r\n"
+}

@@ -1,0 +1,174 @@
+{
+  "id": "FfmpegForge",
+  "name": "ffmpeg_forge",
+  "title": "FfmpegForge",
+  "description": "FFmpeg 命令助手：十套常用配方一键生成压缩、转码、切片、转 GIF、抽帧等命令；解释模式逐个参数给出中文含义，并提示 -c:v copy 与滤镜冲突等常见坑。",
+  "entry": "build",
+  "entries": {
+    "build": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "input",
+        "overwrite",
+        "hwaccel",
+        "start",
+        "duration",
+        "scale",
+        "transpose",
+        "fps",
+        "gif",
+        "output",
+        "frames",
+        "novideo",
+        "vcodec",
+        "crf",
+        "preset",
+        "tune",
+        "pix",
+        "tag",
+        "mute",
+        "acodec",
+        "abitrate",
+        "faststart",
+        "extra",
+        "ext"
+      ]
+    },
+    "explain": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cmd"
+      ],
+      "fields": []
+    },
+    "tokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "baseName": {
+      "paramStyle": "single",
+      "paramNames": [
+        "p"
+      ],
+      "fields": []
+    },
+    "quote": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "参数 input"
+      },
+      "overwrite": {
+        "type": "string",
+        "description": "参数 overwrite"
+      },
+      "hwaccel": {
+        "type": "string",
+        "description": "参数 hwaccel"
+      },
+      "start": {
+        "type": "string",
+        "description": "参数 start"
+      },
+      "duration": {
+        "type": "string",
+        "description": "参数 duration"
+      },
+      "scale": {
+        "type": "string",
+        "description": "参数 scale"
+      },
+      "transpose": {
+        "type": "string",
+        "description": "参数 transpose"
+      },
+      "fps": {
+        "type": "string",
+        "description": "参数 fps"
+      },
+      "gif": {
+        "type": "string",
+        "description": "参数 gif"
+      },
+      "output": {
+        "type": "string",
+        "description": "参数 output"
+      },
+      "frames": {
+        "type": "string",
+        "description": "参数 frames"
+      },
+      "novideo": {
+        "type": "string",
+        "description": "参数 novideo"
+      },
+      "vcodec": {
+        "type": "string",
+        "description": "参数 vcodec"
+      },
+      "crf": {
+        "type": "string",
+        "description": "参数 crf"
+      },
+      "preset": {
+        "type": "string",
+        "description": "参数 preset"
+      },
+      "tune": {
+        "type": "string",
+        "description": "参数 tune"
+      },
+      "pix": {
+        "type": "string",
+        "description": "参数 pix"
+      },
+      "tag": {
+        "type": "string",
+        "description": "参数 tag"
+      },
+      "mute": {
+        "type": "string",
+        "description": "参数 mute"
+      },
+      "acodec": {
+        "type": "string",
+        "description": "参数 acodec"
+      },
+      "abitrate": {
+        "type": "string",
+        "description": "参数 abitrate"
+      },
+      "faststart": {
+        "type": "string",
+        "description": "参数 faststart"
+      },
+      "extra": {
+        "type": "string",
+        "description": "参数 extra"
+      },
+      "ext": {
+        "type": "string",
+        "description": "参数 ext"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n'use strict';\r\nvar FLAGS={\r\n '-i':'输入文件','-y':'覆盖已存在的输出文件','-n':'输出已存在时直接退出',\r\n '-c':'统一指定编解码器','-c:v':'视频编码器','-c:a':'音频编码器','-c:s':'字幕编码器',\r\n '-vcodec':'视频编码器（旧写法，等价 -c:v）','-acodec':'音频编码器（旧写法，等价 -c:a）',\r\n '-crf':'恒定质量因子，数字越小画质越好体积越大（x264/x265 常用 18-28）',\r\n '-preset':'编码速度预设，越慢压缩率越高（ultrafast~veryslow）',\r\n '-tune':'针对内容类型调优（film/animation/grain/zerolatency 等）',\r\n '-profile:v':'编码 profile（baseline/main/high），影响兼容性',\r\n '-level':'编码 level，限制码率与分辨率上限',\r\n '-b:v':'视频目标码率','-b:a':'音频目标码率','-maxrate':'最大码率上限','-bufsize':'码率控制缓冲区大小',\r\n '-vf':'视频滤镜链','-af':'音频滤镜链','-filter_complex':'复杂滤镜图（多输入/多输出）',\r\n '-r':'输出帧率','-s':'输出分辨率（等价 scale 滤镜）','-aspect':'显示宽高比',\r\n '-ss':'起始时间点（放在 -i 前为快速定位）','-t':'持续时长','-to':'结束时间点',\r\n '-an':'去掉音频流','-vn':'去掉视频流','-sn':'去掉字幕流','-dn':'去掉数据流',\r\n '-map':'手动选择要输出的流','-f':'强制指定容器格式','-pix_fmt':'像素格式（yuv420p 兼容性最好）',\r\n '-ar':'音频采样率','-ac':'音频声道数','-q:v':'视频质量（可变码率编码器）','-q:a':'音频质量',\r\n '-movflags':'MP4 容器标志，+faststart 可让网页边下边播',\r\n '-threads':'编码线程数','-hwaccel':'硬件解码加速（cuda/qsv/videotoolbox 等）',\r\n '-loop':'循环输入次数','-shortest':'以最短的流为准结束输出','-stream_loop':'输入循环次数',\r\n '-metadata':'写入元数据','-pass':'两遍编码的第几遍','-g':'关键帧间隔（GOP）',\r\n '-re':'按原生帧率读取（推流常用）','-vsync':'帧同步策略','-copyts':'保留原始时间戳',\r\n '-itsoffset':'输入时间偏移','-disposition':'设置流的默认/强制标记','-hide_banner':'隐藏版本横幅',\r\n '-loglevel':'日志级别','-progress':'输出进度到指定目标','-nostdin':'禁止读取标准输入'\r\n};\r\nvar VALUELESS={'-y':1,'-n':1,'-an':1,'-vn':1,'-sn':1,'-dn':1,'-shortest':1,'-re':1,'-copyts':1,'-hide_banner':1,'-nostdin':1};\r\nvar PRESETS=[\r\n {id:'compress',name:'压缩视频（H.264）',o:{vcodec:'libx264',crf:'23',preset:'medium',acodec:'aac',abitrate:'128k',faststart:true}},\r\n {id:'h265',name:'转 H.265 省一半体积',o:{vcodec:'libx265',crf:'28',preset:'medium',acodec:'aac',abitrate:'128k',tag:'hvc1'}},\r\n {id:'web',name:'网页可流式播放 MP4',o:{vcodec:'libx264',crf:'22',preset:'slow',acodec:'aac',abitrate:'128k',pix:'yuv420p',faststart:true}},\r\n {id:'gif',name:'视频转高质量 GIF',o:{gif:true,fps:'12',scale:'480'}},\r\n {id:'audio',name:'提取音频为 MP3',o:{novideo:true,acodec:'libmp3lame',abitrate:'192k',ext:'mp3'}},\r\n {id:'mute',name:'去掉声音',o:{vcodec:'copy',mute:true}},\r\n {id:'cut',name:'无损截取片段',o:{vcodec:'copy',acodec:'copy',start:'00:00:10',duration:'00:00:30'}},\r\n {id:'shrink',name:'缩放到 720p',o:{vcodec:'libx264',crf:'23',preset:'medium',scale:'1280',acodec:'aac',abitrate:'128k'}},\r\n {id:'frames',name:'每秒抽一帧存图',o:{frames:true,fps:'1'}},\r\n {id:'rotate',name:'顺时针旋转 90 度',o:{vcodec:'libx264',crf:'20',preset:'medium',transpose:'1',acodec:'copy'}}\r\n];\r\nfunction q(s){ return /[\\s\"'*?$&|<>()]/.test(s)?('\"'+String(s).replace(/\"/g,'\\\\\"')+'\"'):s; }\r\nfunction baseName(p){ var b=String(p).split(/[\\\\/]/).pop(); var i=b.lastIndexOf('.'); return i>0?b.slice(0,i):b; }\r\nfunction build(o){\r\n  o=o||{};\r\n  var input=o.input||'input.mp4';\r\n  if(!String(input).trim()) return {value:null,error:'请填写输入文件名'};\r\n  var a=['ffmpeg'],vf=[],notes=[];\r\n  if(o.overwrite!==false) a.push('-y');\r\n  if(o.hwaccel) a.push('-hwaccel',o.hwaccel);\r\n  if(o.start) a.push('-ss',o.start);\r\n  a.push('-i',q(input));\r\n  if(o.duration) a.push('-t',o.duration);\r\n  if(o.scale) vf.push('scale='+o.scale+':-2');\r\n  if(o.transpose) vf.push('transpose='+o.transpose);\r\n  if(o.fps&&!o.gif) a.push('-r',o.fps);\r\n  if(o.gif){\r\n    vf.push('fps='+(o.fps||'12'));\r\n    vf.push('split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer');\r\n    a.push('-vf',q(vf.join(',')));\r\n    a.push('-loop','0');\r\n    var gout=o.output||(baseName(input)+'.gif');\r\n    a.push(q(gout));\r\n    notes.push('使用 palettegen/paletteuse 两段调色板滤镜，GIF 色彩明显优于直接转换');\r\n    return {value:{cmd:a.join(' '),notes:notes,filters:vf.slice()},error:null};\r\n  }\r\n  if(o.frames){\r\n    if(o.fps) a.push('-vf',q('fps='+o.fps));\r\n    a.push('-q:v','2');\r\n    a.push(q(o.output||'frame_%04d.jpg'));\r\n    notes.push('%04d 会展开为 frame_0001.jpg 这样的序号文件名');\r\n    return {value:{cmd:a.join(' '),notes:notes,filters:[]},error:null};\r\n  }\r\n  if(vf.length) a.push('-vf',q(vf.join(',')));\r\n  if(o.novideo){ a.push('-vn'); }\r\n  else if(o.vcodec){ a.push('-c:v',o.vcodec); }\r\n  if(o.vcodec&&o.vcodec!=='copy'&&!o.novideo){\r\n    if(o.crf) a.push('-crf',o.crf);\r\n    if(o.preset) a.push('-preset',o.preset);\r\n    if(o.tune) a.push('-tune',o.tune);\r\n    if(o.pix) a.push('-pix_fmt',o.pix);\r\n    if(o.tag) a.push('-tag:v',o.tag);\r\n  }\r\n  if(o.mute) a.push('-an');\r\n  else if(o.acodec){ a.push('-c:a',o.acodec); if(o.acodec!=='copy'&&o.abitrate) a.push('-b:a',o.abitrate); }\r\n  if(o.faststart) a.push('-movflags','+faststart');\r\n  if(o.extra) a.push(o.extra);\r\n  var ext=o.ext||(o.novideo?'mp3':'mp4');\r\n  a.push(q(o.output||(baseName(input)+'_out.'+ext)));\r\n  if(o.vcodec==='copy'&&o.start) notes.push('流复制截取只能在关键帧处切，起止点可能有 1-2 秒偏差');\r\n  if(o.vcodec==='libx265') notes.push('加 -tag:v hvc1 才能被苹果设备与 Safari 正常识别');\r\n  if(o.faststart) notes.push('+faststart 把索引挪到文件头，网页可边下边播');\r\n  if(o.crf&&Number(o.crf)<18) notes.push('CRF 低于 18 时体积会迅速膨胀，肉眼收益有限');\r\n  return {value:{cmd:a.join(' '),notes:notes,filters:vf.slice()},error:null};\r\n}\r\nfunction tokenize(s){\r\n  var t=[],cur='',q0=0,i,c,has=false;\r\n  for(i=0;i<s.length;i++){\r\n    c=s.charAt(i);\r\n    if(q0===0){\r\n      if(c==='\"'){q0=1;has=true;continue;}\r\n      if(c===\"'\"){q0=2;has=true;continue;}\r\n      if(/\\s/.test(c)){ if(cur||has){t.push(cur);cur='';has=false;} continue; }\r\n      if(c==='\\\\'&&i+1<s.length&&s.charAt(i+1)==='\\n'){i++;continue;}\r\n      cur+=c;\r\n    } else if(q0===1){ if(c==='\"'){q0=0;continue;} if(c==='\\\\'&&i+1<s.length){cur+=s.charAt(++i);continue;} cur+=c; }\r\n    else { if(c===\"'\"){q0=0;continue;} cur+=c; }\r\n  }\r\n  if(cur||has)t.push(cur);\r\n  return t;\r\n}\r\nfunction explain(cmd){\r\n  if(typeof cmd!=='string'||!cmd.trim()) return {value:null,error:'请粘贴一条 ffmpeg 命令'};\r\n  var t=tokenize(cmd.replace(/\\s*\\\\\\s*\\n\\s*/g,' '));\r\n  if(!t.length) return {value:null,error:'请粘贴一条 ffmpeg 命令'};\r\n  if(!/^ffmpeg(\\.exe)?$/i.test(t[0])) return {value:null,error:'命令需要以 ffmpeg 开头'};\r\n  var rows=[],warn=[],inputs=[],outputs=[],i=1;\r\n  while(i<t.length){\r\n    var tk=t[i];\r\n    if(tk.charAt(0)==='-'){\r\n      var key=tk,desc=FLAGS[key];\r\n      if(!desc){\r\n        var b=key.split(':')[0];\r\n        desc=FLAGS[b]?(FLAGS[b]+'（作用于 '+key.split(':').slice(1).join(':')+' 流）'):null;\r\n      }\r\n      var val='';\r\n      if(!VALUELESS[key]&&i+1<t.length&&(t[i+1].charAt(0)!=='-'||/^-?\\d/.test(t[i+1]))){ val=t[i+1]; i++; }\r\n      if(key==='-i') inputs.push(val);\r\n      rows.push({flag:key,arg:val,desc:desc||'未收录的参数，请查阅 ffmpeg 官方文档'});\r\n      if(!desc) warn.push('未识别参数 '+key);\r\n    } else {\r\n      outputs.push(tk);\r\n      rows.push({flag:'',arg:tk,desc:'输出文件'});\r\n    }\r\n    i++;\r\n  }\r\n  if(!inputs.length) warn.push('没有找到 -i 输入文件');\r\n  if(!outputs.length) warn.push('没有找到输出文件');\r\n  var joined=' '+t.join(' ')+' ';\r\n  if(joined.indexOf(' -c:v copy ')>=0&&joined.indexOf(' -vf ')>=0) warn.push('-c:v copy 与 -vf 冲突：流复制时无法应用视频滤镜');\r\n  if(joined.indexOf(' -crf ')>=0&&joined.indexOf(' -c:v copy ')>=0) warn.push('-crf 对 -c:v copy 无效');\r\n  if(/\\.mp4[\"']?\\s*$/.test(cmd)&&joined.indexOf('faststart')<0) warn.push('输出 MP4 建议加 -movflags +faststart 以支持网页流式播放');\r\n  return {value:{rows:rows,inputs:inputs,outputs:outputs,warn:warn,count:rows.length},error:null};\r\n}\r\nvar API={build:build,explain:explain,tokenize:tokenize,PRESETS:PRESETS,FLAGS:FLAGS,baseName:baseName,quote:q};\r\nif(typeof module!=='undefined'&&module.exports) module.exports=API;\r\nif(typeof window!=='undefined') window.__FfmpegForge__=API;\r\n})();\r\n\r\n"
+}

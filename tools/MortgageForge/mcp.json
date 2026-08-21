@@ -1,0 +1,66 @@
+{
+  "id": "MortgageForge",
+  "name": "mortgage_forge",
+  "title": "MortgageForge",
+  "description": "等额本息房贷：离线算月供、总还款与总利息，并生成逐月摊销表。",
+  "entry": "monthlyPayment",
+  "entries": {
+    "monthlyPayment": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "P",
+        "annualPct",
+        "years"
+      ],
+      "fields": []
+    },
+    "totalPaid": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "P",
+        "annualPct",
+        "years"
+      ],
+      "fields": []
+    },
+    "totalInterest": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "P",
+        "annualPct",
+        "years"
+      ],
+      "fields": []
+    },
+    "schedule": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "P",
+        "annualPct",
+        "years"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "P": {
+        "type": "string",
+        "description": "第 1 个参数（P）"
+      },
+      "annualPct": {
+        "type": "string",
+        "description": "第 2 个参数（annualPct）"
+      },
+      "years": {
+        "type": "string",
+        "description": "第 3 个参数（years）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction monthlyPayment(P, annualPct, years){\r\n  var r = annualPct/100/12, n = years*12;\r\n  if(r === 0) return P/n;\r\n  var f = Math.pow(1+r, n);\r\n  return P*r*f/(f-1);\r\n}\r\nfunction totalPaid(P, annualPct, years){ return monthlyPayment(P, annualPct, years) * years * 12; }\r\nfunction totalInterest(P, annualPct, years){ return totalPaid(P, annualPct, years) - P; }\r\nfunction schedule(P, annualPct, years){\r\n  var r = annualPct/100/12, n = years*12, M = monthlyPayment(P, annualPct, years);\r\n  var bal = P, rows = [];\r\n  for(var i=1; i<=n; i++){\r\n    var interest = bal*r, principal = M - interest;\r\n    bal -= principal;\r\n    rows.push({month:i, payment:M, principal:principal, interest:interest, balance:Math.max(0,bal)});\r\n  }\r\n  return rows;\r\n}\r\nvar EXPORTS = { monthlyPayment:monthlyPayment, totalPaid:totalPaid, totalInterest:totalInterest, schedule:schedule };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MortgageForgePure = EXPORTS; }\r\n\r\n"
+}

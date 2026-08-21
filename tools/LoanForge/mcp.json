@@ -1,0 +1,38 @@
+{
+  "id": "LoanForge",
+  "name": "loan_forge",
+  "title": "LoanForge",
+  "description": "贷款本息摊销：输入本金、年利率与期限，输出月供、总利息与逐期还款计划表，离线可用。",
+  "entry": "loanParseNum",
+  "entries": {
+    "loanParseNum": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "loanSchedule": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "ratePct",
+        "months"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction loanParseNum(s){\r\n  var v=Number(String(s).replace(/[, ]/g,''));\r\n  return isFinite(v)? v : NaN;\r\n}\r\nfunction loanSchedule(principal, ratePct, months){\r\n  principal=loanParseNum(principal); ratePct=loanParseNum(ratePct); months=loanParseNum(months);\r\n  if(!(principal>0)) return { error:'本金必须为正数' };\r\n  if(!(ratePct>=0)) return { error:'利率不能为负' };\r\n  if(!(months>=1 && months%1===0)) return { error:'期限须为正整数月' };\r\n  var r=ratePct/100/12, schedule=[], balance=principal, totalInterest=0;\r\n  var monthly = (r===0) ? principal/months : principal*r/(1-Math.pow(1+r,-months));\r\n  monthly = Math.round(monthly*100)/100;\r\n  for(var i=1;i<=months;i++){\r\n    var interest=Math.round(balance*r*100)/100;\r\n    var principalPaid=Math.round((monthly-interest)*100)/100;\r\n    if(i===months){ principalPaid=Math.round(balance*100)/100; }\r\n    balance=Math.round((balance-principalPaid)*100)/100;\r\n    if(balance<0) balance=0;\r\n    totalInterest+=interest;\r\n    schedule.push({ month:i, payment:monthly, principalPaid:principalPaid, interestPaid:interest, balance:balance });\r\n  }\r\n  return { error:null, monthly:monthly, totalPay:Math.round((monthly*months)*100)/100,\r\n    totalInterest:Math.round(totalInterest*100)/100, schedule:schedule };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { loanParseNum:loanParseNum, loanSchedule:loanSchedule };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.LoanForgePure = { loanParseNum:loanParseNum, loanSchedule:loanSchedule };\r\n}\r\n"
+}

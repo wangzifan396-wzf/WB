@@ -1,0 +1,50 @@
+{
+  "id": "MsgpackForge",
+  "name": "msgpack_forge",
+  "title": "MsgpackForge",
+  "description": "MessagePack 编解码：JSON 值到二进制紧凑序列化与十六进制视图。",
+  "entry": "mpEncode",
+  "entries": {
+    "mpEncode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "val"
+      ],
+      "fields": []
+    },
+    "mpDecode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "mpToHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "mpFromHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hex"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "val": {
+        "type": "string",
+        "description": "输入（val）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction mpUtf8(str){\r\n  var out=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.codePointAt(i);\r\n    if(c>0xFFFF) i++;\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xC0|(c>>6),0x80|(c&63)); }\r\n    else if(c<0x10000){ out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63)); }\r\n    else { out.push(0xF0|(c>>18),0x80|((c>>12)&63),0x80|((c>>6)&63),0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction mpUtf8Str(bytes,off,len){\r\n  var out='',i=off,end=off+len;\r\n  while(i<end){\r\n    var b=bytes[i];\r\n    if(b<0x80){ out+=String.fromCharCode(b); i++; }\r\n    else if(b<0xE0){ out+=String.fromCharCode(((b&31)<<6)|(bytes[i+1]&63)); i+=2; }\r\n    else if(b<0xF0){ out+=String.fromCharCode(((b&15)<<12)|((bytes[i+1]&63)<<6)|(bytes[i+2]&63)); i+=3; }\r\n    else { out+=String.fromCodePoint(((b&7)<<18)|((bytes[i+1]&63)<<12)|((bytes[i+2]&63)<<6)|(bytes[i+3]&63)); i+=4; }\r\n  }\r\n  return out;\r\n}\r\nfunction _pushU(out,v,n){ for(var i=n-1;i>=0;i--) out.push((v>>> (8*i))&255); }\r\nfunction _f64(out,v){\r\n  var buf=new ArrayBuffer(8); new DataView(buf).setFloat64(0,v,false);\r\n  var u=new Uint8Array(buf);\r\n  for(var i=0;i<8;i++) out.push(u[i]);\r\n}\r\nfunction mpEncode(val){\r\n  var out=[];\r\n  (function enc(v){\r\n    if(v===null||v===undefined){ out.push(0xc0); return; }\r\n    if(v===false){ out.push(0xc2); return; }\r\n    if(v===true){ out.push(0xc3); return; }\r\n    if(typeof v==='number'){\r\n      if(Number.isInteger(v)&&Math.abs(v)<=0x7fffffff){\r\n        if(v>=0&&v<128){ out.push(v); }\r\n        else if(v<0&&v>=-32){ out.push(0x100+v&0xff); }\r\n        else if(v>=0&&v<256){ out.push(0xcc,v); }\r\n        else if(v>=0&&v<65536){ out.push(0xcd); _pushU(out,v,2); }\r\n        else if(v>=0){ out.push(0xce); _pushU(out,v,4); }\r\n        else if(v>=-128){ out.push(0xd0,v&255); }\r\n        else if(v>=-32768){ out.push(0xd1); _pushU(out,v&0xffff,2); }\r\n        else { out.push(0xd2); _pushU(out,v>>>0,4); }\r\n      } else { out.push(0xcb); _f64(out,v); }\r\n      return;\r\n    }\r\n    if(typeof v==='string'){\r\n      var b=mpUtf8(v);\r\n      if(b.length<32) out.push(0xa0|b.length);\r\n      else if(b.length<256){ out.push(0xd9,b.length); }\r\n      else { out.push(0xda); _pushU(out,b.length,2); }\r\n      out.push.apply(out,b);\r\n      return;\r\n    }\r\n    if(Array.isArray(v)){\r\n      if(v.length<16) out.push(0x90|v.length);\r\n      else { out.push(0xdc); _pushU(out,v.length,2); }\r\n      for(var i=0;i<v.length;i++) enc(v[i]);\r\n      return;\r\n    }\r\n    if(typeof v==='object'){\r\n      var keys=Object.keys(v);\r\n      if(keys.length<16) out.push(0x80|keys.length);\r\n      else { out.push(0xde); _pushU(out,keys.length,2); }\r\n      for(var j=0;j<keys.length;j++){ enc(keys[j]); enc(v[keys[j]]); }\r\n      return;\r\n    }\r\n    throw new Error('unsupported type: '+typeof v);\r\n  })(val);\r\n  return out;\r\n}\r\nfunction mpDecode(bytes){\r\n  var pos=0;\r\n  function need(n){ if(pos+n>bytes.length) throw new Error('truncated at '+pos); }\r\n  function u(n){ need(n); var v=0; for(var i=0;i<n;i++) v=v*256+bytes[pos++]; return v; }\r\n  function dec(){\r\n    need(1);\r\n    var b=bytes[pos++];\r\n    if(b<0x80) return b;\r\n    if(b>=0xe0) return b-256;\r\n    if(b>=0xa0&&b<0xc0){ var l=b&31; need(l); var s=mpUtf8Str(bytes,pos,l); pos+=l; return s; }\r\n    if(b>=0x90&&b<0xa0){ var n=b&15,a=[]; for(var i=0;i<n;i++) a.push(dec()); return a; }\r\n    if(b>=0x80&&b<0x90){ var k=b&15,o={}; for(var j=0;j<k;j++){ var key=dec(); o[key]=dec(); } return o; }\r\n    switch(b){\r\n      case 0xc0: return null;\r\n      case 0xc2: return false;\r\n      case 0xc3: return true;\r\n      case 0xcc: return u(1);\r\n      case 0xcd: return u(2);\r\n      case 0xce: return u(4);\r\n      case 0xd0: { var v=u(1); return v>127?v-256:v; }\r\n      case 0xd1: { var v2=u(2); return v2>32767?v2-65536:v2; }\r\n      case 0xd2: { var v4=u(4); return v4>0x7fffffff?v4-0x100000000:v4; }\r\n      case 0xcb: {\r\n        need(8);\r\n        var buf=new ArrayBuffer(8), uu=new Uint8Array(buf);\r\n        for(var q=0;q<8;q++) uu[q]=bytes[pos++];\r\n        return new DataView(buf).getFloat64(0,false);\r\n      }\r\n      case 0xd9: { var l1=u(1); need(l1); var s1=mpUtf8Str(bytes,pos,l1); pos+=l1; return s1; }\r\n      case 0xda: { var l2=u(2); need(l2); var s2=mpUtf8Str(bytes,pos,l2); pos+=l2; return s2; }\r\n      case 0xdc: { var n2=u(2),a2=[]; for(var w=0;w<n2;w++) a2.push(dec()); return a2; }\r\n      case 0xde: { var k2=u(2),o2={}; for(var z=0;z<k2;z++){ var key2=dec(); o2[key2]=dec(); } return o2; }\r\n      default: throw new Error('unsupported byte 0x'+b.toString(16));\r\n    }\r\n  }\r\n  var val=dec();\r\n  if(pos!==bytes.length) throw new Error('trailing bytes');\r\n  return val;\r\n}\r\nfunction mpToHex(bytes){\r\n  var s='';\r\n  for(var i=0;i<bytes.length;i++) s+=(bytes[i]<16?'0':'')+bytes[i].toString(16);\r\n  return s;\r\n}\r\nfunction mpFromHex(hex){\r\n  hex=String(hex).replace(/[\\s]/g,'');\r\n  if(!/^([0-9a-fA-F]{2})*$/.test(hex)) throw new Error('非法 hex');\r\n  var out=[];\r\n  for(var i=0;i<hex.length;i+=2) out.push(parseInt(hex.substr(i,2),16));\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { mpEncode:mpEncode, mpDecode:mpDecode, mpToHex:mpToHex, mpFromHex:mpFromHex };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MsgpackForgePure = { mpEncode:mpEncode, mpDecode:mpDecode, mpToHex:mpToHex, mpFromHex:mpFromHex };\r\n}\r\n"
+}

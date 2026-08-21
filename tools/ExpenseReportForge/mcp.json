@@ -1,0 +1,50 @@
+{
+  "id": "ExpenseReportForge",
+  "name": "expense_report_forge",
+  "title": "报销报告生成",
+  "description": "粘贴多笔支出，自动分类汇总并生成可提交的 Markdown 报销报告，离线。",
+  "entry": "parseAmount",
+  "entries": {
+    "parseAmount": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "categorize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "note"
+      ],
+      "fields": []
+    },
+    "parseExpenses": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "summarize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseAmount(s){\r\n  s=String(s).trim();\r\n  var m=s.match(/[¥$]?\\s*([0-9][0-9,]*(\\.[0-9]+)?)/);\r\n  if(!m) return null;\r\n  return Math.round(parseFloat(m[1].replace(/,/g,''))*100)/100;\r\n}\r\nvar CATS=[\r\n  ['餐饮',/餐|饭|食|咖啡|茶|饮|外卖|小吃|早点|夜宵|奶茶|酒水|饮酒|红酒|白酒|啤酒|料酒|鸡尾酒/],\r\n  ['交通',/车|地铁|公交|出租|打车|高铁|火车|机票|油|停车|uber|滴滴|航班|船/],\r\n  ['住宿',/酒店|住宿|民宿|宾馆|旅馆|客栈|青旅/],\r\n  ['购物',/买|购|商城|超市|衣服|鞋|数码|家电|百货|网购|服饰/],\r\n  ['娱乐',/电影|游|票|游戏|健身|书|演出|展览|乐园|景点|唱/],\r\n  ['医疗',/药|医|诊|保健|疫苗|体检|牙/]\r\n];\r\nfunction categorize(note){\r\n  note=String(note||'');\r\n  for(var i=0;i<CATS.length;i++){ if(CATS[i][1].test(note)) return CATS[i][0]; }\r\n  return '其他';\r\n}\r\nfunction parseExpenses(text){\r\n  text=String(text||'');\r\n  var lines=text.split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});\r\n  var items=[], errors=[];\r\n  lines.forEach(function(line,idx){\r\n    var amt=parseAmount(line);\r\n    if(amt==null){ errors.push('第'+(idx+1)+'行未识别金额：'+line); return; }\r\n    var note=line.replace(/^[¥$]?\\s*[0-9][0-9,]*(\\.[0-9]+)?/,'').trim();\r\n    note=note.replace(/^[\\s\\-–—:：|丨]+/,'').trim();\r\n    items.push({amount:amt, category:categorize(note), note:note||'未注明', raw:line});\r\n  });\r\n  return {items:items, errors:errors};\r\n}\r\nfunction summarize(text){\r\n  var p=parseExpenses(text);\r\n  var total=0, byCat={};\r\n  p.items.forEach(function(it){ total+=it.amount; byCat[it.category]=(byCat[it.category]||0)+it.amount; });\r\n  total=Math.round(total*100)/100;\r\n  var lines=['# 报销报告','', '合计：**¥'+total.toFixed(2)+'**（'+p.items.length+' 笔）',''];\r\n  lines.push('## 分类汇总','| 类别 | 金额 | 占比 |','|------|------|------|');\r\n  Object.keys(byCat).sort(function(a,b){return byCat[b]-byCat[a];}).forEach(function(c){\r\n    var s=Math.round(byCat[c]*100)/100;\r\n    var pct= total>0? Math.round(s/total*1000)/10 : 0;\r\n    lines.push('| '+c+' | ¥'+s.toFixed(2)+' | '+pct+'% |');\r\n  });\r\n  lines.push('','## 明细');\r\n  p.items.forEach(function(it,i){ lines.push((i+1)+'. ['+it.category+'] '+it.note+' — ¥'+it.amount.toFixed(2)); });\r\n  if(p.errors.length) lines.push('','> 跳过 '+p.errors.length+' 行无法识别金额');\r\n  return {total:total, count:p.items.length, byCategory:byCat, report:lines.join('\\n'), errors:p.errors};\r\n}\r\nvar EXPORTS={parseAmount:parseAmount, categorize:categorize, parseExpenses:parseExpenses, summarize:summarize};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ExpenseReportForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,34 @@
+{
+  "id": "ThefuckForge",
+  "name": "thefuck_forge",
+  "title": "ThefuckForge",
+  "description": "命令纠错：根据失败命令与报错，按规则推断正确写法——常见命令拼写、git/npm 子命令笔误、缺 sudo、根路径操作等。",
+  "entry": "fix",
+  "entries": {
+    "fix": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cmd",
+        "err"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "cmd": {
+        "type": "string",
+        "description": "第 1 个参数（cmd）"
+      },
+      "err": {
+        "type": "string",
+        "description": "第 2 个参数（err）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  var MAP={\r\n    'gti':'git','pul':'pull','puh':'pull','puhs':'push','pushh':'push',\r\n    'isntall':'install','intall':'install','instal':'install','iinstall':'install',\r\n    'pyhton':'python','phython':'python','pyton':'python',\r\n    'sl':'ls','cdd':'cd','mkdri':'mkdir','tuch':'touch','recme':'remove',\r\n    'chekcout':'checkout','chekout':'checkout','checout':'checkout','chcekout':'checkout',\r\n    'stat':'status','stauts':'status','branhc':'branch','comit':'commit','commt':'commit',\r\n    'runn':'run','rn':'run'\r\n  };\r\n  var RULES=[\r\n    function(cmd, err){\r\n      if(/permission denied/i.test(err||'')) return 'sudo '+cmd;\r\n      return null;\r\n    },\r\n    function(cmd, err){\r\n      if(/^apt(-get)?\\s+install/.test(cmd) && !/^sudo /.test(cmd)) return 'sudo '+cmd;\r\n      return null;\r\n    },\r\n    function(cmd, err){\r\n      if(/^(mkdir|touch|rm|mv|cp|chmod|chown)\\s+\\//.test(cmd) && !/^sudo /.test(cmd)) return 'sudo '+cmd;\r\n      return null;\r\n    },\r\n    function(cmd, err){\r\n      var m=cmd.match(/^git\\s+(\\S+)(.*)$/);\r\n      if(m && MAP[m[1]] && MAP[m[1]]!==m[1]) return 'git '+MAP[m[1]]+m[2];\r\n      return null;\r\n    },\r\n    function(cmd, err){\r\n      var m=cmd.match(/^npm\\s+(\\S+)(.*)$/);\r\n      if(m && MAP[m[1]] && MAP[m[1]]!==m[1]) return 'npm '+MAP[m[1]]+m[2];\r\n      return null;\r\n    },\r\n    function(cmd, err){\r\n      var sp=cmd.split(/\\s+/);\r\n      if(MAP[sp[0]] && MAP[sp[0]]!==sp[0]){ sp[0]=MAP[sp[0]]; return sp.join(' '); }\r\n      return null;\r\n    }\r\n  ];\r\n  function fix(cmd, err){\r\n    for(var i=0;i<RULES.length;i++){\r\n      var r=RULES[i](cmd||'', err||'');\r\n      if(r && r!==cmd) return {value:{fixed:r, rule:i+1}};\r\n    }\r\n    return {value:{fixed:null, rule:0, reason:'未识别可自动纠正的错误'}};\r\n  }\r\n  var API={fix:fix, RULES:RULES, MAP:MAP};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__ThefuckForge__=API;\r\n})();\r\n"
+}

@@ -1,0 +1,39 @@
+{
+  "id": "RgForge",
+  "name": "rg_forge",
+  "title": "RgForge",
+  "description": "在粘贴的文本中按正则检索，列出命中行号与内容，支持忽略大小写/多行/全局，纯前端、不依赖任何二进制。",
+  "entry": "search",
+  "entries": {
+    "search": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "pattern",
+        "flags"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "pattern": {
+        "type": "string",
+        "description": "第 2 个参数（pattern）"
+      },
+      "flags": {
+        "type": "string",
+        "description": "第 3 个参数（flags）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function search(text, pattern, flags){\r\n    flags=flags||'';\r\n    if(!pattern) return {error:'请输入正则'};\r\n    var f=''; if(flags.indexOf('i')>=0)f+='i'; if(flags.indexOf('m')>=0)f+='m'; if(flags.indexOf('g')>=0)f+='g'; if(flags.indexOf('u')>=0)f+='u';\r\n    var re; try{ re=new RegExp(pattern, f); }catch(e){ return {error:'正则错误: '+e.message}; }\r\n    var lines=String(text||'').split(/\\r?\\n/), res=[];\r\n    if(re.global){\r\n      for(var i=0;i<lines.length;i++){ var ln=lines[i], mm; re.lastIndex=0; while((mm=re.exec(ln))){ if(mm.index===re.lastIndex)re.lastIndex++; res.push({n:i+1, col:mm.index, text:ln, match:mm[0]}); } }\r\n    } else {\r\n      for(var i=0;i<lines.length;i++){ var m2=lines[i].match(re); if(m2) res.push({n:i+1, col:m2.index, text:lines[i], match:m2[0]}); }\r\n    }\r\n    return {value:res};\r\n  }\r\n  var API={search:search};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__RgForge__=API;\r\n})();\r\n"
+}

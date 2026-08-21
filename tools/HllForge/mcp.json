@@ -1,0 +1,63 @@
+{
+  "id": "HllForge",
+  "name": "hll_forge",
+  "title": "HllForge",
+  "description": "HyperLogLog 基数估计：用极少内存估算大规模去重计数（至多高估）。",
+  "entry": "fnv1a32",
+  "entries": {
+    "fnv1a32": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "hllCreate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "p"
+      ],
+      "fields": []
+    },
+    "hllAdd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "hll",
+        "item"
+      ],
+      "fields": []
+    },
+    "hllCount": {
+      "paramStyle": "object",
+      "paramNames": [
+        "hll"
+      ],
+      "fields": [
+        "m",
+        "p",
+        "regs"
+      ]
+    },
+    "hllMerge": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction fnv1a32(str){\r\n  var h=0x811c9dc5;\r\n  for(var i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }\r\n  return h >>> 0;\r\n}\r\nfunction hllCreate(p){\r\n  p = p || 12;\r\n  var m = 1 << p;\r\n  var regs = new Array(m); for(var i=0;i<m;i++) regs[i]=0;\r\n  return {p:p, m:m, regs:regs};\r\n}\r\nfunction hllAdd(hll, item){\r\n  var h = fnv1a32(String(item));\r\n  var idx = h & (hll.m - 1);\r\n  var w = h >>> hll.p;\r\n  var rho = Math.clz32(w) - hll.p + 1;\r\n  if(rho > hll.regs[idx]) hll.regs[idx] = rho;\r\n  return hll;\r\n}\r\nfunction hllCount(hll){\r\n  var m=hll.m, p=hll.p, alpha;\r\n  if(m===16) alpha=0.673; else if(m===32) alpha=0.697; else if(m===64) alpha=0.709; else alpha=0.7213/(1+1.079/m);\r\n  var sum=0, zeros=0;\r\n  for(var i=0;i<m;i++){ sum += Math.pow(2, -hll.regs[i]); if(hll.regs[i]===0) zeros++; }\r\n  var est = alpha * m * m / sum;\r\n  if(est < 2.5*m && zeros>0){ est = m * Math.log(m/zeros); }\r\n  return Math.round(est);\r\n}\r\nfunction hllMerge(a, b){\r\n  if(a.p!==b.p) throw new Error('HLL_P_MISMATCH');\r\n  for(var i=0;i<a.m;i++){ if(b.regs[i]>a.regs[i]) a.regs[i]=b.regs[i]; }\r\n  return a;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { fnv1a32:fnv1a32, hllCreate:hllCreate, hllAdd:hllAdd, hllCount:hllCount, hllMerge:hllMerge };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.HllForgePure = { fnv1a32:fnv1a32, hllCreate:hllCreate, hllAdd:hllAdd, hllCount:hllCount, hllMerge:hllMerge };\r\n}\r\n"
+}

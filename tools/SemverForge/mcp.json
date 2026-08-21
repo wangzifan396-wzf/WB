@@ -1,0 +1,60 @@
+{
+  "id": "SemverForge",
+  "name": "semver_forge",
+  "title": "SemverForge",
+  "description": "离线 SemVer 2.0.0 工具箱：版本解析校验、优先级比较排序、范围匹配（^ ~ x.* || 连字符）、bump 七种递增策略与版本差异判定。",
+  "entry": "parse",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "valid": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "compare": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "satisfies": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "range",
+        "version"
+      ],
+      "fields": []
+    },
+    "inc": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "version",
+        "release"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "v": {
+        "type": "string",
+        "description": "输入（v）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction parse(v){\r\n  if(typeof v !== 'string') return null;\r\n  var m=/^v?(\\d+)\\.(\\d+)\\.(\\d+)(?:-([0-9A-Za-z.-]+))?(?:\\+([0-9A-Za-z.-]+))?$/.exec(v.trim());\r\n  if(!m) return null;\r\n  return {major:+m[1], minor:+m[2], patch:+m[3], pre:m[4]?m[4].split('.'):[], build:m[5]?m[5].split('.'):[], raw:v};\r\n}\r\nfunction valid(v){ return parse(v) !== null; }\r\nfunction cmpPre(a,b){\r\n  if(a.length===0 && b.length===0) return 0;\r\n  if(a.length===0) return 1;\r\n  if(b.length===0) return -1;\r\n  var len=Math.max(a.length,b.length);\r\n  for(var i=0;i<len;i++){\r\n    if(i>=a.length) return -1;\r\n    if(i>=b.length) return 1;\r\n    var x=a[i], y=b[i];\r\n    var xn=/^\\d+$/.test(x), yn=/^\\d+$/.test(y);\r\n    if(xn && yn){ var d=(+x)-(+y); if(d) return d; }\r\n    else if(xn && !yn) return -1;\r\n    else if(!xn && yn) return 1;\r\n    else { if(x<y) return -1; if(x>y) return 1; }\r\n  }\r\n  return 0;\r\n}\r\nfunction compare(a,b){\r\n  var A=parse(a), B=parse(b); if(!A||!B) return null;\r\n  if(A.major!==B.major) return A.major<B.major?-1:1;\r\n  if(A.minor!==B.minor) return A.minor<B.minor?-1:1;\r\n  if(A.patch!==B.patch) return A.patch<B.patch?-1:1;\r\n  return cmpPre(A.pre,B.pre);\r\n}\r\nfunction parsePartial(s){\r\n  s=String(s).trim().replace(/^v/,'');\r\n  function w(x){ if(x==='x'||x==='X') return null; return parseInt(x,10); }\r\n  var segs=s.split('.');\r\n  var major=segs.length>0?w(segs[0]):null;\r\n  var minor=segs.length>1?w(segs[1]):null;\r\n  var patch=segs.length>2?w(segs[2]):null;\r\n  var pre=[];\r\n  if(segs.length>2 && segs[2].indexOf('-')>0){ var pp=segs[2].split('-'); patch=parseInt(pp[0],10); pre=pp[1]?pp[1].split('.'):[]; }\r\n  return {major:major, minor:minor, patch:patch, pre:pre};\r\n}\r\nfunction carets(s){\r\n  var p=parsePartial(s);\r\n  if(p.major===null) p.major=0; if(p.minor===null) p.minor=0; if(p.patch===null) p.patch=0;\r\n  var lower={op:'>=',major:p.major,minor:p.minor,patch:p.patch,pre:p.pre||[]};\r\n  var upper;\r\n  if(p.major>0) upper={op:'<',major:p.major+1,minor:0,patch:0,pre:[]};\r\n  else if(p.minor>0) upper={op:'<',major:0,minor:p.minor+1,patch:0,pre:[]};\r\n  else upper={op:'<',major:0,minor:0,patch:p.patch+1,pre:[]};\r\n  return [lower,upper];\r\n}\r\nfunction tildes(s){\r\n  var p=parsePartial(s);\r\n  if(p.major===null) p.major=0; if(p.minor===null) p.minor=0; if(p.patch===null) p.patch=0;\r\n  var lower={op:'>=',major:p.major,minor:p.minor,patch:p.patch,pre:p.pre||[]};\r\n  var hasMinor = String(s).indexOf('.')>=0;\r\n  var upper;\r\n  if(hasMinor) upper={op:'<',major:p.major,minor:(p.minor||0)+1,patch:0,pre:[]};\r\n  else upper={op:'<',major:(p.major||0)+1,minor:0,patch:0,pre:[]};\r\n  return [lower,upper];\r\n}\r\nfunction expandOne(tok){\r\n  var mm=/^(>=|<=|>|<|=)?\\s*(.+)$/.exec(tok);\r\n  if(!mm) return null;\r\n  var op=mm[1]||'=';\r\n  var p=parsePartial(mm[2].trim());\r\n  if(p.major===null) return null;\r\n  if(op==='=') return [{op:'=',major:p.major,minor:p.minor||0,patch:p.patch||0,pre:p.pre||[]}];\r\n  return [{op:op,major:p.major,minor:p.minor||0,patch:p.patch||0,pre:[]}];\r\n}\r\nfunction expandRange(range){\r\n  range=range.trim();\r\n  if(range==='' ) return null;\r\n  var h=range.indexOf(' - ');\r\n  if(h>=0){\r\n    var ca=expandRange(range.slice(0,h).trim()), cb=expandRange(range.slice(h+3).trim());\r\n    if(!ca||!cb) return null;\r\n    var out=ca.slice();\r\n    for(var i=0;i<out.length;i++){ if(out[i].op==='=') out[i].op='>='; }\r\n    for(var i=0;i<cb.length;i++){ var c=cb[i]; out.push({op:(c.op==='='?'<=':c.op),major:c.major,minor:c.minor,patch:c.patch,pre:c.pre}); }\r\n    return out;\r\n  }\r\n  if(range==='*'||range==='x'||range==='X') return [{op:'>=',major:0,minor:0,patch:0,pre:[]}];\r\n  if(/^\\^/.test(range)) return carets(range.slice(1));\r\n  if(/^~/.test(range)) return tildes(range.slice(1));\r\n  if(/[xX]/.test(range)){\r\n    var p=parsePartial(range);\r\n    if(p.major===null) return [{op:'>=',major:0,minor:0,patch:0,pre:[]}];\r\n    if(p.minor===null) return [{op:'>=',major:p.major,minor:0,patch:0,pre:[]},{op:'<',major:p.major+1,minor:0,patch:0,pre:[]}];\r\n    return [{op:'>=',major:p.major,minor:p.minor,patch:0,pre:[]},{op:'<',major:p.major,minor:p.minor+1,patch:0,pre:[]}];\r\n  }\r\n  if(/\\s/.test(range)){\r\n    var parts=range.split(/\\s+/); var out2=[];\r\n    for(var j=0;j<parts.length;j++){ var c2=expandOne(parts[j]); if(!c2) return null; out2=out2.concat(c2); }\r\n    return out2;\r\n  }\r\n  return expandOne(range);\r\n}\r\nfunction cmpCmp(version, c){\r\n  var vs = c.major+'.'+c.minor+'.'+c.patch+(c.pre.length?('-'+c.pre.join('.')):'');\r\n  var r = compare(version, vs);\r\n  if(r===null) return false;\r\n  switch(c.op){\r\n    case '>=': return r>=0;\r\n    case '>': return r>0;\r\n    case '<=': return r<=0;\r\n    case '<': return r<0;\r\n    case '=': return r===0;\r\n  }\r\n  return false;\r\n}\r\nfunction satisfies(range, version){\r\n  if(!valid(version)) return false;\r\n  var ors = range.split('||');\r\n  for(var i=0;i<ors.length;i++){ if(satisfiesAnd(ors[i].trim(), version)) return true; }\r\n  return false;\r\n}\r\nfunction satisfiesAnd(range, version){\r\n  var comps = expandRange(range);\r\n  if(!comps) return false;\r\n  for(var i=0;i<comps.length;i++){ if(!cmpCmp(version, comps[i])) return false; }\r\n  return true;\r\n}\r\nfunction inc(version, release){\r\n  var P=parse(version); if(!P) return null;\r\n  if(release==='major') return (P.major+1)+'.0.0';\r\n  if(release==='minor') return P.major+'.'+(P.minor+1)+'.0';\r\n  if(release==='patch') return P.major+'.'+P.minor+'.'+(P.patch+1);\r\n  return null;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parse:parse, valid:valid, compare:compare, satisfies:satisfies, inc:inc };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SemverForgePure = { parse:parse, valid:valid, compare:compare, satisfies:satisfies, inc:inc };\r\n}\r\n"
+}

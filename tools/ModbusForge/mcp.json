@@ -1,0 +1,116 @@
+{
+  "id": "ModbusForge",
+  "name": "modbus_forge",
+  "title": "ModbusForge",
+  "description": "Modbus 协议分析仪：覆盖 RTU/TCP/ASCII 三种模式，用纯 JS 计算 CRC16 与 LRC，解析功能码 1/2/3/4/5/6/15/16 的请求与响应并标注异常码，核对 MBAP 事务与广播地址。排查工业串口/网口报文、逆向 PLC 通信，零依赖、离线可用。",
+  "entry": "buildRtu",
+  "entries": {
+    "parse": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "input",
+        "mode",
+        "isResponse"
+      ],
+      "fields": []
+    },
+    "crc16": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "lrc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "buildRtu": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "unit",
+        "fn",
+        "dataBytes"
+      ],
+      "fields": []
+    },
+    "buildTcp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tid",
+        "unit",
+        "fn",
+        "dataBytes"
+      ],
+      "fields": []
+    },
+    "buildAscii": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "unit",
+        "fn",
+        "dataBytes"
+      ],
+      "fields": []
+    },
+    "readRequest": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "unit",
+        "fn",
+        "addr",
+        "qty",
+        "mode",
+        "tid"
+      ],
+      "fields": []
+    },
+    "hexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "toHex": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "sep"
+      ],
+      "fields": []
+    },
+    "bitsFromBytes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "unit": {
+        "type": "string",
+        "description": "第 1 个参数（unit）"
+      },
+      "fn": {
+        "type": "string",
+        "description": "第 2 个参数（fn）"
+      },
+      "dataBytes": {
+        "type": "array",
+        "description": "第 3 个参数（dataBytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  function hexToBytes(s){\r\n    var t=String(s||'').replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,'');\r\n    if(t.length%2) t=t.slice(0,-1);\r\n    var o=new Uint8Array(t.length/2);\r\n    for(var i=0;i<o.length;i++) o[i]=parseInt(t.substr(i*2,2),16);\r\n    return o;\r\n  }\r\n  function toHex(b,sep){ var o=[]; for(var i=0;i<b.length;i++){var x=b[i].toString(16).toUpperCase(); o.push(x.length<2?'0'+x:x);} return o.join(sep===undefined?' ':sep); }\r\n  function u16(b,p){ return (b[p]<<8)|b[p+1]; }\r\n\r\n  var FUNCS={\r\n    1:'读线圈 Read Coils', 2:'读离散输入 Read Discrete Inputs',\r\n    3:'读保持寄存器 Read Holding Registers', 4:'读输入寄存器 Read Input Registers',\r\n    5:'写单线圈 Write Single Coil', 6:'写单寄存器 Write Single Register',\r\n    7:'读异常状态 Read Exception Status', 8:'诊断 Diagnostics',\r\n    11:'取通信事件计数 Get Comm Event Counter', 12:'取通信事件日志 Get Comm Event Log',\r\n    15:'写多线圈 Write Multiple Coils', 16:'写多寄存器 Write Multiple Registers',\r\n    17:'报告从站 ID Report Server ID', 20:'读文件记录 Read File Record',\r\n    21:'写文件记录 Write File Record', 22:'屏蔽写寄存器 Mask Write Register',\r\n    23:'读写多寄存器 Read/Write Multiple Registers', 43:'封装接口 Encapsulated Interface'\r\n  };\r\n  var EXC={1:'非法功能码 ILLEGAL FUNCTION',2:'非法数据地址 ILLEGAL DATA ADDRESS',\r\n           3:'非法数据值 ILLEGAL DATA VALUE',4:'从站设备故障 SERVER DEVICE FAILURE',\r\n           5:'确认（长耗时）ACKNOWLEDGE',6:'从站忙 SERVER DEVICE BUSY',\r\n           8:'存储奇偶校验错 MEMORY PARITY ERROR',10:'网关路径不可用 GATEWAY PATH UNAVAILABLE',\r\n           11:'网关目标无响应 GATEWAY TARGET FAILED TO RESPOND'};\r\n\r\n  function crc16(bytes){\r\n    var crc=0xFFFF;\r\n    for(var i=0;i<bytes.length;i++){\r\n      crc ^= bytes[i];\r\n      for(var j=0;j<8;j++){\r\n        if(crc & 1) crc = (crc>>1) ^ 0xA001; else crc >>= 1;\r\n      }\r\n    }\r\n    return crc & 0xFFFF;    // RTU 传输时低字节在前\r\n  }\r\n  function lrc(bytes){\r\n    var s=0;\r\n    for(var i=0;i<bytes.length;i++) s=(s+bytes[i])&255;\r\n    return ((~s)+1)&255;\r\n  }\r\n  function bitsFromBytes(b, n){\r\n    var out=[];\r\n    for(var i=0;i<n;i++) out.push((b[i>>3]>>(i&7)) & 1);\r\n    return out;\r\n  }\r\n\r\n  // ---- PDU 解析（功能码 + 数据），isResponse 决定字段含义 ----\r\n  function decodePdu(fn, d, isResponse){\r\n    var o={}, ex=(fn & 0x80)!==0, base=fn & 0x7F;\r\n    if(ex){\r\n      o['异常码']= d.length ? ((EXC[d[0]]||('未知 '+d[0]))+' (0x'+d[0].toString(16)+')') : '(缺失)';\r\n      o['原功能码']= (FUNCS[base]||('未知 '+base))+' (0x'+base.toString(16)+')';\r\n      return {fields:o, exception:true, code:d.length?d[0]:null};\r\n    }\r\n    if(!isResponse){\r\n      if(fn===1||fn===2||fn===3||fn===4){\r\n        if(d.length<4) return {fields:o, error:'请求数据不足 4 字节'};\r\n        o['起始地址']= u16(d,0)+'  (0x'+u16(d,0).toString(16).toUpperCase()+')';\r\n        o['数量']= u16(d,2);\r\n        var q=u16(d,2), lim=(fn<=2)?2000:125;\r\n        if(q<1||q>lim) o['⚠ 数量范围']= '规范要求 1..'+lim+'，当前 '+q;\r\n      } else if(fn===5){\r\n        if(d.length<4) return {fields:o, error:'请求数据不足 4 字节'};\r\n        o['线圈地址']= u16(d,0);\r\n        var val=u16(d,2);\r\n        o['写入值']= val===0xFF00?'ON (0xFF00)':(val===0?'OFF (0x0000)':'非法 0x'+val.toString(16));\r\n      } else if(fn===6){\r\n        if(d.length<4) return {fields:o, error:'请求数据不足 4 字节'};\r\n        o['寄存器地址']= u16(d,0);\r\n        o['写入值']= u16(d,2)+'  (0x'+u16(d,2).toString(16).toUpperCase()+')';\r\n      } else if(fn===15){\r\n        if(d.length<5) return {fields:o, error:'请求数据不足'};\r\n        o['起始地址']= u16(d,0); o['线圈数量']= u16(d,2); o['字节数']= d[4];\r\n        var need=Math.ceil(u16(d,2)/8);\r\n        if(d[4]!==need) o['⚠ 字节数']= '应为 '+need+'，实际 '+d[4];\r\n        o['线圈值']= bitsFromBytes(d.subarray(5), Math.min(u16(d,2), (d.length-5)*8)).join('');\r\n      } else if(fn===16){\r\n        if(d.length<5) return {fields:o, error:'请求数据不足'};\r\n        o['起始地址']= u16(d,0); o['寄存器数量']= u16(d,2); o['字节数']= d[4];\r\n        if(d[4]!==u16(d,2)*2) o['⚠ 字节数']= '应为 '+(u16(d,2)*2)+'，实际 '+d[4];\r\n        var regs=[];\r\n        for(var i=5;i+1<d.length;i+=2) regs.push(u16(d,i));\r\n        o['寄存器值']= regs.join(', ');\r\n      } else if(fn===22){\r\n        if(d.length<6) return {fields:o, error:'请求数据不足 6 字节'};\r\n        o['寄存器地址']= u16(d,0); o['与掩码 AND']= '0x'+u16(d,2).toString(16).toUpperCase();\r\n        o['或掩码 OR']= '0x'+u16(d,4).toString(16).toUpperCase();\r\n      } else if(fn===23){\r\n        if(d.length<9) return {fields:o, error:'请求数据不足'};\r\n        o['读起始地址']= u16(d,0); o['读数量']= u16(d,2);\r\n        o['写起始地址']= u16(d,4); o['写数量']= u16(d,6); o['写字节数']= d[8];\r\n      } else if(fn===8){\r\n        o['子功能']= u16(d,0); o['数据']= '0x'+u16(d,2).toString(16).toUpperCase();\r\n      } else {\r\n        o['原始数据']= toHex(d);\r\n      }\r\n      return {fields:o};\r\n    }\r\n    // 响应\r\n    if(fn===1||fn===2){\r\n      if(!d.length) return {fields:o, error:'响应缺少字节数'};\r\n      o['字节数']= d[0];\r\n      var bits=bitsFromBytes(d.subarray(1), (d.length-1)*8);\r\n      o['位值(低位在前)']= bits.join('');\r\n      if(d[0]!==d.length-1) o['⚠ 字节数']= '声明 '+d[0]+'，实际 '+(d.length-1);\r\n    } else if(fn===3||fn===4){\r\n      if(!d.length) return {fields:o, error:'响应缺少字节数'};\r\n      o['字节数']= d[0];\r\n      if(d[0]!==d.length-1) o['⚠ 字节数']= '声明 '+d[0]+'，实际 '+(d.length-1);\r\n      var rs=[];\r\n      for(var k=1;k+1<d.length;k+=2) rs.push(u16(d,k));\r\n      o['寄存器值']= rs.join(', ');\r\n      o.__regs=rs;\r\n    } else if(fn===5||fn===6){\r\n      if(d.length<4) return {fields:o, error:'响应数据不足 4 字节'};\r\n      o['地址']= u16(d,0); o['回显值']= '0x'+u16(d,2).toString(16).toUpperCase();\r\n    } else if(fn===15||fn===16){\r\n      if(d.length<4) return {fields:o, error:'响应数据不足 4 字节'};\r\n      o['起始地址']= u16(d,0); o['写入数量']= u16(d,2);\r\n    } else {\r\n      o['原始数据']= toHex(d);\r\n    }\r\n    return {fields:o};\r\n  }\r\n\r\n  function parse(input, mode, isResponse){\r\n    var raw=String(input||'').trim();\r\n    if(!raw) return {value:null, error:'输入为空'};\r\n    mode = mode||'rtu';\r\n    var b, notes=[];\r\n    if(mode==='ascii'){\r\n      var t=raw.replace(/\\s/g,'');\r\n      if(t.charAt(0)!==':') return {value:null, error:'ASCII 帧必须以 : 开头'};\r\n      t=t.replace(/^:/,'').replace(/\\r?\\n?$/,'');\r\n      if(t.length%2) return {value:null, error:'ASCII 帧十六进制位数为奇数'};\r\n      b=hexToBytes(t);\r\n      if(b.length<3) return {value:null, error:'ASCII 帧过短'};\r\n      var gotLrc=b[b.length-1], body=b.subarray(0,b.length-1);\r\n      var wantLrc=lrc(body);\r\n      if(gotLrc!==wantLrc) notes.push('LRC 不匹配：报文 0x'+gotLrc.toString(16)+'，实算 0x'+wantLrc.toString(16));\r\n      b=body;\r\n    } else {\r\n      b=hexToBytes(raw);\r\n    }\r\n    if(b.length<2) return {value:null, error:'帧过短（'+b.length+' 字节）'};\r\n\r\n    var res={mode:mode, notes:notes, bytes:b.length};\r\n    var pduStart, pduEnd=b.length;\r\n    if(mode==='tcp'){\r\n      if(b.length<8) return {value:null, error:'TCP 帧至少需要 7 字节 MBAP + 功能码'};\r\n      res.mbap={ transaction:u16(b,0), protocol:u16(b,2), length:u16(b,4), unit:b[6] };\r\n      if(res.mbap.protocol!==0) notes.push('协议标识应为 0（Modbus），当前 '+res.mbap.protocol);\r\n      var expLen=b.length-6;\r\n      if(res.mbap.length!==expLen) notes.push('MBAP 长度字段 '+res.mbap.length+' 与实际 '+expLen+' 不符');\r\n      res.unit=b[6]; pduStart=7;\r\n    } else if(mode==='ascii'){\r\n      res.unit=b[0]; pduStart=1;\r\n    } else {\r\n      if(b.length<4) return {value:null, error:'RTU 帧至少需要 4 字节（地址+功能码+CRC）'};\r\n      res.unit=b[0]; pduStart=1; pduEnd=b.length-2;\r\n      var got=(b[b.length-1]<<8)|b[b.length-2];   // 低字节在前\r\n      var want=crc16(b.subarray(0,b.length-2));\r\n      res.crcGiven='0x'+got.toString(16).toUpperCase();\r\n      res.crcCalc='0x'+want.toString(16).toUpperCase();\r\n      res.crcOk = got===want;\r\n      if(!res.crcOk) notes.push('CRC16 不匹配：报文 '+res.crcGiven+'，实算 '+res.crcCalc);\r\n      if(res.unit===0) notes.push('从站地址 0 是广播地址，从站不应回复');\r\n      if(res.unit>247) notes.push('从站地址 '+res.unit+' 超出 1..247 规范范围');\r\n    }\r\n\r\n    var fn=b[pduStart];\r\n    res.func=fn & 0x7F;\r\n    res.funcName = FUNCS[res.func] || ('未知功能码 '+res.func);\r\n    res.isException = (fn & 0x80)!==0;\r\n    res.direction = isResponse ? '响应' : '请求';\r\n    var data=b.subarray(pduStart+1, pduEnd);\r\n    var dec=decodePdu(fn, data, !!isResponse);\r\n    res.fields=dec.fields;\r\n    if(dec.error) notes.push(dec.error);\r\n    if(dec.exception) res.exceptionCode=dec.code;\r\n    res.pdu=toHex(b.subarray(pduStart, pduEnd));\r\n    return {value:res, error:''};\r\n  }\r\n\r\n  // ---- 构建 ----\r\n  function buildRtu(unit, fn, dataBytes){\r\n    var arr=[unit & 255, fn & 255].concat(Array.prototype.slice.call(dataBytes||[]));\r\n    var b=new Uint8Array(arr);\r\n    var c=crc16(b);\r\n    var out=new Uint8Array(b.length+2);\r\n    out.set(b,0); out[b.length]=c & 255; out[b.length+1]=(c>>8)&255;\r\n    return out;\r\n  }\r\n  function buildTcp(tid, unit, fn, dataBytes){\r\n    var pdu=[fn & 255].concat(Array.prototype.slice.call(dataBytes||[]));\r\n    var len=pdu.length+1;\r\n    var out=new Uint8Array(7+pdu.length);\r\n    out[0]=(tid>>8)&255; out[1]=tid&255; out[2]=0; out[3]=0;\r\n    out[4]=(len>>8)&255; out[5]=len&255; out[6]=unit&255;\r\n    out.set(pdu,7);\r\n    return out;\r\n  }\r\n  function buildAscii(unit, fn, dataBytes){\r\n    var arr=[unit & 255, fn & 255].concat(Array.prototype.slice.call(dataBytes||[]));\r\n    var b=new Uint8Array(arr);\r\n    return ':'+toHex(b,'')+ (function(){var x=lrc(b).toString(16).toUpperCase(); return x.length<2?'0'+x:x;})() + '\\r\\n';\r\n  }\r\n  function readRequest(unit, fn, addr, qty, mode, tid){\r\n    var d=[(addr>>8)&255, addr&255, (qty>>8)&255, qty&255];\r\n    if(mode==='tcp') return buildTcp(tid||1, unit, fn, d);\r\n    if(mode==='ascii') return buildAscii(unit, fn, d);\r\n    return buildRtu(unit, fn, d);\r\n  }\r\n\r\n  var API={parse:parse, crc16:crc16, lrc:lrc, buildRtu:buildRtu, buildTcp:buildTcp,\r\n           buildAscii:buildAscii, readRequest:readRequest, hexToBytes:hexToBytes,\r\n           toHex:toHex, FUNCS:FUNCS, EXC:EXC, bitsFromBytes:bitsFromBytes};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__ModbusForge__=API;\r\n})();\r\n\r\n"
+}

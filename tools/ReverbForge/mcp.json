@@ -1,0 +1,51 @@
+{
+  "id": "ReverbForge",
+  "name": "reverb_forge",
+  "title": "ReverbForge",
+  "description": "用合成脉冲响应为音频添加空间混响，离线卷积并导出 WAV。",
+  "entry": "convolve",
+  "entries": {
+    "convolve": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "ir"
+      ],
+      "fields": []
+    },
+    "makeIR": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "decay",
+        "len",
+        "rng"
+      ],
+      "fields": []
+    },
+    "wavEncode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "ir": {
+        "type": "string",
+        "description": "第 2 个参数（ir）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction convolve(samples, ir){\r\n  var n=samples.length, m=ir.length, out=new Float32Array(n+m-1);\r\n  for(var i=0;i<n;i++){ var x=samples[i]; for(var j=0;j<m;j++){ out[i+j]+=x*ir[j]; } }\r\n  var peak=0; for(var k=0;k<out.length;k++){ if(Math.abs(out[k])>peak) peak=Math.abs(out[k]); }\r\n  if(peak>1.0001){ for(var p=0;p<out.length;p++) out[p]/=peak; }\r\n  return out;\r\n}\r\nfunction makeIR(decay, len, rng){\r\n  var a=new Float32Array(len); a[0]=1;\r\n  for(var i=1;i<len;i++){ a[i]=Math.pow(decay, i) * (rng? (0.6+rng()*0.4):1); }\r\n  return a;\r\n}\r\nfunction wavEncode(samples, sr){\r\n  sr=sr||44100; var n=samples.length; var buf=new ArrayBuffer(44+n*2); var v=new DataView(buf);\r\n  function ws(o,s){ for(var i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); }\r\n  ws(0,'RIFF'); v.setUint32(4,36+n*2,true); ws(8,'WAVE'); ws(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);\r\n  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);\r\n  ws(36,'data'); v.setUint32(40,n*2,true);\r\n  var o=44; for(var i=0;i<n;i++){ var s=Math.max(-1,Math.min(1,samples[i])); v.setInt16(o, s<0?s*0x8000:s*0x7FFF, true); o+=2; }\r\n  return buf;\r\n}\r\nvar EXPORTS={convolve:convolve, makeIR:makeIR, wavEncode:wavEncode};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ReverbForgePure = EXPORTS; }\r\n\r\n"
+}

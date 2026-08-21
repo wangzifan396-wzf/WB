@@ -1,0 +1,36 @@
+{
+  "id": "HttpHeadersForge",
+  "name": "http_headers_forge",
+  "title": "HttpHeadersForge",
+  "description": "HTTP 安全响应头审计：HSTS/CSP/COOP 等 8 项体检、评分分级、修复建议，离线可用。",
+  "entry": "hhParse",
+  "entries": {
+    "hhParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "hhAnalyze": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction hhParse(text){\r\n  var map={}, lines=String(text||'').split(/\\n+/);\r\n  for(var i=0;i<lines.length;i++){\r\n    var l=lines[i].trim(); if(!l) continue;\r\n    var c=l.indexOf(':');\r\n    if(c<0) continue;\r\n    var k=l.slice(0,c).trim(), v=l.slice(c+1).trim();\r\n    map[k.toLowerCase()]=v;\r\n  }\r\n  return map;\r\n}\r\nvar HH_CHECKS=[\r\n  {name:'Strict-Transport-Security', key:'strict-transport-security', sev:'高', test:function(v){ return /max-age=\\d+/.test(v) && !/max-age=0/.test(v); }, advice:'建议 max-age≥31536000 并加 includeSubDomains'},\r\n  {name:'Content-Security-Policy', key:'content-security-policy', sev:'高', test:function(v){return !!v;}, advice:'建议定义 default-src 并尽量收紧'},\r\n  {name:'X-Frame-Options', key:'x-frame-options', sev:'中', test:function(v){return /^(deny|sameorigin)$/i.test(v);}, advice:'设为 DENY 或 SAMEORIGIN 防点击劫持'},\r\n  {name:'X-Content-Type-Options', key:'x-content-type-options', sev:'中', test:function(v){return /^nosniff$/i.test(v);}, advice:'设为 nosniff'},\r\n  {name:'Referrer-Policy', key:'referrer-policy', sev:'中', test:function(v){return !!v;}, advice:'建议 no-referrer 或 strict-origin-when-cross-origin'},\r\n  {name:'Permissions-Policy', key:'permissions-policy', sev:'中', test:function(v){return !!v;}, advice:'限制摄像头/麦克风/地理位置等敏感特性'},\r\n  {name:'Cross-Origin-Opener-Policy', key:'cross-origin-opener-policy', sev:'中', test:function(v){return /^(same-origin|same-origin-allow-popups)$/i.test(v);}, advice:'设为 same-origin 缓解 XS-leaks'},\r\n  {name:'Cross-Origin-Resource-Policy', key:'cross-origin-resource-policy', sev:'低', test:function(v){return /^(same-origin|same-site|cross-origin)$/i.test(v);}, advice:'设为 same-origin 防止跨源资源加载'}\r\n];\r\nfunction hhAnalyze(text){\r\n  var map=hhParse(text), results=[], score=0;\r\n  for(var i=0;i<HH_CHECKS.length;i++){\r\n    var c=HH_CHECKS[i], v=map[c.key]||'', present=!!v, pass=present && c.test(v);\r\n    var w = c.sev==='高'?16 : c.sev==='中'?12 : 8;\r\n    if(pass) score+=w;\r\n    results.push({name:c.name, present:present, pass:!!pass, value:v, severity:c.sev, weight:w, advice:c.advice});\r\n  }\r\n  score=Math.min(100, score);\r\n  var grade = score>=90?'A':score>=75?'B':score>=60?'C':score>=40?'D':'F';\r\n  return { score:score, max:100, grade:grade, results:results };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { hhParse:hhParse, hhAnalyze:hhAnalyze, HH_CHECKS:HH_CHECKS };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.HttpHeadersForgePure = { hhParse:hhParse, hhAnalyze:hhAnalyze, HH_CHECKS:HH_CHECKS };\r\n}\r\n\r\n"
+}

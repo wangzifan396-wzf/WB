@@ -1,0 +1,57 @@
+{
+  "id": "WordleForge",
+  "name": "wordle_forge",
+  "title": "WordleForge",
+  "description": "Wordle 猜词游戏：内置词库与种子复现，绿/黄/灰精确反馈，键盘状态联动，纯逻辑内核可断言，离线可用。",
+  "entry": "wdWords",
+  "entries": {
+    "wdWords": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "wdPick": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "wdValid": {
+      "paramStyle": "single",
+      "paramNames": [
+        "guess"
+      ],
+      "fields": []
+    },
+    "wdScore": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "guess",
+        "answer"
+      ],
+      "fields": []
+    },
+    "wdWin": {
+      "paramStyle": "single",
+      "paramNames": [
+        "score"
+      ],
+      "fields": []
+    },
+    "wdKeyStates": {
+      "paramStyle": "single",
+      "paramNames": [
+        "history"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\nfunction wdWords(){\r\n  return [\"APPLE\",\"BRAVE\",\"CRANE\",\"DREAM\",\"EAGLE\",\"FLAME\",\"GRAPE\",\"HOUSE\",\"INPUT\",\"JUICE\",\r\n    \"KNIFE\",\"LEMON\",\"MOUSE\",\"NIGHT\",\"OCEAN\",\"PIANO\",\"QUERY\",\"RIVER\",\"STONE\",\"TIGER\",\r\n    \"ULTRA\",\"VIVID\",\"WHALE\",\"XENON\",\"YOUTH\",\"ZEBRA\",\"CODER\",\"DEBUG\",\"ARRAY\",\"STACK\",\r\n    \"QUEUE\",\"GRAPH\",\"TOKEN\",\"CACHE\",\"PIXEL\",\"LOGIC\",\"SHELL\",\"LINUX\",\"REGEX\",\"ASYNC\"];\r\n}\r\nfunction wdPick(seed){\r\n  var ws=wdWords();\r\n  var s=Math.abs(Math.floor(Number(seed)||0));\r\n  return ws[s%ws.length];\r\n}\r\nfunction wdValid(guess){\r\n  return /^[A-Za-z]{5}$/.test(String(guess||''));\r\n}\r\nfunction wdScore(guess, answer){\r\n  guess=String(guess||'').toUpperCase(); answer=String(answer||'').toUpperCase();\r\n  if(guess.length!==5 || answer.length!==5) return null;\r\n  var res=['b','b','b','b','b'];\r\n  var remain={};\r\n  for(var i=0;i<5;i++){\r\n    if(guess[i]===answer[i]){ res[i]='g'; }\r\n    else { remain[answer[i]]=(remain[answer[i]]||0)+1; }\r\n  }\r\n  for(var j=0;j<5;j++){\r\n    if(res[j]==='b' && remain[guess[j]]>0){ res[j]='y'; remain[guess[j]]--; }\r\n  }\r\n  return res.join('');\r\n}\r\nfunction wdWin(score){ return score==='ggggg'; }\r\nfunction wdKeyStates(history){\r\n  var rank={b:1,y:2,g:3}, st={};\r\n  (history||[]).forEach(function(h){\r\n    for(var i=0;i<5;i++){\r\n      var ch=h.guess[i], sc=h.score[i];\r\n      if(!st[ch] || rank[sc]>rank[st[ch]]) st[ch]=sc;\r\n    }\r\n  });\r\n  return st;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { wdWords:wdWords, wdPick:wdPick, wdValid:wdValid, wdScore:wdScore, wdWin:wdWin, wdKeyStates:wdKeyStates };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.WordleForgePure = { wdWords:wdWords, wdPick:wdPick, wdValid:wdValid, wdScore:wdScore, wdWin:wdWin, wdKeyStates:wdKeyStates };\r\n}\r\n"
+}

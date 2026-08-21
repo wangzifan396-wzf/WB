@@ -1,0 +1,21 @@
+{
+  "id": "SamlForge",
+  "name": "saml_forge",
+  "title": "SamlForge",
+  "description": "SAML 解码台：粘贴 SAML Response（XML 或 base64），解析 Issuer、NameID、有效期、Audience 与属性声明，校验签名与时间窗，离线可用。",
+  "entry": "SamlForgePure",
+  "entries": {
+    "SamlForgePure": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\nfunction SamlForgePure(){\r\n  function b64dec(s){\r\n    s=(s||'').replace(/[^A-Za-z0-9+/=]/g,'');\r\n    try { return decodeURIComponent(escape(atob(s))); } catch(e){ return null; }\r\n  }\r\n  function tagText(xml, tag){\r\n    var re=new RegExp('<(?:[\\\\w]+:)?'+tag+'\\\\b[^>]*>([\\\\s\\\\S]*?)<\\\\/(?:[\\\\w]+:)?'+tag+'>');\r\n    var m=xml.match(re); return m?m[1].trim():null;\r\n  }\r\n  function tagAttr(xml, tag, attr){\r\n    var re=new RegExp('<(?:[\\\\w]+:)?'+tag+'\\\\b[^>]*\\\\b'+attr+'=\"([^\"]*)\"');\r\n    var m=xml.match(re); return m?m[1]:null;\r\n  }\r\n  function tagAll(xml, tag){\r\n    var re=new RegExp('<(?:[\\\\w]+:)?'+tag+'\\\\b[^>]*>([\\\\s\\\\S]*?)<\\\\/(?:[\\\\w]+:)?'+tag+'>','g');\r\n    var out=[],m; while((m=re.exec(xml))) out.push(m[1].trim()); return out;\r\n  }\r\n  function analyze(input){\r\n    var s=(input||'').trim();\r\n    if(!s) return {error:'请输入 SAML Response（XML 原文，或 base64 编码）'};\r\n    var xml;\r\n    if(s.charAt(0)==='<'){ xml=s; }\r\n    else if(/^[A-Za-z0-9+/=\\r\\n]+$/.test(s)){\r\n      var dec=b64dec(s);\r\n      if(!dec) return {error:'Base64 解码失败'};\r\n      if(dec.charAt(0)==='<'){ xml=dec; }\r\n      else if(dec.charCodeAt(0)===0x78){ return {error:'检测到 Deflate 压缩载荷（HTTP-Redirect 绑定）。请先解压为 XML 再粘贴（POST 绑定的 base64 XML 可直接解析）。'}; }\r\n      else return {error:'Base64 解码后不是 XML'};\r\n    } else return {error:'无法识别的输入：应为 XML 或 Base64'};\r\n    if(xml.indexOf('<')<0) return {error:'内容中未找到 XML 标签'};\r\n    var issuer=tagText(xml,'Issuer');\r\n    var nameId=tagText(xml,'NameID');\r\n    var nb=tagAttr(xml,'Conditions','NotBefore');\r\n    var na=tagAttr(xml,'Conditions','NotOnOrAfter');\r\n    var audience=tagAll(xml,'Audience');\r\n    var dest=tagAttr(xml,'Response','Destination')||tagAttr(xml,'Assertion','Destination');\r\n    var attrs=[];\r\n    var are=/<(?:[\\w]+:)?Attribute\\b[^>]*\\bName=\"([^\"]*)\"[^>]*>([\\s\\S]*?)<\\/(?:[\\w]+:)?Attribute>/g;\r\n    var am; while((am=are.exec(xml))){ attrs.push({name:am[1], values:tagAll(am[2],'AttributeValue')}); }\r\n    var sig=tagText(xml,'SignatureValue');\r\n    var now=new Date();\r\n    function t(x){ if(!x) return null; var d=new Date(x); return isNaN(d)?null:d; }\r\n    var a=t(nb), b=t(na);\r\n    var valid=(!a||now>=a)&&(!b||now<=b);\r\n    var validMsg=valid?'当前在有效期内':(a&&now<a?'尚未生效 (NotBefore '+nb+')':'已过期 (NotOnOrAfter '+na+')');\r\n    return {error:null, xml:xml, info:{\r\n      issuer:issuer, nameId:nameId, notBefore:nb, notOnOrAfter:na,\r\n      audience:audience, destination:dest, attributes:attrs,\r\n      signed:!!sig, valid:valid, validMsg:validMsg\r\n    }};\r\n  }\r\n  var api={analyze:analyze};\r\n  if(typeof window!=='undefined'){ window.__PURE__=api; }\r\n  if(typeof module!=='undefined'&&module.exports){ module.exports={SamlForgePure:SamlForgePure}; }\r\n  return api;\r\n}\r\n\r\n"
+}

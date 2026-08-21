@@ -1,0 +1,80 @@
+{
+  "id": "ImgAsciiForge",
+  "name": "img_ascii_forge",
+  "title": "ImgAsciiForge",
+  "description": "把图片转换成 ASCII 字符画：内置标准/精细/方块/二值/点阵五套字符梯度，可调输出宽度、伽马与反色，逐格取样亮度映射字符，结果可直接复制。",
+  "entry": "luma",
+  "entries": {
+    "luma": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "r",
+        "g",
+        "b"
+      ],
+      "fields": []
+    },
+    "fitSize": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h",
+        "maxCols",
+        "charAspect"
+      ],
+      "fields": []
+    },
+    "sampleGrid": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "cols",
+        "rows"
+      ],
+      "fields": []
+    },
+    "toAscii": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "grid",
+        "cols",
+        "rows",
+        "opt"
+      ],
+      "fields": []
+    },
+    "render": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opt"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "r": {
+        "type": "string",
+        "description": "第 1 个参数（r）"
+      },
+      "g": {
+        "type": "string",
+        "description": "第 2 个参数（g）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 3 个参数（b）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  var RAMPS={\r\n    standard:' .:-=+*#%@',\r\n    detailed:\" .'`^\\\",:;Il!i><~+_-?][}{1)(|\\\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$\",\r\n    blocks:' \\u2591\\u2592\\u2593\\u2588',\r\n    binary:' #',\r\n    dots:' .\\u00b7\\u2022\\u25cf'\r\n  };\r\n  function luma(r,g,b){ return 0.2126*r+0.7152*g+0.0722*b; }\r\n  function fitSize(w,h,maxCols,charAspect){\r\n    w=Math.max(1,w|0); h=Math.max(1,h|0);\r\n    maxCols=Math.max(1,maxCols|0);\r\n    charAspect=charAspect||0.5;\r\n    var cols=Math.min(maxCols,w);\r\n    var rows=Math.max(1,Math.round(h*(cols/w)*charAspect));\r\n    return {cols:cols,rows:rows};\r\n  }\r\n  function sampleGrid(data,w,h,cols,rows){\r\n    if(!data||!w||!h||!cols||!rows) return {error:'尺寸参数无效'};\r\n    if(data.length<w*h*4) return {error:'像素数据长度不足'};\r\n    var g=new Float64Array(cols*rows);\r\n    for(var ry=0;ry<rows;ry++){\r\n      var y0=Math.floor(ry*h/rows),y1=Math.max(y0+1,Math.floor((ry+1)*h/rows));\r\n      for(var cx=0;cx<cols;cx++){\r\n        var x0=Math.floor(cx*w/cols),x1=Math.max(x0+1,Math.floor((cx+1)*w/cols));\r\n        var sum=0,n=0;\r\n        for(var y=y0;y<y1;y++){\r\n          for(var x=x0;x<x1;x++){\r\n            var i=(y*w+x)*4,a=data[i+3]/255;\r\n            sum+=luma(data[i],data[i+1],data[i+2])*a+255*(1-a);\r\n            n++;\r\n          }\r\n        }\r\n        g[ry*cols+cx]=n?Math.round(sum/n):255;\r\n      }\r\n    }\r\n    return {value:{grid:g,cols:cols,rows:rows}};\r\n  }\r\n  function toAscii(grid,cols,rows,opt){\r\n    opt=opt||{};\r\n    if(opt.ramp===undefined) opt.ramp=RAMPS.standard;\r\n    var ramp=opt.ramp;\r\n    if(typeof ramp!=='string'||!ramp.length) return {error:'字符梯度不能为空'};\r\n    if(!grid||grid.length<cols*rows) return {error:'灰度矩阵长度不足'};\r\n    var inv=!!opt.invert, gam=opt.gamma||1, out=[];\r\n    for(var y=0;y<rows;y++){\r\n      var line='';\r\n      for(var x=0;x<cols;x++){\r\n        var v=grid[y*cols+x]/255;\r\n        if(v<0)v=0; if(v>1)v=1;\r\n        if(gam!==1) v=Math.pow(v,gam);\r\n        if(!inv) v=1-v;\r\n        var idx=Math.round(v*(ramp.length-1));\r\n        line+=ramp.charAt(idx);\r\n      }\r\n      out.push(line);\r\n    }\r\n    return {value:{text:out.join('\\n'),lines:out,cols:cols,rows:rows,chars:cols*rows}};\r\n  }\r\n  function render(data,w,h,opt){\r\n    opt=opt||{};\r\n    var fit=fitSize(w,h,opt.cols||80,opt.charAspect||0.5);\r\n    var s=sampleGrid(data,w,h,fit.cols,fit.rows);\r\n    if(s.error) return s;\r\n    return toAscii(s.value.grid,fit.cols,fit.rows,opt);\r\n  }\r\n  var API={RAMPS:RAMPS,luma:luma,fitSize:fitSize,sampleGrid:sampleGrid,toAscii:toAscii,render:render};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__ImgAsciiForge__=API;\r\n})();\r\n\r\n"
+}

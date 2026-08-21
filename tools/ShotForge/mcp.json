@@ -1,0 +1,56 @@
+{
+  "id": "ShotForge",
+  "name": "shot_forge",
+  "title": "ShotForge",
+  "description": "离线代码截图生成器：轻量语法高亮 + 仿 macOS 窗口外观，一键复制 SVG / 导出 2x PNG。",
+  "entry": "tokenizeToTokens",
+  "entries": {
+    "tokenizeToTokens": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "code",
+        "lang"
+      ],
+      "fields": []
+    },
+    "htmlFromTokens": {
+      "paramStyle": "single",
+      "paramNames": [
+        "tokens"
+      ],
+      "fields": []
+    },
+    "svgFromTokens": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tokens",
+        "opts"
+      ],
+      "fields": []
+    },
+    "escapeXml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "第 1 个参数（code）"
+      },
+      "lang": {
+        "type": "string",
+        "description": "第 2 个参数（lang）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar KW={var:1,let:1,const:1,function:1,return:1,if:1,else:1,for:1,while:1,do:1,switch:1,case:1,break:1,continue:1,new:1,class:1,extends:1,super:1,this:1,typeof:1,instanceof:1,in:1,of:1,void:1,delete:1,throw:1,try:1,catch:1,finally:1,async:1,await:1,yield:1,def:1,import:1,from:1,export:1,default:1,as:1,public:1,private:1,protected:1,static:1,interface:1,type:1,enum:1,namespace:1,func:1,package:1,go:1,chan:1,map:1,struct:1,impl:1,pub:1,fn:1,mut:1,use:1,module:1,and:1,or:1,not:1,end:1,then:1,elseif:1,elif:1,fi:1,esac:1,select:1,where:1,group:1,by:1,order:1,limit:1,SELECT:1,FROM:1,WHERE:1,AND:1,OR:1,INSERT:1,UPDATE:1,DELETE:1,CREATE:1,TABLE:1,NULL:1,echo:1,print:1,require:1,include:1,true:1,false:1,null:1,None:1,True:1,False:1,undefined:1};\r\nvar HASH_LANGS={python:1,py:1,sh:1,bash:1,shell:1,yaml:1,yml:1,ruby:1,rb:1,toml:1,ini:1,cfg:1,nginx:1};\r\nfunction isKw(w){ return Object.prototype.hasOwnProperty.call(KW,w); }\r\nfunction tokenizeToTokens(code, lang){\r\n  code=String(code); lang=lang||'';\r\n  var hashLang = HASH_LANGS[lang]===1;\r\n  var tokens=[]; var i=0, n=code.length;\r\n  function push(t,c){ tokens.push({t:t,c:c}); }\r\n  while(i<n){\r\n    var c=code[i];\r\n    if(c==='/'&&code[i+1]==='/'){ var j=code.indexOf('\\n',i); if(j<0)j=n; push(code.slice(i,j),'com'); i=j; continue; }\r\n    if(c==='/'&&code[i+1]==='*'){ var j=code.indexOf('*/',i+2); if(j<0)j=n-2; push(code.slice(i,j+2),'com'); i=(j<0?n:j+2); continue; }\r\n    if(hashLang&&c==='#'){ var j=code.indexOf('\\n',i); if(j<0)j=n; push(code.slice(i,j),'com'); i=j; continue; }\r\n    if(c==='\"'||c===\"'\"||c==='`'){\r\n      var q=c,j=i+1,buf=c,esc=false;\r\n      while(j<n){ var d=code[j]; buf+=d; if(esc){esc=false;j++;continue;} if(d==='\\\\'){esc=true;j++;continue;} if(d===q){j++;break;} if(q!=='`'&&d==='\\n'){break;} j++; }\r\n      push(buf,'str'); i=j; continue;\r\n    }\r\n    if(/[0-9]/.test(c)||(c==='.'&&/[0-9]/.test(code[i+1]||''))){ var j=i; while(j<n&&/[0-9a-fA-FxX._]/.test(code[j]))j++; push(code.slice(i,j),'num'); i=j; continue; }\r\n    if(/[A-Za-z_$]/.test(c)){ var j=i; while(j<n&&/[A-Za-z0-9_$]/.test(code[j]))j++; var w=code.slice(i,j); var nc=code[j]; while(nc===' '||nc==='\\t'||nc==='\\n'||nc==='\\r'){nc=code[++j];} var c2=isKw(w)?'kw':(nc==='('?'fn':'id'); push(w,c2); i=j; continue; }\r\n    if(/\\s/.test(c)){ var j=i; while(j<n&&/\\s/.test(code[j]))j++; push(code.slice(i,j),null); i=j; continue; }\r\n    push(c,'punc'); i++; continue;\r\n  }\r\n  return tokens;\r\n}\r\nfunction escapeXml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); }\r\nfunction escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction htmlFromTokens(tokens){ return tokens.map(function(t){ if(t.c) return '<span class=\"tok-'+t.c+'\">'+escHtml(t.t)+'</span>'; return escHtml(t.t); }).join(''); }\r\nfunction svgFromTokens(tokens, opts){\r\n  opts=opts||{};\r\n  var fontSize=opts.fontSize||14;\r\n  var lineH=Math.round(fontSize*1.5);\r\n  var padX=opts.padX||24, padTop=opts.padTop||44, padBottom=opts.padBottom||22;\r\n  var charW=fontSize*0.6;\r\n  var lines=[]; var cur=[]; var curLen=0; var maxLen=0;\r\n  tokens.forEach(function(t){\r\n    var parts=String(t.t).split('\\n');\r\n    for(var k=0;k<parts.length;k++){\r\n      if(k>0){ lines.push({toks:cur,len:curLen}); cur=[]; curLen=0; }\r\n      if(parts[k].length){ cur.push({text:parts[k], c:t.c}); curLen+=parts[k].length; }\r\n    }\r\n  });\r\n  lines.push({toks:cur,len:curLen});\r\n  lines.forEach(function(l){ if(l.len>maxLen) maxLen=l.len; });\r\n  var innerW=Math.ceil(maxLen*charW)+padX*2;\r\n  var innerH=lines.length*lineH+padTop+padBottom;\r\n  var bg=opts.bg||'#0d1117';\r\n  var title=opts.title||'code';\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+innerW+'\" height=\"'+innerH+'\" viewBox=\"0 0 '+innerW+' '+innerH+'\" font-family=\"ui-monospace,SFMono-Regular,Menlo,Consolas,monospace\">';\r\n  s+='<rect x=\"0\" y=\"0\" width=\"'+innerW+'\" height=\"'+innerH+'\" rx=\"12\" fill=\"'+bg+'\"/>';\r\n  s+='<circle cx=\"22\" cy=\"22\" r=\"6\" fill=\"#ff5f56\"/>';\r\n  s+='<circle cx=\"42\" cy=\"22\" r=\"6\" fill=\"#ffbd2e\"/>';\r\n  s+='<circle cx=\"62\" cy=\"22\" r=\"6\" fill=\"#27c93f\"/>';\r\n  s+='<text x=\"'+(innerW/2)+'\" y=\"27\" text-anchor=\"middle\" font-size=\"12\" fill=\"#8b949e\">'+escapeXml(title)+'</text>';\r\n  var colors={kw:'#ff7b72',str:'#a5d6ff',com:'#8b949e',num:'#79c0ff',fn:'#d2a8ff',id:'#e6edf3',punc:'#c9d1d9',null:'#e6edf3'};\r\n  for(var i=0;i<lines.length;i++){\r\n    var row=lines[i]; if(!row.toks.length) continue;\r\n    var y=padTop+i*lineH+fontSize;\r\n    s+='<text x=\"'+padX+'\" y=\"'+y+'\" font-size=\"'+fontSize+'\" xml:space=\"preserve\">';\r\n    row.toks.forEach(function(tok){\r\n      var col=colors[tok.c!=null?tok.c:'null'];\r\n      s+='<tspan fill=\"'+col+'\">'+escapeXml(tok.text)+'</tspan>';\r\n    });\r\n    s+='</text>';\r\n  }\r\n  s+='</svg>';\r\n  return s;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tokenizeToTokens:tokenizeToTokens, htmlFromTokens:htmlFromTokens, svgFromTokens:svgFromTokens, escapeXml:escapeXml };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ShotForgePure = { tokenizeToTokens:tokenizeToTokens, htmlFromTokens:htmlFromTokens, svgFromTokens:svgFromTokens, escapeXml:escapeXml };\r\n}\r\n"
+}

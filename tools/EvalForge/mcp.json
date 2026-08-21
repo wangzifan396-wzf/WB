@@ -1,0 +1,170 @@
+{
+  "id": "EvalForge",
+  "name": "eval_forge",
+  "title": "EvalForge",
+  "description": "LLM 输出评测：BLEU-4 / ROUGE-L / token F1 / 编辑相似度逐项打分，支持批量成对评测与 pass@k 估算，离线可用。",
+  "entry": "normText",
+  "entries": {
+    "normText": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "opts"
+      ],
+      "fields": []
+    },
+    "tokenize": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "mode"
+      ],
+      "fields": []
+    },
+    "ngrams": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tokens",
+        "n"
+      ],
+      "fields": []
+    },
+    "counter": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "clippedOverlap": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cand",
+        "ref"
+      ],
+      "fields": []
+    },
+    "bleu": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "candidate",
+        "reference",
+        "maxN"
+      ],
+      "fields": []
+    },
+    "lcsLength": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "rougeL": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "candidate",
+        "reference",
+        "beta"
+      ],
+      "fields": []
+    },
+    "rougeN": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "candidate",
+        "reference",
+        "n"
+      ],
+      "fields": []
+    },
+    "exactMatch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "candidate",
+        "reference"
+      ],
+      "fields": []
+    },
+    "tokenF1": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "candidate",
+        "reference"
+      ],
+      "fields": []
+    },
+    "editDistance": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "similarity": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "passAtK": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "c",
+        "k"
+      ],
+      "fields": []
+    },
+    "round4": {
+      "paramStyle": "single",
+      "paramNames": [
+        "x"
+      ],
+      "fields": []
+    },
+    "evaluate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "candidate",
+        "reference"
+      ],
+      "fields": []
+    },
+    "evaluateBatch": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pairs"
+      ],
+      "fields": []
+    },
+    "parsePairs": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "object",
+        "description": "第 1 个参数（s）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction normText(s, opts){\r\n  opts = opts || {};\r\n  var t = String(s == null ? '' : s);\r\n  if (opts.lower !== false) t = t.toLowerCase();\r\n  if (opts.punct !== false) t = t.replace(/[.,!?;:'\"()\\[\\]{}<>\\/\\\\|`~@#$%^&*_+=\\u3002\\uff0c\\uff01\\uff1f\\uff1b\\uff1a\\u201c\\u201d\\u2018\\u2019\\uff08\\uff09\\u3010\\u3011]/g, ' ');\r\n  if (opts.articles) t = t.replace(/\\b(a|an|the)\\b/g, ' ');\r\n  return t.replace(/\\s+/g, ' ').trim();\r\n}\r\n\r\nfunction tokenize(s, mode){\r\n  var t = String(s == null ? '' : s);\r\n  if (mode === 'char') return t.replace(/\\s+/g, '').split('');\r\n  var out = [], buf = '';\r\n  for (var i = 0; i < t.length; i++){\r\n    var c = t.charAt(i), code = t.charCodeAt(i);\r\n    var cjk = (code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3040 && code <= 0x30ff);\r\n    if (cjk){ if (buf){ out.push(buf); buf = ''; } out.push(c); }\r\n    else if (/\\s/.test(c)){ if (buf){ out.push(buf); buf = ''; } }\r\n    else buf += c;\r\n  }\r\n  if (buf) out.push(buf);\r\n  return out;\r\n}\r\n\r\nfunction ngrams(tokens, n){\r\n  var out = [];\r\n  for (var i = 0; i + n <= tokens.length; i++) out.push(tokens.slice(i, i + n).join('\\u0001'));\r\n  return out;\r\n}\r\n\r\nfunction counter(arr){\r\n  var m = {};\r\n  for (var i = 0; i < arr.length; i++) m[arr[i]] = (m[arr[i]] || 0) + 1;\r\n  return m;\r\n}\r\n\r\nfunction clippedOverlap(cand, ref){\r\n  var a = counter(cand), b = counter(ref), hit = 0;\r\n  for (var k in a) if (Object.prototype.hasOwnProperty.call(a, k)){\r\n    var r = b[k] || 0;\r\n    hit += a[k] < r ? a[k] : r;\r\n  }\r\n  return hit;\r\n}\r\n\r\nfunction bleu(candidate, reference, maxN){\r\n  maxN = maxN || 4;\r\n  var c = tokenize(normText(candidate)), r = tokenize(normText(reference));\r\n  if (!c.length || !r.length) return { score: 0, precisions: [], bp: 0, candLen: c.length, refLen: r.length };\r\n  var logSum = 0, precisions = [], usable = 0;\r\n  for (var n = 1; n <= maxN; n++){\r\n    var cg = ngrams(c, n), rg = ngrams(r, n);\r\n    if (!cg.length){ precisions.push(0); continue; }\r\n    var hit = clippedOverlap(cg, rg);\r\n    // smoothing (add-1 on zero hits) so short outputs do not collapse to 0\r\n    var p = hit > 0 ? hit / cg.length : 1 / (2 * cg.length);\r\n    precisions.push(round4(hit / cg.length));\r\n    logSum += Math.log(p); usable++;\r\n  }\r\n  if (!usable) return { score: 0, precisions: precisions, bp: 0, candLen: c.length, refLen: r.length };\r\n  var bp = c.length > r.length ? 1 : Math.exp(1 - r.length / c.length);\r\n  var score = bp * Math.exp(logSum / usable);\r\n  return { score: round4(score), precisions: precisions, bp: round4(bp), candLen: c.length, refLen: r.length };\r\n}\r\n\r\nfunction lcsLength(a, b){\r\n  var m = a.length, n = b.length;\r\n  if (!m || !n) return 0;\r\n  var prev = new Array(n + 1), cur = new Array(n + 1), i, j;\r\n  for (j = 0; j <= n; j++) prev[j] = 0;\r\n  for (i = 1; i <= m; i++){\r\n    cur[0] = 0;\r\n    for (j = 1; j <= n; j++){\r\n      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : (cur[j - 1] > prev[j] ? cur[j - 1] : prev[j]);\r\n    }\r\n    for (j = 0; j <= n; j++) prev[j] = cur[j];\r\n  }\r\n  return prev[n];\r\n}\r\n\r\nfunction rougeL(candidate, reference, beta){\r\n  beta = beta == null ? 1.2 : beta;\r\n  var c = tokenize(normText(candidate)), r = tokenize(normText(reference));\r\n  if (!c.length || !r.length) return { precision: 0, recall: 0, f: 0, lcs: 0 };\r\n  var l = lcsLength(c, r);\r\n  var p = l / c.length, rc = l / r.length;\r\n  var f = (p + rc) === 0 ? 0 : ((1 + beta * beta) * p * rc) / (rc + beta * beta * p);\r\n  return { precision: round4(p), recall: round4(rc), f: round4(f), lcs: l };\r\n}\r\n\r\nfunction rougeN(candidate, reference, n){\r\n  n = n || 1;\r\n  var cg = ngrams(tokenize(normText(candidate)), n), rg = ngrams(tokenize(normText(reference)), n);\r\n  if (!cg.length || !rg.length) return { precision: 0, recall: 0, f: 0 };\r\n  var hit = clippedOverlap(cg, rg);\r\n  var p = hit / cg.length, r = hit / rg.length;\r\n  var f = (p + r) === 0 ? 0 : 2 * p * r / (p + r);\r\n  return { precision: round4(p), recall: round4(r), f: round4(f) };\r\n}\r\n\r\nfunction exactMatch(candidate, reference){\r\n  return normText(candidate, { articles: true }) === normText(reference, { articles: true });\r\n}\r\n\r\nfunction tokenF1(candidate, reference){\r\n  var c = tokenize(normText(candidate, { articles: true }));\r\n  var r = tokenize(normText(reference, { articles: true }));\r\n  if (!c.length || !r.length) return { precision: 0, recall: 0, f1: 0, common: 0 };\r\n  var hit = clippedOverlap(c, r);\r\n  if (!hit) return { precision: 0, recall: 0, f1: 0, common: 0 };\r\n  var p = hit / c.length, rc = hit / r.length;\r\n  return { precision: round4(p), recall: round4(rc), f1: round4(2 * p * rc / (p + rc)), common: hit };\r\n}\r\n\r\nfunction editDistance(a, b){\r\n  a = String(a == null ? '' : a); b = String(b == null ? '' : b);\r\n  var m = a.length, n = b.length;\r\n  if (!m) return n;\r\n  if (!n) return m;\r\n  var prev = new Array(n + 1), i, j;\r\n  for (j = 0; j <= n; j++) prev[j] = j;\r\n  for (i = 1; i <= m; i++){\r\n    var cur = [i];\r\n    for (j = 1; j <= n; j++){\r\n      var cost = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;\r\n      var v = prev[j] + 1;\r\n      if (cur[j - 1] + 1 < v) v = cur[j - 1] + 1;\r\n      if (prev[j - 1] + cost < v) v = prev[j - 1] + cost;\r\n      cur[j] = v;\r\n    }\r\n    prev = cur;\r\n  }\r\n  return prev[n];\r\n}\r\n\r\nfunction similarity(a, b){\r\n  var la = String(a == null ? '' : a).length, lb = String(b == null ? '' : b).length;\r\n  var max = la > lb ? la : lb;\r\n  if (!max) return 1;\r\n  return round4(1 - editDistance(a, b) / max);\r\n}\r\n\r\nfunction passAtK(n, c, k){\r\n  n = Math.floor(n); c = Math.floor(c); k = Math.floor(k);\r\n  if (!(n > 0) || k <= 0) return { value: 0, error: 'n and k must be positive' };\r\n  if (c < 0 || c > n) return { value: 0, error: 'c must be within 0..n' };\r\n  if (n - c < k) return { value: 1, error: null };\r\n  var prod = 1;\r\n  for (var i = 0; i < k; i++) prod *= (n - c - i) / (n - i);\r\n  return { value: round4(1 - prod), error: null };\r\n}\r\n\r\nfunction round4(x){ return Math.round(x * 10000) / 10000; }\r\n\r\nfunction evaluate(candidate, reference){\r\n  var b = bleu(candidate, reference, 4);\r\n  var rl = rougeL(candidate, reference);\r\n  var r1 = rougeN(candidate, reference, 1);\r\n  var r2 = rougeN(candidate, reference, 2);\r\n  var f1 = tokenF1(candidate, reference);\r\n  return {\r\n    bleu: b.score, bleuDetail: b,\r\n    rouge1: r1.f, rouge2: r2.f, rougeL: rl.f, rougeLDetail: rl,\r\n    exactMatch: exactMatch(candidate, reference),\r\n    f1: f1.f1, f1Detail: f1,\r\n    editDistance: editDistance(candidate, reference),\r\n    similarity: similarity(candidate, reference)\r\n  };\r\n}\r\n\r\nfunction evaluateBatch(pairs){\r\n  var rows = [], sum = { bleu: 0, rougeL: 0, f1: 0, em: 0, sim: 0 };\r\n  for (var i = 0; i < pairs.length; i++){\r\n    var r = evaluate(pairs[i].candidate, pairs[i].reference);\r\n    rows.push({ index: i, bleu: r.bleu, rougeL: r.rougeL, f1: r.f1, exactMatch: r.exactMatch, similarity: r.similarity });\r\n    sum.bleu += r.bleu; sum.rougeL += r.rougeL; sum.f1 += r.f1;\r\n    sum.em += r.exactMatch ? 1 : 0; sum.sim += r.similarity;\r\n  }\r\n  var n = pairs.length || 1;\r\n  return {\r\n    rows: rows, count: pairs.length,\r\n    avg: { bleu: round4(sum.bleu / n), rougeL: round4(sum.rougeL / n), f1: round4(sum.f1 / n),\r\n           exactMatch: round4(sum.em / n), similarity: round4(sum.sim / n) }\r\n  };\r\n}\r\n\r\nfunction parsePairs(text){\r\n  var lines = String(text || '').split(/\\r?\\n/), out = [], errors = [];\r\n  for (var i = 0; i < lines.length; i++){\r\n    var ln = lines[i].trim();\r\n    if (!ln) continue;\r\n    var parts = ln.split('|');\r\n    if (parts.length < 2){ errors.push('line ' + (i + 1) + ': expected \"candidate | reference\"'); continue; }\r\n    out.push({ candidate: parts[0].trim(), reference: parts.slice(1).join('|').trim() });\r\n  }\r\n  return { pairs: out, errors: errors };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { normText:normText, tokenize:tokenize, ngrams:ngrams, counter:counter, clippedOverlap:clippedOverlap, bleu:bleu, lcsLength:lcsLength, rougeL:rougeL, rougeN:rougeN, exactMatch:exactMatch, tokenF1:tokenF1, editDistance:editDistance, similarity:similarity, passAtK:passAtK, round4:round4, evaluate:evaluate, evaluateBatch:evaluateBatch, parsePairs:parsePairs }; }\r\nif (typeof window !== 'undefined') { window.EvalForgePure = { normText:normText, tokenize:tokenize, ngrams:ngrams, counter:counter, clippedOverlap:clippedOverlap, bleu:bleu, lcsLength:lcsLength, rougeL:rougeL, rougeN:rougeN, exactMatch:exactMatch, tokenF1:tokenF1, editDistance:editDistance, similarity:similarity, passAtK:passAtK, round4:round4, evaluate:evaluate, evaluateBatch:evaluateBatch, parsePairs:parsePairs }; }\r\n\r\n"
+}

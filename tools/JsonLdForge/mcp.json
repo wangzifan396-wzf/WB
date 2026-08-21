@@ -1,0 +1,79 @@
+{
+  "id": "JsonLdForge",
+  "name": "json_ld_forge",
+  "title": "JsonLdForge",
+  "description": "JSON-LD 结构化数据校验：schema.org 字段体检、日期校验、嵌入片段生成，离线可用。",
+  "entry": "jlParse",
+  "entries": {
+    "jlParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "jlNodes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "data"
+      ],
+      "fields": []
+    },
+    "jlValidate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "data"
+      ],
+      "fields": []
+    },
+    "jlDateOk": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "jlDateIssues": {
+      "paramStyle": "single",
+      "paramNames": [
+        "data"
+      ],
+      "fields": []
+    },
+    "jlBuild": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "type",
+        "fields"
+      ],
+      "fields": []
+    },
+    "jlStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "data"
+      ],
+      "fields": []
+    },
+    "jlEmbed": {
+      "paramStyle": "single",
+      "paramNames": [
+        "data"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar JL_SCHEMAS = {\r\n  Article: { required:['headline','author','datePublished'], recommended:['image','description','dateModified','publisher'] },\r\n  Product: { required:['name'], recommended:['image','description','brand','offers','aggregateRating','sku'] },\r\n  FAQPage: { required:['mainEntity'], recommended:[] },\r\n  Organization: { required:['name'], recommended:['url','logo','sameAs','contactPoint'] },\r\n  BreadcrumbList: { required:['itemListElement'], recommended:[] },\r\n  Recipe: { required:['name','recipeIngredient','recipeInstructions'], recommended:['image','author','cookTime','nutrition'] },\r\n  Event: { required:['name','startDate','location'], recommended:['endDate','image','description','offers'] },\r\n  LocalBusiness: { required:['name','address'], recommended:['telephone','openingHours','geo','priceRange'] }\r\n};\r\nfunction jlParse(text){\r\n  var raw=String(text||'').trim();\r\n  if(!raw) return { error:'请输入 JSON-LD 内容' };\r\n  var stripped = raw.replace(/^<script[^>]*>/i,'').replace(/<\\/script>\\s*$/i,'').trim();\r\n  var obj;\r\n  try { obj=JSON.parse(stripped); } catch(e){ return { error:'JSON 解析失败：'+e.message }; }\r\n  if(obj===null || typeof obj!=='object') return { error:'顶层必须是对象或数组' };\r\n  return { error:null, data:obj };\r\n}\r\nfunction jlNodes(data){\r\n  if(Array.isArray(data)) return data;\r\n  if(data && data['@graph'] && Array.isArray(data['@graph'])) return data['@graph'];\r\n  return [data];\r\n}\r\nfunction jlValidate(data){\r\n  var nodes=jlNodes(data), errors=[], warns=[], types=[];\r\n  if(!Array.isArray(data) && !data['@context']) errors.push('缺少 @context（应为 https://schema.org）');\r\n  else if(!Array.isArray(data) && !/schema\\.org/.test(String(data['@context'])))\r\n    warns.push('@context 不是 schema.org，搜索引擎可能不识别');\r\n  for(var i=0;i<nodes.length;i++){\r\n    var nd=nodes[i], label='节点 '+(i+1);\r\n    if(!nd || typeof nd!=='object'){ errors.push(label+'：不是对象'); continue; }\r\n    var t=nd['@type'];\r\n    if(!t){ errors.push(label+'：缺少 @type'); continue; }\r\n    var tn=Array.isArray(t) ? t[0] : t;\r\n    types.push(tn);\r\n    var sch=JL_SCHEMAS[tn];\r\n    if(!sch){ warns.push(label+'：未内置 '+tn+' 的字段规则，仅做基础检查'); continue; }\r\n    for(var j=0;j<sch.required.length;j++)\r\n      if(nd[sch.required[j]]===undefined || nd[sch.required[j]]==='')\r\n        errors.push(label+' ('+tn+')：缺少必填字段 '+sch.required[j]);\r\n    for(var k=0;k<sch.recommended.length;k++)\r\n      if(nd[sch.recommended[k]]===undefined)\r\n        warns.push(label+' ('+tn+')：建议补充 '+sch.recommended[k]);\r\n  }\r\n  return { errors:errors, warns:warns, types:types, nodes:nodes.length,\r\n           valid: errors.length===0 };\r\n}\r\nfunction jlDateOk(s){\r\n  return /^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?)?$/.test(String(s));\r\n}\r\nfunction jlDateIssues(data){\r\n  var nodes=jlNodes(data), out=[], keys=['datePublished','dateModified','startDate','endDate','uploadDate'];\r\n  for(var i=0;i<nodes.length;i++){\r\n    for(var j=0;j<keys.length;j++){\r\n      var v=nodes[i] && nodes[i][keys[j]];\r\n      if(v!==undefined && !jlDateOk(v)) out.push('节点 '+(i+1)+'：'+keys[j]+' 非 ISO 8601 格式（'+v+'）');\r\n    }\r\n  }\r\n  return out;\r\n}\r\nfunction jlBuild(type, fields){\r\n  var sch=JL_SCHEMAS[type];\r\n  var obj={ '@context':'https://schema.org', '@type':type };\r\n  var keys = sch ? sch.required.concat(sch.recommended) : Object.keys(fields||{});\r\n  for(var i=0;i<keys.length;i++){\r\n    var v=fields && fields[keys[i]];\r\n    if(v!==undefined && v!=='') obj[keys[i]]=v;\r\n  }\r\n  return obj;\r\n}\r\nfunction jlStats(data){\r\n  var s=JSON.stringify(data), depth=0, cur=0;\r\n  for(var i=0;i<s.length;i++){\r\n    if(s[i]==='{'||s[i]==='['){ cur++; if(cur>depth) depth=cur; }\r\n    else if(s[i]==='}'||s[i]===']') cur--;\r\n  }\r\n  var nodes=jlNodes(data), fields=0;\r\n  for(var j=0;j<nodes.length;j++) if(nodes[j] && typeof nodes[j]==='object') fields += Object.keys(nodes[j]).length;\r\n  return { bytes:s.length, depth:depth, nodes:nodes.length, fields:fields };\r\n}\r\nfunction jlEmbed(data){\r\n  return '<script type=\"application/ld+json\">\\n'+JSON.stringify(data, null, 2)+'\\n<\\/script>';\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { JL_SCHEMAS:JL_SCHEMAS, jlParse:jlParse, jlNodes:jlNodes, jlValidate:jlValidate,\r\n    jlDateOk:jlDateOk, jlDateIssues:jlDateIssues, jlBuild:jlBuild, jlStats:jlStats, jlEmbed:jlEmbed };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.JsonLdForgePure = { JL_SCHEMAS:JL_SCHEMAS, jlParse:jlParse, jlNodes:jlNodes, jlValidate:jlValidate,\r\n    jlDateOk:jlDateOk, jlDateIssues:jlDateIssues, jlBuild:jlBuild, jlStats:jlStats, jlEmbed:jlEmbed };\r\n}\r\n\r\n"
+}

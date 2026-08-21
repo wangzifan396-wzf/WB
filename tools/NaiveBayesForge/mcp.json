@@ -1,0 +1,45 @@
+{
+  "id": "NaiveBayesForge",
+  "name": "naive_bayes_forge",
+  "title": "NaiveBayesForge",
+  "description": "朴素贝叶斯文本分类：用拉普拉斯平滑估计词-类别概率，对词袋做垃圾/工作邮件分类。",
+  "entry": "nbTrain",
+  "entries": {
+    "nbTrain": {
+      "paramStyle": "single",
+      "paramNames": [
+        "docs"
+      ],
+      "fields": []
+    },
+    "nbScore": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "feats"
+      ],
+      "fields": []
+    },
+    "nbPredict": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "feats"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "docs": {
+        "type": "string",
+        "description": "输入（docs）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction nbTrain(docs){ var clsCount={}, vocab={}, featCount={};\r\n  docs.forEach(function(d){ clsCount[d.cls]=(clsCount[d.cls]||0)+1; var seen={}; d.feats.forEach(function(f){ seen[f]=1; vocab[f]=1; });\r\n    Object.keys(seen).forEach(function(f){ featCount[d.cls]=featCount[d.cls]||{}; featCount[d.cls][f]=(featCount[d.cls][f]||0)+1; }); });\r\n  var V=Object.keys(vocab).length, total=docs.length, classes=Object.keys(clsCount), model={classes:classes, prior:{}, cond:{}, V:V, total:total};\r\n  classes.forEach(function(c){ model.prior[c]=clsCount[c]/total; model.cond[c]={}; var fc=featCount[c]||{}; var denom=clsCount[c]+V;\r\n    Object.keys(vocab).forEach(function(f){ model.cond[c][f]=((fc[f]||0)+1)/denom; }); });\r\n  return model; }\r\nfunction nbScore(model,feats){ var res={}; model.classes.forEach(function(c){ var s=Math.log(model.prior[c]||1e-12);\r\n  feats.forEach(function(f){ var p=model.cond[c][f]; if(p===undefined) p=1/(model.V+model.total); s+=Math.log(p); }); res[c]=s; }); return res; }\r\nfunction nbPredict(model,feats){ var sc=nbScore(model,feats), best=null,bv=-Infinity; for(var c in sc) if(sc[c]>bv){bv=sc[c];best=c;} return best; }\r\nvar EXPORTS={nbTrain:nbTrain, nbScore:nbScore, nbPredict:nbPredict};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.NaiveBayesForgePure = EXPORTS; }\r\n\r\n"
+}

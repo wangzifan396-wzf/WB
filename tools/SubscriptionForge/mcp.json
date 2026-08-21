@@ -1,0 +1,36 @@
+{
+  "id": "SubscriptionForge",
+  "name": "subscription_forge",
+  "title": "订阅成本",
+  "description": "汇总多项订阅的月/年总成本，离线。",
+  "entry": "parseItems",
+  "entries": {
+    "parseItems": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "totals": {
+      "paramStyle": "single",
+      "paramNames": [
+        "items"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseItems(text){ var lines=(text||'').split(/\\n+/); var items=[];\r\n  for(var i=0;i<lines.length;i++){ var p=lines[i].trim(); if(!p) continue;\r\n    var parts=p.split(/(,|\\t|，)/); if(parts.length<2) continue;\r\n    var name=parts[0].trim(); var rest=parts.slice(1).join('').trim();\r\n    var num=parseFloat(rest.replace(/[^0-9.\\-]/g,'')); if(isNaN(num)) continue;\r\n    var cycle=/y/i.test(rest)?'yearly':'monthly';\r\n    items.push({name:name, amount:num, cycle:cycle}); }\r\n  return items; }\r\nfunction totals(items){ var m=0; for(var i=0;i<items.length;i++){ var it=items[i]; if(it.cycle==='yearly') m+=it.amount/12; else m+=it.amount; }\r\n  return {monthly:Math.round(m*100)/100, yearly:Math.round(m*12*100)/100, count:items.length}; }\r\nvar EXPORTS={parseItems:parseItems, totals:totals};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SubscriptionForgePure = EXPORTS; }\r\n\r\n"
+}

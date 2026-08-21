@@ -1,0 +1,57 @@
+{
+  "id": "DueDateForge",
+  "name": "due_date_forge",
+  "title": "DueDateForge",
+  "description": "按内格勒法则 (LMP+280 天) 推算预产期，并据参考日期算当前孕周与孕三期。",
+  "entry": "addDays",
+  "entries": {
+    "addDays": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ymd",
+        "n"
+      ],
+      "fields": []
+    },
+    "dueDate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "lmp"
+      ],
+      "fields": []
+    },
+    "weeksBetween": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "gestation": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "lmp",
+        "ref"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "ymd": {
+        "type": "string",
+        "description": "第 1 个参数（ymd）"
+      },
+      "n": {
+        "type": "string",
+        "description": "第 2 个参数（n）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pad(n){ return String(n).padStart(2,'0'); }\r\nfunction addDays(ymd,n){ var p=ymd.split('-'); var d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])); d.setUTCDate(d.getUTCDate()+n); return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate()); }\r\nfunction dueDate(lmp){ if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(lmp)) return null; return addDays(lmp,280); }\r\nfunction weeksBetween(a,b){ var pa=a.split('-'),pb=b.split('-'); var da=new Date(Date.UTC(+pa[0],+pa[1]-1,+pa[2])), db=new Date(Date.UTC(+pb[0],+pb[1]-1,+pb[2])); return Math.floor((db-da)/86400000/7); }\r\nfunction gestation(lmp,ref){ var w=weeksBetween(lmp,ref); if(w<0) return null; return {weeks:w, trimester:(w<13)?1:(w<27)?2:3}; }\r\nvar EXPORTS={addDays:addDays,dueDate:dueDate,weeksBetween:weeksBetween,gestation:gestation};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DueDateForgePure = EXPORTS; }\r\n\r\n"
+}

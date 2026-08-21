@@ -1,0 +1,48 @@
+{
+  "id": "EmiForge",
+  "name": "emi_forge",
+  "title": "EmiForge",
+  "description": "算等额本息月供与摊销表，支持零利率。",
+  "entry": "emi",
+  "entries": {
+    "emi": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "annualRatePct",
+        "months"
+      ],
+      "fields": []
+    },
+    "schedule": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "annualRatePct",
+        "months"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "principal": {
+        "type": "string",
+        "description": "第 1 个参数（principal）"
+      },
+      "annualRatePct": {
+        "type": "string",
+        "description": "第 2 个参数（annualRatePct）"
+      },
+      "months": {
+        "type": "string",
+        "description": "第 3 个参数（months）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction emi(principal, annualRatePct, months){\r\n  if(!(principal>0)||!(months>0)) return null;\r\n  var r=annualRatePct/100/12;\r\n  if(r===0) return principal/months;\r\n  var f=Math.pow(1+r,months);\r\n  return principal*r*f/(f-1);\r\n}\r\nfunction schedule(principal, annualRatePct, months){\r\n  var e=emi(principal,annualRatePct,months); if(e==null) return null;\r\n  var r=annualRatePct/100/12, bal=principal, rows=[];\r\n  for(var i=1;i<=months;i++){\r\n    var interest=bal*r, principalPart=e-interest; bal=bal-principalPart;\r\n    if(i===months) bal=0;\r\n    rows.push({month:i,payment:e,interest:interest,principal:principalPart,balance:Math.max(bal,0)});\r\n  }\r\n  return rows;\r\n}\r\nvar EXPORTS={emi:emi,schedule:schedule};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EmiForgePure = EXPORTS; }\r\n\r\n"
+}

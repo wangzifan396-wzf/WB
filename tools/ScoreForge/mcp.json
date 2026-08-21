@@ -1,0 +1,44 @@
+{
+  "id": "ScoreForge",
+  "name": "score_forge",
+  "title": "ScoreForge",
+  "description": "统计分数数量、总分、平均分、最高/最低，按及格线算通过率，支持加权。",
+  "entry": "stats",
+  "entries": {
+    "stats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "scores"
+      ],
+      "fields": []
+    },
+    "weighted": {
+      "paramStyle": "single",
+      "paramNames": [
+        "items"
+      ],
+      "fields": []
+    },
+    "passRate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "scores",
+        "line"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "scores": {
+        "type": "string",
+        "description": "输入（scores）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction stats(scores){if(!scores.length)return null;var sum=0,mx=-Infinity,mn=Infinity;for(var i=0;i<scores.length;i++){var s=scores[i];sum+=s;if(s>mx)mx=s;if(s<mn)mn=s;}return {count:scores.length,sum:sum,average:sum/scores.length,max:mx,min:mn};}\r\nfunction weighted(items){var tw=0,acc=0;for(var i=0;i<items.length;i++){tw+=items[i].weight;acc+=items[i].score*items[i].weight;}return tw?+(acc/tw).toFixed(4):null;}\r\nfunction passRate(scores,line){var c=0;for(var i=0;i<scores.length;i++){if(scores[i]>=line)c++;}return {passed:c,total:scores.length,rate:c/scores.length};}\r\nvar EXPORTS={stats:stats,weighted:weighted,passRate:passRate};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ScoreForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,64 @@
+{
+  "id": "BloomForge",
+  "name": "bloom_forge",
+  "title": "BloomForge",
+  "description": "布隆过滤器实验室：FNV-1a 双重哈希，误判率公式推演，海量去重利器。",
+  "entry": "bloomCreate",
+  "entries": {
+    "bloomCreate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "m",
+        "k",
+        "seed"
+      ],
+      "fields": []
+    },
+    "bloomAdd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bf",
+        "item"
+      ],
+      "fields": []
+    },
+    "bloomHas": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bf",
+        "item"
+      ],
+      "fields": []
+    },
+    "bloomFalsePositiveRate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "k",
+        "m",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "m": {
+        "type": "string",
+        "description": "第 1 个参数（m）"
+      },
+      "k": {
+        "type": "string",
+        "description": "第 2 个参数（k）"
+      },
+      "seed": {
+        "type": "string",
+        "description": "第 3 个参数（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction fnv1a(str, seed){\r\n  var h=(0x811c9dc5 ^ (seed>>>0))>>>0;\r\n  for(var i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193)>>>0; }\r\n  return h>>>0;\r\n}\r\nfunction bloomHashes(item, m, k, seed){\r\n  var h1=fnv1a(item, seed);\r\n  var h2=fnv1a(item, (seed ^ 0x9e3779b9)>>>0) || 1;\r\n  if(h2===0) h2=1;\r\n  var out=[];\r\n  for(var i=0;i<k;i++){ out.push((h1 + i*h2) % m); }\r\n  return out;\r\n}\r\nfunction bloomCreate(m, k, seed){\r\n  return { m:m, k:k, seed:(seed===undefined?0x9e3779b9:seed)>>>0, bits:new Array(m).fill(0) };\r\n}\r\nfunction bloomAdd(bf, item){\r\n  var hs=bloomHashes(item, bf.m, bf.k, bf.seed);\r\n  for(var i=0;i<hs.length;i++) bf.bits[hs[i]]=1;\r\n  return bf;\r\n}\r\nfunction bloomHas(bf, item){\r\n  var hs=bloomHashes(item, bf.m, bf.k, bf.seed);\r\n  for(var i=0;i<hs.length;i++) if(!bf.bits[hs[i]]) return false;\r\n  return true;\r\n}\r\nfunction bloomFalsePositiveRate(k, m, n){\r\n  var x=Math.exp(-k*n/m);\r\n  return Math.pow(1-x, k);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { bloomCreate:bloomCreate, bloomAdd:bloomAdd, bloomHas:bloomHas,\r\n    bloomFalsePositiveRate:bloomFalsePositiveRate, fnv1a:fnv1a };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.BloomForgePure = { bloomCreate:bloomCreate, bloomAdd:bloomAdd, bloomHas:bloomHas,\r\n    bloomFalsePositiveRate:bloomFalsePositiveRate };\r\n}\r\n"
+}

@@ -1,0 +1,88 @@
+{
+  "id": "PendulumForge",
+  "name": "pendulum_forge",
+  "title": "PendulumForge",
+  "description": "双摆混沌：RK4 积分求解，能量漂移检测，初值敏感性演示。",
+  "entry": "dpDeriv",
+  "entries": {
+    "dpDeriv": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "g",
+        "l1",
+        "l2",
+        "m1",
+        "m2"
+      ],
+      "fields": []
+    },
+    "dpRk4": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "dt",
+        "g",
+        "l1",
+        "l2",
+        "m1",
+        "m2"
+      ],
+      "fields": []
+    },
+    "dpEnergy": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "g",
+        "l1",
+        "l2",
+        "m1",
+        "m2"
+      ],
+      "fields": []
+    },
+    "dpPos": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "l1",
+        "l2"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "第 1 个参数（s）"
+      },
+      "g": {
+        "type": "string",
+        "description": "第 2 个参数（g）"
+      },
+      "l1": {
+        "type": "string",
+        "description": "第 3 个参数（l1）"
+      },
+      "l2": {
+        "type": "string",
+        "description": "第 4 个参数（l2）"
+      },
+      "m1": {
+        "type": "string",
+        "description": "第 5 个参数（m1）"
+      },
+      "m2": {
+        "type": "string",
+        "description": "第 6 个参数（m2）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction dpDeriv(s, g, l1, l2, m1, m2){\r\n  var t1 = s[0], w1 = s[1], t2 = s[2], w2 = s[3];\r\n  var d = t1 - t2, cd = Math.cos(d), sd = Math.sin(d);\r\n  var den = 2*m1 + m2 - m2*Math.cos(2*d);\r\n  var dw1 = (-g*(2*m1+m2)*Math.sin(t1) - m2*g*Math.sin(t1-2*t2) - 2*sd*m2*(w2*w2*l2 + w1*w1*l1*cd)) / (l1*den);\r\n  var dw2 = (2*sd*(w1*w1*l1*(m1+m2) + g*(m1+m2)*Math.cos(t1) + w2*w2*l2*m2*cd)) / (l2*den);\r\n  return [w1, dw1, w2, dw2];\r\n}\r\nfunction dpRk4(s, dt, g, l1, l2, m1, m2){\r\n  function add(a, b, f){ return [a[0]+b[0]*f, a[1]+b[1]*f, a[2]+b[2]*f, a[3]+b[3]*f]; }\r\n  var k1 = dpDeriv(s, g, l1, l2, m1, m2);\r\n  var k2 = dpDeriv(add(s, k1, dt/2), g, l1, l2, m1, m2);\r\n  var k3 = dpDeriv(add(s, k2, dt/2), g, l1, l2, m1, m2);\r\n  var k4 = dpDeriv(add(s, k3, dt), g, l1, l2, m1, m2);\r\n  return [\r\n    s[0] + dt/6*(k1[0] + 2*k2[0] + 2*k3[0] + k4[0]),\r\n    s[1] + dt/6*(k1[1] + 2*k2[1] + 2*k3[1] + k4[1]),\r\n    s[2] + dt/6*(k1[2] + 2*k2[2] + 2*k3[2] + k4[2]),\r\n    s[3] + dt/6*(k1[3] + 2*k2[3] + 2*k3[3] + k4[3])\r\n  ];\r\n}\r\nfunction dpEnergy(s, g, l1, l2, m1, m2){\r\n  var t1 = s[0], w1 = s[1], t2 = s[2], w2 = s[3];\r\n  var v1 = l1*w1, ke = 0.5*m1*v1*v1;\r\n  var vx2 = l1*w1*Math.cos(t1) + l2*w2*Math.cos(t2);\r\n  var vy2 = l1*w1*Math.sin(t1) + l2*w2*Math.sin(t2);\r\n  ke += 0.5*m2*(vx2*vx2 + vy2*vy2);\r\n  var y1 = -l1*Math.cos(t1), y2 = y1 - l2*Math.cos(t2);\r\n  return ke + m1*g*y1 + m2*g*y2;\r\n}\r\nfunction dpPos(s, l1, l2){\r\n  var x1 = l1*Math.sin(s[0]), y1 = l1*Math.cos(s[0]);\r\n  return { x1: x1, y1: y1, x2: x1 + l2*Math.sin(s[2]), y2: y1 + l2*Math.cos(s[2]) };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { dpDeriv:dpDeriv, dpRk4:dpRk4, dpEnergy:dpEnergy, dpPos:dpPos };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.PendulumForgePure = { dpDeriv:dpDeriv, dpRk4:dpRk4, dpEnergy:dpEnergy, dpPos:dpPos };\r\n}\r\n"
+}

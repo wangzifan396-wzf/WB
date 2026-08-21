@@ -1,0 +1,36 @@
+{
+  "id": "JwtDecodeForge",
+  "name": "jwt_decode_forge",
+  "title": "JwtDecodeForge",
+  "description": "JWT 解码：拆分三段并以 base64url 解码 header / payload，便于本地调试鉴权令牌，离线可用。",
+  "entry": "decode",
+  "entries": {
+    "decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "token"
+      ],
+      "fields": []
+    },
+    "b64urlDecode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "token": {
+        "type": "string",
+        "description": "输入（token）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction b64urlDecode(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';\r\n  var bin;\r\n  if(typeof atob!=='undefined'){ bin=atob(s); }\r\n  else { var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'; var lu={};\r\n    for(var ci=0;ci<chars.length;ci++) lu[chars.charCodeAt(ci)]=ci;\r\n    bin=''; var buf=0,bits=0;\r\n    for(var j=0;j<s.length;j++){ var c=s[j]; if(c==='=') break; var v=lu[c.charCodeAt(0)]; if(v===undefined) continue;\r\n      buf=(buf<<6)|v; bits+=6; if(bits>=8){ bits-=8; bin+=String.fromCharCode((buf>>bits)&0xff); } } }\r\n  try { return decodeURIComponent(escape(bin)); } catch(e){ return bin; } }\r\nfunction decode(token){ var parts=token.split('.'); if(parts.length!==3) return {error:'JWT 须为 3 段 header.payload.signature'};\r\n  var header=null,payload=null,err=null;\r\n  try{ header=JSON.parse(b64urlDecode(parts[0])); }catch(e){ err='header 解码失败'; }\r\n  try{ payload=JSON.parse(b64urlDecode(parts[1])); }catch(e){ err='payload 解码失败'; }\r\n  return {header:header, payload:payload, signature:parts[2], error:err}; }\r\nvar EXPORTS={decode:decode, b64urlDecode:b64urlDecode};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.JwtDecodeForgePure = EXPORTS; }\r\n\r\n"
+}

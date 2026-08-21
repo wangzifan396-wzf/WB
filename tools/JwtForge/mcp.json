@@ -1,0 +1,58 @@
+{
+  "id": "JwtForge",
+  "name": "jwt_forge",
+  "title": "JwtForge",
+  "description": "离线 JWT / Token 解码器：拆分 header、payload、signature，可读化 exp/nbf/iat，不校验签名。",
+  "entry": "b64urlDecode",
+  "entries": {
+    "b64urlDecode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "b64urlEncode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "token"
+      ],
+      "fields": []
+    },
+    "humanize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "payload"
+      ],
+      "fields": []
+    },
+    "analyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "token",
+        "nowSec"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction b64urlToBytes(s){\r\n  s = String(s).replace(/-/g,'+').replace(/_/g,'/');\r\n  while(s.length % 4) s += '=';\r\n  try {\r\n    var bin = (typeof atob !== 'undefined') ? atob(s) : Buffer.from(s,'base64').toString('binary');\r\n    var bytes = []; for(var i=0;i<bin.length;i++) bytes.push(bin.charCodeAt(i) & 0xff);\r\n    return bytes;\r\n  } catch(e){ return null; }\r\n}\r\nfunction utf8FromBytes(bytes){\r\n  var s=''; var i=0;\r\n  while(i<bytes.length){\r\n    var c=bytes[i++];\r\n    if(c<0x80) s+=String.fromCharCode(c);\r\n    else if(c>=0xC0 && c<0xE0) s+=String.fromCharCode(((c&0x1F)<<6)|(bytes[i++]&0x3F));\r\n    else s+=String.fromCharCode(((c&0x0F)<<12)|((bytes[i++]&0x3F)<<6)|(bytes[i++]&0x3F));\r\n  }\r\n  return s;\r\n}\r\nfunction b64urlDecode(s){ var b=b64urlToBytes(s); if(b===null) return null; return utf8FromBytes(b); }\r\nfunction bytesToB64url(bytes){\r\n  var bin=''; for(var i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);\r\n  var b = (typeof btoa !== 'undefined') ? btoa(bin) : Buffer.from(bin,'binary').toString('base64');\r\n  return b.replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');\r\n}\r\nfunction b64urlEncode(str){\r\n  var bytes=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.charCodeAt(i);\r\n    if(c<0x80) bytes.push(c);\r\n    else if(c<0x800) bytes.push(0xC0|(c>>6), 0x80|(c&0x3F));\r\n    else bytes.push(0xE0|(c>>11), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F));\r\n  }\r\n  return bytesToB64url(bytes);\r\n}\r\nfunction decode(token){\r\n  if(typeof token !== 'string' || !token.trim()) return {error:'JWT 为空'};\r\n  var parts = token.trim().split('.');\r\n  if(parts.length !== 3) return {error:'JWT 需要 3 段（header.payload.signature）'};\r\n  try {\r\n    var h = b64urlDecode(parts[0]); var p = b64urlDecode(parts[1]);\r\n    if(h === null || p === null) return {error:'Base64URL 解码失败'};\r\n    var header = JSON.parse(h); var payload = JSON.parse(p);\r\n    return {header:header, payload:payload, signature:parts[2], error:null};\r\n  } catch(e){ return {error:'JSON 解析失败：'+e.message}; }\r\n}\r\nfunction pad(n){ return (n<10?'0':'')+n; }\r\nfunction fmtDate(sec){\r\n  var d = new Date(sec*1000);\r\n  if(isNaN(d.getTime())) return '无效时间';\r\n  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());\r\n}\r\nfunction humanize(payload){\r\n  var out = {};\r\n  for(var k in payload){ if(payload.hasOwnProperty(k)) out[k]=payload[k]; }\r\n  var now = Date.now()/1000;\r\n  ['exp','iat','nbf'].forEach(function(f){\r\n    if(typeof payload[f] === 'number'){\r\n      out['_'+f+'_human'] = fmtDate(payload[f]);\r\n      if(f === 'exp') out['_expired'] = payload[f] < now;\r\n      if(f === 'iat') out['_iat_ago'] = payload[f] <= now ? Math.floor(now-payload[f]) + ' 秒前' : '未来';\r\n      if(f === 'nbf') out['_nbf_active'] = payload[f] <= now;\r\n    }\r\n  });\r\n  return out;\r\n}\r\nfunction analyze(token, nowSec){\r\n  var d = decode(token);\r\n  if(d.error) return {valid:false, error:d.error};\r\n  var now = (typeof nowSec === 'number') ? nowSec : Date.now()/1000;\r\n  var exp = (typeof d.payload.exp === 'number') ? d.payload.exp : null;\r\n  var nbf = (typeof d.payload.nbf === 'number') ? d.payload.nbf : null;\r\n  var algNone = d.header.alg === 'none';\r\n  var expired = exp !== null && exp < now;\r\n  var notYet = nbf !== null && nbf > now;\r\n  return {valid:true, header:d.header, payload:d.payload, signature:d.signature, algNone:algNone, expired:expired, notYet:notYet};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { b64urlDecode:b64urlDecode, b64urlEncode:b64urlEncode, decode:decode, humanize:humanize, analyze:analyze, fmtDate:fmtDate };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.JwtForgePure = { b64urlDecode:b64urlDecode, b64urlEncode:b64urlEncode, decode:decode, humanize:humanize, analyze:analyze };\r\n}\r\n"
+}

@@ -1,0 +1,48 @@
+{
+  "id": "FilterForge",
+  "name": "filter_forge",
+  "title": "FilterForge",
+  "description": "像素滤镜：灰度、棕褐、反相、提亮、阈值等像素级滤镜，canvas 本地处理图片不上传。",
+  "entry": "grayOf",
+  "entries": {
+    "grayOf": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "r",
+        "g",
+        "b"
+      ],
+      "fields": []
+    },
+    "applyFilter": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "type",
+        "opt"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "r": {
+        "type": "string",
+        "description": "第 1 个参数（r）"
+      },
+      "g": {
+        "type": "string",
+        "description": "第 2 个参数（g）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 3 个参数（b）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction grayOf(r,g,b){ return Math.round(0.299*r+0.587*g+0.114*b); }\r\nfunction applyFilter(data, type, opt){ opt=opt||{}; var out=new Uint8ClampedArray(data.length); for(var i=0;i<data.length;i+=4){ var r=data[i],g=data[i+1],b=data[i+2],a=data[i+3]; var R=r,G=g,B=b; if(type==='grayscale'){ var y=grayOf(r,g,b); R=G=B=y; } else if(type==='sepia'){ R=Math.min(255,0.393*r+0.769*g+0.189*b); G=Math.min(255,0.349*r+0.686*g+0.168*b); B=Math.min(255,0.272*r+0.534*g+0.131*b); } else if(type==='invert'){ R=255-r; G=255-g; B=255-b; } else if(type==='brightness'){ var d=opt.delta||0; R=r+d; G=g+d; B=b+d; } else if(type==='threshold'){ var t=opt.threshold!=null?opt.threshold:128; var v=grayOf(r,g,b)>=t?255:0; R=G=B=v; } out[i]=R; out[i+1]=G; out[i+2]=B; out[i+3]=a; } return out; }\r\nvar EXPORTS={ grayOf:grayOf, applyFilter:applyFilter };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.FilterForgePure = EXPORTS; }\r\n\r\n"
+}

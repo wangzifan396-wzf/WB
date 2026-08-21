@@ -1,0 +1,52 @@
+{
+  "id": "ChangelogForge",
+  "name": "changelog_forge",
+  "title": "ChangelogForge",
+  "description": "Conventional Commits 解析：提交信息分组生成 CHANGELOG，breaking/feat/fix 自动推断下一个 SemVer 版本。",
+  "entry": "parse",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "bump": {
+      "paramStyle": "single",
+      "paramNames": [
+        "commits"
+      ],
+      "fields": []
+    },
+    "nextVersion": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ver",
+        "bump"
+      ],
+      "fields": []
+    },
+    "changelog": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar CC_TYPES = {feat:'Features', fix:'Bug Fixes', perf:'Performance', docs:'Documentation', style:'Styles', refactor:'Refactoring', test:'Tests', build:'Build', ci:'CI', chore:'Chores', revert:'Reverts'};\r\nfunction ccParseLine(line){\r\n  line=line.trim();\r\n  if(!line) return null;\r\n  var m=/^(\\w+)(\\(([^)]*)\\))?(!)?\\s*:\\s*(.*)$/.exec(line);\r\n  if(!m) return null;\r\n  return {type:m[1].toLowerCase(), scope:m[3]||null, breaking:!!m[4], subject:m[5].trim()};\r\n}\r\nfunction ccBump(commits){\r\n  var hasBreaking=false, hasFeat=false, hasFix=false;\r\n  for(var i=0;i<commits.length;i++){\r\n    if(commits[i].breaking) hasBreaking=true;\r\n    if(commits[i].type==='feat') hasFeat=true;\r\n    if(commits[i].type==='fix') hasFix=true;\r\n  }\r\n  if(hasBreaking) return 'major';\r\n  if(hasFeat) return 'minor';\r\n  if(hasFix) return 'patch';\r\n  return 'none';\r\n}\r\nfunction ccNextVersion(ver, bump){\r\n  var m=/^v?(\\d+)\\.(\\d+)\\.(\\d+)/.exec(ver.trim());\r\n  if(!m) return null;\r\n  var major=+m[1], minor=+m[2], patch=+m[3];\r\n  if(bump==='major') return (major+1)+'.0.0';\r\n  if(bump==='minor') return major+'.'+(minor+1)+'.0';\r\n  if(bump==='patch') return major+'.'+minor+'.'+(patch+1);\r\n  return ver;\r\n}\r\nfunction ccGroup(commits){\r\n  var g={};\r\n  for(var i=0;i<commits.length;i++){ var c=commits[i]; (g[c.type]||(g[c.type]=[])).push(c); }\r\n  return g;\r\n}\r\nfunction ccParse(text){\r\n  var lines=String(text).split(/\\r?\\n/);\r\n  var out=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    if(/BREAKING CHANGE:/.test(lines[i]) && out.length) out[out.length-1].breaking=true;\r\n    var c=ccParseLine(lines[i]);\r\n    if(c) out.push(c);\r\n  }\r\n  return out;\r\n}\r\nfunction ccChangelog(text, opts){\r\n  opts=opts||{};\r\n  var commits=ccParse(text);\r\n  var groups=ccGroup(commits);\r\n  var order=['feat','fix','perf','refactor','docs','style','test','build','ci','chore','revert'];\r\n  var lines=[];\r\n  var title = opts.version ? ('## '+opts.version) : '## Changes';\r\n  if(opts.date) title += ' ('+opts.date+')';\r\n  lines.push(title); lines.push('');\r\n  var any=false;\r\n  for(var i=0;i<order.length;i++){\r\n    var t=order[i];\r\n    if(groups[t]){\r\n      any=true;\r\n      lines.push('### '+(CC_TYPES[t]||t));\r\n      for(var j=0;j<groups[t].length;j++){\r\n        var c=groups[t][j];\r\n        lines.push('- '+(c.scope?('**'+c.scope+'**: '):'')+c.subject+(c.breaking?' (BREAKING)':''));\r\n      }\r\n      lines.push('');\r\n    }\r\n  }\r\n  if(!any) lines.push('_无变更_');\r\n  return lines.join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parse:ccParse, parseLine:ccParseLine, bump:ccBump, nextVersion:ccNextVersion, group:ccGroup, changelog:ccChangelog };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ChangelogForgePure = { parse:ccParse, bump:ccBump, nextVersion:ccNextVersion, changelog:ccChangelog };\r\n}\r\n"
+}

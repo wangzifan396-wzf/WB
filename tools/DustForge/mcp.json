@@ -1,0 +1,36 @@
+{
+  "id": "DustForge",
+  "name": "dust_forge",
+  "title": "DustForge",
+  "description": "磁盘占用条形图：按目录聚合文件体积，排序后用占比条展示各目录占用，快速定位最大的空间消耗者。",
+  "entry": "aggregate",
+  "entries": {
+    "aggregate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseSize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function parseSize(s){\r\n    s=String(s||'').trim();\r\n    var m=s.match(/^([\\d.]+)\\s*([KMGT]?)B?$/i);\r\n    if(!m) return parseFloat(s)||0;\r\n    var n=parseFloat(m[1]), u=m[2].toUpperCase();\r\n    var mul={'':1,'K':1024,'M':1024*1024,'G':1024*1024*1024,'T':1024*1024*1024*1024}[u]||1;\r\n    return n*mul;\r\n  }\r\n  function aggregate(text){\r\n    var lines=String(text||'').split(/\\r?\\n/).map(function(s){return s.trim();}).filter(function(s){return s;});\r\n    var top={};\r\n    lines.forEach(function(l){\r\n      var sp=l.split(/\\s+/); if(sp.length<2) return;\r\n      var path=sp[0], size=parseSize(sp[1]);\r\n      var name=path.replace(/^[.\\/]+/,'').split('/')[0]||path;\r\n      top[name]=(top[name]||0)+size;\r\n    });\r\n    var entries=Object.keys(top).map(function(k){return {name:k, bytes:top[k]};});\r\n    entries.sort(function(a,b){return b.bytes-a.bytes;});\r\n    var total=entries.reduce(function(a,b){return a+b.bytes;},0);\r\n    var max=entries.length?entries[0].bytes:1;\r\n    entries.forEach(function(e){ e.pct= total? Math.round(e.bytes/total*100):0; var n=Math.min(40,Math.max(1,Math.round(e.bytes/max*40))); e.bar='█'.repeat(n)+'░'.repeat(40-n); });\r\n    return {value:{entries:entries, total:total}};\r\n  }\r\n  var API={aggregate:aggregate, parseSize:parseSize};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__DustForge__=API;\r\n})();\r\n"
+}

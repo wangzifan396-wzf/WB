@@ -1,0 +1,59 @@
+{
+  "id": "DedupForge",
+  "name": "dedup_forge",
+  "title": "DedupForge",
+  "description": "文本去重与差集：按行去重、排序、去空行，并支持两个文本集合的差集（A−B）与交集运算。",
+  "entry": "dedupLines",
+  "entries": {
+    "dedupLines": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opts"
+      ],
+      "fields": []
+    },
+    "difference": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "aText",
+        "bText",
+        "opts"
+      ],
+      "fields": []
+    },
+    "intersection": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "aText",
+        "bText",
+        "opts"
+      ],
+      "fields": []
+    },
+    "count": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction toLines(text){ return text.split(/\\r?\\n/); }\r\nfunction dedupLines(text, opts){\r\n  opts = opts || {};\r\n  var lines = toLines(text);\r\n  if (opts.trim) lines = lines.map(function(s){ return s.trim(); });\r\n  else lines = lines.map(function(s){ return s.replace(/\\r$/, \"\"); });\r\n  if (opts.removeBlank) lines = lines.filter(function(s){ return s.length > 0; });\r\n  var seen = {}, out = [];\r\n  for (var i = 0; i < lines.length; i++){\r\n    var k = opts.ignoreCase ? lines[i].toLowerCase() : lines[i];\r\n    if (!seen[k]){ seen[k] = true; out.push(lines[i]); }\r\n  }\r\n  if (opts.sort) out = out.slice().sort(opts.ignoreCase ? function(a,b){ return a.toLowerCase() < b.toLowerCase() ? -1 : 1; } : function(a,b){ return a < b ? -1 : 1; });\r\n  return out;\r\n}\r\nfunction difference(aText, bText, opts){\r\n  opts = opts || {};\r\n  var a = dedupLines(aText, opts), b = dedupLines(bText, opts);\r\n  var bset = {}; b.forEach(function(s){ bset[opts.ignoreCase ? s.toLowerCase() : s] = true; });\r\n  return a.filter(function(s){ return !bset[opts.ignoreCase ? s.toLowerCase() : s]; });\r\n}\r\nfunction intersection(aText, bText, opts){\r\n  opts = opts || {};\r\n  var a = dedupLines(aText, opts), b = dedupLines(bText, opts);\r\n  var bset = {}; b.forEach(function(s){ bset[opts.ignoreCase ? s.toLowerCase() : s] = true; });\r\n  return a.filter(function(s){ return bset[opts.ignoreCase ? s.toLowerCase() : s]; });\r\n}\r\nfunction count(text){ return toLines(text).filter(function(s){ return s.trim().length > 0; }).length; }\r\nvar EXPORTS = { dedupLines: dedupLines, difference: difference, intersection: intersection, count: count };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DedupForgePure = EXPORTS; }\r\n\r\n"
+}

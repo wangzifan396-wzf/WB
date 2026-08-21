@@ -1,0 +1,71 @@
+{
+  "id": "TspForge",
+  "name": "tsp_forge",
+  "title": "TspForge",
+  "description": "TSP 求解：最近邻播种 + 2-opt 精炼，巡游长度与迭代轨迹。",
+  "entry": "tspRng",
+  "entries": {
+    "tspRng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "tspCities": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "w",
+        "h",
+        "seed"
+      ],
+      "fields": []
+    },
+    "tspDist": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "tspLength": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cities",
+        "tour"
+      ],
+      "fields": []
+    },
+    "tspNearest": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cities"
+      ],
+      "fields": []
+    },
+    "tspTwoOpt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cities",
+        "tour",
+        "maxPass"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "string",
+        "description": "输入（a）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction tspRng(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }\r\nfunction tspCities(n, w, h, seed){\r\n  var rnd = tspRng(seed||1), cs = [];\r\n  for(var i=0;i<n;i++) cs.push({ x: 20 + rnd()*(w-40), y: 20 + rnd()*(h-40) });\r\n  return cs;\r\n}\r\nfunction tspDist(a, b){ var dx = a.x-b.x, dy = a.y-b.y; return Math.sqrt(dx*dx+dy*dy); }\r\nfunction tspLength(cities, tour){\r\n  var L = 0;\r\n  for(var i=0;i<tour.length;i++) L += tspDist(cities[tour[i]], cities[tour[(i+1)%tour.length]]);\r\n  return L;\r\n}\r\nfunction tspNearest(cities){\r\n  var n = cities.length, used = new Array(n), tour = [0];\r\n  used[0] = true;\r\n  for(var k=1;k<n;k++){\r\n    var last = tour[tour.length-1], best = -1, bd = Infinity;\r\n    for(var i=0;i<n;i++){\r\n      if(!used[i]){\r\n        var d = tspDist(cities[last], cities[i]);\r\n        if(d < bd){ bd = d; best = i; }\r\n      }\r\n    }\r\n    used[best] = true; tour.push(best);\r\n  }\r\n  return tour;\r\n}\r\nfunction tspTwoOpt(cities, tour, maxPass){\r\n  var t = tour.slice(), n = t.length, improved = true, pass = 0;\r\n  while(improved && pass < (maxPass||50)){\r\n    improved = false; pass++;\r\n    for(var i=0;i<n-1;i++){\r\n      for(var j=i+2;j<n;j++){\r\n        if(i===0 && j===n-1) continue;\r\n        var a = cities[t[i]], b = cities[t[i+1]], c = cities[t[j]], d = cities[t[(j+1)%n]];\r\n        var delta = tspDist(a,c) + tspDist(b,d) - tspDist(a,b) - tspDist(c,d);\r\n        if(delta < -1e-9){\r\n          // reverse segment i+1..j\r\n          for(var lo=i+1, hi=j; lo<hi; lo++, hi--){ var tmp=t[lo]; t[lo]=t[hi]; t[hi]=tmp; }\r\n          improved = true;\r\n        }\r\n      }\r\n    }\r\n  }\r\n  return t;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tspRng:tspRng, tspCities:tspCities, tspDist:tspDist, tspLength:tspLength, tspNearest:tspNearest, tspTwoOpt:tspTwoOpt };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TspForgePure = { tspRng:tspRng, tspCities:tspCities, tspDist:tspDist, tspLength:tspLength, tspNearest:tspNearest, tspTwoOpt:tspTwoOpt };\r\n}\r\n"
+}

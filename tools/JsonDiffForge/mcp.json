@@ -1,0 +1,55 @@
+{
+  "id": "JsonDiffForge",
+  "name": "json_diff_forge",
+  "title": "JsonDiffForge",
+  "description": "结构化 JSON 差异比对：递归扁平化、新增/删除/修改逐项列出、路径级定位，离线可用。",
+  "entry": "jdFlatten",
+  "entries": {
+    "jdFlatten": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "o",
+        "prefix",
+        "out"
+      ],
+      "fields": []
+    },
+    "jdEqual": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "jdDiff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "o": {
+        "type": "string",
+        "description": "第 1 个参数（o）"
+      },
+      "prefix": {
+        "type": "string",
+        "description": "第 2 个参数（prefix）"
+      },
+      "out": {
+        "type": "object",
+        "description": "第 3 个参数（out）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction jdFlatten(o, prefix, out){\r\n  out = out || {};\r\n  prefix = prefix || '';\r\n  if(o===null || typeof o !== 'object'){ out[prefix] = o; return out; }\r\n  if(Array.isArray(o)){\r\n    for(var i=0;i<o.length;i++) jdFlatten(o[i], prefix+'/'+i, out);\r\n  } else {\r\n    var keys = Object.keys(o);\r\n    if(keys.length===0 && prefix!==''){ out[prefix] = {}; return out; }\r\n    for(var k=0;k<keys.length;k++){ var key=keys[k]; jdFlatten(o[key], prefix?prefix+'.'+key:key, out); }\r\n  }\r\n  return out;\r\n}\r\nfunction jdEqual(a,b){\r\n  if(a===b) return true;\r\n  if(a===null||b===null||typeof a!=='object'||typeof b!=='object') return a===b;\r\n  var ka=Object.keys(a), kb=Object.keys(b);\r\n  if(ka.length!==kb.length) return false;\r\n  for(var i=0;i<ka.length;i++){ if(!jdEqual(a[ka[i]], b[ka[i]])) return false; }\r\n  return true;\r\n}\r\nfunction jdDiff(a,b){\r\n  var fa=jdFlatten(a), fb=jdFlatten(b), paths={}, out={added:[],removed:[],changed:[]};\r\n  var p;\r\n  for(p in fa) paths[p]=1;\r\n  for(p in fb) paths[p]=1;\r\n  for(p in paths){\r\n    var inA=fa.hasOwnProperty(p), inB=fb.hasOwnProperty(p);\r\n    if(inA && !inB) out.removed.push(p);\r\n    else if(!inA && inB) out.added.push(p);\r\n    else if(!jdEqual(fa[p], fb[p])) out.changed.push({path:p, a:fa[p], b:fb[p]});\r\n  }\r\n  out.added.sort(); out.removed.sort();\r\n  out.changed.sort(function(x,y){ return x.path<y.path?-1:(x.path>y.path?1:0); });\r\n  out.total = out.added.length+out.removed.length+out.changed.length;\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { jdFlatten:jdFlatten, jdEqual:jdEqual, jdDiff:jdDiff };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.JsonDiffForgePure = { jdFlatten:jdFlatten, jdEqual:jdEqual, jdDiff:jdDiff };\r\n}\r\n\r\n"
+}

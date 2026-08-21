@@ -1,0 +1,50 @@
+{
+  "id": "ClipForge",
+  "name": "clip_forge",
+  "title": "ClipForge",
+  "description": "CSS clip-path 编辑器：内置多边形/箭头/星形/六边形/气泡预设，可增删顶点，实时预览并复制 CSS，离线可用。",
+  "entry": "cpPresets",
+  "entries": {
+    "cpPresets": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "cpClamp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "cpToCss": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pts"
+      ],
+      "fields": []
+    },
+    "cpParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "css"
+      ],
+      "fields": []
+    },
+    "cpMidInsert": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pts",
+        "i"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\nfunction cpPresets(){\r\n  return {\r\n    triangle:[[50,0],[0,100],[100,100]],\r\n    arrow:[[0,20],[60,20],[60,0],[100,50],[60,100],[60,80],[0,80]],\r\n    star:[[50,0],[61,35],[98,35],[68,57],[79,91],[50,70],[21,91],[32,57],[2,35],[39,35]],\r\n    hexagon:[[25,0],[75,0],[100,50],[75,100],[25,100],[0,50]],\r\n    message:[[0,0],[100,0],[100,75],[75,75],[75,100],[50,75],[0,75]]\r\n  };\r\n}\r\nfunction cpClamp(v){ var x=Number(v); if(!isFinite(x)) x=0; return Math.min(100,Math.max(0,Math.round(x*100)/100)); }\r\nfunction cpToCss(pts){\r\n  if(!pts || pts.length<3) return '';\r\n  return 'polygon('+pts.map(function(p){ return cpClamp(p[0])+'% '+cpClamp(p[1])+'%'; }).join(', ')+')';\r\n}\r\nfunction cpParse(css){\r\n  var m=/polygon\\(([^)]*)\\)/.exec(String(css||''));\r\n  if(!m) return null;\r\n  var pts=m[1].split(',').map(function(seg){\r\n    var mm=/([\\d.]+)%\\s+([\\d.]+)%/.exec(seg.trim());\r\n    return mm ? [Number(mm[1]),Number(mm[2])] : null;\r\n  });\r\n  if(pts.indexOf(null)>=0 || pts.length<3) return null;\r\n  return pts;\r\n}\r\nfunction cpMidInsert(pts, i){\r\n  if(!pts || pts.length<3) return pts;\r\n  var a=pts[i%pts.length], b=pts[(i+1)%pts.length];\r\n  var mid=[cpClamp((a[0]+b[0])/2), cpClamp((a[1]+b[1])/2)];\r\n  var out=pts.slice(0,i+1); out.push(mid); return out.concat(pts.slice(i+1));\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { cpPresets:cpPresets, cpClamp:cpClamp, cpToCss:cpToCss, cpParse:cpParse, cpMidInsert:cpMidInsert };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ClipForgePure = { cpPresets:cpPresets, cpClamp:cpClamp, cpToCss:cpToCss, cpParse:cpParse, cpMidInsert:cpMidInsert };\r\n}\r\n"
+}

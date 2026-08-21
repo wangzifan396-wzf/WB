@@ -1,0 +1,38 @@
+{
+  "id": "CrontabForge",
+  "name": "crontab_forge",
+  "title": "CrontabForge",
+  "description": "cron 表达式校验与解读：解析 5 段时间表，校验取值范围并以中文说明含义，再推算接下来若干次执行时间。",
+  "entry": "explain",
+  "entries": {
+    "explain": {
+      "paramStyle": "single",
+      "paramNames": [
+        "fields"
+      ],
+      "fields": []
+    },
+    "next": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "expr",
+        "fromIso",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "fields": {
+        "type": "string",
+        "description": "输入（fields）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  var NAMES=['分','时','日','月','周'];\r\n  var MAX=[59,23,31,12,6];\r\n  function parseField(f,max){\r\n    if(f==='*') return {any:true, ok:true};\r\n    var parts=f.split(','), set={}, step=1, ok=true;\r\n    parts.forEach(function(p){\r\n      var m=p.match(/^(\\*|\\d+(?:-\\d+)?)(?:\\/(\\d+))?$/);\r\n      if(!m){ ok=false; return; }\r\n      var range=m[1], st=m[2]?parseInt(m[2],10):1;\r\n      var lo,hi; if(range==='*'){lo=0;hi=max;} else if(range.indexOf('-')>=0){var a=range.split('-');lo=+a[0];hi=+a[1];} else lo=hi=+range;\r\n      if(lo<0||hi>max||lo>hi){ok=false;return;}\r\n      for(var i=lo;i<=hi;i+=st){ set[i]=1; }\r\n    });\r\n    return {ok:ok,set:set};\r\n  }\r\n  function explain(fields){\r\n    if(fields.length!==5) return {error:'需要 5 段表达式'};\r\n    var labels=['每分钟','每小时','每天','每月','每周'];\r\n    var res=[];\r\n    for(var i=0;i<5;i++){ var f=parseField(fields[i],MAX[i]); if(!f.ok) return {error:'第'+(i+1)+'段「'+fields[i]+'」非法（'+NAMES[i]+'范围 0-'+MAX[i]+'）'};\r\n      if(f.any) res.push(labels[i]); else res.push(NAMES[i]+' '+Object.keys(f.set).map(Number).sort(function(a,b){return a-b;}).join('/')); }\r\n    return {value:res.join('，')};\r\n  }\r\n  function match(fields,dt){\r\n    for(var i=0;i<5;i++){ var f=parseField(fields[i],MAX[i]); if(!f.any && !f.set[ [dt.getMinutes(),dt.getHours(),dt.getDate(),dt.getMonth()+1,dt.getDay()][i] ]) return false; }\r\n    return true;\r\n  }\r\n  function next(expr,fromIso,n){\r\n    var fields=String(expr).trim().split(/\\s+/); if(fields.length!==5) return {error:'需要 5 段表达式'};\r\n    for(var i=0;i<5;i++){ var f=parseField(fields[i],MAX[i]); if(!f.ok) return {error:'第'+(i+1)+'段非法'}; }\r\n    var dt=fromIso? new Date(fromIso): new Date(); dt.setSeconds(0,0);\r\n    var out=[], guard=0;\r\n    while(out.length<n && guard<4*366*24*60){ if(match(fields,dt)){ out.push(dt.toISOString().replace(/\\.\\d+Z$/,'Z')); dt.setMinutes(dt.getMinutes()+1); }\r\n      else { dt.setMinutes(dt.getMinutes()+1); } guard++; }\r\n    if(out.length===0) return {error:'未来 4 年内未匹配'};\r\n    return {value:out.join('\\n')};\r\n  }\r\n  var API={explain:explain,next:next};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__CrontabForge__=API;\r\n})();\r\n"
+}

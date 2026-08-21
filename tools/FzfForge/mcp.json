@@ -1,0 +1,42 @@
+{
+  "id": "FzfForge",
+  "name": "fzf_forge",
+  "title": "FzfForge",
+  "description": "模糊查找器：对候选列表做子序列模糊匹配，命中连续字符与词首边界时加权加分，结果按相关度排序返回。",
+  "entry": "search",
+  "entries": {
+    "search": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "q",
+        "items"
+      ],
+      "fields": []
+    },
+    "score": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "q",
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "q": {
+        "type": "string",
+        "description": "第 1 个参数（q）"
+      },
+      "items": {
+        "type": "array",
+        "description": "第 2 个参数（items）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function score(q, s){\r\n    q=q.toLowerCase(); s=s.toLowerCase();\r\n    var qi=0, sc=0, prev=-2;\r\n    for(var i=0;i<s.length && qi<q.length;i++){\r\n      if(s[i]===q[qi]){\r\n        sc+=1;\r\n        if(i===prev+1) sc+=3;\r\n        var b=(i===0)||s[i-1]===' '||s[i-1]==='-'||s[i-1]==='_'||s[i-1]==='/';\r\n        if(b) sc+=2;\r\n        prev=i; qi++;\r\n      }\r\n    }\r\n    return qi===q.length ? sc : -1;\r\n  }\r\n  function search(q, items){\r\n    items=items||[];\r\n    if(!q) return {value: items.map(function(t){return {text:String(t),score:0};})};\r\n    var out=[];\r\n    for(var i=0;i<items.length;i++){\r\n      var s=items[i]==null?'':String(items[i]);\r\n      var sc=score(q,s);\r\n      if(sc>=0) out.push({text:s,score:sc});\r\n    }\r\n    out.sort(function(a,b){return (b.score-a.score) || (a.text<b.text?-1:1);});\r\n    return {value: out};\r\n  }\r\n  var API={search:search, score:score};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__FzfForge__=API;\r\n})();\r\n"
+}

@@ -1,0 +1,57 @@
+{
+  "id": "DebtForge",
+  "name": "debt_forge",
+  "title": "DebtForge",
+  "description": "给定余额、年利率与月还款，算还清月数、总利息与各期明细。",
+  "entry": "monthsToPayoff",
+  "entries": {
+    "monthsToPayoff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "balance",
+        "apr",
+        "payment"
+      ],
+      "fields": []
+    },
+    "schedule": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "balance",
+        "apr",
+        "payment"
+      ],
+      "fields": []
+    },
+    "totalInterest": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "balance",
+        "apr",
+        "payment"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "balance": {
+        "type": "string",
+        "description": "第 1 个参数（balance）"
+      },
+      "apr": {
+        "type": "string",
+        "description": "第 2 个参数（apr）"
+      },
+      "payment": {
+        "type": "string",
+        "description": "第 3 个参数（payment）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction monthsToPayoff(balance, apr, payment){\r\n  if(!(balance>0)||!(payment>0)) return null;\r\n  var r=apr/12;\r\n  if(r===0){ if(payment<=0) return null; return Math.ceil(balance/payment); }\r\n  if(payment<=balance*r) return Infinity;\r\n  var bal=balance, m=0;\r\n  while(bal>1e-9 && m<1000000){ var interest=bal*r; var princ=payment-interest; bal-=princ; m++; }\r\n  return m;\r\n}\r\nfunction schedule(balance, apr, payment){\r\n  if(!(balance>0)||!(payment>0)) return null;\r\n  var r=apr/12, bal=balance, rows=[];\r\n  if(r===0){ var n=Math.ceil(balance/payment); var pp=payment; for(var i=1;i<=n;i++){ var pr=(i===n)?bal:pp; bal-=pr; rows.push({month:i,payment:pp,interest:0,principal:pr,balance:Math.max(0,bal)});} return rows; }\r\n  if(payment<=balance*r) return null;\r\n  var m=0;\r\n  while(bal>1e-9 && m<1000000){ var interest2=bal*r; var princ2=payment-interest2; var ap,apay;\r\n    if(princ2>=bal){ ap=bal; apay=interest2+bal; bal=0; } else { ap=princ2; apay=payment; bal-=princ2; }\r\n    m++; rows.push({month:m,payment:apay,interest:interest2,principal:ap,balance:Math.max(0,bal)});\r\n    if(bal<=1e-9) break; }\r\n  return rows;\r\n}\r\nfunction totalInterest(balance,apr,payment){var s=schedule(balance,apr,payment);if(!s)return null;var t=0;for(var i=0;i<s.length;i++)t+=s[i].interest;return t;}\r\nvar EXPORTS={monthsToPayoff:monthsToPayoff,schedule:schedule,totalInterest:totalInterest};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DebtForgePure = EXPORTS; }\r\n\r\n"
+}

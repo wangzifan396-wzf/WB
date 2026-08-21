@@ -1,0 +1,64 @@
+{
+  "id": "AffineForge",
+  "name": "affine_forge",
+  "title": "AffineForge",
+  "description": "仿射密码：单表代换密码 (a·x+b mod 26)，自动校验 a 与 26 互素。",
+  "entry": "affineEnc",
+  "entries": {
+    "affineEnc": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "affineDec": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "gcd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "modinv": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "m"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "a": {
+        "type": "string",
+        "description": "第 2 个参数（a）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 3 个参数（b）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a;}\r\nfunction modinv(a,m){a=((a%m)+m)%m;for(var x=1;x<m;x++)if((a*x)%m===1)return x;return null;}\r\nfunction affineEnc(text,a,b){if(gcd(a,26)!==1)throw new Error('a 必须与 26 互质');var out='';for(var i=0;i<text.length;i++){var c=text.charCodeAt(i);if(c>=65&&c<=90){out+=String.fromCharCode((a*(c-65)+b)%26+65);}else if(c>=97&&c<=122){out+=String.fromCharCode((a*(c-97)+b)%26+97);}else out+=text[i];}return out;}\r\nfunction affineDec(text,a,b){if(gcd(a,26)!==1)throw new Error('a 必须与 26 互质');var inv=modinv(a,26);if(inv==null)throw new Error('a 无模逆');var out='';for(var i=0;i<text.length;i++){var c=text.charCodeAt(i);if(c>=65&&c<=90){out+=String.fromCharCode(((inv*((c-65)-b))%26+26)%26+65);}else if(c>=97&&c<=122){out+=String.fromCharCode(((inv*((c-97)-b))%26+26)%26+97);}else out+=text[i];}return out;}\r\nvar EXPORTS = { affineEnc:affineEnc, affineDec:affineDec, gcd:gcd, modinv:modinv };\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.AffineForgePure = EXPORTS; }\r\n\r\n"
+}

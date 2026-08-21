@@ -1,0 +1,61 @@
+{
+  "id": "JsonSchemaForge",
+  "name": "json_schema_forge",
+  "title": "JsonSchemaForge",
+  "description": "JSON Schema 校验器：type / required / enum / pattern 与数值数组约束，错误精确到路径，可从数据反推 Schema，离线可用。",
+  "entry": "jsType",
+  "entries": {
+    "jsType": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "jsTypeOk": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "want",
+        "v"
+      ],
+      "fields": []
+    },
+    "jsValidate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "schema",
+        "data",
+        "pathPrefix"
+      ],
+      "fields": []
+    },
+    "jsInfer": {
+      "paramStyle": "single",
+      "paramNames": [
+        "data"
+      ],
+      "fields": []
+    },
+    "jsRun": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "schemaText",
+        "dataText"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "v": {
+        "type": "string",
+        "description": "输入（v）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction jsType(v){\r\n  if(v===null) return 'null';\r\n  if(Array.isArray(v)) return 'array';\r\n  if(typeof v==='number') return Number.isInteger(v) ? 'integer' : 'number';\r\n  return typeof v;\r\n}\r\nfunction jsTypeOk(want, v){\r\n  var t=jsType(v);\r\n  if(want==='number') return t==='number'||t==='integer';\r\n  return want===t;\r\n}\r\nfunction jsValidate(schema, data, pathPrefix){\r\n  var errs=[], p=pathPrefix||'$';\r\n  if(!schema || typeof schema!=='object') return errs;\r\n  if(schema.type){\r\n    var want=[].concat(schema.type), hit=false;\r\n    for(var i=0;i<want.length;i++) if(jsTypeOk(want[i],data)) hit=true;\r\n    if(!hit){ errs.push({ path:p, msg:'类型应为 '+want.join('|')+'，实际 '+jsType(data) }); return errs; }\r\n  }\r\n  if(schema.enum && schema.enum.indexOf(data)<0)\r\n    errs.push({ path:p, msg:'取值应属于 ['+schema.enum.join(', ')+']' });\r\n  if(typeof data==='number'){\r\n    if(schema.minimum!==undefined && data<schema.minimum) errs.push({ path:p, msg:'应 >= '+schema.minimum });\r\n    if(schema.maximum!==undefined && data>schema.maximum) errs.push({ path:p, msg:'应 <= '+schema.maximum });\r\n  }\r\n  if(typeof data==='string'){\r\n    if(schema.minLength!==undefined && data.length<schema.minLength) errs.push({ path:p, msg:'长度应 >= '+schema.minLength });\r\n    if(schema.maxLength!==undefined && data.length>schema.maxLength) errs.push({ path:p, msg:'长度应 <= '+schema.maxLength });\r\n    if(schema.pattern && !(new RegExp(schema.pattern)).test(data)) errs.push({ path:p, msg:'不匹配 /'+schema.pattern+'/' });\r\n  }\r\n  if(Array.isArray(data)){\r\n    if(schema.minItems!==undefined && data.length<schema.minItems) errs.push({ path:p, msg:'元素数应 >= '+schema.minItems });\r\n    if(schema.maxItems!==undefined && data.length>schema.maxItems) errs.push({ path:p, msg:'元素数应 <= '+schema.maxItems });\r\n    if(schema.items) for(var k=0;k<data.length;k++) errs=errs.concat(jsValidate(schema.items, data[k], p+'['+k+']'));\r\n  }\r\n  if(data && typeof data==='object' && !Array.isArray(data)){\r\n    var req=schema.required||[];\r\n    for(var r=0;r<req.length;r++)\r\n      if(!Object.prototype.hasOwnProperty.call(data, req[r])) errs.push({ path:p+'.'+req[r], msg:'缺少必填字段' });\r\n    var props=schema.properties||{};\r\n    for(var key in props) if(Object.prototype.hasOwnProperty.call(data,key))\r\n      errs=errs.concat(jsValidate(props[key], data[key], p+'.'+key));\r\n    if(schema.additionalProperties===false)\r\n      for(var dk in data) if(!Object.prototype.hasOwnProperty.call(props,dk))\r\n        errs.push({ path:p+'.'+dk, msg:'不允许的额外字段' });\r\n  }\r\n  return errs;\r\n}\r\nfunction jsInfer(data){\r\n  var t=jsType(data);\r\n  if(t==='array'){\r\n    if(!data.length) return { type:'array' };\r\n    return { type:'array', items: jsInfer(data[0]) };\r\n  }\r\n  if(t==='object'){\r\n    var props={}, req=[];\r\n    for(var k in data){ props[k]=jsInfer(data[k]); req.push(k); }\r\n    return { type:'object', properties:props, required:req };\r\n  }\r\n  return { type:t };\r\n}\r\nfunction jsRun(schemaText, dataText){\r\n  var schema, data;\r\n  try{ schema=JSON.parse(schemaText); }catch(e){ return { error:'Schema 不是合法 JSON：'+e.message }; }\r\n  try{ data=JSON.parse(dataText); }catch(e){ return { error:'数据不是合法 JSON：'+e.message }; }\r\n  var errs=jsValidate(schema, data, '$');\r\n  return { error:null, valid:errs.length===0, errors:errs };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { jsType:jsType, jsTypeOk:jsTypeOk, jsValidate:jsValidate, jsInfer:jsInfer, jsRun:jsRun };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.JsonSchemaForgePure = { jsType:jsType, jsTypeOk:jsTypeOk, jsValidate:jsValidate, jsInfer:jsInfer, jsRun:jsRun };\r\n}\r\n\r\n"
+}

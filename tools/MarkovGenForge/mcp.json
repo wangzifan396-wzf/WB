@@ -1,0 +1,43 @@
+{
+  "id": "MarkovGenForge",
+  "name": "markov_gen_forge",
+  "title": "MarkovGenForge",
+  "description": "从语料训练 n 阶转移并生成拟文本，可复现随机种子。",
+  "entry": "build",
+  "entries": {
+    "build": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "order"
+      ],
+      "fields": []
+    },
+    "gen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "rng",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "order": {
+        "type": "string",
+        "description": "第 2 个参数（order）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction build(text, order){\r\n  order=order>0?order:2;\r\n  var words=(text||'').split(/\\s+/).filter(function(w){return w.length;});\r\n  if(words.length<order+1) return null;\r\n  var map={};\r\n  for(var i=0;i+order<words.length;i++){\r\n    var key=words.slice(i,i+order).join(' ');\r\n    var next=words[i+order];\r\n    (map[key]=map[key]||[]).push(next);\r\n  }\r\n  return {map:map, order:order, start:words.slice(0,order).join(' ')};\r\n}\r\nfunction gen(model, rng, n){\r\n  if(!model||!(n>0)) return '';\r\n  var keys=Object.keys(model.map); if(!keys.length) return '';\r\n  var cur=model.start && model.map[model.start] ? model.start : keys[Math.floor(rng()*keys.length)];\r\n  var out=cur.split(' ');\r\n  for(var i=0;i<n;i++){\r\n    var opts=model.map[cur]; if(!opts||!opts.length) break;\r\n    var nxt=opts[Math.floor(rng()*opts.length)];\r\n    out.push(nxt);\r\n    cur=out.slice(out.length-model.order).join(' ');\r\n  }\r\n  return out.join(' ');\r\n}\r\nvar EXPORTS={build:build,gen:gen};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MarkovGenForgePure = EXPORTS; }\r\n\r\n"
+}

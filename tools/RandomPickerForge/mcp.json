@@ -1,0 +1,63 @@
+{
+  "id": "RandomPickerForge",
+  "name": "random_picker_forge",
+  "title": "RandomPickerForge",
+  "description": "随机抽签器：从候选列表抽取，支持不重复/可重复与随机种子复现，适合抽签、抽奖与分组。",
+  "entry": "mulberry32",
+  "entries": {
+    "mulberry32": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "pick": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "list",
+        "rnd"
+      ],
+      "fields": []
+    },
+    "shuffle": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "list",
+        "rnd"
+      ],
+      "fields": []
+    },
+    "sample": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "list",
+        "k",
+        "rnd"
+      ],
+      "fields": []
+    },
+    "weightedPick": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "weights",
+        "rnd"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seed": {
+        "type": "string",
+        "description": "输入（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction mulberry32(seed){\r\n  var a = seed>>>0;\r\n  return function(){\r\n    a |= 0; a = (a + 0x6D2B79F5) | 0;\r\n    var t = Math.imul(a ^ (a >>> 15), 1 | a);\r\n    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;\r\n    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;\r\n  };\r\n}\r\nfunction pick(list, rnd){ if(!list.length) return null; var r = rnd||Math.random; return list[Math.floor(r()*list.length)]; }\r\nfunction shuffle(list, rnd){\r\n  var r = rnd||Math.random; var a = list.slice();\r\n  for(var i=a.length-1;i>0;i--){ var j=Math.floor(r()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }\r\n  return a;\r\n}\r\nfunction sample(list, k, rnd){\r\n  if(k>=list.length) return shuffle(list, rnd);\r\n  return shuffle(list, rnd).slice(0,k);\r\n}\r\nfunction weightedPick(items, weights, rnd){\r\n  var r = rnd||Math.random; var sum=0; for(var i=0;i<weights.length;i++) sum+=weights[i];\r\n  var x=r()*sum;\r\n  for(var j=0;j<weights.length;j++){ x-=weights[j]; if(x<=0) return items[j]; }\r\n  return items[items.length-1];\r\n}\r\nvar EXPORTS={ mulberry32:mulberry32, pick:pick, shuffle:shuffle, sample:sample, weightedPick:weightedPick };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RandomPickerForgePure = EXPORTS; }\r\n\r\n"
+}

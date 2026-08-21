@@ -1,0 +1,29 @@
+{
+  "id": "JsonValidatorForge",
+  "name": "json_validator_forge",
+  "title": "JsonValidatorForge",
+  "description": "JSON 严格校验：手写递归下降解析器，遇错精确定位到行号/列号，离线可用。",
+  "entry": "validate",
+  "entries": {
+    "validate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "json"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "json": {
+        "type": "string",
+        "description": "输入（json）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction validate(json){\r\n  var i=0, n=json.length;\r\n  function skipWs(){ while(i<n && (json[i]===' '||json[i]==='\\n'||json[i]==='\\t'||json[i]==='\\r')) i++; }\r\n  function err(msg){ var line=1,col=1; for(var k=0;k<i;k++){ if(json[k]==='\\n'){line++;col=1;} else col++; } return {valid:false, error:msg, position:i, line:line, col:col}; }\r\n  function parseValue(){ skipWs(); if(i>=n) throw err('意外结束'); var c=json[i];\r\n    if(c==='{') return parseObject(); if(c==='[') return parseArray();\r\n    if(c==='\"'||c===\"'\") return parseString(); if(c==='t'||c==='f') return parseBool(); if(c==='n') return parseNull();\r\n    if(c==='-'||(c>='0'&&c<='9')) return parseNumber(); throw err('非法字符 \"'+c+'\"'); }\r\n  function parseObject(){ i++; var obj={}; skipWs(); if(json[i]==='}'){ i++; return obj; }\r\n    while(true){ skipWs(); if(json[i]!=='\"'&&json[i]!==\"'\") throw err('期望键名字符串'); var key=parseString(); skipWs();\r\n      if(json[i]!==':') throw err('期望 \":\"'); i++; var val=parseValue(); obj[key]=val; skipWs();\r\n      if(json[i]===','){ i++; continue; } if(json[i]==='}'){ i++; return obj; } throw err('期望 \",\" 或 \"}\"'); } }\r\n  function parseArray(){ i++; var arr=[]; skipWs(); if(json[i]===']'){ i++; return arr; }\r\n    while(true){ var v=parseValue(); arr.push(v); skipWs(); if(json[i]===','){ i++; continue; } if(json[i]===']'){ i++; return arr; } throw err('期望 \",\" 或 \"]\"'); } }\r\n  function parseString(){ var q=json[i]; i++; var s='';\r\n    while(i<n){ var c=json[i]; if(c===q){ i++; return s; } if(c==='\\\\'){ i++; var e=json[i];\r\n      if(e==='n')s+='\\n'; else if(e==='t')s+='\\t'; else if(e==='\"')s+='\"'; else if(e===\"'\")s+=\"'\"; else if(e==='\\\\')s+='\\\\'; else if(e==='/')s+='/'; else if(e==='u'){ var hex=json.substr(i+1,4); s+=String.fromCharCode(parseInt(hex,16)); i+=4; } else s+=e; i++; }\r\n      else { s+=c; i++; } } throw err('字符串未闭合'); }\r\n  function parseBool(){ if(json.substr(i,4)==='true'){ i+=4; return true; } if(json.substr(i,5)==='false'){ i+=5; return false; } throw err('非法布尔'); }\r\n  function parseNull(){ if(json.substr(i,4)==='null'){ i+=4; return null; } throw err('非法 null'); }\r\n  function parseNumber(){ var start=i; if(json[i]==='-') i++; while(i<n&&json[i]>='0'&&json[i]<='9') i++;\r\n    if(json[i]==='.'){ i++; while(i<n&&json[i]>='0'&&json[i]<='9') i++; } if(json[i]==='e'||json[i]==='E'){ i++; if(json[i]==='+'||json[i]==='-') i++; while(i<n&&json[i]>='0'&&json[i]<='9') i++; }\r\n    var num=json.substring(start,i); var val=Number(num); if(isNaN(val)) throw err('非法数字 \"'+num+'\"'); return val; }\r\n  try{ var val=parseValue(); skipWs(); if(i<n) throw err('多余字符'); return {valid:true, value:val}; }catch(e){ return e; }\r\n}\r\nvar EXPORTS={validate:validate};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.JsonValidatorForgePure = EXPORTS; }\r\n\r\n"
+}

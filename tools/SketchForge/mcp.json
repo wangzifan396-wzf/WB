@@ -1,0 +1,72 @@
+{
+  "id": "SketchForge",
+  "name": "sketch_forge",
+  "title": "SketchForge",
+  "description": "Count-Min Sketch 频次草图：流式频率估计，至多高估。",
+  "entry": "fnv1a32",
+  "entries": {
+    "fnv1a32": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "cmsCreate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "width",
+        "depth",
+        "seed"
+      ],
+      "fields": []
+    },
+    "cmsHash": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sketch",
+        "item",
+        "i"
+      ],
+      "fields": []
+    },
+    "cmsAdd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sketch",
+        "item",
+        "count"
+      ],
+      "fields": []
+    },
+    "cmsCount": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sketch",
+        "item"
+      ],
+      "fields": []
+    },
+    "cmsMerge": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction fnv1a32(str){\r\n  var h=0x811c9dc5;\r\n  for(var i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }\r\n  return h >>> 0;\r\n}\r\nfunction cmsCreate(width, depth, seed){\r\n  width = width||64; depth = depth||4; seed = seed||0x9e3779b1;\r\n  var table=[]; for(var i=0;i<depth;i++){ var row=new Array(width); for(var j=0;j<width;j++) row[j]=0; table.push(row); }\r\n  return {width:width, depth:depth, seed:seed, table:table};\r\n}\r\nfunction cmsHash(sketch, item, i){\r\n  var h = fnv1a32(String(item));\r\n  h = (h + Math.imul(i+1, sketch.seed)) >>> 0;\r\n  h = (h ^ (h>>>15)) >>> 0;\r\n  return h % sketch.width;\r\n}\r\nfunction cmsAdd(sketch, item, count){\r\n  count = count||1;\r\n  for(var i=0;i<sketch.depth;i++){ var c=cmsHash(sketch,item,i); sketch.table[i][c]+=count; }\r\n  return sketch;\r\n}\r\nfunction cmsCount(sketch, item){\r\n  var min=Infinity;\r\n  for(var i=0;i<sketch.depth;i++){ var c=cmsHash(sketch,item,i); if(sketch.table[i][c]<min) min=sketch.table[i][c]; }\r\n  return min===Infinity?0:min;\r\n}\r\nfunction cmsMerge(a, b){\r\n  if(a.width!==b.width || a.depth!==b.depth) throw new Error('CMS_SHAPE_MISMATCH');\r\n  for(var i=0;i<a.depth;i++) for(var j=0;j<a.width;j++){ if(b.table[i][j]>a.table[i][j]) a.table[i][j]=b.table[i][j]; }\r\n  return a;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { fnv1a32:fnv1a32, cmsCreate:cmsCreate, cmsHash:cmsHash, cmsAdd:cmsAdd, cmsCount:cmsCount, cmsMerge:cmsMerge };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SketchForgePure = { fnv1a32:fnv1a32, cmsCreate:cmsCreate, cmsHash:cmsHash, cmsAdd:cmsAdd, cmsCount:cmsCount, cmsMerge:cmsMerge };\r\n}\r\n"
+}

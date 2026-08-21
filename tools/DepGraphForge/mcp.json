@@ -1,0 +1,121 @@
+{
+  "id": "DepGraphForge",
+  "name": "dep_graph_forge",
+  "title": "DepGraphForge",
+  "description": "依赖体检与循环检测：package.json 版本范围风险打分、模块依赖图循环查找、拓扑排序与扇入扇出指标、DOT 导出，离线可用。",
+  "entry": "buildGraph",
+  "entries": {
+    "parseRange": {
+      "paramStyle": "single",
+      "paramNames": [
+        "range"
+      ],
+      "fields": []
+    },
+    "parsePackageJson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "depReport": {
+      "paramStyle": "object",
+      "paramNames": [
+        "pkg"
+      ],
+      "fields": [
+        "ok",
+        "error",
+        "deps",
+        "dupes",
+        "pm",
+        "hasLockScripts"
+      ]
+    },
+    "parseGraph": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "buildGraph": {
+      "paramStyle": "single",
+      "paramNames": [
+        "edges"
+      ],
+      "fields": []
+    },
+    "findCycles": {
+      "paramStyle": "object",
+      "paramNames": [
+        "g"
+      ],
+      "fields": [
+        "adj",
+        "names"
+      ]
+    },
+    "topoOrder": {
+      "paramStyle": "object",
+      "paramNames": [
+        "g"
+      ],
+      "fields": [
+        "names",
+        "indeg",
+        "adj"
+      ]
+    },
+    "depths": {
+      "paramStyle": "object",
+      "paramNames": [
+        "g"
+      ],
+      "fields": [
+        "adj",
+        "names"
+      ]
+    },
+    "metrics": {
+      "paramStyle": "object",
+      "paramNames": [
+        "g"
+      ],
+      "fields": [
+        "names",
+        "adj",
+        "indeg"
+      ]
+    },
+    "analyze": {
+      "paramStyle": "single",
+      "paramNames": [
+        "graphText"
+      ],
+      "fields": []
+    },
+    "dotOutput": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "g",
+        "cycles"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "edges": {
+        "type": "string",
+        "description": "输入（edges）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseRange(range){\r\n  var r = String(range == null ? '' : range).trim();\r\n  if (!r) return { kind:'empty', risk:3, note:'空范围，安装行为不确定' };\r\n  if (/^(file|link):/.test(r)) return { kind:'file', risk:2, note:'本地路径依赖，CI 上大概率装不上' };\r\n  if (/^workspace:/.test(r)) return { kind:'workspace', risk:0, note:'工作区内部依赖' };\r\n  if (/^(git\\+|git:|github:|https?:)/.test(r)) return { kind:'git', risk:3, note:'Git 源依赖，无版本锁定与审计' };\r\n  if (/^npm:/.test(r)) return { kind:'alias', risk:1, note:'别名依赖，注意实际包名' };\r\n  if (r === '*' || r === 'x' || r === 'latest' || r === '') return { kind:'any', risk:3, note:'任意版本，随时可能被破坏性升级击穿' };\r\n  if (/^\\d+\\.\\d+\\.\\d+([-+].*)?$/.test(r)) return { kind:'exact', risk:0, note:'锁定精确版本' };\r\n  if (/^\\^/.test(r)){\r\n    var m = /^\\^(\\d+)\\./.exec(r);\r\n    if (m && m[1] === '0') return { kind:'caret0', risk:2, note:'0.x 的 ^ 只锁次版本，社区约定并不可靠' };\r\n    return { kind:'caret', risk:1, note:'允许次版本与补丁升级' };\r\n  }\r\n  if (/^~/.test(r)) return { kind:'tilde', risk:1, note:'仅允许补丁升级' };\r\n  if (/^\\d+\\.x$|^\\d+$/.test(r)) return { kind:'major', risk:2, note:'只锁主版本，次版本自由跳' };\r\n  if (/[<>]/.test(r)) return { kind:'range', risk:2, note:'区间范围，解析结果依赖注册表当前状态' };\r\n  if (/\\|\\|/.test(r)) return { kind:'union', risk:2, note:'多段并集范围，容易在不同环境解析出不同版本' };\r\n  return { kind:'other', risk:2, note:'非常规范围表达式' };\r\n}\r\n\r\nfunction parsePackageJson(text){\r\n  var obj;\r\n  try { obj = JSON.parse(String(text == null ? '' : text)); }\r\n  catch (e){ return { ok:false, error:'JSON 解析失败：' + e.message, deps:[] }; }\r\n  if (!obj || typeof obj !== 'object') return { ok:false, error:'顶层不是对象', deps:[] };\r\n  var groups = [['dependencies','runtime'], ['devDependencies','dev'], ['peerDependencies','peer'], ['optionalDependencies','optional']];\r\n  var deps = [], seen = {};\r\n  for (var g = 0; g < groups.length; g++){\r\n    var src = obj[groups[g][0]] || {};\r\n    for (var k in src){\r\n      if (!Object.prototype.hasOwnProperty.call(src, k)) continue;\r\n      var info = parseRange(src[k]);\r\n      deps.push({ name:k, range:String(src[k]), scope:groups[g][1], kind:info.kind, risk:info.risk, note:info.note });\r\n      seen[k] = (seen[k] || []).concat(groups[g][1]);\r\n    }\r\n  }\r\n  var dupes = [];\r\n  for (var n in seen) if (Object.prototype.hasOwnProperty.call(seen, n) && seen[n].length > 1) dupes.push({ name:n, scopes:seen[n] });\r\n  return {\r\n    ok:true, error:null, name:obj.name || '', version:obj.version || '',\r\n    deps:deps, dupes:dupes,\r\n    hasEngines: !!obj.engines, hasLockScripts: !!(obj.scripts && (obj.scripts.preinstall || obj.scripts.postinstall)),\r\n    pm: obj.packageManager || ''\r\n  };\r\n}\r\n\r\nfunction depReport(pkg){\r\n  if (!pkg.ok) return { total:0, score:0, buckets:{}, issues:[{level:'bad', msg:pkg.error}] };\r\n  var deps = pkg.deps, buckets = {}, issues = [], riskSum = 0;\r\n  for (var i = 0; i < deps.length; i++){\r\n    buckets[deps[i].kind] = (buckets[deps[i].kind] || 0) + 1;\r\n    riskSum += deps[i].risk;\r\n    if (deps[i].risk >= 3) issues.push({ level:'bad', msg:deps[i].name + ' → ' + deps[i].range + '：' + deps[i].note });\r\n    else if (deps[i].risk === 2) issues.push({ level:'warn', msg:deps[i].name + ' → ' + deps[i].range + '：' + deps[i].note });\r\n  }\r\n  for (var d = 0; d < pkg.dupes.length; d++) issues.push({ level:'warn', msg:pkg.dupes[d].name + ' 同时出现在 ' + pkg.dupes[d].scopes.join(' / ') + '，解析优先级容易踩坑' });\r\n  if (!pkg.pm) issues.push({ level:'warn', msg:'未声明 packageManager 字段，团队成员可能用不同包管理器' });\r\n  if (pkg.hasLockScripts) issues.push({ level:'warn', msg:'存在 pre/postinstall 脚本，供应链攻击的常见落点' });\r\n  var runtime = deps.filter(function(x){ return x.scope === 'runtime'; }).length;\r\n  if (runtime > 40) issues.push({ level:'warn', msg:'运行时依赖 ' + runtime + ' 个，构建体积与审计面都偏大' });\r\n  var avg = deps.length ? riskSum / deps.length : 0;\r\n  var score = Math.max(0, Math.round(100 - avg * 22 - pkg.dupes.length * 5 - (pkg.hasLockScripts ? 8 : 0)));\r\n  return { total:deps.length, runtime:runtime, buckets:buckets, issues:issues, avgRisk:Math.round(avg * 100) / 100, score:score };\r\n}\r\n\r\nfunction parseGraph(text){\r\n  var lines = String(text == null ? '' : text).split(/\\r?\\n/);\r\n  var edges = [], errors = [];\r\n  for (var i = 0; i < lines.length; i++){\r\n    var l = lines[i].trim();\r\n    if (!l || l.charAt(0) === '#') continue;\r\n    var parts = l.split(/->|=>/);\r\n    if (parts.length < 2){ errors.push({ line:i + 1, text:l }); continue; }\r\n    var from = parts[0].trim();\r\n    if (!from){ errors.push({ line:i + 1, text:l }); continue; }\r\n    var tos = parts.slice(1).join('->').split(/[,\\s]+/).filter(function(x){ return x; });\r\n    for (var j = 0; j < tos.length; j++) edges.push({ from:from, to:tos[j] });\r\n    if (!tos.length) edges.push({ from:from, to:null });\r\n  }\r\n  return { edges:edges, errors:errors };\r\n}\r\n\r\nfunction buildGraph(edges){\r\n  var adj = {}, indeg = {}, nodes = {};\r\n  function touch(n){ if (!adj[n]){ adj[n] = []; indeg[n] = 0; nodes[n] = 1; } }\r\n  for (var i = 0; i < edges.length; i++){\r\n    var e = edges[i];\r\n    touch(e.from);\r\n    if (e.to === null || e.to === undefined) continue;\r\n    touch(e.to);\r\n    if (adj[e.from].indexOf(e.to) < 0){ adj[e.from].push(e.to); indeg[e.to]++; }\r\n  }\r\n  return { adj:adj, indeg:indeg, names:Object.keys(nodes).sort() };\r\n}\r\n\r\nfunction findCycles(g){\r\n  var color = {}, stack = [], cycles = [], seen = {};\r\n  function dfs(n){\r\n    color[n] = 1; stack.push(n);\r\n    var next = g.adj[n] || [];\r\n    for (var i = 0; i < next.length; i++){\r\n      var m = next[i];\r\n      if (color[m] === 1){\r\n        var idx = stack.indexOf(m);\r\n        var cyc = stack.slice(idx).concat([m]);\r\n        var key = cyc.slice().sort().join('|');\r\n        if (!seen[key]){ seen[key] = 1; cycles.push(cyc); }\r\n      } else if (!color[m]) dfs(m);\r\n    }\r\n    color[n] = 2; stack.pop();\r\n  }\r\n  for (var i = 0; i < g.names.length; i++) if (!color[g.names[i]]) dfs(g.names[i]);\r\n  return cycles;\r\n}\r\n\r\nfunction topoOrder(g){\r\n  var indeg = {}, i;\r\n  for (i = 0; i < g.names.length; i++) indeg[g.names[i]] = g.indeg[g.names[i]] || 0;\r\n  var queue = g.names.filter(function(n){ return indeg[n] === 0; }).sort(), out = [];\r\n  while (queue.length){\r\n    var n = queue.shift();\r\n    out.push(n);\r\n    var next = (g.adj[n] || []).slice().sort();\r\n    for (i = 0; i < next.length; i++){\r\n      indeg[next[i]]--;\r\n      if (indeg[next[i]] === 0) queue.push(next[i]);\r\n    }\r\n    queue.sort();\r\n  }\r\n  return { order:out, complete: out.length === g.names.length };\r\n}\r\n\r\nfunction depths(g){\r\n  var memo = {}, guard = {};\r\n  function walk(n){\r\n    if (memo[n] !== undefined) return memo[n];\r\n    if (guard[n]) return 0;\r\n    guard[n] = 1;\r\n    var best = 0, next = g.adj[n] || [];\r\n    for (var i = 0; i < next.length; i++) best = Math.max(best, 1 + walk(next[i]));\r\n    guard[n] = 0;\r\n    memo[n] = best;\r\n    return best;\r\n  }\r\n  var out = {};\r\n  for (var i = 0; i < g.names.length; i++) out[g.names[i]] = walk(g.names[i]);\r\n  return out;\r\n}\r\n\r\nfunction metrics(g){\r\n  var d = depths(g), rows = [];\r\n  for (var i = 0; i < g.names.length; i++){\r\n    var n = g.names[i];\r\n    rows.push({ name:n, fanOut:(g.adj[n] || []).length, fanIn:g.indeg[n] || 0, depth:d[n] });\r\n  }\r\n  rows.sort(function(a, b){ return b.fanIn - a.fanIn || b.fanOut - a.fanOut || (a.name < b.name ? -1 : 1); });\r\n  var maxDepth = 0;\r\n  for (var k = 0; k < rows.length; k++) maxDepth = Math.max(maxDepth, rows[k].depth);\r\n  var leaves = rows.filter(function(r){ return r.fanOut === 0; }).length;\r\n  var roots = rows.filter(function(r){ return r.fanIn === 0; }).length;\r\n  var edges = rows.reduce(function(s, r){ return s + r.fanOut; }, 0);\r\n  return { rows:rows, nodes:rows.length, edges:edges, maxDepth:maxDepth, leaves:leaves, roots:roots,\r\n           density: rows.length > 1 ? Math.round(edges / (rows.length * (rows.length - 1)) * 1000) / 1000 : 0 };\r\n}\r\n\r\nfunction analyze(graphText){\r\n  var p = parseGraph(graphText);\r\n  var g = buildGraph(p.edges);\r\n  var cyc = findCycles(g);\r\n  var topo = topoOrder(g);\r\n  var mt = metrics(g);\r\n  var health = 100;\r\n  health -= cyc.length * 20;\r\n  if (mt.maxDepth > 8) health -= 10;\r\n  if (mt.nodes && mt.roots === 0) health -= 15;\r\n  health -= p.errors.length * 5;\r\n  return { graph:g, cycles:cyc, topo:topo, metrics:mt, errors:p.errors, health:Math.max(0, health) };\r\n}\r\n\r\nfunction dotOutput(g, cycles){\r\n  var inCycle = {};\r\n  for (var c = 0; c < cycles.length; c++) for (var j = 0; j < cycles[c].length; j++) inCycle[cycles[c][j]] = 1;\r\n  var out = ['digraph deps {', '  rankdir=LR;', '  node [shape=box, style=rounded];'];\r\n  for (var i = 0; i < g.names.length; i++){\r\n    var n = g.names[i];\r\n    out.push('  \"' + n + '\"' + (inCycle[n] ? ' [color=red]' : '') + ';');\r\n  }\r\n  for (var k = 0; k < g.names.length; k++){\r\n    var f = g.names[k], next = g.adj[f] || [];\r\n    for (var t = 0; t < next.length; t++) out.push('  \"' + f + '\" -> \"' + next[t] + '\";');\r\n  }\r\n  out.push('}');\r\n  return out.join('\\n');\r\n}\r\n\r\nvar DepGraphForgePure = {\r\n  parseRange: parseRange, parsePackageJson: parsePackageJson, depReport: depReport,\r\n  parseGraph: parseGraph, buildGraph: buildGraph, findCycles: findCycles, topoOrder: topoOrder,\r\n  depths: depths, metrics: metrics, analyze: analyze, dotOutput: dotOutput\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = DepGraphForgePure;\r\nif (typeof window !== 'undefined') window.DepGraphForgePure = DepGraphForgePure;\r\n\r\n"
+}

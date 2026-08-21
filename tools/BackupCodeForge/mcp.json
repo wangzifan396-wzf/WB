@@ -1,0 +1,41 @@
+{
+  "id": "BackupCodeForge",
+  "name": "backup_code_forge",
+  "title": "BackupCodeForge",
+  "description": "可复现的 2FA 备份码生成与批量导出",
+  "entry": "generate",
+  "entries": {
+    "generate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "count",
+        "seed"
+      ],
+      "fields": []
+    },
+    "code": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rng"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "count": {
+        "type": "number",
+        "description": "第 1 个参数（count）（数值）"
+      },
+      "seed": {
+        "type": "string",
+        "description": "第 2 个参数（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar BC_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction hashSeed(s){ if(!s) return (Date.now()>>>0); var h=2166136261>>>0; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }\r\nfunction code(rng){ var s=''; for(var i=0;i<8;i++){ s+=BC_CHARS[Math.floor(rng()*BC_CHARS.length)]; if(i===3) s+='-'; } return s; }\r\nfunction generate(count, seed){ count=+count||10; var rng=rngFactory(hashSeed(seed)); var out=[]; for(var i=0;i<count;i++) out.push(code(rng)); return out; }\r\nvar EXPORTS={generate:generate, code:code, BC_CHARS:BC_CHARS};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BackupCodeForgePure = EXPORTS; }\r\n\r\n"
+}

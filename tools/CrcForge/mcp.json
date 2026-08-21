@@ -1,0 +1,36 @@
+{
+  "id": "CrcForge",
+  "name": "crc_forge",
+  "title": "CrcForge",
+  "description": "CRC 校验和：CRC-32 与 CRC-16/CCITT 数据完整性校验。",
+  "entry": "crc32",
+  "entries": {
+    "crc32": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "crc16ccitt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction crc32Table(){\r\n  var t=[];\r\n  for(var n=0;n<256;n++){\r\n    var c=n;\r\n    for(var k=0;k<8;k++){ c = (c & 1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1); }\r\n    t[n]=c>>>0;\r\n  }\r\n  return t;\r\n}\r\nvar CRC32_T = crc32Table();\r\nfunction crc32(str){\r\n  var c=0xFFFFFFFF;\r\n  for(var i=0;i<str.length;i++){ c = CRC32_T[(c ^ str.charCodeAt(i)) & 0xFF] ^ (c>>>8); }\r\n  return (c ^ 0xFFFFFFFF)>>>0;\r\n}\r\nfunction crc16ccitt(str){\r\n  var crc=0xFFFF;\r\n  for(var i=0;i<str.length;i++){\r\n    crc ^= (str.charCodeAt(i) << 8);\r\n    for(var j=0;j<8;j++){ crc = (crc & 0x8000) ? ((crc<<1) ^ 0x1021) & 0xFFFF : (crc<<1) & 0xFFFF; }\r\n  }\r\n  return crc & 0xFFFF;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { crc32:crc32, crc16ccitt:crc16ccitt, crc32Table:crc32Table };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.CrcForgePure = { crc32:crc32, crc16ccitt:crc16ccitt };\r\n}\r\n"
+}

@@ -1,0 +1,43 @@
+{
+  "id": "GlowForge",
+  "name": "glow_forge",
+  "title": "GlowForge",
+  "description": "Markdown 渲染：内置轻量 Markdown 解析，支持标题、加粗、斜体、行内代码、代码块、引用、列表、链接与分割线，离线预览。",
+  "entry": "render",
+  "entries": {
+    "render": {
+      "paramStyle": "single",
+      "paramNames": [
+        "md"
+      ],
+      "fields": []
+    },
+    "inline": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "esc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "md": {
+        "type": "string",
+        "description": "输入（md）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\n  function inline(s){\r\n    s=esc(s);\r\n    s=s.replace(/`([^`]+)`/g, function(m,c){return '<code>'+c+'</code>';});\r\n    s=s.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');\r\n    s=s.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');\r\n    s=s.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href=\"$2\" target=\"_blank\" rel=\"noopener\">$1</a>');\r\n    return s;\r\n  }\r\n  function render(md){\r\n    var lines=String(md||'').split(/\\r?\\n/);\r\n    var html='', i=0, listOpen=false, listType='';\r\n    function closeList(){ if(listOpen){ html+='</'+listType+'>'; listOpen=false; listType=''; } }\r\n    for(i=0;i<lines.length;i++){\r\n      var l=lines[i];\r\n      if(/^```/.test(l)){ closeList(); var buf=[]; i++; while(i<lines.length && !/^```/.test(lines[i])){ buf.push(esc(lines[i])); i++; } html+='<pre><code>'+buf.join('\\n')+'</code></pre>'; continue; }\r\n      var h=l.match(/^(#{1,6})\\s+(.*)$/);\r\n      if(h){ closeList(); var lv=h[1].length; html+='<h'+lv+'>'+inline(h[2])+'</h'+lv+'>'; continue; }\r\n      if(/^>\\s?/.test(l)){ closeList(); html+='<blockquote>'+inline(l.replace(/^>\\s?/,''))+'</blockquote>'; continue; }\r\n      if(/^[-*]\\s+/.test(l)){ if(listOpen && listType!=='ul'){closeList();} if(!listOpen){html+='<ul>';listOpen=true;listType='ul';} html+='<li>'+inline(l.replace(/^[-*]\\s+/,''))+'</li>'; continue; }\r\n      if(/^\\d+\\.\\s+/.test(l)){ if(listOpen && listType!=='ol'){closeList();} if(!listOpen){html+='<ol>';listOpen=true;listType='ol';} html+='<li>'+inline(l.replace(/^\\d+\\.\\s+/,''))+'</li>'; continue; }\r\n      if(/^(---|\\*\\*\\*|___)$/.test(l.trim())){ closeList(); html+='<hr>'; continue; }\r\n      if(l.trim()===''){ closeList(); continue; }\r\n      closeList(); html+='<p>'+inline(l)+'</p>';\r\n    }\r\n    closeList();\r\n    return {value: html};\r\n  }\r\n  var API={render:render, inline:inline, esc:esc};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__GlowForge__=API;\r\n})();\r\n"
+}

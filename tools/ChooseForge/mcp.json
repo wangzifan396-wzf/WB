@@ -1,0 +1,46 @@
+{
+  "id": "ChooseForge",
+  "name": "choose_forge",
+  "title": "ChooseForge",
+  "description": "字段选取：像 cut/choose 一样按 1 起始的列号或区间（1,3 或 2-4）抽取分隔文本中的字段，支持任意分隔符。",
+  "entry": "pick",
+  "entries": {
+    "pick": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "fields",
+        "delim"
+      ],
+      "fields": []
+    },
+    "parseFields": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "fields": {
+        "type": "string",
+        "description": "第 2 个参数（fields）"
+      },
+      "delim": {
+        "type": "string",
+        "description": "第 3 个参数（delim）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function parseFields(s){\r\n    var idx={}, parts=String(s).split(',');\r\n    for(var i=0;i<parts.length;i++){ var p=parts[i].trim(); if(!p)continue;\r\n      if(p.indexOf('-')>=0){ var a=p.split('-'); var lo=+a[0],hi=+a[1]; if(isNaN(lo)||isNaN(hi))return null;\r\n        for(var j=lo;j<=hi;j++) idx[j]=1; } else { var n=+p; if(isNaN(n))return null; idx[n]=1; } }\r\n    return idx;\r\n  }\r\n  function pick(text,fields,delim){\r\n    text=String(text==null?'':text); delim=delim||',';\r\n    var idx=parseFields(fields); if(!idx) return {error:'字段格式非法'};\r\n    var lines=text.split(/\\r\\n|\\r|\\n/).filter(function(l){return l!=='';});\r\n    var out=lines.map(function(l){ var cols=l.split(delim);\r\n      return Object.keys(idx).sort(function(a,b){return a-b;}).map(function(k){ return cols[k-1]===undefined?'':cols[k-1]; }).join(delim); });\r\n    return {value:out.join('\\n')};\r\n  }\r\n  var API={pick:pick,parseFields:parseFields};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__ChooseForge__=API;\r\n})();\r\n"
+}

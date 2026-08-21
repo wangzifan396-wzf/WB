@@ -1,0 +1,36 @@
+{
+  "id": "LatexForge",
+  "name": "latex_forge",
+  "title": "LatexForge",
+  "description": "LaTeX 公式渲染（子集）：\\frac ^ _ \\sqrt 希腊字母 \\sum \\int 转 HTML，离线可用。",
+  "entry": "latexToHtml",
+  "entries": {
+    "latexToHtml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "esc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "src": {
+        "type": "string",
+        "description": "输入（src）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}\r\nvar GREEK={'alpha':'α','beta':'β','gamma':'γ','delta':'δ','epsilon':'ε','theta':'θ','lambda':'λ','mu':'μ','pi':'π','sigma':'σ','phi':'φ','psi':'ψ','omega':'ω','Gamma':'Γ','Delta':'Δ','Theta':'Θ','Lambda':'Λ','Pi':'Π','Sigma':'Σ','Phi':'Φ','Omega':'Ω','times':'×','div':'÷','cdot':'·','pm':'±','leq':'≤','geq':'≥','neq':'≠','infty':'∞','partial':'∂','nabla':'∇','sum':'∑','int':'∫','prod':'∏','sqrt':'√'};\r\nfunction latexToHtml(src){\r\n  // tokenizer\r\n  var i=0;var out='';\r\n  function get(){return src[i];}\r\n  function isAlpha(c){return /[a-zA-Z]/.test(c);}\r\n  function readCmd(){var j=i+1;while(j<src.length&&/[a-zA-Z]/.test(src[j]))j++;var cmd=src.slice(i+1,j);i=j;return cmd;}\r\n  function readGroup(){if(src[i]!=='{'){var c=src[i];if(c!==undefined){i++;return c;}return '';}i++;var s='';var d=1;while(i<src.length){if(src[i]==='{')d++;if(src[i]==='}'){d--;if(d===0){i++;break;}}if(src[i]==='\\\\'){s+='\\\\'+src[i+1];i+=2;continue;}s+=src[i];i++;}return s;}\r\n  function readSupSub(){var r='';while(i<src.length&&(src[i]==='^'||src[i]==='_')){var op=src[i];i++;var g=readGroup();r+=(op==='^'?'<sup>':'<sub>')+tex(g)+'</'+(op==='^'?'sup>':'sub>');}return r;}\r\n  function tex(s){\r\n    var res='';var k=0;\r\n    while(k<s.length){\r\n      var c=s[k];\r\n      if(c==='\\\\'){var cmd='';var j=k+1;while(j<s.length&&/[a-zA-Z]/.test(s[j]))j++;cmd=s.slice(k+1,j);k=j;\r\n        if(cmd==='frac'){var a=readGroupIn(s,function(){return k;},function(v){k=v;});var b=readGroupIn(s,function(){return k;},function(v){k=v;});res+='<span class=\"frac\"><span>'+tex(a)+'</span><span>'+tex(b)+'</span></span>';}\r\n        else if(cmd==='sqrt'){var x=readGroupIn(s,function(){return k;},function(v){k=v;});res+='√<span class=\"sqrt\">'+tex(x)+'</span>';}\r\n        else if(cmd==='text'){var t=readGroupIn(s,function(){return k;},function(v){k=v;});res+=esc(t);}\r\n        else if(cmd==='vec'){var vv=readGroupIn(s,function(){return k;},function(v){k=v;});res+='<span style=\"text-decoration:overline\">'+tex(vv)+'</span>';}\r\n        else if(GREEK[cmd]){res+=GREEK[cmd];}\r\n        else {res+=esc('\\\\'+cmd);}\r\n        continue;\r\n      }\r\n      if(c==='^'||c==='_'){var op=c;k++;var g=readGroupIn(s,function(){return k;},function(v){k=v;});res+=(op==='^'?'<sup>':'<sub>')+tex(g)+'</'+(op==='^'?'sup>':'sub>');continue;}\r\n      if(c==='{'){var grp=readGroupIn(s,function(){return k;},function(v){k=v;});res+=tex(grp);continue;}\r\n      res+=esc(c);k++;\r\n    }\r\n    return res;\r\n  }\r\n  function readGroupIn(s,getK,setK){var start=getK();if(s[start]!=='{'){var c=s[start];if(c!==undefined){setK(start+1);return c;}return '';}setK(start+1);var ss='';var d=1;var p=start+1;while(p<s.length){if(s[p]==='{')d++;if(s[p]==='}'){d--;if(d===0){setK(p+1);break;}}if(s[p]==='\\\\'){ss+='\\\\'+s[p+1];p+=2;continue;}ss+=s[p];p++;}return ss;}\r\n  return '<span class=\"latex\">'+tex(src)+'</span>';\r\n}\r\nvar EXPORTS={latexToHtml:latexToHtml,esc:esc,GREEK:GREEK};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LatexForgePure = EXPORTS; }\r\n\r\n"
+}

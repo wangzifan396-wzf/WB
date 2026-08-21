@@ -1,0 +1,181 @@
+{
+  "id": "ShadowForge",
+  "name": "shadow_forge",
+  "title": "ShadowForge",
+  "description": "多层阴影工坊：以指数曲线生成 1–10 层协调阴影，内置 Material 0–5 高程阶梯，支持 box/text/drop 类型反解粘贴与累计透明度、CSS 变量、Tailwind 输出，附光源方向与硬度体检，离线可用。",
+  "entry": "hexToRgb",
+  "entries": {
+    "hexToRgb": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hex"
+      ],
+      "fields": []
+    },
+    "rgbToHex": {
+      "paramStyle": "object",
+      "paramNames": [
+        "c"
+      ],
+      "fields": [
+        "r",
+        "g",
+        "b"
+      ]
+    },
+    "rgbaStr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "color",
+        "alpha"
+      ],
+      "fields": []
+    },
+    "normLayer": {
+      "paramStyle": "object",
+      "paramNames": [
+        "l"
+      ],
+      "fields": [
+        "x",
+        "y",
+        "blur",
+        "spread",
+        "color",
+        "alpha",
+        "inset"
+      ]
+    },
+    "layerCss": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "l",
+        "type"
+      ],
+      "fields": []
+    },
+    "shadowCss": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "layers",
+        "type",
+        "multiline"
+      ],
+      "fields": []
+    },
+    "propertyName": {
+      "paramStyle": "single",
+      "paramNames": [
+        "type"
+      ],
+      "fields": []
+    },
+    "cssRule": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sel",
+        "layers",
+        "type",
+        "multiline"
+      ],
+      "fields": []
+    },
+    "splitTop": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "parseShadow": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "smoothRamp": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "layers",
+        "y",
+        "blur",
+        "spread",
+        "alpha",
+        "color",
+        "curve",
+        "x"
+      ]
+    },
+    "elevation": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "level",
+        "color"
+      ],
+      "fields": []
+    },
+    "totalAlpha": {
+      "paramStyle": "single",
+      "paramNames": [
+        "layers"
+      ],
+      "fields": []
+    },
+    "invert": {
+      "paramStyle": "single",
+      "paramNames": [
+        "layers"
+      ],
+      "fields": []
+    },
+    "toCssVar": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "name",
+        "layers",
+        "type"
+      ],
+      "fields": []
+    },
+    "toTailwind": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "layers",
+        "type"
+      ],
+      "fields": []
+    },
+    "lint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "layers",
+        "type"
+      ],
+      "fields": []
+    },
+    "fmt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "hex": {
+        "type": "string",
+        "description": "输入（hex）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar NAMED = {black:[0,0,0], white:[255,255,255], red:[255,0,0], gray:[128,128,128], grey:[128,128,128]};\r\n\r\nfunction round2(v){ return Math.round(v*100)/100; }\r\nfunction round3(v){ return Math.round(v*1000)/1000; }\r\nfunction clamp(v,a,b){ return v<a?a:(v>b?b:v); }\r\nfunction fmt(v){\r\n  var n=round2(Number(v)||0);\r\n  return (n===Math.floor(n)) ? String(Math.floor(n)) : String(n);\r\n}\r\n\r\nfunction hexToRgb(hex){\r\n  if(hex==null) return {r:0,g:0,b:0,a:1};\r\n  var s=String(hex).trim().toLowerCase();\r\n  if(NAMED[s]) return {r:NAMED[s][0], g:NAMED[s][1], b:NAMED[s][2], a:1};\r\n  if(s === 'transparent') return {r:0,g:0,b:0,a:0};\r\n  s=s.replace(/^#/,'');\r\n  if(s.length===3||s.length===4){\r\n    var p=s.split('');\r\n    var o={r:parseInt(p[0]+p[0],16), g:parseInt(p[1]+p[1],16), b:parseInt(p[2]+p[2],16), a:1};\r\n    if(s.length===4) o.a=round3(parseInt(p[3]+p[3],16)/255);\r\n    return o;\r\n  }\r\n  if(s.length===6||s.length===8){\r\n    var o2={r:parseInt(s.slice(0,2),16), g:parseInt(s.slice(2,4),16), b:parseInt(s.slice(4,6),16), a:1};\r\n    if(s.length===8) o2.a=round3(parseInt(s.slice(6,8),16)/255);\r\n    return o2;\r\n  }\r\n  return {r:0,g:0,b:0,a:1};\r\n}\r\n\r\nfunction rgbToHex(c){\r\n  function h(v){ var s=clamp(Math.round(v),0,255).toString(16); return s.length<2?'0'+s:s; }\r\n  return '#'+h(c.r)+h(c.g)+h(c.b);\r\n}\r\n\r\nfunction rgbaStr(color, alpha){\r\n  var c=hexToRgb(color);\r\n  var a=alpha==null?c.a:alpha;\r\n  return 'rgba('+Math.round(c.r)+', '+Math.round(c.g)+', '+Math.round(c.b)+', '+round3(clamp(a,0,1))+')';\r\n}\r\n\r\nfunction normLayer(l){\r\n  l=l||{};\r\n  return {x:Number(l.x)||0, y:Number(l.y)||0, blur:Number(l.blur)||0, spread:Number(l.spread)||0,\r\n          color:l.color||'#000000', alpha:l.alpha==null?0.15:clamp(Number(l.alpha),0,1),\r\n          inset:!!l.inset};\r\n}\r\n\r\nfunction layerCss(l, type){\r\n  var n=normLayer(l);\r\n  var col=rgbaStr(n.color, n.alpha);\r\n  if(type==='text') return fmt(n.x)+'px '+fmt(n.y)+'px '+fmt(n.blur)+'px '+col;\r\n  if(type==='drop') return 'drop-shadow('+fmt(n.x)+'px '+fmt(n.y)+'px '+fmt(n.blur)+'px '+col+')';\r\n  return (n.inset?'inset ':'')+fmt(n.x)+'px '+fmt(n.y)+'px '+fmt(n.blur)+'px '+fmt(n.spread)+'px '+col;\r\n}\r\n\r\nfunction shadowCss(layers, type, multiline){\r\n  layers=layers||[];\r\n  if(!layers.length) return 'none';\r\n  var t=type||'box';\r\n  var parts=layers.map(function(l){ return layerCss(l,t); });\r\n  if(t==='drop') return parts.join(' ');\r\n  return parts.join(multiline ? ',\\n    ' : ', ');\r\n}\r\n\r\nfunction propertyName(type){\r\n  if(type==='text') return 'text-shadow';\r\n  if(type==='drop') return 'filter';\r\n  return 'box-shadow';\r\n}\r\n\r\nfunction cssRule(sel, layers, type, multiline){\r\n  return (sel||'.card')+' {\\n  '+propertyName(type)+': '+shadowCss(layers,type,multiline)+';\\n}';\r\n}\r\n\r\nfunction splitTop(s){\r\n  var out=[], depth=0, cur='';\r\n  for(var i=0;i<s.length;i++){\r\n    var c=s[i];\r\n    if(c==='(') depth++;\r\n    if(c===')') depth--;\r\n    if(c===',' && depth===0){ out.push(cur); cur=''; continue; }\r\n    cur+=c;\r\n  }\r\n  if(cur.trim()) out.push(cur);\r\n  return out.map(function(x){ return x.trim(); }).filter(function(x){ return x.length; });\r\n}\r\n\r\nfunction parseColorToken(part){\r\n  var m=/rgba?\\(([^)]*)\\)/i.exec(part);\r\n  if(m){\r\n    var n=m[1].split(',').map(function(x){ return parseFloat(x.trim()); });\r\n    return {color:rgbToHex({r:n[0]||0,g:n[1]||0,b:n[2]||0}), alpha: n.length>3 ? round3(n[3]) : 1,\r\n            raw:m[0]};\r\n  }\r\n  var h=/#[0-9a-fA-F]{3,8}\\b/.exec(part);\r\n  if(h){ var c=hexToRgb(h[0]); return {color:rgbToHex(c), alpha:c.a, raw:h[0]}; }\r\n  var keys=Object.keys(NAMED);\r\n  for(var i=0;i<keys.length;i++){\r\n    var re=new RegExp('\\\\b'+keys[i]+'\\\\b','i');\r\n    if(re.test(part)){ var k=NAMED[keys[i]]; return {color:rgbToHex({r:k[0],g:k[1],b:k[2]}), alpha:1, raw:keys[i]}; }\r\n  }\r\n  return {color:'#000000', alpha:1, raw:null};\r\n}\r\n\r\nfunction parseShadow(str){\r\n  if(str==null) return [];\r\n  var s=String(str).replace(/^\\s*(box-shadow|text-shadow|filter)\\s*:\\s*/i,'').replace(/;\\s*$/,'').trim();\r\n  if(!s || s==='none') return [];\r\n  if(/drop-shadow\\s*\\(/i.test(s)){\r\n    var res=[], re=/drop-shadow\\s*\\(([^()]*(?:\\([^()]*\\)[^()]*)*)\\)/gi, mm;\r\n    while((mm=re.exec(s))!==null){ res.push(parseOne(mm[1], false)); }\r\n    return res;\r\n  }\r\n  return splitTop(s).map(function(p){\r\n    var inset=/\\binset\\b/i.test(p);\r\n    return parseOne(p.replace(/\\binset\\b/ig,''), inset);\r\n  });\r\n}\r\n\r\nfunction parseOne(part, inset){\r\n  var col=parseColorToken(part);\r\n  var rest = col.raw ? part.replace(col.raw,' ') : part;\r\n  var nums=(rest.match(/-?\\d*\\.?\\d+/g)||[]).map(parseFloat);\r\n  return {x:nums[0]||0, y:nums[1]||0, blur:nums[2]||0, spread:nums[3]||0,\r\n          color:col.color, alpha:col.alpha, inset:!!inset};\r\n}\r\n\r\nfunction smoothRamp(o){\r\n  o=o||{};\r\n  var n=Math.max(1, Math.round(o.layers==null?5:o.layers));\r\n  var Y=o.y==null?24:o.y, B=o.blur==null?48:o.blur, S=o.spread==null?0:o.spread;\r\n  var A=o.alpha==null?0.16:o.alpha, color=o.color||'#000000';\r\n  var exp=o.curve==null?2:o.curve, X=o.x==null?0:o.x;\r\n  var out=[];\r\n  for(var i=1;i<=n;i++){\r\n    var f=Math.pow(i/n, exp);\r\n    out.push({x:round2(X*f), y:round2(Y*f), blur:round2(B*f), spread:round2(S*f),\r\n              color:color, alpha:round3(A/n), inset:false});\r\n  }\r\n  return out;\r\n}\r\n\r\nvar ELEVATIONS = {\r\n  0: [],\r\n  1: [{x:0,y:1,blur:2,spread:0,alpha:0.08},{x:0,y:1,blur:3,spread:0,alpha:0.06}],\r\n  2: [{x:0,y:2,blur:4,spread:-1,alpha:0.10},{x:0,y:4,blur:6,spread:-1,alpha:0.07}],\r\n  3: [{x:0,y:4,blur:8,spread:-2,alpha:0.12},{x:0,y:8,blur:16,spread:-4,alpha:0.08}],\r\n  4: [{x:0,y:8,blur:16,spread:-4,alpha:0.14},{x:0,y:16,blur:32,spread:-8,alpha:0.10}],\r\n  5: [{x:0,y:16,blur:32,spread:-8,alpha:0.16},{x:0,y:32,blur:64,spread:-16,alpha:0.12}]\r\n};\r\n\r\nfunction elevation(level, color){\r\n  var lv=clamp(Math.round(Number(level)||0),0,5);\r\n  return (ELEVATIONS[lv]||[]).map(function(l){\r\n    return {x:l.x,y:l.y,blur:l.blur,spread:l.spread,color:color||'#000000',alpha:l.alpha,inset:false};\r\n  });\r\n}\r\n\r\nfunction totalAlpha(layers){\r\n  var t=0;\r\n  (layers||[]).forEach(function(l){ t += normLayer(l).alpha; });\r\n  return round3(t);\r\n}\r\n\r\nfunction invert(layers){\r\n  return (layers||[]).map(function(l){\r\n    var n=normLayer(l); n.y=-n.y; n.x=-n.x; return n;\r\n  });\r\n}\r\n\r\nfunction toCssVar(name, layers, type){\r\n  return '--'+(name||'shadow')+': '+shadowCss(layers,type)+';';\r\n}\r\n\r\nfunction toTailwind(layers, type){\r\n  var s=shadowCss(layers,type).replace(/,\\s+/g,',').replace(/\\s+/g,'_');\r\n  return (type==='text'?'[text-shadow:':'shadow-[')+s+']';\r\n}\r\n\r\nfunction lint(layers, type){\r\n  layers=layers||[];\r\n  var w=[];\r\n  if(!layers.length){ return [{level:'info', msg:'当前没有任何阴影层，输出为 none'}]; }\r\n  var ta=totalAlpha(layers);\r\n  if(ta>0.6) w.push({level:'warn', msg:'累计不透明度 '+ta+' 偏高，暗色界面上容易糊成一团，建议 ≤ 0.4'});\r\n  if(layers.length>8) w.push({level:'warn', msg:layers.length+' 层阴影会显著增加合成绘制成本，移动端建议 ≤ 6 层'});\r\n  layers.forEach(function(l,i){\r\n    var n=normLayer(l);\r\n    if(n.blur===0 && n.spread===0 && (n.x!==0||n.y!==0))\r\n      w.push({level:'info', msg:'第 '+(i+1)+' 层 blur 与 spread 均为 0，会是硬边偏移（Neo-brutalism 常用，若想要柔和请加 blur）'});\r\n    if(n.blur>0 && n.blur < Math.abs(n.y))\r\n      w.push({level:'info', msg:'第 '+(i+1)+' 层 blur('+n.blur+') 远小于 y 偏移('+n.y+')，投影会显得生硬'});\r\n    if(n.y<0 && n.blur>16)\r\n      w.push({level:'info', msg:'第 '+(i+1)+' 层 y 为负且模糊很大，等于光源来自下方，与常见自上而下光照不符'});\r\n    if(n.alpha>=0.5)\r\n      w.push({level:'warn', msg:'第 '+(i+1)+' 层 alpha='+n.alpha+' 过重，单层建议 ≤ 0.25 并用多层叠加'});\r\n    if(type==='text' && (n.spread!==0))\r\n      w.push({level:'error', msg:'第 '+(i+1)+' 层设置了 spread，但 text-shadow 不支持 spread，导出时会被丢弃'});\r\n    if(type==='text' && n.inset)\r\n      w.push({level:'error', msg:'第 '+(i+1)+' 层是 inset，但 text-shadow 不支持 inset'});\r\n    if(type==='drop' && n.inset)\r\n      w.push({level:'error', msg:'第 '+(i+1)+' 层是 inset，但 filter: drop-shadow() 不支持 inset'});\r\n    if(type==='drop' && n.spread!==0)\r\n      w.push({level:'warn', msg:'第 '+(i+1)+' 层的 spread 在 drop-shadow() 中无效，将被忽略'});\r\n  });\r\n  var insets=layers.filter(function(l){ return normLayer(l).inset; }).length;\r\n  if(insets && insets<layers.length && type!=='text' && type!=='drop')\r\n    w.push({level:'info', msg:'同时存在 inset 与外阴影 '+insets+'/'+layers.length+'，注意 inset 会绘制在内容之下'});\r\n  return w;\r\n}\r\n\r\nvar ShadowForgePure = {\r\n  hexToRgb:hexToRgb, rgbToHex:rgbToHex, rgbaStr:rgbaStr, normLayer:normLayer,\r\n  layerCss:layerCss, shadowCss:shadowCss, propertyName:propertyName, cssRule:cssRule,\r\n  splitTop:splitTop, parseShadow:parseShadow, smoothRamp:smoothRamp, elevation:elevation,\r\n  totalAlpha:totalAlpha, invert:invert, toCssVar:toCssVar, toTailwind:toTailwind, lint:lint, fmt:fmt\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = ShadowForgePure;\r\nif (typeof window !== 'undefined') window.ShadowForgePure = ShadowForgePure;\r\n\r\n"
+}

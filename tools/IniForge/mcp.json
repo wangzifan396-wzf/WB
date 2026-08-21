@@ -1,0 +1,36 @@
+{
+  "id": "IniForge",
+  "name": "ini_forge",
+  "title": "IniForge",
+  "description": "INI 配置解析：section/键值/注释，与序列化互逆。",
+  "entry": "iniParse",
+  "entries": {
+    "iniParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "iniStringify": {
+      "paramStyle": "single",
+      "paramNames": [
+        "obj"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction iniParse(text){\r\n  var root={}, cur=root;\r\n  var lines=text.split('\\n');\r\n  for(var li=0; li<lines.length; li++){\r\n    var line=lines[li].trim();\r\n    if(line==='' || line.charAt(0)===';' || line.charAt(0)==='#') continue;\r\n    if(line.charAt(0)==='['){\r\n      var close=line.lastIndexOf(']');\r\n      var sec=line.slice(1,close).trim();\r\n      if(!root[sec]) root[sec]={};\r\n      cur=root[sec];\r\n      continue;\r\n    }\r\n    var eq=line.indexOf('=');\r\n    if(eq<0) continue;\r\n    var k=line.slice(0,eq).trim();\r\n    var v=line.slice(eq+1).trim();\r\n    if(v.charAt(0)==='\"' && v.charAt(v.length-1)==='\"') v=v.slice(1,-1);\r\n    cur[k]=v;\r\n  }\r\n  return root;\r\n}\r\nfunction iniStringify(obj){\r\n  var out=[];\r\n  for(var sec in obj){\r\n    if(!obj.hasOwnProperty(sec)) continue;\r\n    out.push('['+sec+']');\r\n    var t=obj[sec];\r\n    for(var k in t){ if(t.hasOwnProperty(k)) out.push(k+'='+t[k]); }\r\n    out.push('');\r\n  }\r\n  return out.join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { iniParse:iniParse, iniStringify:iniStringify };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.IniForgePure = { iniParse:iniParse, iniStringify:iniStringify };\r\n}\r\n"
+}

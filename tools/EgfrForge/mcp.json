@@ -1,0 +1,39 @@
+{
+  "id": "EgfrForge",
+  "name": "egfr_forge",
+  "title": "肾功能估算",
+  "description": "用 CKD-EPI 2021 公式估算 eGFR 与分期，离线（非医疗建议）。",
+  "entry": "egfr",
+  "entries": {
+    "egfr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "scr",
+        "age",
+        "sex"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "scr": {
+        "type": "string",
+        "description": "第 1 个参数（scr）"
+      },
+      "age": {
+        "type": "string",
+        "description": "第 2 个参数（age）"
+      },
+      "sex": {
+        "type": "string",
+        "description": "第 3 个参数（sex）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction egfr(scr, age, sex){\r\n  scr=+scr; age=+age; sex=(sex||'male').toLowerCase();\r\n  if(!(scr>0)||!(age>=0)) return {error:'肌酐(scr)与年龄须为有效正数'};\r\n  var k = sex==='female'?0.7:0.9;\r\n  var a = sex==='female'?-0.241:-0.302;\r\n  var min=Math.min(scr/k,1), max=Math.max(scr/k,1);\r\n  var g = 142 * Math.pow(min,a) * Math.pow(max,-1.200) * Math.pow(0.9938, age);\r\n  if(sex==='female') g*=1.012;\r\n  g=Math.round(g*10)/10;\r\n  var stage;\r\n  if(g>=90) stage='G1（正常或偏高）';\r\n  else if(g>=60) stage='G2（轻度下降）';\r\n  else if(g>=45) stage='G3a（轻-中度下降）';\r\n  else if(g>=30) stage='G3b（中-重度下降）';\r\n  else if(g>=15) stage='G4（重度下降）';\r\n  else stage='G5（肾衰竭）';\r\n  return {egfr:g, stage:stage};\r\n}\r\nvar EXPORTS={egfr:egfr};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EgfrForgePure = EXPORTS; }\r\n\r\n"
+}

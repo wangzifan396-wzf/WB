@@ -1,0 +1,52 @@
+{
+  "id": "MacGeneratorForge",
+  "name": "mac_generator_forge",
+  "title": "MacGeneratorForge",
+  "description": "随机生成、校验并格式化 MAC 地址（冒号/连字符/无分隔/点分），可选指定 OUI 前缀。",
+  "entry": "normMac",
+  "entries": {
+    "normMac": {
+      "paramStyle": "single",
+      "paramNames": [
+        "m"
+      ],
+      "fields": []
+    },
+    "validate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "m"
+      ],
+      "fields": []
+    },
+    "format": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "groups",
+        "style"
+      ],
+      "fields": []
+    },
+    "generate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rng",
+        "oui"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "m": {
+        "type": "string",
+        "description": "输入（m）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction normMac(m){ var s=String(m).trim().toLowerCase().replace(/[^0-9a-f]/g,''); if(s.length!==12) return null; var g=[]; for(var i=0;i<12;i+=2) g.push(s.slice(i,i+2)); return g; }\r\nfunction validate(m){ return normMac(m)!==null; }\r\nfunction fmtMac(groups, style){\r\n  if(typeof groups==='string'){ var n=normMac(groups); if(!n) return null; groups=n; }\r\n  if(style==='-') return groups.join('-');\r\n  if(style==='.') return groups.join('.');\r\n  if(style==='none'||style==='') return groups.join('');\r\n  return groups.join(':');\r\n}\r\nfunction generate(rng, oui){\r\n  var b=[];\r\n  for(var i=0;i<6;i++){ if(oui && i<3){ b.push(oui[i]); } else { b.push(Math.floor(rng()*256)); } }\r\n  var g=b.map(function(x){ var h=x.toString(16); return h.length<2?'0'+h:h; });\r\n  return g.join(':');\r\n}\r\nvar EXPORTS={normMac:normMac,validate:validate,format:fmtMac,generate:generate};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MacGeneratorForgePure = EXPORTS; }\r\n\r\n"
+}

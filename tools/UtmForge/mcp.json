@@ -1,0 +1,50 @@
+{
+  "id": "UtmForge",
+  "name": "utm_forge",
+  "title": "UtmForge",
+  "description": "UTM 参数构建、解析与校验，增长营销溯源。",
+  "entry": "build",
+  "entries": {
+    "build": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "base",
+        "params"
+      ],
+      "fields": []
+    },
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "url"
+      ],
+      "fields": []
+    },
+    "validate": {
+      "paramStyle": "object",
+      "paramNames": [
+        "params"
+      ],
+      "fields": [
+        "utm_source"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "base": {
+        "type": "string",
+        "description": "第 1 个参数（base）"
+      },
+      "params": {
+        "type": "object",
+        "description": "第 2 个参数（params）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar UTM_KEYS=['utm_source','utm_medium','utm_campaign','utm_term','utm_content'];\r\nfunction utmBuild(base, params){\r\n  if(typeof base!=='string') return {error:'base must be string'};\r\n  params=params||{};\r\n  var qIndex=base.indexOf('?');\r\n  var path=base, existing='';\r\n  if(qIndex>=0){ path=base.slice(0,qIndex); existing=base.slice(qIndex+1); }\r\n  var pairs=[];\r\n  if(existing) existing.split('&').forEach(function(p){ if(p) pairs.push(p); });\r\n  UTM_KEYS.forEach(function(k){\r\n    var v=params[k];\r\n    if(v!==undefined && v!==null && String(v).length>0){\r\n      pairs.push(k+'='+encodeURIComponent(String(v)));\r\n    }\r\n  });\r\n  return {value: path + (pairs.length?('?'+pairs.join('&')):''), error:null};\r\n}\r\nfunction utmParse(url){\r\n  if(typeof url!=='string') return {error:'url must be string'};\r\n  var qIndex=url.indexOf('?');\r\n  var base=url, query='';\r\n  if(qIndex>=0){ base=url.slice(0,qIndex); query=url.slice(qIndex+1); }\r\n  var all={}, utm={};\r\n  query.split('&').forEach(function(p){\r\n    if(!p) return;\r\n    var eq=p.indexOf('=');\r\n    var k=eq>=0?p.slice(0,eq):p;\r\n    var v=eq>=0?p.slice(eq+1):'';\r\n    k=decodeURIComponent(k); v=decodeURIComponent(v);\r\n    all[k]=v;\r\n    if(k.indexOf('utm_')===0) utm[k]=v;\r\n  });\r\n  return {base:base, utm:utm, all:all, error:null};\r\n}\r\nfunction utmValidate(params){\r\n  params=params||{};\r\n  var issues=[];\r\n  if(!params.utm_source || !String(params.utm_source).trim()) issues.push('utm_source 缺失或为空');\r\n  ['utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k){\r\n    if(params[k]!==undefined && params[k]!==null && String(params[k]).length===0) issues.push(k+' 为空');\r\n  });\r\n  return {valid: issues.length===0, issues:issues, normalized:params};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { build:utmBuild, parse:utmParse, validate:utmValidate };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.UtmForgePure = { build:utmBuild, parse:utmParse, validate:utmValidate };\r\n}\r\n"
+}

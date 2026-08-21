@@ -1,0 +1,76 @@
+{
+  "id": "Base32Forge",
+  "name": "base32_forge",
+  "title": "Base32Forge",
+  "description": "Base32 编解码：RFC4648 / Base32Hex / Crockford / z-base-32 四变体。",
+  "entry": "b32ToUtf8",
+  "entries": {
+    "b32ToUtf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "b32FromUtf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "b32Encode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "variant"
+      ],
+      "fields": []
+    },
+    "b32Decode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "variant"
+      ],
+      "fields": []
+    },
+    "b32Normalize": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "variant"
+      ],
+      "fields": []
+    },
+    "b32EncodeStr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "variant"
+      ],
+      "fields": []
+    },
+    "b32DecodeStr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "variant"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar B32_ALPHABETS={\r\n  rfc4648:  'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567',\r\n  base32hex:'0123456789ABCDEFGHIJKLMNOPQRSTUV',\r\n  crockford:'0123456789ABCDEFGHJKMNPQRSTVWXYZ',\r\n  zbase32:  'ybndrfg8ejkmcpqxot1uwisza345h769'\r\n};\r\nvar B32_PAD={ rfc4648:true, base32hex:true, crockford:false, zbase32:false };\r\nfunction b32ToUtf8(str){\r\n  var out=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.charCodeAt(i);\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800) out.push(0xC0|(c>>6),0x80|(c&63));\r\n    else if(c>=0xD800&&c<=0xDBFF&&i+1<str.length){\r\n      var c2=str.charCodeAt(i+1);\r\n      if(c2>=0xDC00&&c2<=0xDFFF){\r\n        var cp=0x10000+((c-0xD800)<<10)+(c2-0xDC00); i++;\r\n        out.push(0xF0|(cp>>18),0x80|((cp>>12)&63),0x80|((cp>>6)&63),0x80|(cp&63));\r\n      } else out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63));\r\n    }\r\n    else out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63));\r\n  }\r\n  return out;\r\n}\r\nfunction b32FromUtf8(bytes){\r\n  var s='', i=0;\r\n  while(i<bytes.length){\r\n    var b=bytes[i];\r\n    if(b<0x80){ s+=String.fromCharCode(b); i++; }\r\n    else if(b>=0xC0&&b<0xE0){ s+=String.fromCharCode(((b&31)<<6)|(bytes[i+1]&63)); i+=2; }\r\n    else if(b>=0xE0&&b<0xF0){ s+=String.fromCharCode(((b&15)<<12)|((bytes[i+1]&63)<<6)|(bytes[i+2]&63)); i+=3; }\r\n    else {\r\n      var cp=((b&7)<<18)|((bytes[i+1]&63)<<12)|((bytes[i+2]&63)<<6)|(bytes[i+3]&63); i+=4;\r\n      cp-=0x10000; s+=String.fromCharCode(0xD800+(cp>>10),0xDC00+(cp&1023));\r\n    }\r\n  }\r\n  return s;\r\n}\r\nfunction b32Encode(bytes, variant){\r\n  var alpha=B32_ALPHABETS[variant];\r\n  if(!alpha) return { value:null, error:'未知变体: '+variant };\r\n  var out='', bits=0, acc=0;\r\n  for(var i=0;i<bytes.length;i++){\r\n    acc=(acc<<8)|bytes[i]; bits+=8;\r\n    while(bits>=5){ bits-=5; out+=alpha[(acc>>bits)&31]; }\r\n  }\r\n  if(bits>0) out+=alpha[(acc<<(5-bits))&31];\r\n  if(B32_PAD[variant]){ while(out.length%8!==0) out+='='; }\r\n  return { value:out, error:null };\r\n}\r\nfunction b32Normalize(str, variant){\r\n  var s=String(str).replace(/[\\s-]/g,'');\r\n  if(variant==='crockford'){\r\n    s=s.toUpperCase().replace(/[IL]/g,'1').replace(/O/g,'0');\r\n  } else if(variant==='rfc4648'||variant==='base32hex'){\r\n    s=s.toUpperCase();\r\n  } else if(variant==='zbase32'){\r\n    s=s.toLowerCase();\r\n  }\r\n  return s.replace(/=+$/,'');\r\n}\r\nfunction b32Decode(str, variant){\r\n  var alpha=B32_ALPHABETS[variant];\r\n  if(!alpha) return { value:null, error:'未知变体: '+variant };\r\n  var s=b32Normalize(str, variant);\r\n  var out=[], bits=0, acc=0;\r\n  for(var i=0;i<s.length;i++){\r\n    var v=alpha.indexOf(s[i]);\r\n    if(v<0) return { value:null, error:'非法字符: '+s[i] };\r\n    acc=(acc<<5)|v; bits+=5;\r\n    if(bits>=8){ bits-=8; out.push((acc>>bits)&255); }\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nfunction b32EncodeStr(str, variant){ return b32Encode(b32ToUtf8(String(str)), variant); }\r\nfunction b32DecodeStr(str, variant){\r\n  var r=b32Decode(str, variant);\r\n  if(r.error) return r;\r\n  return { value:b32FromUtf8(r.value), error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { B32_ALPHABETS:B32_ALPHABETS, b32ToUtf8:b32ToUtf8, b32FromUtf8:b32FromUtf8,\r\n    b32Encode:b32Encode, b32Decode:b32Decode, b32Normalize:b32Normalize,\r\n    b32EncodeStr:b32EncodeStr, b32DecodeStr:b32DecodeStr };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.Base32ForgePure = { B32_ALPHABETS:B32_ALPHABETS, b32ToUtf8:b32ToUtf8, b32FromUtf8:b32FromUtf8,\r\n    b32Encode:b32Encode, b32Decode:b32Decode, b32Normalize:b32Normalize,\r\n    b32EncodeStr:b32EncodeStr, b32DecodeStr:b32DecodeStr };\r\n}\r\n"
+}

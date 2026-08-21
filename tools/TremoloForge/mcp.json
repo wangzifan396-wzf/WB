@@ -1,0 +1,52 @@
+{
+  "id": "TremoloForge",
+  "name": "tremolo_forge",
+  "title": "TremoloForge",
+  "description": "振幅调制颤音效果，可导出 WAV，离线。",
+  "entry": "tremolo",
+  "entries": {
+    "tremolo": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr",
+        "rate",
+        "depth"
+      ],
+      "fields": []
+    },
+    "wavEncode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "sr": {
+        "type": "number",
+        "description": "第 2 个参数（sr）（数值）"
+      },
+      "rate": {
+        "type": "string",
+        "description": "第 3 个参数（rate）"
+      },
+      "depth": {
+        "type": "string",
+        "description": "第 4 个参数（depth）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction tremolo(samples, sr, rate, depth){ if(!samples||!samples.length) return [];\r\n  sr=sr||44100; depth=depth==null?0.5:depth; var n=samples.length; var out=new Array(n);\r\n  for(var i=0;i<n;i++){ out[i]=samples[i]*(1+depth*Math.sin(2*Math.PI*rate*i/sr)); }\r\n  return out;\r\n}\r\nfunction wavEncode(samples, sr){ sr=sr||44100; var n=samples.length; var buf=new ArrayBuffer(44+n*2); var dv=new DataView(buf);\r\n  function ws(o,s){for(var i=0;i<s.length;i++) dv.setUint8(o+i,s.charCodeAt(i));}\r\n  ws(0,'RIFF'); dv.setUint32(4,36+n*2,true); ws(8,'WAVE'); ws(12,'fmt '); dv.setUint32(16,16,true);\r\n  dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true);\r\n  dv.setUint16(32,2,true); dv.setUint16(34,16,true); ws(36,'data'); dv.setUint32(40,n*2,true);\r\n  var o=44; for(var i=0;i<n;i++){ var s=Math.max(-1,Math.min(1,samples[i])); dv.setInt16(o, s<0?s*0x8000:s*0x7FFF, true); o+=2; }\r\n  return buf;\r\n}\r\nvar EXPORTS={tremolo:tremolo,wavEncode:wavEncode};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TremoloForgePure = EXPORTS; }\r\n\r\n"
+}

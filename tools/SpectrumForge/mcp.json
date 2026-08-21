@@ -1,0 +1,51 @@
+{
+  "id": "SpectrumForge",
+  "name": "spectrum_forge",
+  "title": "SpectrumForge",
+  "description": "对离散信号做 DFT 求幅频谱，定位主频点；可生成正弦并验证峰值频点。",
+  "entry": "dft",
+  "entries": {
+    "dft": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sampleRate"
+      ],
+      "fields": []
+    },
+    "peakBin": {
+      "paramStyle": "single",
+      "paramNames": [
+        "spectrum"
+      ],
+      "fields": []
+    },
+    "sine": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "freq",
+        "n",
+        "sampleRate",
+        "amp"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "sampleRate": {
+        "type": "string",
+        "description": "第 2 个参数（sampleRate）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction dft(samples, sampleRate){\r\n  var n=samples.length, out=[];\r\n  for(var k=0; k<Math.floor(n/2); k++){\r\n    var re=0, im=0;\r\n    for(var t=0; t<n; t++){\r\n      var ang=-2*Math.PI*k*t/n;\r\n      re+=samples[t]*Math.cos(ang);\r\n      im+=samples[t]*Math.sin(ang);\r\n    }\r\n    out.push({ bin:k, freq:k*sampleRate/n, mag:Math.sqrt(re*re+im*im)/n*2 });\r\n  }\r\n  return out;\r\n}\r\nfunction peakBin(spectrum){ var bi=0, bm=0; for(var i=0;i<spectrum.length;i++){ if(spectrum[i].mag>bm){ bm=spectrum[i].mag; bi=i; } } return bi; }\r\nfunction sine(freq, n, sampleRate, amp){ var s=[]; for(var t=0;t<n;t++){ s.push(amp*Math.sin(2*Math.PI*freq*t/sampleRate)); } return s; }\r\nvar EXPORTS={ dft:dft, peakBin:peakBin, sine:sine };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SpectrumForgePure = EXPORTS; }\r\n\r\n"
+}

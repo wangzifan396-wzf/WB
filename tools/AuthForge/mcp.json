@@ -1,0 +1,99 @@
+{
+  "id": "AuthForge",
+  "name": "auth_forge",
+  "title": "AuthForge",
+  "description": "离线 TOTP 身份验证器：自写 SHA1/HMAC-SHA1/RFC6238，生成 2FA 动态验证码与密钥，数据永不离机。",
+  "entry": "sha1",
+  "entries": {
+    "sha1": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "bytesToHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "hmacSha1": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "keyBytes",
+        "msgBytes"
+      ],
+      "fields": []
+    },
+    "base32Decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "base32Encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "hotp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "secret",
+        "counter",
+        "digits"
+      ],
+      "fields": []
+    },
+    "totp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "secret",
+        "timeMs",
+        "step",
+        "digits"
+      ],
+      "fields": []
+    },
+    "remaining": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "timeMs",
+        "step"
+      ],
+      "fields": []
+    },
+    "genSecret": {
+      "paramStyle": "single",
+      "paramNames": [
+        "byteLen"
+      ],
+      "fields": []
+    },
+    "validateSecret": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ===== 纯函数区（第一个无属性 script）：可被 Node _test.js 提取并断言 ===== */\r\nfunction sha1(bytes){\r\n  var H=[0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0];\r\n  var msg = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);\r\n  var l = msg.length;\r\n  // pad so that (l + 1 + pad + 8) is a multiple of 64\r\n  var k = (l + 1 + 8) % 64;\r\n  var pad = k === 0 ? 0 : (64 - k);\r\n  var total = l + 1 + pad + 8;\r\n  var p = new Uint8Array(total);\r\n  p.set(msg);\r\n  p[l] = 0x80;\r\n  var bitLen = l * 8;\r\n  var hi = Math.floor(bitLen / 0x100000000);\r\n  var lo = bitLen >>> 0;\r\n  p[total-8]=(hi>>>24)&0xff; p[total-7]=(hi>>>16)&0xff; p[total-6]=(hi>>>8)&0xff; p[total-5]=hi&0xff;\r\n  p[total-4]=(lo>>>24)&0xff; p[total-3]=(lo>>>16)&0xff; p[total-2]=(lo>>>8)&0xff; p[total-1]=lo&0xff;\r\n  var w = new Array(80);\r\n  for(var off=0; off<total; off+=64){\r\n    for(var i=0;i<16;i++){\r\n      var j=off+i*4;\r\n      w[i]=(p[j]<<24)|(p[j+1]<<16)|(p[j+2]<<8)|p[j+3];\r\n    }\r\n    for(var i=16;i<80;i++){\r\n      var n=w[i-3]^w[i-8]^w[i-14]^w[i-16];\r\n      w[i]=(n<<1)|(n>>>31);\r\n    }\r\n    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4];\r\n    for(var i=0;i<80;i++){\r\n      var f,k;\r\n      if(i<20){f=(b&c)|((~b)&d);k=0x5A827999;}\r\n      else if(i<40){f=b^c^d;k=0x6ED9EBA1;}\r\n      else if(i<60){f=(b&c)|(b&d)|(c&d);k=0x8F1BBCDC;}\r\n      else{f=b^c^d;k=0xCA62C1D6;}\r\n      var tmp=(((a<<5)|(a>>>27))+f+e+k+w[i])>>>0;\r\n      e=d;d=c;c=(b<<30)|(b>>>2);b=a;a=tmp;\r\n    }\r\n    H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;H[4]=(H[4]+e)>>>0;\r\n  }\r\n  var out=new Uint8Array(20);\r\n  for(var i=0;i<5;i++){\r\n    out[i*4]=(H[i]>>>24)&0xff;out[i*4+1]=(H[i]>>>16)&0xff;out[i*4+2]=(H[i]>>>8)&0xff;out[i*4+3]=H[i]&0xff;\r\n  }\r\n  return out;\r\n}\r\nfunction bytesToHex(b){\r\n  var s='';\r\n  for(var i=0;i<b.length;i++) s+=(b[i]>>>4).toString(16)+(b[i]&0xf).toString(16);\r\n  return s;\r\n}\r\nfunction concatBytes(a,b){\r\n  var o=new Uint8Array(a.length+b.length);\r\n  o.set(a,0); o.set(b,a.length);\r\n  return o;\r\n}\r\nfunction hmacSha1(keyBytes, msgBytes){\r\n  var BS=64;\r\n  var key=keyBytes;\r\n  if(key.length>BS) key=sha1(key);\r\n  if(key.length<BS){ var k2=new Uint8Array(BS); k2.set(key); key=k2; }\r\n  var oKey=new Uint8Array(BS), iKey=new Uint8Array(BS);\r\n  for(var i=0;i<BS;i++){ oKey[i]=key[i]^0x5c; iKey[i]=key[i]^0x36; }\r\n  var inner=sha1(concatBytes(iKey,msgBytes));\r\n  return sha1(concatBytes(oKey,inner));\r\n}\r\nvar B32='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';\r\nfunction base32Decode(s){\r\n  s=String(s).toUpperCase().replace(/=+$/,'').replace(/\\s+/g,'');\r\n  var bits=0, value=0, out=[];\r\n  for(var i=0;i<s.length;i++){\r\n    var idx=B32.indexOf(s[i]);\r\n    if(idx<0) continue;\r\n    value=(value<<5)|idx; bits+=5;\r\n    if(bits>=8){ bits-=8; out.push((value>>bits)&0xff); }\r\n  }\r\n  return Uint8Array.from(out);\r\n}\r\nfunction base32Encode(bytes){\r\n  var out='', buffer=0, bits=0;\r\n  for(var i=0;i<bytes.length;i++){\r\n    buffer=(buffer<<8)|bytes[i]; bits+=8;\r\n    while(bits>=5){ bits-=5; out+=B32[(buffer>>bits)&0x1f]; }\r\n  }\r\n  if(bits>0) out+=B32[(buffer<<(5-bits))&0x1f];\r\n  return out;\r\n}\r\nfunction hotp(secret, counter, digits){\r\n  digits=digits||6;\r\n  var buf=new Uint8Array(8);\r\n  var c=counter>>>0;\r\n  buf[4]=(c>>>24)&0xff;buf[5]=(c>>>16)&0xff;buf[6]=(c>>>8)&0xff;buf[7]=c&0xff;\r\n  var mac=hmacSha1(secret,buf);\r\n  var off=mac[19]&0x0f;\r\n  var bin=((mac[off]&0x7f)<<24)|((mac[off+1]&0xff)<<16)|((mac[off+2]&0xff)<<8)|(mac[off+3]&0xff);\r\n  var code=(bin%Math.pow(10,digits)).toString();\r\n  while(code.length<digits) code='0'+code;\r\n  return code;\r\n}\r\nfunction totp(secret, timeMs, step, digits){\r\n  step=step||30; digits=digits||6;\r\n  var counter=Math.floor((timeMs/1000)/step);\r\n  return hotp(secret, counter, digits);\r\n}\r\nfunction remaining(timeMs, step){\r\n  step=step||30;\r\n  var t=Math.floor(timeMs/1000);\r\n  return step-(t%step);\r\n}\r\nfunction genSecret(byteLen){\r\n  byteLen=byteLen||20;\r\n  var b=new Uint8Array(byteLen);\r\n  if(typeof crypto!=='undefined' && crypto.getRandomValues) crypto.getRandomValues(b);\r\n  else for(var i=0;i<byteLen;i++) b[i]=Math.floor(Math.random()*256);\r\n  return base32Encode(b);\r\n}\r\nfunction validateSecret(s){\r\n  if(!s) return false;\r\n  s=String(s).toUpperCase().replace(/=+$/,'').replace(/\\s+/g,'');\r\n  if(s.length===0) return false;\r\n  for(var i=0;i<s.length;i++) if(B32.indexOf(s[i])<0) return false;\r\n  return true;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { sha1:sha1, bytesToHex:bytesToHex, hmacSha1:hmacSha1, base32Decode:base32Decode,\r\n    base32Encode:base32Encode, hotp:hotp, totp:totp, remaining:remaining, genSecret:genSecret, validateSecret:validateSecret };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.AuthForgePure = { sha1:sha1, bytesToHex:bytesToHex, hmacSha1:hmacSha1, base32Decode:base32Decode,\r\n    base32Encode:base32Encode, hotp:hotp, totp:totp, remaining:remaining, genSecret:genSecret, validateSecret:validateSecret };\r\n}\r\n"
+}

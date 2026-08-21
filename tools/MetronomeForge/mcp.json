@@ -1,0 +1,68 @@
+{
+  "id": "MetronomeForge",
+  "name": "metronome_forge",
+  "title": "MetronomeForge",
+  "description": "节拍器：可调 BPM 与拍号，支持重音与前瞻调度内核，Tap 测速，辅助练习节奏，离线可用。",
+  "entry": "mtInterval",
+  "entries": {
+    "mtInterval": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bpm"
+      ],
+      "fields": []
+    },
+    "mtClampBpm": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bpm"
+      ],
+      "fields": []
+    },
+    "mtAccent": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "beatIndex",
+        "beatsPerBar"
+      ],
+      "fields": []
+    },
+    "mtFreq": {
+      "paramStyle": "single",
+      "paramNames": [
+        "accent"
+      ],
+      "fields": []
+    },
+    "mtTap": {
+      "paramStyle": "single",
+      "paramNames": [
+        "times"
+      ],
+      "fields": []
+    },
+    "mtSchedule": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "nextTime",
+        "currentTime",
+        "lookahead",
+        "interval"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bpm": {
+        "type": "number",
+        "description": "输入（bpm）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction mtInterval(bpm){\r\n  var b=Number(bpm);\r\n  if(!isFinite(b)) b=120;\r\n  b=Math.min(260,Math.max(30,b));\r\n  return 60/b;\r\n}\r\nfunction mtClampBpm(bpm){ var b=Number(bpm); if(!isFinite(b)) b=120; return Math.min(260,Math.max(30,Math.round(b))); }\r\nfunction mtAccent(beatIndex, beatsPerBar){\r\n  var bpb=Math.max(1,Math.floor(beatsPerBar)||4);\r\n  var i=((Math.floor(beatIndex)%bpb)+bpb)%bpb;\r\n  return i===0 ? 'strong' : (bpb===6 && i===3 ? 'medium' : 'weak');\r\n}\r\nfunction mtFreq(accent){ return accent==='strong'?1568:accent==='medium'?1175:880; }\r\nfunction mtTap(times){\r\n  var ts=(times||[]).slice(-6);\r\n  if(ts.length<2) return null;\r\n  var gaps=[];\r\n  for(var i=1;i<ts.length;i++){\r\n    var g=ts[i]-ts[i-1];\r\n    if(g>0 && g<3000) gaps.push(g);\r\n  }\r\n  if(!gaps.length) return null;\r\n  var avg=gaps.reduce(function(a,b){return a+b;},0)/gaps.length;\r\n  return mtClampBpm(60000/avg);\r\n}\r\nfunction mtSchedule(nextTime, currentTime, lookahead, interval){\r\n  var out=[];\r\n  var t=nextTime;\r\n  while(t < currentTime + lookahead){ out.push(Math.round(t*1000)/1000); t+=interval; }\r\n  return { beats:out, nextTime:t };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { mtInterval:mtInterval, mtClampBpm:mtClampBpm, mtAccent:mtAccent, mtFreq:mtFreq, mtTap:mtTap, mtSchedule:mtSchedule };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MetronomeForgePure = { mtInterval:mtInterval, mtClampBpm:mtClampBpm, mtAccent:mtAccent, mtFreq:mtFreq, mtTap:mtTap, mtSchedule:mtSchedule };\r\n}\r\n"
+}

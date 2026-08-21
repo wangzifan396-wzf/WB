@@ -1,0 +1,111 @@
+{
+  "id": "StatForge",
+  "name": "stat_forge",
+  "title": "StatForge",
+  "description": "统计与线性回归：均值/中位数/众数、方差/标准差、四分位与 IQR、线性拟合（斜率/截距/R²），一键出直方图，离线可用。",
+  "entry": "statParse",
+  "entries": {
+    "statParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "statMean": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "statMedian": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "statQuantile": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "p"
+      ],
+      "fields": []
+    },
+    "statMode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "statVariance": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "sample"
+      ],
+      "fields": []
+    },
+    "statStd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "sample"
+      ],
+      "fields": []
+    },
+    "statSummary": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "statRegression": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pts"
+      ],
+      "fields": []
+    },
+    "statHistogram": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "bins"
+      ],
+      "fields": []
+    },
+    "statHistSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "bins"
+      ],
+      "fields": []
+    },
+    "statEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction statParse(text){\r\n  var nums=[], toks=String(text||'').split(/[\\s,;]+/);\r\n  for(var i=0;i<toks.length;i++){\r\n    var t=toks[i].trim(); if(!t) continue;\r\n    var n=Number(t);\r\n    if(t!=='' && !isFinite(n)) return { error:'非法数字：'+t };\r\n    nums.push(n);\r\n  }\r\n  if(nums.length<1) return { error:'至少需要 1 个数字' };\r\n  return { error:null, nums:nums };\r\n}\r\nfunction statMean(a){ var s=0; for(var i=0;i<a.length;i++) s+=a[i]; return s/a.length; }\r\nfunction statMedian(a){\r\n  var b=a.slice().sort(function(x,y){ return x-y; });\r\n  var n=b.length, m=Math.floor(n/2);\r\n  return n%2 ? b[m] : (b[m-1]+b[m])/2;\r\n}\r\nfunction statQuantile(a,p){\r\n  var b=a.slice().sort(function(x,y){ return x-y; });\r\n  if(b.length===1) return b[0];\r\n  var idx=p*(b.length-1), lo=Math.floor(idx), hi=Math.ceil(idx);\r\n  if(lo===hi) return b[lo];\r\n  return b[lo]+(b[hi]-b[lo])*(idx-lo);\r\n}\r\nfunction statMode(a){\r\n  var f={}, max=0;\r\n  for(var i=0;i<a.length;i++){ var k=a[i]; f[k]=(f[k]||0)+1; if(f[k]>max) max=f[k]; }\r\n  var modes=[]; for(var k in f){ if(f[k]===max) modes.push(Number(k)); }\r\n  return { modes:modes, freq:max };\r\n}\r\nfunction statVariance(a,sample){\r\n  var m=statMean(a), s=0;\r\n  for(var i=0;i<a.length;i++){ var d=a[i]-m; s+=d*d; }\r\n  return s/((sample===false? a.length : a.length-1)||1);\r\n}\r\nfunction statStd(a,sample){ return Math.sqrt(statVariance(a,sample)); }\r\nfunction statSummary(a){\r\n  var q1=statQuantile(a,0.25), q2=statQuantile(a,0.5), q3=statQuantile(a,0.75);\r\n  var mo=statMode(a);\r\n  return {\r\n    n:a.length, min:Math.min.apply(null,a), max:Math.max.apply(null,a),\r\n    sum:a.reduce(function(x,y){ return x+y; },0),\r\n    mean:statMean(a), median:q2, mode:mo.modes, modeFreq:mo.freq,\r\n    variance:statVariance(a,true), std:statStd(a,true),\r\n    q1:q1, q2:q2, q3:q3, iqr:q3-q1\r\n  };\r\n}\r\nfunction statRegression(pts){\r\n  if(pts.length<2) return { error:'至少需要 2 个点' };\r\n  var n=pts.length, sx=0, sy=0, sxx=0, syy=0, sxy=0;\r\n  for(var i=0;i<n;i++){ var x=pts[i][0], y=pts[i][1]; sx+=x; sy+=y; sxx+=x*x; syy+=y*y; sxy+=x*y; }\r\n  var denom=n*sxx-sx*sx;\r\n  if(denom===0) return { error:'x 方差为零，无法拟合' };\r\n  var slope=(n*sxy-sx*sy)/denom;\r\n  var intercept=(sy-slope*sx)/n;\r\n  var rNum=n*sxy-sx*sy, rDen=Math.sqrt((n*sxx-sx*sx)*(n*syy-sy*sy));\r\n  var r=(rDen===0)?0:rNum/rDen;\r\n  return { slope:slope, intercept:intercept, r:r, r2:r*r };\r\n}\r\nfunction statHistogram(a,bins){\r\n  bins=bins||Math.min(10,Math.max(2,a.length));\r\n  var mn=Math.min.apply(null,a), mx=Math.max.apply(null,a);\r\n  if(mx===mn) return [{ x0:mn, x1:mn, count:a.length }];\r\n  var w=(mx-mn)/bins, out=[];\r\n  for(var i=0;i<bins;i++) out.push({ x0:mn+i*w, x1:mn+(i+1)*w, count:0 });\r\n  for(var j=0;j<a.length;j++){\r\n    var k=Math.floor((a[j]-mn)/w);\r\n    if(k>=bins) k=bins-1; if(k<0) k=0; out[k].count++;\r\n  }\r\n  return out;\r\n}\r\nfunction statEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction statHistSvg(a,bins){\r\n  var h=statHistogram(a,bins), maxC=0;\r\n  for(var i=0;i<h.length;i++) if(h[i].count>maxC) maxC=h[i].count;\r\n  var W=680, H=180, PAD=24, bw=(W-PAD*2)/h.length, maxH=H-PAD*2;\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+W+'\" height=\"'+H+'\" viewBox=\"0 0 '+W+' '+H+'\">';\r\n  s+='<rect width=\"'+W+'\" height=\"'+H+'\" fill=\"#0A0A0B\"/>';\r\n  for(var i=0;i<h.length;i++){\r\n    var bh=maxC? maxH*h[i].count/maxC : 0;\r\n    var x=PAD+i*bw, y=H-PAD-bh;\r\n    s+='<rect x=\"'+(x+2)+'\" y=\"'+y+'\" width=\"'+(bw-4)+'\" height=\"'+bh+'\" rx=\"3\" fill=\"#5E6AD2\"/>';\r\n    s+='<text x=\"'+(x+bw/2)+'\" y=\"'+(H-PAD+14)+'\" font-family=\"system-ui,sans-serif\" font-size=\"10\" fill=\"#71717A\" text-anchor=\"middle\">'+statEsc(h[i].count)+'</text>';\r\n  }\r\n  s+='</svg>';\r\n  return s;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { statParse:statParse, statMean:statMean, statMedian:statMedian, statQuantile:statQuantile,\r\n    statMode:statMode, statVariance:statVariance, statStd:statStd, statSummary:statSummary,\r\n    statRegression:statRegression, statHistogram:statHistogram, statHistSvg:statHistSvg, statEsc:statEsc };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.StatForgePure = { statParse:statParse, statMean:statMean, statMedian:statMedian, statQuantile:statQuantile,\r\n    statMode:statMode, statVariance:statVariance, statStd:statStd, statSummary:statSummary,\r\n    statRegression:statRegression, statHistogram:statHistogram, statHistSvg:statHistSvg, statEsc:statEsc };\r\n}\r\n"
+}

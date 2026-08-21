@@ -1,0 +1,57 @@
+{
+  "id": "SnowflakeForge",
+  "name": "snowflake_forge",
+  "title": "SnowflakeForge",
+  "description": "Snowflake ID 工作台：BigInt 按 41 位时间戳 + 10 位机器 + 12 位序列拆解与合成，自定义 epoch 与数据中心位。",
+  "entry": "snowEncode",
+  "entries": {
+    "snowEncode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ts",
+        "dc",
+        "worker",
+        "seq",
+        "epoch"
+      ],
+      "fields": []
+    },
+    "snowDecode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "idStr",
+        "epoch"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "ts": {
+        "type": "string",
+        "description": "第 1 个参数（ts）"
+      },
+      "dc": {
+        "type": "string",
+        "description": "第 2 个参数（dc）"
+      },
+      "worker": {
+        "type": "string",
+        "description": "第 3 个参数（worker）"
+      },
+      "seq": {
+        "type": "string",
+        "description": "第 4 个参数（seq）"
+      },
+      "epoch": {
+        "type": "string",
+        "description": "第 5 个参数（epoch）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar SNOWFLAKE_EPOCH = 1288834974657;\r\nfunction snowEncode(ts, dc, worker, seq, epoch){\r\n  epoch = epoch || SNOWFLAKE_EPOCH;\r\n  var E = BigInt(epoch), T = BigInt(ts), D = BigInt(dc), W = BigInt(worker), S = BigInt(seq);\r\n  var id = (T - E) << 22n;\r\n  id |= (D & 31n) << 17n;\r\n  id |= (W & 31n) << 12n;\r\n  id |= (S & 4095n);\r\n  return id.toString();\r\n}\r\nfunction snowDecode(idStr, epoch){\r\n  epoch = epoch || SNOWFLAKE_EPOCH;\r\n  var id = BigInt(idStr);\r\n  var seq = Number(id & 4095n);\r\n  var worker = Number((id >> 12n) & 31n);\r\n  var dc = Number((id >> 17n) & 31n);\r\n  var ts = Number((id >> 22n) & 0x1FFFFFFFFFFn) + epoch;\r\n  return { timestamp: ts, datacenter: dc, worker: worker, sequence: seq };\r\n}\r\nvar EXPORTS = { SNOWFLAKE_EPOCH: SNOWFLAKE_EPOCH, snowEncode: snowEncode, snowDecode: snowDecode };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SnowflakeForgePure = EXPORTS; }\r\n\r\n"
+}

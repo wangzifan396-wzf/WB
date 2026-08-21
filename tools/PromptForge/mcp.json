@@ -1,0 +1,60 @@
+{
+  "id": "PromptForge",
+  "name": "prompt_forge",
+  "title": "PromptForge",
+  "description": "本地优先 AI Prompt 工作台：变量模板、实时预览、BYOK 直连大模型、Token 与成本估算、本地历史，密钥永不离机。",
+  "entry": "extractVars",
+  "entries": {
+    "extractVars": {
+      "paramStyle": "single",
+      "paramNames": [
+        "tpl"
+      ],
+      "fields": []
+    },
+    "fillTemplate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tpl",
+        "map"
+      ],
+      "fields": []
+    },
+    "estTokens": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "estCost": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "inT",
+        "outT"
+      ],
+      "fields": []
+    },
+    "maskKey": {
+      "paramStyle": "single",
+      "paramNames": [
+        "k"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "tpl": {
+        "type": "string",
+        "description": "输入（tpl）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ============ 纯函数（可测试，无副作用） ============ */\r\nvar PF = (function(){\r\n  function extractVars(tpl){\r\n    var re = /\\{\\{\\s*([\\w]+)\\s*\\}\\}/g, m, set = {};\r\n    while((m = re.exec(tpl)) !== null){ set[m[1]] = 1; }\r\n    return Object.keys(set).sort();\r\n  }\r\n  function fillTemplate(tpl, map){\r\n    map = map || {};\r\n    return tpl.replace(/\\{\\{\\s*([\\w]+)\\s*\\}\\}/g, function(_, name){\r\n      return (map[name] !== undefined && map[name] !== \"\") ? map[name] : (\"{{\"+name+\"}}\");\r\n    });\r\n  }\r\n  function estTokens(s){\r\n    if(!s) return 0;\r\n    return Math.max(1, Math.ceil(Array.from(s).length / 4));\r\n  }\r\n  function estCost(model, inT, outT){\r\n    var table = {\r\n      \"gpt-4o\":      [0.005, 0.015],\r\n      \"gpt-4o-mini\": [0.00015, 0.0006],\r\n      \"gpt-3.5-turbo\":[0.0005, 0.0015],\r\n      \"claude-3-5-sonnet\":[0.003, 0.015],\r\n      \"claude-3-haiku\":[0.00025,0.00125],\r\n      \"default\":      [0.001, 0.002]\r\n    };\r\n    var p = table[model] || table[\"default\"];\r\n    return (inT/1000)*p[0] + (outT/1000)*p[1];\r\n  }\r\n  function maskKey(k){\r\n    if(!k) return \"\";\r\n    if(k.length <= 7) return \"••••\";\r\n    return k.slice(0,3) + \"…\" + k.slice(-4);\r\n  }\r\n  return { extractVars:extractVars, fillTemplate:fillTemplate, estTokens:estTokens, estCost:estCost, maskKey:maskKey };\r\n})();\r\n\r\nif(typeof module !== \"undefined\" && module.exports){ module.exports = PF; }\r\nif(typeof window !== \"undefined\"){ window.PromptForgePure = PF; }\r\n"
+}

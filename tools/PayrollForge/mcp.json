@@ -1,0 +1,42 @@
+{
+  "id": "PayrollForge",
+  "name": "payroll_forge",
+  "title": "PayrollForge",
+  "description": "按累进税率与社保算到手工资",
+  "entry": "taxBracket",
+  "entries": {
+    "taxBracket": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "taxable",
+        "brackets"
+      ],
+      "fields": []
+    },
+    "payroll": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "gross",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "taxable": {
+        "type": "string",
+        "description": "第 1 个参数（taxable）"
+      },
+      "brackets": {
+        "type": "string",
+        "description": "第 2 个参数（brackets）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar DEFAULT_BR=[{upTo:3000,rate:0},{upTo:12000,rate:0.03},{upTo:25000,rate:0.1},{upTo:35000,rate:0.2},{upTo:55000,rate:0.25},{upTo:80000,rate:0.3},{upTo:null,rate:0.35}];\r\nfunction taxBracket(taxable, brackets){ if(!(taxable>0)) return 0; brackets=brackets||DEFAULT_BR; var tax=0, prev=0;\r\n  for(var i=0;i<brackets.length;i++){ var up=brackets[i].upTo, rate=brackets[i].rate; var top= up==null? taxable : Math.min(taxable,up);\r\n    if(top>prev){ tax += (top-prev)*rate; prev=top; } if(taxable<=up) break; }\r\n  return Math.round(tax*100)/100; }\r\nfunction payroll(gross, opts){ gross=+gross; opts=opts||{}; var ins=+(opts.insuranceRate||0), other=+(opts.other||0), br=opts.brackets||DEFAULT_BR;\r\n  if(!(gross>=0)) return {error:'工资金额须非负'};\r\n  var insurance=gross*ins; var taxable=gross-insurance-other; if(taxable<0) taxable=0;\r\n  var tax=taxBracket(taxable, br); var net=gross-insurance-tax-other;\r\n  return {gross:gross, insurance:Math.round(insurance*100)/100, taxable:Math.round(taxable*100)/100, tax:tax, other:other, net:Math.round(net*100)/100}; }\r\nvar EXPORTS={taxBracket:taxBracket, payroll:payroll, DEFAULT_BR:DEFAULT_BR};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PayrollForgePure = EXPORTS; }\r\n\r\n"
+}

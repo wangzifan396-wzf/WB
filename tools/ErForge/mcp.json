@@ -1,0 +1,36 @@
+{
+  "id": "ErForge",
+  "name": "er_forge",
+  "title": "ErForge",
+  "description": "从 SQL DDL 生成 ER 图：解析 CREATE TABLE、列、主键与外键，自动绘制表框与关系连线，本地渲染、可缩放查看。",
+  "entry": "parseDDL",
+  "entries": {
+    "parseDDL": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "splitCols": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function splitCols(s){ var out=[],depth=0,cur=''; for(var i=0;i<s.length;i++){ var c=s[i]; if(c==='('){depth++;cur+=c;} else if(c===')'){depth--;cur+=c;} else if(c===','&&depth===0){out.push(cur);cur='';} else cur+=c; } if(cur.trim())out.push(cur); return out; }\r\n  function parseDDL(text){\r\n    text=String(text||'').replace(/--[^\\n]*/g,'');\r\n    var tables=[], re=/create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?[`\"]?(\\w+)[`\"]?\\s*\\(/gi, m;\r\n    while((m=re.exec(text))){\r\n      var tname=m[1];\r\n      var start=m.index+m[0].length, depth=1, i=start;\r\n      while(i<text.length && depth>0){ if(text[i]==='(')depth++; else if(text[i]===')')depth--; i++; }\r\n      var body=text.slice(start, i-1), cols=[], fks=[];\r\n      var parts=splitCols(body);\r\n      for(var i=0;i<parts.length;i++){ var p=parts[i].trim(); if(!p)continue;\r\n        var fk=p.match(/foreign\\s+key\\s*\\(([^)]+)\\)\\s*references\\s+[`\"]?(\\w+)[`\"]?\\s*\\(([^)]+)\\)/i);\r\n        if(fk){ fks.push({from:fk[1].split(',')[0].trim(), to:fk[2], toCol:fk[3].split(',')[0].trim()}); continue; }\r\n        var cm=p.match(/[`\"]?(\\w+)[`\"]?\\s+(\\w+)/);\r\n        if(cm) cols.push({name:cm[1], type:cm[2].toUpperCase(), pk:/primary\\s+key/i.test(p), fk:/references/i.test(p)});\r\n      }\r\n      tables.push({name:tname, cols:cols, fks:fks});\r\n    }\r\n    return {value:tables};\r\n  }\r\n  var API={parseDDL:parseDDL, splitCols:splitCols};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__ErForge__=API;\r\n})();\r\n"
+}

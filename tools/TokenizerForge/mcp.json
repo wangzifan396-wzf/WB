@@ -1,0 +1,49 @@
+{
+  "id": "TokenizerForge",
+  "name": "tokenizer_forge",
+  "title": "TokenizerForge",
+  "description": "在语料上训练 BPE 合并规则，对文本编码并解码还原。",
+  "entry": "trainBPE",
+  "entries": {
+    "trainBPE": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "merges"
+      ],
+      "fields": []
+    },
+    "encode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "rank"
+      ],
+      "fields": []
+    },
+    "decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "tokens"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "merges": {
+        "type": "string",
+        "description": "第 2 个参数（merges）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction trainBPE(text, merges){\r\n  var sym=text.split('');\r\n  var rank={}, n=0;\r\n  for(var m=0;m<merges;m++){\r\n    var cnt={};\r\n    for(var i=0;i<sym.length-1;i++){ var k=sym[i]+'\\u0001'+sym[i+1]; cnt[k]=(cnt[k]||0)+1; }\r\n    var best=null,bn=-1; for(var k in cnt){ if(cnt[k]>bn){bn=cnt[k];best=k;} }\r\n    if(!best) break;\r\n    rank[best]=n++;\r\n    var parts=best.split('\\u0001'); var a=parts[0], b=parts[1];\r\n    var ns=[];\r\n    for(var i=0;i<sym.length;i++){\r\n      if(i<sym.length-1 && sym[i]===a && sym[i+1]===b){ ns.push(a+b); i++; }\r\n      else ns.push(sym[i]);\r\n    }\r\n    sym=ns;\r\n  }\r\n  return {vocab:sym, rank:rank};\r\n}\r\nfunction encode(text, rank){\r\n  var sym=text.split(''); var changed=true;\r\n  while(changed){\r\n    changed=false; var bestI=-1, bestRank=Infinity;\r\n    for(var i=0;i<sym.length-1;i++){\r\n      var k=sym[i]+'\\u0001'+sym[i+1];\r\n      if(k in rank && rank[k]<bestRank){ bestRank=rank[k]; bestI=i; }\r\n    }\r\n    if(bestI>=0){ sym.splice(bestI,2, sym[bestI]+sym[bestI+1]); changed=true; }\r\n  }\r\n  return sym;\r\n}\r\nfunction decode(tokens){ return tokens.join(''); }\r\nvar EXPORTS={trainBPE:trainBPE,encode:encode,decode:decode};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TokenizerForgePure = EXPORTS; }\r\n\r\n"
+}

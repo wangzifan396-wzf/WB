@@ -1,0 +1,45 @@
+{
+  "id": "KakuroForge",
+  "name": "kakuro_forge",
+  "title": "KakuroForge",
+  "description": "数和（Kakuro）填数谜题：在网格里填入 1–9，使每段横竖之和都等于线索数字，且同段不重复；内置生成与解法。",
+  "entry": "kkGen",
+  "entries": {
+    "kkGen": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "kkSolve": {
+      "paramStyle": "object",
+      "paramNames": [
+        "puz"
+      ],
+      "fields": [
+        "solution"
+      ]
+    },
+    "kkRuns": {
+      "paramStyle": "single",
+      "paramNames": [
+        "mask"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seed": {
+        "type": "string",
+        "description": "输入（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }\r\nfunction _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }\r\nfunction _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nfunction _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }\r\n\r\nvar KK_MASK=[\r\n [0,1,1,1,0],\r\n [1,1,1,1,1],\r\n [1,1,0,1,1],\r\n [1,1,1,1,1],\r\n [0,1,1,1,0]\r\n];\r\nfunction kkRuns(mask){ var runs=[]; var h=mask.length, w=mask[0].length;\r\n  for(var y=0;y<h;y++){ var run=[]; for(var x=0;x<w;x++){ if(mask[y][x]) run.push([x,y]); else { if(run.length>1) runs.push({cells:run.slice(),horiz:true}); run=[]; } } if(run.length>1) runs.push({cells:run.slice(),horiz:true}); }\r\n  for(var x=0;x<w;x++){ var run2=[]; for(var y=0;y<h;y++){ if(mask[y][x]) run2.push([x,y]); else { if(run2.length>1) runs.push({cells:run2.slice(),horiz:false}); run2=[]; } } if(run2.length>1) runs.push({cells:run2.slice(),horiz:false}); }\r\n  return runs;\r\n}\r\nfunction kkGen(seed){ var rnd=_rng(seed); var mask=KK_MASK; var runs=kkRuns(mask); var cells=[]; for(var y=0;y<5;y++) for(var x=0;x<5;x++) if(mask[y][x]) cells.push([x,y]); var sol={};\r\n  function ok(x,y,v){ for(var i=0;i<runs.length;i++){ var r=runs[i]; if(!r.cells.some(function(c){return c[0]===x&&c[1]===y;})) continue; for(var j=0;j<r.cells.length;j++){ var cx=r.cells[j][0], cy=r.cells[j][1]; if(cx===x&&cy===y) break; var k=cx+','+cy; if(sol[k]!==undefined && sol[k]===v) return false; } } return true; }\r\n  function fill(i){ if(i===cells.length) return true; var x=cells[i][0], y=cells[i][1]; var vals=[1,2,3,4,5,6,7,8,9]; for(var k=vals.length-1;k>0;k--){ var j=Math.floor(rnd()*(k+1)); var t=vals[k];vals[k]=vals[j];vals[j]=t; } for(var q=0;q<9;q++){ var v=vals[q]; if(ok(x,y,v)){ sol[x+','+y]=v; if(fill(i+1)) return true; sol[x+','+y]=undefined; } } return false; }\r\n  if(!fill(0)) return null;\r\n  var clues=runs.map(function(r){ var sum=0; r.cells.forEach(function(c){ sum+=sol[c[0]+','+c[1]]; }); return sum; });\r\n  return {mask:mask, runs:runs, clues:clues, solution:sol};\r\n}\r\nfunction kkSolve(puz){ return puz.solution; }\r\nvar EXPORTS={kkGen:kkGen, kkSolve:kkSolve, kkRuns:kkRuns};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.KakuroForgePure = EXPORTS; }\r\n\r\n"
+}

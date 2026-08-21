@@ -1,0 +1,59 @@
+{
+  "id": "MeetingAgendaForge",
+  "name": "meeting_agenda_forge",
+  "title": "会议议程生成",
+  "description": "按议题与时长生成时间盒化议程与纪要模板，离线。",
+  "entry": "buildAgenda",
+  "entries": {
+    "parseTopics": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "addMin": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "hhmm",
+        "mins"
+      ],
+      "fields": []
+    },
+    "buildAgenda": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "title",
+        "duration",
+        "topics",
+        "startTime"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "description": "第 1 个参数（title）"
+      },
+      "duration": {
+        "type": "string",
+        "description": "第 2 个参数（duration）"
+      },
+      "topics": {
+        "type": "string",
+        "description": "第 3 个参数（topics）"
+      },
+      "startTime": {
+        "type": "string",
+        "description": "第 4 个参数（startTime）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseTopics(text){\r\n  text=String(text||'');\r\n  var lines=text.split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});\r\n  return lines.map(function(line){\r\n    var m=line.match(/@(\\d+)\\s*$/);\r\n    var mins=m? +m[1] : null;\r\n    var topic=line.replace(/@\\d+\\s*$/,'').trim();\r\n    return {topic:topic, mins:mins};\r\n  });\r\n}\r\nfunction addMin(hhmm, mins){\r\n  var p=String(hhmm).split(':'); var h=+p[0], m=+p[1];\r\n  var t=(h*60+m)+mins; h=Math.floor(t/60)%24; m=((t%60)+60)%60;\r\n  return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;\r\n}\r\nfunction buildAgenda(title, duration, topics, startTime){\r\n  duration=Math.round(+duration);\r\n  if(isNaN(duration)||duration<=0) return {error:'会议时长须为正整数（分钟）'};\r\n  startTime=startTime||'09:00';\r\n  var list=parseTopics(topics);\r\n  if(!list.length) return {error:'请至少填写一个议题'};\r\n  var explicit=list.filter(function(t){return t.mins!=null;});\r\n  var sum=explicit.reduce(function(a,t){return a+t.mins;},0);\r\n  var remaining=duration - sum;\r\n  var nulls=list.filter(function(t){return t.mins==null;});\r\n  if(remaining<0) return {error:'议题指定时长累计 '+sum+' 分钟，已超过总时长 '+duration+' 分钟'};\r\n  var perNull = nulls.length? Math.floor(remaining/nulls.length) : 0;\r\n  var slots=[]; var cur=startTime;\r\n  list.forEach(function(t){\r\n    var mins = t.mins!=null? t.mins : perNull;\r\n    var end=addMin(cur,mins);\r\n    slots.push({start:cur, end:end, topic:t.topic, mins:mins});\r\n    cur=end;\r\n  });\r\n  var notes='## 会议纪要 · '+title+'\\n\\n| 决议 | 负责人 | 截止 |\\n|------|--------|------|\\n| | | |\\n\\n### 行动项\\n- [ ] \\n';\r\n  return {title:title, duration:duration, slots:slots, total:duration, notesTemplate:notes, over:false};\r\n}\r\nvar EXPORTS={parseTopics:parseTopics, addMin:addMin, buildAgenda:buildAgenda};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MeetingAgendaForgePure = EXPORTS; }\r\n\r\n"
+}

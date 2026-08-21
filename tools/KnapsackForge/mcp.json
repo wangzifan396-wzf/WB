@@ -1,0 +1,45 @@
+{
+  "id": "KnapsackForge",
+  "name": "knapsack_forge",
+  "title": "KnapsackForge",
+  "description": "0/1 背包：动态规划最优选择，贪心对照，回溯选取物品。",
+  "entry": "ksParse",
+  "entries": {
+    "ksParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "ksSolve": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "cap"
+      ],
+      "fields": []
+    },
+    "ksGreedy": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "cap"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction ksParse(text){\r\n  var items = [], lines = String(text||'').split(/\\n/);\r\n  for(var i=0;i<lines.length;i++){\r\n    var s = lines[i].trim();\r\n    if(!s) continue;\r\n    var p = s.split(/[,\\uFF0C]/).map(function(x){ return x.trim(); });\r\n    if(p.length < 3) return { error: '第 ' + (i+1) + ' 行格式错误（需：名称,重量,价值）' };\r\n    var wt = Number(p[1]), val = Number(p[2]);\r\n    if(!isFinite(wt) || !isFinite(val) || wt <= 0 || val < 0) return { error: '第 ' + (i+1) + ' 行数值非法' };\r\n    items.push({ name: p[0], w: wt, v: val });\r\n  }\r\n  if(!items.length) return { error: '至少需要一件物品' };\r\n  return { items: items };\r\n}\r\nfunction ksSolve(items, cap){\r\n  var n = items.length, W = Math.floor(cap);\r\n  var dp = [];\r\n  for(var i=0;i<=n;i++){ dp.push(new Array(W+1).fill(0)); }\r\n  for(var i=1;i<=n;i++){\r\n    var it = items[i-1];\r\n    for(var w=0;w<=W;w++){\r\n      dp[i][w] = dp[i-1][w];\r\n      if(it.w <= w){\r\n        var cand = dp[i-1][w - it.w] + it.v;\r\n        if(cand > dp[i][w]) dp[i][w] = cand;\r\n      }\r\n    }\r\n  }\r\n  var picked = [], w = W;\r\n  for(var i=n;i>=1;i--){\r\n    if(dp[i][w] !== dp[i-1][w]){ picked.push(i-1); w -= items[i-1].w; }\r\n  }\r\n  picked.reverse();\r\n  return { best: dp[n][W], dp: dp, picked: picked };\r\n}\r\nfunction ksGreedy(items, cap){\r\n  var idx = items.map(function(_, i){ return i; });\r\n  idx.sort(function(a, b){ return items[b].v/items[b].w - items[a].v/items[a].w || a - b; });\r\n  var total = 0, wsum = 0, picked = [];\r\n  for(var k=0;k<idx.length;k++){\r\n    var it = items[idx[k]];\r\n    if(wsum + it.w <= cap){ wsum += it.w; total += it.v; picked.push(idx[k]); }\r\n  }\r\n  return { best: total, picked: picked.sort(function(a,b){ return a-b; }) };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { ksParse:ksParse, ksSolve:ksSolve, ksGreedy:ksGreedy };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.KnapsackForgePure = { ksParse:ksParse, ksSolve:ksSolve, ksGreedy:ksGreedy };\r\n}\r\n"
+}

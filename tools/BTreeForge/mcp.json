@@ -1,0 +1,21 @@
+{
+  "id": "BTreeForge",
+  "name": "b_tree_forge",
+  "title": "BTreeForge",
+  "description": "B 树（B-Tree，最小度 t=2 即 2-3-4 树）：磁盘友好平衡多路搜索树，支持插入与有序遍历，离线精确。",
+  "entry": "makeBTree",
+  "entries": {
+    "makeBTree": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\nfunction BTNode(t,leaf){ this.t=t; this.leaf=leaf; this.keys=[]; this.children=[]; }\r\nfunction BTree(t){ this.t=t; this.root=new BTNode(t,true); }\r\nBTree.prototype.search=function(node,key){ var i=0; while(i<node.keys.length && key>node.keys[i]) i++; if(i<node.keys.length && key===node.keys[i]) return true; if(node.leaf) return false; return this.search(node.children[i],key); };\r\nBTree.prototype.splitChild=function(x,i){ var t=this.t; var y=x.children[i]; var median=y.keys[t-1]; var z=new BTNode(t,y.leaf); z.keys=y.keys.slice(t); y.keys=y.keys.slice(0,t-1); if(!y.leaf){ z.children=y.children.slice(t); y.children=y.children.slice(0,t); } x.children.splice(i+1,0,z); x.keys.splice(i,0,median); };\r\nBTree.prototype.insertNonFull=function(x,key){ var i=x.keys.length-1; if(x.leaf){ x.keys.push(null); while(i>=0 && key<x.keys[i]){ x.keys[i+1]=x.keys[i]; i--; } x.keys[i+1]=key; } else { while(i>=0 && key<x.keys[i]) i--; i++; if(x.children[i].keys.length===2*this.t-1){ this.splitChild(x,i); if(key>x.keys[i]) i++; } this.insertNonFull(x.children[i],key); } };\r\nBTree.prototype.insert=function(key){ var r=this.root; if(r.keys.length===2*this.t-1){ var s=new BTNode(this.t,false); s.children=[r]; this.splitChild(s,0); this.root=s; } this.insertNonFull(this.root,key); };\r\nBTree.prototype.inorder=function(){ var out=[]; function rec(node){ if(node.leaf){ for(var k=0;k<node.keys.length;k++) out.push(node.keys[k]); } else { for(var k=0;k<node.keys.length;k++){ rec(node.children[k]); out.push(node.keys[k]); } rec(node.children[node.keys.length]); } } rec(this.root); return out; };\r\nfunction makeBTree(){ return new BTree(2); }\r\nvar EXPORTS={makeBTree:makeBTree};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BTreeForgePure = EXPORTS; }\r\n\r\n"
+}

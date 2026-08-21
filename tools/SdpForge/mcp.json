@@ -1,0 +1,192 @@
+{
+  "id": "SdpForge",
+  "name": "sdp_forge",
+  "title": "SdpForge",
+  "description": "WebRTC SDP 解剖台：拆开 offer/answer 的每条媒体、编解码器、头部扩展与 ICE 候选，把候选优先级按 RFC 8445 反解成类型优先/本地优先/组件号，核对 offer 与 answer 的 m 行顺序、mid、方向互补、DTLS 角色与载荷类型交集，另附体检与一键脱敏（抹掉地址、ICE 口令、DTLS 指纹与流标识），离线可用。",
+  "entry": "buildPriority",
+  "entries": {
+    "splitSdpLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseLine": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "parseAttribute": {
+      "paramStyle": "single",
+      "paramNames": [
+        "value"
+      ],
+      "fields": []
+    },
+    "parseOrigin": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "parseMediaLine": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "parseConnection": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "parseFingerprint": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "ipKind": {
+      "paramStyle": "single",
+      "paramNames": [
+        "addr"
+      ],
+      "fields": []
+    },
+    "parseCandidate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "decodePriority": {
+      "paramStyle": "single",
+      "paramNames": [
+        "p"
+      ],
+      "fields": []
+    },
+    "buildPriority": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "typePref",
+        "localPref",
+        "component"
+      ],
+      "fields": []
+    },
+    "pairPriority": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "controllingPriority",
+        "controlledPriority"
+      ],
+      "fields": []
+    },
+    "parseSdp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "collectCodecs": {
+      "paramStyle": "object",
+      "paramNames": [
+        "section"
+      ],
+      "fields": [
+        "m",
+        "rtpmap",
+        "fmtp",
+        "rtcpFb"
+      ]
+    },
+    "summarize": {
+      "paramStyle": "object",
+      "paramNames": [
+        "doc"
+      ],
+      "fields": [
+        "media",
+        "bundle",
+        "dtls",
+        "ice"
+      ]
+    },
+    "lint": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "negotiate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "offerText",
+        "answerText"
+      ],
+      "fields": []
+    },
+    "redact": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opts"
+      ],
+      "fields": []
+    },
+    "maskAddress": {
+      "paramStyle": "single",
+      "paramNames": [
+        "addr"
+      ],
+      "fields": []
+    },
+    "stats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "doc"
+      ],
+      "fields": []
+    },
+    "toJson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "doc"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "typePref": {
+        "type": "number",
+        "description": "第 1 个参数（typePref）（数值）"
+      },
+      "localPref": {
+        "type": "number",
+        "description": "第 2 个参数（localPref）（数值）"
+      },
+      "component": {
+        "type": "number",
+        "description": "第 3 个参数（component）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n/* ---- SDP (RFC 4566) + WebRTC 用法 (RFC 8829 / 8839 / 8841) ------------------\r\n   SDP 是一叠 <单字符>=<值> 的行，顺序敏感：\r\n     v= 版本，o= 源，s= 会话名，t= 时间 —— 会话级\r\n     m= 之后的所有行都属于那一条媒体，直到下一条 m=\r\n   WebRTC 把它当成协商载体：ICE 凭证、DTLS 指纹、编解码器、BUNDLE 分组、\r\n   方向（sendrecv/sendonly/recvonly/inactive）全塞在 a= 属性里。\r\n---------------------------------------------------------------------------- */\r\n\r\nvar DIRECTIONS = {sendrecv:1, sendonly:1, recvonly:1, inactive:1};\r\n\r\nvar CANDIDATE_TYPES = {\r\n  host:  '本机地址：网卡上直接看得到的地址，同网段直连最快',\r\n  srflx: '服务端自反：STUN 服务器回报的公网映射地址，NAT 打洞用',\r\n  prflx: '对端自反：连通性检查过程中，从对方来包里现学到的地址',\r\n  relay: '中继：TURN 服务器转发，最后的保底路径，费流量也最慢'\r\n};\r\n\r\nfunction splitSdpLines(text){\r\n  var s = String(text==null?'':text);\r\n  if(s.charCodeAt(0)===0xFEFF) s = s.slice(1);\r\n  var raw = s.split(/\\r\\n|\\r|\\n/), out=[];\r\n  for(var i=0;i<raw.length;i++){ if(raw[i]!=='') out.push(raw[i]); }\r\n  return out;\r\n}\r\n\r\nfunction parseLine(line){\r\n  var l = String(line);\r\n  if(l.charAt(1) !== '=' || l.length < 2) return {type:'?', value:l, malformed:true};\r\n  return {type:l.charAt(0), value:l.slice(2), malformed:false};\r\n}\r\n\r\nfunction parseAttribute(value){\r\n  var v = String(value), c = v.indexOf(':');\r\n  if(c < 0) return {name:v, value:null, flag:true};\r\n  return {name:v.slice(0,c), value:v.slice(c+1), flag:false};\r\n}\r\n\r\nfunction parseOrigin(v){\r\n  var p = String(v==null?'':v).split(/\\s+/);\r\n  return {username:p[0]||'', sessionId:p[1]||'', sessionVersion:p[2]||'',\r\n          netType:p[3]||'', addrType:p[4]||'', address:p[5]||'', ok:p.length>=6};\r\n}\r\n\r\nfunction parseMediaLine(v){\r\n  var p = String(v==null?'':v).split(/\\s+/);\r\n  var portField = String(p[1]||''), slash = portField.split('/');\r\n  return {kind:p[0]||'', port:parseInt(slash[0],10),\r\n          portCount: slash.length>1 ? parseInt(slash[1],10) : 1,\r\n          proto:p[2]||'', fmts:p.slice(3), ok:p.length>=4};\r\n}\r\n\r\nfunction parseConnection(v){\r\n  var p = String(v==null?'':v).split(/\\s+/);\r\n  return {netType:p[0]||'', addrType:p[1]||'', address:p[2]||'', ok:p.length>=3};\r\n}\r\n\r\nfunction parseFingerprint(v){\r\n  var p = String(v==null?'':v).split(/\\s+/);\r\n  var hash = (p[0]||'').toLowerCase(), val = p[1]||'';\r\n  var parts = val ? val.split(':') : [];\r\n  var want = {'sha-1':20,'sha-224':28,'sha-256':32,'sha-384':48,'sha-512':64}[hash] || 0;\r\n  var bad = false;\r\n  for(var i=0;i<parts.length;i++){ if(!/^[0-9a-fA-F]{2}$/.test(parts[i])) bad = true; }\r\n  return {hash:hash, value:val, bytes:parts.length, expected:want,\r\n          ok: !!hash && !!val && !bad && (want===0 || parts.length===want)};\r\n}\r\n\r\nfunction ipKind(addr){\r\n  var a = String(addr==null?'':addr).trim();\r\n  if(!a) return {family:'', kind:'unknown', label:'空地址'};\r\n  if(/\\.local$/i.test(a)) return {family:'mdns', kind:'mdns', label:'mDNS 主机名（浏览器已做地址隐藏）'};\r\n  if(a.indexOf(':') >= 0){\r\n    var low = a.toLowerCase();\r\n    if(low === '::' ) return {family:'IPv6', kind:'any', label:'通配地址（占位）'};\r\n    if(low === '::1') return {family:'IPv6', kind:'loopback', label:'环回地址'};\r\n    if(/^fe[89ab]/.test(low)) return {family:'IPv6', kind:'linklocal', label:'链路本地地址，跨网段不可达'};\r\n    if(/^f[cd]/.test(low)) return {family:'IPv6', kind:'private', label:'唯一本地地址（ULA），内网'};\r\n    return {family:'IPv6', kind:'public', label:'公网 IPv6'};\r\n  }\r\n  if(!/^\\d{1,3}(\\.\\d{1,3}){3}$/.test(a)) return {family:'', kind:'name', label:'主机名，不是字面地址'};\r\n  var o = a.split('.').map(function(x){ return parseInt(x,10); });\r\n  for(var j=0;j<4;j++){ if(!(o[j]>=0 && o[j]<=255)) return {family:'IPv4', kind:'invalid', label:'非法 IPv4'}; }\r\n  if(a === '0.0.0.0') return {family:'IPv4', kind:'any', label:'通配地址（占位，真实地址在 candidate 里）'};\r\n  if(o[0]===127) return {family:'IPv4', kind:'loopback', label:'环回地址'};\r\n  if(o[0]===10) return {family:'IPv4', kind:'private', label:'内网地址 10/8'};\r\n  if(o[0]===172 && o[1]>=16 && o[1]<=31) return {family:'IPv4', kind:'private', label:'内网地址 172.16/12'};\r\n  if(o[0]===192 && o[1]===168) return {family:'IPv4', kind:'private', label:'内网地址 192.168/16'};\r\n  if(o[0]===169 && o[1]===254) return {family:'IPv4', kind:'linklocal', label:'链路本地地址 169.254/16'};\r\n  if(o[0]===100 && o[1]>=64 && o[1]<=127) return {family:'IPv4', kind:'cgnat', label:'运营商级 NAT 段 100.64/10'};\r\n  return {family:'IPv4', kind:'public', label:'公网 IPv4'};\r\n}\r\n\r\n/* ---- ICE 候选 ------------------------------------------------------------\r\n   a=candidate:<foundation> <component> <transport> <priority> <ip> <port>\r\n               typ <type> [raddr <ip> rport <port>] [tcptype ...] [generation ...]\r\n---------------------------------------------------------------------------- */\r\nfunction parseCandidate(str){\r\n  var s = String(str==null?'':str).trim();\r\n  s = s.replace(/^a=/, '').replace(/^candidate:/, '').trim();\r\n  if(!s) return {ok:false, error:'空候选串'};\r\n  var p = s.split(/\\s+/);\r\n  if(p.length < 8) return {ok:false, error:'候选至少要有 8 段，当前 '+p.length+' 段', raw:s};\r\n  var c = {raw:s, foundation:p[0], component:parseInt(p[1],10), transport:p[2],\r\n           priority:parseInt(p[3],10), address:p[4], port:parseInt(p[5],10),\r\n           type:'', relatedAddress:'', relatedPort:null, tcptype:'', generation:null,\r\n           ufrag:'', networkId:null, networkCost:null, extras:{}, ok:true, error:''};\r\n  if(p[6] !== 'typ'){ c.ok=false; c.error='第 7 段必须是关键字 typ，实际是 \"'+p[6]+'\"'; }\r\n  else c.type = p[7]||'';\r\n  for(var i=8;i+1<p.length;i+=2){\r\n    var k=p[i], v=p[i+1];\r\n    if(k==='raddr') c.relatedAddress=v;\r\n    else if(k==='rport') c.relatedPort=parseInt(v,10);\r\n    else if(k==='tcptype') c.tcptype=v;\r\n    else if(k==='generation') c.generation=parseInt(v,10);\r\n    else if(k==='ufrag') c.ufrag=v;\r\n    else if(k==='network-id') c.networkId=parseInt(v,10);\r\n    else if(k==='network-cost') c.networkCost=parseInt(v,10);\r\n    else c.extras[k]=v;\r\n  }\r\n  c.componentName = c.component===1?'RTP' : c.component===2?'RTCP' : ('component '+c.component);\r\n  c.typeLabel = CANDIDATE_TYPES[c.type] || '未知类型';\r\n  c.addressKind = ipKind(c.address);\r\n  if(!(c.priority>=0)){ c.ok=false; c.error=c.error||'优先级不是数字'; }\r\n  if(!(c.port>=0 && c.port<=65535)){ c.ok=false; c.error=c.error||'端口越界'; }\r\n  if(c.transport && !/^(udp|tcp|ssltcp)$/i.test(c.transport)){ c.ok=false; c.error=c.error||'未知传输层 \"'+c.transport+'\"'; }\r\n  if((c.type==='srflx'||c.type==='relay'||c.type==='prflx') && !c.relatedAddress){\r\n    c.warn = '非 host 候选按 RFC 8839 应带 raddr/rport';\r\n  }\r\n  return c;\r\n}\r\n\r\n/* priority = 2^24 * 类型优先 + 2^8 * 本地优先 + (256 - 组件号)   —— RFC 8445 */\r\nfunction decodePriority(p){\r\n  var n = Number(p);\r\n  if(!isFinite(n) || n < 0 || Math.floor(n) !== n) return {ok:false, error:'优先级必须是非负整数'};\r\n  if(n > 2147483647) return {ok:false, error:'优先级超出 31 位取值范围'};\r\n  var typePref  = Math.floor(n / 16777216);\r\n  var localPref = Math.floor(n / 256) % 65536;\r\n  var comp      = 256 - (n % 256);\r\n  var guess = typePref===126 ? 'host' : typePref===110 ? 'prflx'\r\n            : typePref===100 ? 'srflx' : typePref===0 ? 'relay' : '自定义';\r\n  return {ok:true, priority:n, typePreference:typePref, localPreference:localPref,\r\n          componentId:comp, likelyType:guess,\r\n          note: guess==='自定义' ? '类型优先值不在浏览器默认表（126/110/100/0）里' : ''};\r\n}\r\n\r\nfunction buildPriority(typePref, localPref, component){\r\n  var t=Number(typePref), l=Number(localPref), c=Number(component);\r\n  if(!(t>=0 && t<=126)) return {ok:false, error:'类型优先值应在 0–126'};\r\n  if(!(l>=0 && l<=65535)) return {ok:false, error:'本地优先值应在 0–65535'};\r\n  if(!(c>=1 && c<=256)) return {ok:false, error:'组件号应在 1–256'};\r\n  return {ok:true, priority: 16777216*Math.floor(t) + 256*Math.floor(l) + (256-Math.floor(c))};\r\n}\r\n\r\n/* 一对候选的配对优先级 —— RFC 8445 第 6.1.2.3 节 */\r\nfunction pairPriority(controllingPriority, controlledPriority){\r\n  var G=Number(controllingPriority), D=Number(controlledPriority);\r\n  if(!isFinite(G) || !isFinite(D)) return {ok:false, error:'两个优先级都得是数字'};\r\n  var lo = Math.min(G,D), hi = Math.max(G,D);\r\n  var v = 4294967296*lo + 2*hi + (G>D?1:0);\r\n  return {ok:true, value:v, min:lo, max:hi,\r\n          exact: v <= 9007199254740991,\r\n          note: v > 9007199254740991 ? '配对优先级是 64 位整数，超出 JS 双精度安全范围，这里的低位仅供参考' : ''};\r\n}\r\n\r\nfunction newSection(){\r\n  return {kind:'', line:'', m:null, connection:null, attrs:[], direction:null, mid:null,\r\n          ice:{ufrag:'', pwd:'', options:'', lite:false}, dtls:{fingerprints:[], setup:''},\r\n          candidates:[], endOfCandidates:false, rtcpMux:false, rtcpRsize:false,\r\n          rtpmap:{}, fmtp:{}, rtcpFb:{}, extmaps:[], ssrcs:{}, ssrcGroups:[],\r\n          rids:[], simulcast:'', msid:'', bandwidth:[], rejected:false, raw:[]};\r\n}\r\n\r\nfunction absorbAttribute(target, at, isSession){\r\n  var n = at.name, v = at.value;\r\n  if(DIRECTIONS[n]){ target.direction = target.direction ? target.direction : n;\r\n                     target.directionCount = (target.directionCount||0)+1; return; }\r\n  if(n==='mid'){ target.mid = v; return; }\r\n  if(n==='ice-ufrag'){ target.ice.ufrag = v||''; return; }\r\n  if(n==='ice-pwd'){ target.ice.pwd = v||''; return; }\r\n  if(n==='ice-options'){ target.ice.options = v||''; return; }\r\n  if(n==='ice-lite'){ target.ice.lite = true; return; }\r\n  if(n==='fingerprint'){ target.dtls.fingerprints.push(parseFingerprint(v)); return; }\r\n  if(n==='setup'){ target.dtls.setup = v||''; return; }\r\n  if(isSession) return;\r\n  if(n==='candidate'){ target.candidates.push(parseCandidate(v)); return; }\r\n  if(n==='end-of-candidates'){ target.endOfCandidates = true; return; }\r\n  if(n==='rtcp-mux'){ target.rtcpMux = true; return; }\r\n  if(n==='rtcp-rsize'){ target.rtcpRsize = true; return; }\r\n  if(n==='msid'){ target.msid = v||''; return; }\r\n  if(n==='rtpmap'){\r\n    var rp = String(v||'').split(/\\s+/), pt = rp[0], body = (rp[1]||'').split('/');\r\n    target.rtpmap[pt] = {payload:pt, name:body[0]||'',\r\n                         clockRate: body[1]?parseInt(body[1],10):null,\r\n                         channels: body[2]?parseInt(body[2],10):null};\r\n    return;\r\n  }\r\n  if(n==='fmtp'){\r\n    var fp = String(v||''), sp = fp.indexOf(' ');\r\n    if(sp>0) target.fmtp[fp.slice(0,sp)] = fp.slice(sp+1);\r\n    return;\r\n  }\r\n  if(n==='rtcp-fb'){\r\n    var fb = String(v||'').split(/\\s+/), fpt = fb[0];\r\n    if(!target.rtcpFb[fpt]) target.rtcpFb[fpt] = [];\r\n    target.rtcpFb[fpt].push(fb.slice(1).join(' '));\r\n    return;\r\n  }\r\n  if(n==='extmap'){\r\n    var em = String(v||''), s2 = em.indexOf(' ');\r\n    var idPart = s2>0 ? em.slice(0,s2) : em, uri = s2>0 ? em.slice(s2+1) : '';\r\n    var dirSplit = idPart.split('/');\r\n    target.extmaps.push({id: parseInt(dirSplit[0],10), direction: dirSplit[1]||'', uri: uri});\r\n    return;\r\n  }\r\n  if(n==='ssrc'){\r\n    var ss = String(v||''), sp2 = ss.indexOf(' ');\r\n    var id = sp2>0 ? ss.slice(0,sp2) : ss, rest = sp2>0 ? ss.slice(sp2+1) : '';\r\n    if(!target.ssrcs[id]) target.ssrcs[id] = {};\r\n    var colon = rest.indexOf(':');\r\n    if(colon>0) target.ssrcs[id][rest.slice(0,colon)] = rest.slice(colon+1);\r\n    else if(rest) target.ssrcs[id][rest] = true;\r\n    return;\r\n  }\r\n  if(n==='ssrc-group'){ target.ssrcGroups.push(v||''); return; }\r\n  if(n==='rid'){ target.rids.push(v||''); return; }\r\n  if(n==='simulcast'){ target.simulcast = v||''; return; }\r\n}\r\n\r\nfunction parseSdp(text){\r\n  var lines = splitSdpLines(text);\r\n  var doc = {version:null, origin:null, sessionName:null, info:null, timing:[],\r\n             connection:null, attrs:[], media:[], malformed:[], lineCount:lines.length,\r\n             ice:{ufrag:'', pwd:'', options:'', lite:false}, dtls:{fingerprints:[], setup:''},\r\n             groups:[], bundle:[], msidSemantic:'', direction:null, raw:lines};\r\n  var cur = null;\r\n  for(var i=0;i<lines.length;i++){\r\n    var pl = parseLine(lines[i]);\r\n    if(pl.malformed){ doc.malformed.push({index:i, line:lines[i], reason:'不是 <字符>=<值> 形式'}); continue; }\r\n    if(pl.type === 'm'){\r\n      cur = newSection();\r\n      cur.index = doc.media.length; cur.line = pl.value; cur.m = parseMediaLine(pl.value);\r\n      cur.kind = cur.m.kind; cur.rejected = (cur.m.port === 0);\r\n      cur.raw.push(lines[i]); doc.media.push(cur); continue;\r\n    }\r\n    if(cur) cur.raw.push(lines[i]);\r\n    var tgt = cur || doc;\r\n    switch(pl.type){\r\n      case 'v': doc.version = pl.value; break;\r\n      case 'o': doc.origin = parseOrigin(pl.value); break;\r\n      case 's': doc.sessionName = pl.value; break;\r\n      case 'i': if(cur) cur.info = pl.value; else doc.info = pl.value; break;\r\n      case 't': doc.timing.push(pl.value); break;\r\n      case 'b': tgt.bandwidth = (tgt.bandwidth||[]).concat([pl.value]); break;\r\n      case 'c': tgt.connection = parseConnection(pl.value); break;\r\n      case 'a':\r\n        var at = parseAttribute(pl.value);\r\n        tgt.attrs.push(at);\r\n        if(!cur){\r\n          if(at.name==='group'){\r\n            doc.groups.push(at.value||'');\r\n            var g = String(at.value||'').split(/\\s+/);\r\n            if((g[0]||'').toUpperCase()==='BUNDLE') doc.bundle = g.slice(1);\r\n          } else if(at.name==='msid-semantic'){ doc.msidSemantic = at.value||''; }\r\n        }\r\n        absorbAttribute(tgt, at, !cur);\r\n        break;\r\n      default: break;\r\n    }\r\n  }\r\n  for(var k=0;k<doc.media.length;k++) doc.media[k].codecs = collectCodecs(doc.media[k]);\r\n  return doc;\r\n}\r\n\r\nfunction collectCodecs(section){\r\n  var out = [], fmts = (section.m && section.m.fmts) || [];\r\n  var isRtp = /RTP\\/(S)?AVPF?/i.test((section.m && section.m.proto) || '');\r\n  for(var i=0;i<fmts.length;i++){\r\n    var pt = fmts[i], rm = section.rtpmap[pt];\r\n    out.push({payload: pt, name: rm ? rm.name : (isRtp ? '' : pt),\r\n              clockRate: rm ? rm.clockRate : null, channels: rm ? rm.channels : null,\r\n              fmtp: section.fmtp[pt] || '', feedback: section.rtcpFb[pt] || [],\r\n              known: !!rm});\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction summarize(doc){\r\n  var s = {mediaCount: doc.media.length, kinds: [], bundle: doc.bundle.slice(),\r\n           mids: [], candidates: 0, byType: {}, byComponent: {}, codecs: 0,\r\n           dtlsSetup: doc.dtls.setup, iceUfrag: doc.ice.ufrag, trickle: false,\r\n           rejected: 0, addresses: {}};\r\n  var opts = (doc.ice.options||'');\r\n  for(var i=0;i<doc.media.length;i++){\r\n    var m = doc.media[i];\r\n    s.kinds.push(m.kind); if(m.mid!=null) s.mids.push(m.mid);\r\n    if(m.rejected) s.rejected++;\r\n    s.codecs += m.codecs ? m.codecs.length : 0;\r\n    if(!s.dtlsSetup && m.dtls.setup) s.dtlsSetup = m.dtls.setup;\r\n    if(!s.iceUfrag && m.ice.ufrag) s.iceUfrag = m.ice.ufrag;\r\n    if(!opts && m.ice.options) opts = m.ice.options;\r\n    for(var j=0;j<m.candidates.length;j++){\r\n      var c = m.candidates[j];\r\n      s.candidates++;\r\n      s.byType[c.type||'?'] = (s.byType[c.type||'?']||0)+1;\r\n      s.byComponent[c.componentName||'?'] = (s.byComponent[c.componentName||'?']||0)+1;\r\n      var kind = c.addressKind ? c.addressKind.kind : 'unknown';\r\n      s.addresses[kind] = (s.addresses[kind]||0)+1;\r\n    }\r\n  }\r\n  s.trickle = /\\btrickle\\b/.test(opts);\r\n  s.iceOptions = opts;\r\n  return s;\r\n}\r\n\r\nfunction lint(text){\r\n  var doc = (typeof text === 'string') ? parseSdp(text) : text;\r\n  var out = [];\r\n  function add(level, msg, where){ out.push({level:level, message:msg, where:where||''}); }\r\n\r\n  if(doc.version === null) add('error','缺少 v= 行，SDP 必须以 v=0 开头');\r\n  else if(doc.version !== '0') add('warn','v= 应当是 0，当前是 \"'+doc.version+'\"');\r\n  if(!doc.origin || !doc.origin.ok) add('error','o= 行缺失或字段不足 6 段');\r\n  if(doc.sessionName === null) add('error','缺少 s= 行（WebRTC 惯例写 s=-）');\r\n  if(!doc.timing.length) add('error','缺少 t= 行（WebRTC 惯例写 t=0 0）');\r\n  for(var q=0;q<doc.malformed.length;q++) add('error','第 '+(doc.malformed[q].index+1)+' 行不合法：'+doc.malformed[q].line);\r\n  if(!doc.media.length) add('error','没有任何 m= 媒体行，这份 SDP 协商不出东西');\r\n\r\n  var midSet = {};\r\n  for(var i=0;i<doc.media.length;i++){\r\n    var m = doc.media[i], at = 'm='+m.kind+' #'+(i+1);\r\n    if(!m.m.ok) add('error','m= 行字段不足 4 段', at);\r\n    if(m.rejected){ add('info','端口为 0，这条媒体已被拒绝/关闭', at); }\r\n    if(m.mid == null){ if(doc.bundle.length) add('error','参与 BUNDLE 却没有 a=mid，无法归组', at); }\r\n    else { if(midSet[m.mid]) add('error','mid \"'+m.mid+'\" 重复', at); midSet[m.mid]=1; }\r\n    if(!m.direction && !doc.direction) add('warn','没有方向属性，对端只能按 sendrecv 兜底', at);\r\n    if((m.directionCount||0) > 1) add('error','出现了 '+m.directionCount+' 个方向属性，只能有一个', at);\r\n    if(m.rejected) continue;\r\n\r\n    var ufrag = m.ice.ufrag || doc.ice.ufrag, pwd = m.ice.pwd || doc.ice.pwd;\r\n    if(!ufrag) add('error','缺少 a=ice-ufrag，ICE 无法开始', at);\r\n    else if(ufrag.length < 4 || ufrag.length > 256) add('warn','ice-ufrag 长度应在 4–256，当前 '+ufrag.length, at);\r\n    if(!pwd) add('error','缺少 a=ice-pwd，ICE 无法开始', at);\r\n    else if(pwd.length < 22 || pwd.length > 256) add('warn','ice-pwd 长度应在 22–256，当前 '+pwd.length, at);\r\n\r\n    var fps = m.dtls.fingerprints.length ? m.dtls.fingerprints : doc.dtls.fingerprints;\r\n    if(!fps.length) add('error','缺少 a=fingerprint，DTLS-SRTP 起不来', at);\r\n    else for(var f=0;f<fps.length;f++){\r\n      if(!fps[f].ok) add('error','fingerprint 格式不对（'+fps[f].hash+' 期望 '+fps[f].expected+' 字节，实得 '+fps[f].bytes+'）', at);\r\n      else if(fps[f].hash === 'sha-1') add('warn','fingerprint 用了 sha-1，建议 sha-256', at);\r\n    }\r\n    var setup = m.dtls.setup || doc.dtls.setup;\r\n    if(!setup) add('error','缺少 a=setup，DTLS 角色未定', at);\r\n    else if(!/^(active|passive|actpass|holdconn)$/.test(setup)) add('error','a=setup 取值非法：\"'+setup+'\"', at);\r\n\r\n    if(/RTP\\//i.test(m.m.proto)){\r\n      if(!m.rtcpMux) add('warn','没有 a=rtcp-mux，会多占一条 ICE 组件（现代浏览器一律要求复用）', at);\r\n      var ptSeen = {};\r\n      for(var c2=0;c2<m.codecs.length;c2++){\r\n        var cd = m.codecs[c2];\r\n        if(!cd.known) add('error','载荷类型 '+cd.payload+' 出现在 m= 行却没有对应 a=rtpmap', at);\r\n        if(ptSeen[cd.payload]) add('error','载荷类型 '+cd.payload+' 在 m= 行里重复', at);\r\n        ptSeen[cd.payload]=1;\r\n      }\r\n      for(var pt in m.rtpmap){ if(!ptSeen[pt]) add('warn','a=rtpmap 定义了 '+pt+'（'+m.rtpmap[pt].name+'）但 m= 行没列出来，对端会忽略', at); }\r\n      if(!m.codecs.length) add('error','m= 行没有列出任何载荷类型', at);\r\n    }\r\n    var extSeen = {};\r\n    for(var e=0;e<m.extmaps.length;e++){\r\n      var id = m.extmaps[e].id;\r\n      if(extSeen[id]) add('error','extmap 编号 '+id+' 重复', at);\r\n      extSeen[id]=1;\r\n      if(!(id>=1 && id<=14) && !(id>=15 && id<=255)) add('warn','extmap 编号 '+id+' 越界', at);\r\n    }\r\n    if(!m.connection) add('warn','这条媒体既没有 c= 行，会话级也要有一条兜底', at);\r\n\r\n    var haveRtcpComp = false, mdns = 0, publicIp = 0;\r\n    for(var k=0;k<m.candidates.length;k++){\r\n      var cc = m.candidates[k];\r\n      if(!cc.ok) add('error','候选解析失败：'+cc.error, at);\r\n      if(cc.component === 2) haveRtcpComp = true;\r\n      if(cc.addressKind && cc.addressKind.kind==='mdns') mdns++;\r\n      if(cc.addressKind && cc.addressKind.kind==='public') publicIp++;\r\n      if(cc.warn) add('info', cc.warn+'（'+cc.foundation+'）', at);\r\n    }\r\n    if(haveRtcpComp && m.rtcpMux) add('warn','已经 rtcp-mux 了还带 component 2 的候选，属于冗余', at);\r\n    if(mdns) add('info','有 '+mdns+' 条 mDNS（.local）候选，这是浏览器的本机地址隐藏机制', at);\r\n    if(publicIp) add('info','有 '+publicIp+' 条候选暴露了公网地址，分享日志前记得脱敏', at);\r\n  }\r\n  for(var b=0;b<doc.bundle.length;b++){\r\n    if(!midSet[doc.bundle[b]]) add('error','BUNDLE 组引用了不存在的 mid \"'+doc.bundle[b]+'\"');\r\n  }\r\n  if(doc.media.length > 1 && !doc.bundle.length) add('info','多条媒体但没有 a=group:BUNDLE，会各开一套 ICE，握手更慢');\r\n  return out;\r\n}\r\n\r\n/* ---- offer / answer 核对 —— RFC 8829 第 5.10 节的常见踩坑点 ------------- */\r\nvar ANSWER_OK = {\r\n  sendrecv: {sendrecv:1, sendonly:1, recvonly:1, inactive:1},\r\n  sendonly: {recvonly:1, inactive:1},\r\n  recvonly: {sendonly:1, inactive:1},\r\n  inactive: {inactive:1}\r\n};\r\n\r\nfunction negotiate(offerText, answerText){\r\n  var o = (typeof offerText === 'string') ? parseSdp(offerText) : offerText;\r\n  var a = (typeof answerText === 'string') ? parseSdp(answerText) : answerText;\r\n  var issues = [], perMedia = [];\r\n  function add(level, msg, where){ issues.push({level:level, message:msg, where:where||''}); }\r\n\r\n  if(o.media.length !== a.media.length){\r\n    add('error','m= 行数量必须一致：offer '+o.media.length+' 条，answer '+a.media.length+' 条');\r\n  }\r\n  var n = Math.min(o.media.length, a.media.length);\r\n  for(var i=0;i<n;i++){\r\n    var om = o.media[i], am = a.media[i], at = '第 '+(i+1)+' 条媒体';\r\n    var row = {index:i, kind:om.kind, answerKind:am.kind, mid:om.mid, ok:true, notes:[]};\r\n    var bad = (function(where, r){ return function(level, msg){\r\n      add(level, msg, where); if(level==='error'){ r.ok=false; } r.notes.push(msg);\r\n    }; })(at, row);\r\n\r\n    if(om.kind !== am.kind) bad('error','媒体类型对不上：offer 是 '+om.kind+'，answer 是 '+am.kind+'（m= 行顺序必须原样保持）');\r\n    if(String(om.mid) !== String(am.mid)) bad('error','mid 对不上：offer \"'+om.mid+'\" vs answer \"'+am.mid+'\"');\r\n    if(om.m.proto !== am.m.proto) bad('error','传输协议对不上：'+om.m.proto+' vs '+am.m.proto);\r\n\r\n    var od = om.direction || 'sendrecv', ad = am.direction || 'sendrecv';\r\n    row.offerDirection = od; row.answerDirection = ad;\r\n    if(am.rejected){\r\n      row.notes.push('answer 把这条媒体拒了（端口 0）');\r\n      perMedia.push(row); continue;\r\n    }\r\n    if(om.rejected && !am.rejected) bad('error','offer 已经拒了这条媒体，answer 必须同样置端口 0');\r\n    if(ANSWER_OK[od] && !ANSWER_OK[od][ad]){\r\n      bad('error','方向不互补：offer 是 '+od+'，answer 不能回 '+ad+'（应当是 '+Object.keys(ANSWER_OK[od]).join(' / ')+'）');\r\n    }\r\n\r\n    var os = om.dtls.setup || o.dtls.setup, as = am.dtls.setup || a.dtls.setup;\r\n    row.offerSetup = os; row.answerSetup = as;\r\n    if(os === 'actpass'){\r\n      if(as !== 'active' && as !== 'passive') bad('error','offer 给的是 actpass，answer 必须明确选 active 或 passive，当前是 \"'+as+'\"');\r\n    } else if(os === 'active' && as !== 'passive'){\r\n      bad('error','offer 是 active，answer 只能是 passive');\r\n    } else if(os === 'passive' && as !== 'active'){\r\n      bad('error','offer 是 passive，answer 只能是 active');\r\n    }\r\n\r\n    var offerPts = {}, k;\r\n    for(k=0;k<om.codecs.length;k++) offerPts[om.codecs[k].payload] = om.codecs[k];\r\n    var common = [];\r\n    for(k=0;k<am.codecs.length;k++){\r\n      var c = am.codecs[k];\r\n      if(!offerPts[c.payload]){\r\n        bad('error','answer 选了 offer 里没有的载荷类型 '+c.payload+(c.name?('（'+c.name+'）'):''));\r\n      } else {\r\n        var oc = offerPts[c.payload];\r\n        if(c.name && oc.name && c.name.toLowerCase() !== oc.name.toLowerCase()){\r\n          bad('error','载荷类型 '+c.payload+' 两边名字不同：'+oc.name+' vs '+c.name+'（同一个 PT 必须指同一个编解码器）');\r\n        }\r\n        if(c.clockRate && oc.clockRate && c.clockRate !== oc.clockRate){\r\n          bad('error','载荷类型 '+c.payload+' 采样率不同：'+oc.clockRate+' vs '+c.clockRate);\r\n        }\r\n        common.push(c.payload + (c.name?(' '+c.name):''));\r\n      }\r\n    }\r\n    row.commonCodecs = common;\r\n    if(!common.length && /RTP\\//i.test(am.m.proto)) bad('error','没有任何共同编解码器，这条流协商不出来');\r\n\r\n    if(!(am.ice.ufrag || a.ice.ufrag)) bad('error','answer 缺 ice-ufrag');\r\n    if(!(am.ice.pwd || a.ice.pwd)) bad('error','answer 缺 ice-pwd');\r\n    if(om.rtcpMux && !am.rtcpMux) bad('warn','offer 要求 rtcp-mux，answer 没回应，会退化成两条组件');\r\n    perMedia.push(row);\r\n  }\r\n  var ob = o.bundle.join(' '), ab = a.bundle.join(' ');\r\n  if(ob && !ab) add('warn','offer 提了 BUNDLE，answer 没有 a=group:BUNDLE，会各开一套 ICE');\r\n  else if(ob && ab && ab.split(' ').length > ob.split(' ').length) add('error','answer 的 BUNDLE 组不能比 offer 的更大');\r\n\r\n  var errors = 0, warns = 0;\r\n  for(var z=0;z<issues.length;z++){ if(issues[z].level==='error') errors++; else if(issues[z].level==='warn') warns++; }\r\n  return {ok: errors===0, errors:errors, warnings:warns, issues:issues, media:perMedia};\r\n}\r\n\r\n/* ---- 脱敏：把 SDP 贴进工单/issue 之前先过一遍 --------------------------- */\r\nfunction maskAddress(addr){\r\n  var a = String(addr==null?'':addr);\r\n  if(!a) return a;\r\n  if(/\\.local$/i.test(a)) return a;\r\n  if(a.indexOf(':') >= 0){\r\n    var seg = a.split(':');\r\n    for(var i=2;i<seg.length;i++){ if(seg[i]!=='') seg[i]='xxxx'; }\r\n    return seg.join(':');\r\n  }\r\n  var o = a.split('.');\r\n  if(o.length === 4){ o[2]='x'; o[3]='x'; return o.join('.'); }\r\n  return 'x.x.x.x';\r\n}\r\n\r\nfunction redact(text, opts){\r\n  var cfg = opts || {};\r\n  var doCreds = cfg.creds !== false, doIp = cfg.ip !== false;\r\n  var doFp = cfg.fingerprint !== false, doIds = cfg.ids !== false;\r\n  var lines = String(text==null?'':text).split(/\\r\\n|\\r|\\n/), out = [];\r\n  for(var i=0;i<lines.length;i++){\r\n    var l = lines[i];\r\n    if(doCreds && /^a=ice-pwd:/.test(l)) { out.push('a=ice-pwd:' + new Array((l.length-10>0?l.length-10:8)+1).join('x')); continue; }\r\n    if(doCreds && /^a=ice-ufrag:/.test(l)){ out.push('a=ice-ufrag:xxxx'); continue; }\r\n    if(doFp && /^a=fingerprint:/.test(l)){\r\n      var fp = parseFingerprint(l.slice(14));\r\n      var bytes = fp.bytes || 32, parts = [];\r\n      for(var b=0;b<bytes;b++) parts.push('XX');\r\n      out.push('a=fingerprint:' + (fp.hash||'sha-256') + ' ' + parts.join(':'));\r\n      continue;\r\n    }\r\n    if(doIp && /^o=/.test(l)){\r\n      var og = parseOrigin(l.slice(2));\r\n      if(og.ok){ out.push('o=' + [og.username, doIds?'0':og.sessionId, og.sessionVersion, og.netType, og.addrType, maskAddress(og.address)].join(' ')); continue; }\r\n    }\r\n    if(doIp && /^c=/.test(l)){\r\n      var cn = parseConnection(l.slice(2));\r\n      if(cn.ok){ out.push('c=' + [cn.netType, cn.addrType, maskAddress(cn.address)].join(' ')); continue; }\r\n    }\r\n    if(doIp && /^a=candidate:/.test(l)){\r\n      var c = parseCandidate(l);\r\n      if(c.ok !== false || c.foundation){\r\n        var p = l.replace(/^a=candidate:/,'').split(/\\s+/);\r\n        if(p.length >= 6) p[4] = maskAddress(p[4]);\r\n        for(var j=8;j+1<p.length;j+=2){ if(p[j]==='raddr') p[j+1] = maskAddress(p[j+1]); }\r\n        out.push('a=candidate:' + p.join(' '));\r\n        continue;\r\n      }\r\n    }\r\n    if(doIds && /^a=ssrc:/.test(l)){\r\n      out.push(l.replace(/(cname:)\\S+/, '$1REDACTED').replace(/(msid:)\\S+(\\s+\\S+)?/, '$1REDACTED REDACTED')\r\n                .replace(/(label:)\\S+/, '$1REDACTED').replace(/(mslabel:)\\S+/, '$1REDACTED'));\r\n      continue;\r\n    }\r\n    if(doIds && /^a=msid:/.test(l)){ out.push('a=msid:REDACTED REDACTED'); continue; }\r\n    out.push(l);\r\n  }\r\n  return out.join('\\n');\r\n}\r\n\r\nfunction stats(doc){\r\n  var d = (typeof doc === 'string') ? parseSdp(doc) : doc;\r\n  var s = summarize(d);\r\n  return {'媒体条数': String(d.media.length),\r\n          '媒体类型': s.kinds.join(' / ') || '-',\r\n          'BUNDLE 组': s.bundle.length ? s.bundle.join(' ') : '未分组',\r\n          '候选总数': String(s.candidates),\r\n          '编解码器条目': String(s.codecs),\r\n          'DTLS 角色': s.dtlsSetup || '-',\r\n          'Trickle ICE': s.trickle ? '开启' : '未声明',\r\n          '被拒媒体': String(s.rejected),\r\n          '总行数': String(d.lineCount)};\r\n}\r\n\r\nfunction toJson(doc){\r\n  var d = (typeof doc === 'string') ? parseSdp(doc) : doc;\r\n  var media = [];\r\n  for(var i=0;i<d.media.length;i++){\r\n    var m = d.media[i];\r\n    media.push({kind:m.kind, port:m.m.port, proto:m.m.proto, mid:m.mid,\r\n                direction:m.direction, rtcpMux:m.rtcpMux, rejected:m.rejected,\r\n                setup:m.dtls.setup, iceUfrag:m.ice.ufrag,\r\n                codecs:(m.codecs||[]).map(function(c){ return {pt:c.payload, name:c.name, clockRate:c.clockRate, channels:c.channels, fmtp:c.fmtp, feedback:c.feedback}; }),\r\n                candidates:(m.candidates||[]).map(function(c){ return {type:c.type, transport:c.transport, address:c.address, port:c.port, priority:c.priority, component:c.component}; })});\r\n  }\r\n  return {version:d.version, origin:d.origin, sessionName:d.sessionName,\r\n          bundle:d.bundle, iceOptions:d.ice.options, media:media};\r\n}\r\n\r\nvar SdpForgePure = {\r\n  splitSdpLines:splitSdpLines, parseLine:parseLine, parseAttribute:parseAttribute,\r\n  parseOrigin:parseOrigin, parseMediaLine:parseMediaLine, parseConnection:parseConnection,\r\n  parseFingerprint:parseFingerprint, ipKind:ipKind, parseCandidate:parseCandidate,\r\n  decodePriority:decodePriority, buildPriority:buildPriority, pairPriority:pairPriority,\r\n  parseSdp:parseSdp, collectCodecs:collectCodecs, summarize:summarize, lint:lint,\r\n  negotiate:negotiate, redact:redact, maskAddress:maskAddress, stats:stats, toJson:toJson,\r\n  CANDIDATE_TYPES:CANDIDATE_TYPES\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = SdpForgePure;\r\nif (typeof window !== 'undefined') window.SdpForgePure = SdpForgePure;\r\n\r\n"
+}

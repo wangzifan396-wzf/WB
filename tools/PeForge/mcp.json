@@ -1,0 +1,51 @@
+{
+  "id": "PeForge",
+  "name": "pe_forge",
+  "title": "PeForge",
+  "description": "PE/COFF 解析器：读取 Windows 可执行文件头，列出机器类型、子系统、节区表与数据目录，解读 DLL 特征与 DEP/ASLR 标志，检查节区 W^X 与缺失的安全缓解。分析 exe/dll、排查加载与加固问题，零依赖、离线可用。",
+  "entry": "parse",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "hexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "flags": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "table",
+        "v"
+      ],
+      "fields": []
+    },
+    "stamp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "输入（input）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  function hexToBytes(s){\r\n    var t=String(s||'').replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,'');\r\n    if(t.length%2) t=t.slice(0,-1);\r\n    var o=new Uint8Array(t.length/2);\r\n    for(var i=0;i<o.length;i++) o[i]=parseInt(t.substr(i*2,2),16);\r\n    return o;\r\n  }\r\n  function hx(n,w){ var s=(n>>>0).toString(16).toUpperCase(); while(s.length<(w||8)) s='0'+s; return '0x'+s; }\r\n  function u8(b,p){ return b[p]; }\r\n  function u16(b,p){ return b[p] | (b[p+1]<<8); }\r\n  function u32(b,p){ return (b[p] | (b[p+1]<<8) | (b[p+2]<<16) | (b[p+3]<<24))>>>0; }\r\n  function u64(b,p){ var lo=u32(b,p), hi=u32(b,p+4); return hi*4294967296+lo; }\r\n  function hex64(b,p){ var lo=u32(b,p), hi=u32(b,p+4);\r\n    var s=hi.toString(16).toUpperCase(); while(s.length<8) s='0'+s;\r\n    var t=lo.toString(16).toUpperCase(); while(t.length<8) t='0'+t;\r\n    return '0x'+s+t; }\r\n\r\n  var MACHINE={0:'UNKNOWN',0x14c:'i386',0x1c0:'ARM',0x1c4:'ARMNT (Thumb-2)',0xaa64:'ARM64',\r\n               0x8664:'x64 (AMD64)',0x200:'IA64',0x5032:'RISCV32',0x5064:'RISCV64',0x6264:'LOONGARCH64'};\r\n  var SUBSYS={0:'UNKNOWN',1:'NATIVE',2:'WINDOWS_GUI',3:'WINDOWS_CUI',5:'OS2_CUI',7:'POSIX_CUI',\r\n              9:'WINDOWS_CE_GUI',10:'EFI_APPLICATION',11:'EFI_BOOT_SERVICE_DRIVER',\r\n              12:'EFI_RUNTIME_DRIVER',13:'EFI_ROM',14:'XBOX',16:'WINDOWS_BOOT_APPLICATION'};\r\n  var CHARS=[[0x0001,'RELOCS_STRIPPED'],[0x0002,'EXECUTABLE_IMAGE'],[0x0004,'LINE_NUMS_STRIPPED'],\r\n             [0x0008,'LOCAL_SYMS_STRIPPED'],[0x0020,'LARGE_ADDRESS_AWARE'],[0x0080,'BYTES_REVERSED_LO'],\r\n             [0x0100,'32BIT_MACHINE'],[0x0200,'DEBUG_STRIPPED'],[0x0400,'REMOVABLE_RUN_FROM_SWAP'],\r\n             [0x0800,'NET_RUN_FROM_SWAP'],[0x1000,'SYSTEM'],[0x2000,'DLL'],[0x4000,'UP_SYSTEM_ONLY']];\r\n  var DLLC=[[0x0020,'HIGH_ENTROPY_VA'],[0x0040,'DYNAMIC_BASE (ASLR)'],[0x0080,'FORCE_INTEGRITY'],\r\n            [0x0100,'NX_COMPAT (DEP)'],[0x0200,'NO_ISOLATION'],[0x0400,'NO_SEH'],[0x0800,'NO_BIND'],\r\n            [0x1000,'APPCONTAINER'],[0x2000,'WDM_DRIVER'],[0x4000,'GUARD_CF'],[0x8000,'TERMINAL_SERVER_AWARE']];\r\n  var SECF=[[0x00000020,'CODE'],[0x00000040,'INITIALIZED_DATA'],[0x00000080,'UNINITIALIZED_DATA'],\r\n            [0x02000000,'DISCARDABLE'],[0x04000000,'NOT_CACHED'],[0x08000000,'NOT_PAGED'],\r\n            [0x10000000,'SHARED'],[0x20000000,'EXECUTE'],[0x40000000,'READ'],[0x80000000,'WRITE']];\r\n  var DIRNAMES=['Export','Import','Resource','Exception','Certificate','BaseReloc','Debug','Architecture',\r\n                'GlobalPtr','TLS','LoadConfig','BoundImport','IAT','DelayImport','CLR Runtime','Reserved'];\r\n\r\n  function flags(table, v){\r\n    var o=[];\r\n    for(var i=0;i<table.length;i++){ if((v & table[i][0])===table[i][0] && table[i][0]!==0) o.push(table[i][1]); }\r\n    return o;\r\n  }\r\n  function stamp(t){\r\n    if(!t) return '0 (未设置)';\r\n    var d=new Date(t*1000);\r\n    if(t>4102444800 || isNaN(d.getTime())) return String(t)+' (非时间戳，可能是 Reproducible Build 哈希)';\r\n    return String(t)+'  '+d.toISOString().replace('.000','');\r\n  }\r\n  function secName(b,p){\r\n    var s='';\r\n    for(var i=0;i<8;i++){ var c=b[p+i]; if(!c) break; s+=String.fromCharCode(c); }\r\n    return s;\r\n  }\r\n\r\n  function parse(input){\r\n    var b = (input instanceof Uint8Array) ? input : hexToBytes(input);\r\n    var warns=[];\r\n    if(!b.length) return {value:null, error:'输入为空'};\r\n    if(b.length<64) return {value:null, error:'文件过短（'+b.length+' 字节），不足 DOS 头 64 字节'};\r\n    if(!(b[0]===0x4D && b[1]===0x5A)) return {value:null, error:'缺少 DOS 魔数 MZ（当前 0x'+\r\n      ((b[0]<16?'0':'')+b[0].toString(16))+((b[1]<16?'0':'')+b[1].toString(16))+'）'};\r\n    var lfanew = u32(b, 0x3C);\r\n    if(lfanew+24 > b.length) return {value:null, error:'e_lfanew='+hx(lfanew)+' 指向文件外（文件 '+b.length+' 字节）'};\r\n    if(!(b[lfanew]===0x50 && b[lfanew+1]===0x45 && b[lfanew+2]===0 && b[lfanew+3]===0))\r\n      return {value:null, error:'偏移 '+hx(lfanew)+' 处不是 PE\\\\0\\\\0 签名'};\r\n\r\n    var c = lfanew+4;\r\n    var coff = {\r\n      machine: u16(b,c), machineName: MACHINE[u16(b,c)] || ('未知 '+hx(u16(b,c),4)),\r\n      sections: u16(b,c+2), timeDateStamp: u32(b,c+4),\r\n      symbolPtr: u32(b,c+8), symbols: u32(b,c+12),\r\n      optSize: u16(b,c+16), characteristics: u16(b,c+18)\r\n    };\r\n    coff.time = stamp(coff.timeDateStamp);\r\n    coff.flags = flags(CHARS, coff.characteristics);\r\n    if(coff.symbols) warns.push('存在 COFF 符号表（'+coff.symbols+' 项），现代链接器通常不再输出');\r\n\r\n    var o = c+20, opt=null;\r\n    if(coff.optSize===0){\r\n      warns.push('SizeOfOptionalHeader=0，这是目标文件（.obj）而非可执行映像');\r\n    } else {\r\n      if(o+2>b.length) return {value:null, error:'Optional 头被截断'};\r\n      var magic=u16(b,o), pe32plus = magic===0x20B;\r\n      if(magic!==0x10B && magic!==0x20B && magic!==0x107)\r\n        return {value:null, error:'未知 Optional 头魔数 '+hx(magic,4)};\r\n      var need = pe32plus?112:112;\r\n      if(o+need>b.length) return {value:null, error:'Optional 头被截断（需 '+need+' 字节）'};\r\n      opt = {\r\n        magic: magic, kind: magic===0x20B?'PE32+':(magic===0x10B?'PE32':'ROM'),\r\n        linker: u8(b,o+2)+'.'+u8(b,o+3),\r\n        sizeOfCode: u32(b,o+4), sizeOfInitData: u32(b,o+8), sizeOfUninitData: u32(b,o+12),\r\n        entryPoint: u32(b,o+16), baseOfCode: u32(b,o+20)\r\n      };\r\n      var q = pe32plus ? o+24 : o+28;\r\n      if(!pe32plus) opt.baseOfData = u32(b,o+24);\r\n      opt.imageBase = pe32plus ? hex64(b,q) : hx(u32(b,q));\r\n      q += pe32plus?8:4;\r\n      opt.sectionAlignment = u32(b,q); opt.fileAlignment = u32(b,q+4);\r\n      opt.osVersion = u16(b,q+8)+'.'+u16(b,q+10);\r\n      opt.imageVersion = u16(b,q+12)+'.'+u16(b,q+14);\r\n      opt.subsystemVersion = u16(b,q+16)+'.'+u16(b,q+18);\r\n      opt.sizeOfImage = u32(b,q+24); opt.sizeOfHeaders = u32(b,q+28);\r\n      opt.checkSum = u32(b,q+32);\r\n      opt.subsystem = u16(b,q+36); opt.subsystemName = SUBSYS[opt.subsystem] || ('未知 '+opt.subsystem);\r\n      opt.dllCharacteristics = u16(b,q+38);\r\n      opt.dllFlags = flags(DLLC, opt.dllCharacteristics);\r\n      var st = q+40;\r\n      if(pe32plus){ opt.stackReserve=u64(b,st); opt.stackCommit=u64(b,st+8);\r\n                    opt.heapReserve=u64(b,st+16); opt.heapCommit=u64(b,st+24); st+=32; }\r\n      else { opt.stackReserve=u32(b,st); opt.stackCommit=u32(b,st+4);\r\n             opt.heapReserve=u32(b,st+8); opt.heapCommit=u32(b,st+12); st+=16; }\r\n      opt.loaderFlags = u32(b,st);\r\n      opt.numberOfRvaAndSizes = u32(b,st+4);\r\n      opt.dirs=[];\r\n      var dp = st+8;\r\n      for(var i=0;i<opt.numberOfRvaAndSizes && i<16; i++){\r\n        if(dp+8>b.length) break;\r\n        var rva=u32(b,dp), sz=u32(b,dp+4); dp+=8;\r\n        if(rva||sz) opt.dirs.push({index:i, name:DIRNAMES[i]||('#'+i), rva:hx(rva), size:sz});\r\n      }\r\n      if(opt.fileAlignment && (opt.fileAlignment & (opt.fileAlignment-1)))\r\n        warns.push('FileAlignment '+opt.fileAlignment+' 不是 2 的幂，违反 PE 规范');\r\n      if(opt.sectionAlignment && opt.fileAlignment && opt.sectionAlignment < opt.fileAlignment)\r\n        warns.push('SectionAlignment 小于 FileAlignment，加载器会拒绝');\r\n      if(opt.dllFlags.indexOf('NX_COMPAT (DEP)')<0) warns.push('未开启 NX_COMPAT（DEP），缺少数据执行保护');\r\n      if(opt.dllFlags.indexOf('DYNAMIC_BASE (ASLR)')<0) warns.push('未开启 DYNAMIC_BASE（ASLR），地址可预测');\r\n    }\r\n\r\n    var sp = lfanew+4+20+coff.optSize, sections=[];\r\n    for(var k=0;k<coff.sections;k++){\r\n      if(sp+40>b.length){ warns.push('节表被截断：期望 '+coff.sections+' 节，只读到 '+k+' 节'); break; }\r\n      var s={\r\n        name: secName(b,sp), virtualSize:u32(b,sp+8), virtualAddress:u32(b,sp+12),\r\n        rawSize:u32(b,sp+16), rawPtr:u32(b,sp+20), relocs:u16(b,sp+32),\r\n        characteristics:u32(b,sp+36)\r\n      };\r\n      s.flags = flags(SECF, s.characteristics);\r\n      s.rvaHex = hx(s.virtualAddress);\r\n      if(s.flags.indexOf('WRITE')>=0 && s.flags.indexOf('EXECUTE')>=0)\r\n        warns.push('节 '+s.name+' 同时可写可执行（W^X 违规）');\r\n      if(s.rawPtr && s.rawSize && s.rawPtr+s.rawSize > b.length)\r\n        s.truncated = true;\r\n      sections.push(s);\r\n      sp += 40;\r\n    }\r\n    var isDll = coff.flags.indexOf('DLL')>=0;\r\n    return {value:{lfanew:lfanew, lfanewHex:hx(lfanew), coff:coff, opt:opt, sections:sections,\r\n                   warnings:warns, fileSize:b.length,\r\n                   kind: coff.optSize===0?'COFF 目标文件':(isDll?'DLL':'EXE')}, error:''};\r\n  }\r\n\r\n  var API={parse:parse, hexToBytes:hexToBytes, MACHINE:MACHINE, SUBSYS:SUBSYS, flags:flags,\r\n           CHARS:CHARS, DLLC:DLLC, SECF:SECF, stamp:stamp};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__PeForge__=API;\r\n})();\r\n\r\n"
+}

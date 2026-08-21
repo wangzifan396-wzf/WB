@@ -1,0 +1,43 @@
+{
+  "id": "BackoffForge",
+  "name": "backoff_forge",
+  "title": "BackoffForge",
+  "description": "指数退避与抖动计算器：full/equal/decorrelated 策略，API 重试韧性。",
+  "entry": "expDelay",
+  "entries": {
+    "expDelay": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "attempt",
+        "opts"
+      ],
+      "fields": []
+    },
+    "backoff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "attempt",
+        "opts",
+        "rng"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "attempt": {
+        "type": "string",
+        "description": "第 1 个参数（attempt）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction expDelay(attempt, opts){\r\n  opts=opts||{};\r\n  var base=opts.base||1000, cap=opts.cap||30000, factor=opts.factor||2;\r\n  attempt=(attempt<0?0:attempt)|0;\r\n  return Math.min(cap, Math.round(base*Math.pow(factor, attempt)));\r\n}\r\nfunction backoff(attempt, opts, rng){\r\n  opts=opts||{};\r\n  var strategy=opts.strategy||'full';\r\n  var base=opts.base||1000, cap=opts.cap||30000, factor=opts.factor||2;\r\n  if(typeof rng!=='function') rng=Math.random;\r\n  var d=expDelay(attempt,{base:base,cap:cap,factor:factor});\r\n  if(strategy==='none') return {base:d, min:d, max:d, value:d, error:null};\r\n  if(strategy==='full'){ var hi=Math.floor(rng()*d); return {base:d, min:0, max:d, value:hi, error:null}; }\r\n  if(strategy==='equal'){ var half=Math.floor(d/2); var hi2=half+Math.floor(rng()*(d-half)); return {base:d, min:half, max:d, value:hi2, error:null}; }\r\n  if(strategy==='decorrelated'){\r\n    var prev=opts.prev!=null?opts.prev:base;\r\n    var sleep=Math.min(cap, prev*3 + Math.floor(rng()*base));\r\n    return {base:d, min:Math.min(cap,prev*3), max:cap, value:sleep, prev:prev, error:null};\r\n  }\r\n  return {error:'unknown strategy'};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { expDelay:expDelay, backoff:backoff };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.BackoffForgePure = { expDelay:expDelay, backoff:backoff };\r\n}\r\n"
+}

@@ -1,0 +1,119 @@
+{
+  "id": "WebSocketForge",
+  "name": "web_socket_forge",
+  "title": "WebSocketForge",
+  "description": "WebSocket 调试台：实时收发、子协议协商、模板变量与心跳保活，外加 RFC 6455 帧开销计算、1000–4999 全量关闭码释义、指数退避重连规划与连接配置体检，断线自愈全过程可见，离线可用。",
+  "entry": "explainClose",
+  "entries": {
+    "explainClose": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "parseWsUrl": {
+      "paramStyle": "single",
+      "paramNames": [
+        "raw"
+      ],
+      "fields": []
+    },
+    "parseSubprotocols": {
+      "paramStyle": "single",
+      "paramNames": [
+        "raw"
+      ],
+      "fields": []
+    },
+    "utf8Length": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "frameOverhead": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "payloadLen",
+        "masked"
+      ],
+      "fields": []
+    },
+    "backoff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "attempt",
+        "opts"
+      ],
+      "fields": []
+    },
+    "backoffSchedule": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "count",
+        "opts"
+      ],
+      "fields": []
+    },
+    "applyTemplate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tpl",
+        "ctx"
+      ],
+      "fields": []
+    },
+    "classifyMessage": {
+      "paramStyle": "object",
+      "paramNames": [
+        "data"
+      ],
+      "fields": [
+        "byteLength"
+      ]
+    },
+    "formatBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "pingStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rtts"
+      ],
+      "fields": []
+    },
+    "stats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "log"
+      ],
+      "fields": []
+    },
+    "lint": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cfg"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "number",
+        "description": "输入（code）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar CLOSE_CODES = {\r\n  1000:{name:'Normal Closure', kind:'normal', desc:'正常关闭：连接已完成其目的。'},\r\n  1001:{name:'Going Away', kind:'normal', desc:'端点离开：服务器关停或浏览器离开页面。'},\r\n  1002:{name:'Protocol Error', kind:'error', desc:'协议错误：收到不符合 RFC 6455 的帧。'},\r\n  1003:{name:'Unsupported Data', kind:'error', desc:'数据类型不受支持，例如只收文本却收到二进制帧。'},\r\n  1004:{name:'Reserved', kind:'reserved', desc:'保留码，规范未定义，不得在实际连接中使用。'},\r\n  1005:{name:'No Status Received', kind:'reserved', desc:'保留码：对端未给出状态码，不可主动发送。'},\r\n  1006:{name:'Abnormal Closure', kind:'reserved', desc:'保留码：连接异常中断且无 Close 帧，常见于断网、代理空闲超时、TLS 失败。'},\r\n  1007:{name:'Invalid Payload Data', kind:'error', desc:'载荷与消息类型不符，例如文本帧不是合法 UTF-8。'},\r\n  1008:{name:'Policy Violation', kind:'error', desc:'违反策略：通用兜底码，常被用于鉴权失败。'},\r\n  1009:{name:'Message Too Big', kind:'error', desc:'消息超过端点可处理的大小上限。'},\r\n  1010:{name:'Mandatory Extension', kind:'error', desc:'客户端要求的扩展未被服务端协商成功。'},\r\n  1011:{name:'Internal Error', kind:'error', desc:'服务端遇到意外情况，无法完成请求。'},\r\n  1012:{name:'Service Restart', kind:'error', desc:'服务重启中，建议客户端退避后重连。'},\r\n  1013:{name:'Try Again Later', kind:'error', desc:'服务过载或限流，建议延迟重连。'},\r\n  1014:{name:'Bad Gateway', kind:'error', desc:'网关从上游服务器收到无效响应。'},\r\n  1015:{name:'TLS Handshake', kind:'reserved', desc:'保留码：TLS 握手失败，不可在 Close 帧中发送。'}\r\n};\r\n\r\nfunction explainClose(code){\r\n  var c = Number(code);\r\n  if(!isFinite(c)) return {code:code, name:'Invalid', kind:'error', desc:'不是合法数字。', sendable:false};\r\n  if(CLOSE_CODES[c]){\r\n    var e = CLOSE_CODES[c];\r\n    return {code:c, name:e.name, kind:e.kind, desc:e.desc, sendable:(e.kind!=='reserved' && c!==1004)};\r\n  }\r\n  if(c>=3000 && c<=3999) return {code:c, name:'Registered', kind:'app', desc:'3000–3999：向 IANA 注册的库/框架专用状态码。', sendable:true};\r\n  if(c>=4000 && c<=4999) return {code:c, name:'Private', kind:'app', desc:'4000–4999：应用私有状态码，收发双方自行约定。', sendable:true};\r\n  if(c>=1016 && c<=2999) return {code:c, name:'Unassigned', kind:'reserved', desc:'1016–2999 为规范保留区间，未分配，不应使用。', sendable:false};\r\n  return {code:c, name:'Out of range', kind:'error', desc:'超出 WebSocket 状态码有效范围（1000–4999）。', sendable:false};\r\n}\r\n\r\nfunction parseWsUrl(raw){\r\n  var s = String(raw==null?'':raw).trim();\r\n  if(!s) return {ok:false, error:'地址为空'};\r\n  var m = /^([a-zA-Z][a-zA-Z0-9+.-]*):\\/\\//.exec(s);\r\n  if(!m) return {ok:false, error:'缺少协议头，应以 ws:// 或 wss:// 开头'};\r\n  var scheme = m[1].toLowerCase();\r\n  var upgraded = null;\r\n  if(scheme==='http'){ upgraded='ws'; }\r\n  else if(scheme==='https'){ upgraded='wss'; }\r\n  else if(scheme!=='ws' && scheme!=='wss'){\r\n    return {ok:false, error:'不支持的协议 '+scheme+'://，WebSocket 只接受 ws:// 或 wss://'};\r\n  }\r\n  var eff = upgraded || scheme;\r\n  var rest = s.slice(m[0].length);\r\n  if(!rest) return {ok:false, error:'缺少主机名'};\r\n  var hash = '';\r\n  var hi = rest.indexOf('#');\r\n  if(hi>=0){ hash = rest.slice(hi+1); rest = rest.slice(0,hi); }\r\n  var query = '';\r\n  var qi = rest.indexOf('?');\r\n  if(qi>=0){ query = rest.slice(qi+1); rest = rest.slice(0,qi); }\r\n  var path = '/';\r\n  var pi = rest.indexOf('/');\r\n  if(pi>=0){ path = rest.slice(pi) || '/'; rest = rest.slice(0,pi); }\r\n  var authority = rest;\r\n  var userinfo = '';\r\n  var ai = authority.lastIndexOf('@');\r\n  if(ai>=0){ userinfo = authority.slice(0,ai); authority = authority.slice(ai+1); }\r\n  var host = authority, port = null;\r\n  if(authority.charAt(0)==='['){\r\n    var rb = authority.indexOf(']');\r\n    if(rb<0) return {ok:false, error:'IPv6 字面量缺少右方括号'};\r\n    host = authority.slice(0, rb+1);\r\n    var tail = authority.slice(rb+1);\r\n    if(tail){\r\n      if(tail.charAt(0)!==':') return {ok:false, error:'IPv6 地址后只能跟 :端口'};\r\n      port = tail.slice(1);\r\n    }\r\n  } else {\r\n    var ci = authority.indexOf(':');\r\n    if(ci>=0){ host = authority.slice(0,ci); port = authority.slice(ci+1); }\r\n  }\r\n  if(!host) return {ok:false, error:'缺少主机名'};\r\n  if(port!==null && port!==''){\r\n    if(!/^[0-9]+$/.test(port)) return {ok:false, error:'端口不是数字：'+port};\r\n    var pn = parseInt(port,10);\r\n    if(pn<1 || pn>65535) return {ok:false, error:'端口超出范围 1–65535：'+pn};\r\n    port = pn;\r\n  } else if(port===''){\r\n    return {ok:false, error:'冒号后缺少端口号'};\r\n  }\r\n  var secure = (eff==='wss');\r\n  var defPort = secure ? 443 : 80;\r\n  var effPort = (port===null) ? defPort : port;\r\n  var normalized = eff+'://'+host+((port===null||port===defPort)?'':(':'+port))+path+(query?('?'+query):'');\r\n  return {ok:true, scheme:eff, secure:secure, host:host, port:port, effectivePort:effPort,\r\n          defaultPort:(port===null), path:path, query:query, hash:hash, userinfo:userinfo,\r\n          normalized:normalized, upgradedFrom:(upgraded?scheme:null)};\r\n}\r\n\r\nfunction parseSubprotocols(raw){\r\n  var s = String(raw==null?'':raw).trim();\r\n  var out = {list:[], invalid:[], duplicates:[]};\r\n  if(!s) return out;\r\n  var seen = {};\r\n  s.split(',').forEach(function(part){\r\n    var t = part.trim();\r\n    if(!t) return;\r\n    if(!/^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$/.test(t)){ out.invalid.push(t); return; }\r\n    if(seen[t]){ out.duplicates.push(t); return; }\r\n    seen[t]=1; out.list.push(t);\r\n  });\r\n  return out;\r\n}\r\n\r\nfunction utf8Length(s){\r\n  var str = String(s==null?'':s), n = 0;\r\n  for(var i=0;i<str.length;i++){\r\n    var c = str.charCodeAt(i);\r\n    if(c<0x80) n+=1;\r\n    else if(c<0x800) n+=2;\r\n    else if(c>=0xD800 && c<=0xDBFF && i+1<str.length){\r\n      var d = str.charCodeAt(i+1);\r\n      if(d>=0xDC00 && d<=0xDFFF){ n+=4; i++; }\r\n      else n+=3;\r\n    }\r\n    else n+=3;\r\n  }\r\n  return n;\r\n}\r\n\r\nfunction frameOverhead(payloadLen, masked){\r\n  var n = Math.max(0, Math.floor(Number(payloadLen)||0));\r\n  var header = 2;\r\n  var lenField = '7 位内联';\r\n  if(n>65535){ header += 8; lenField='7+64 位扩展'; }\r\n  else if(n>125){ header += 2; lenField='7+16 位扩展'; }\r\n  var mask = masked ? 4 : 0;\r\n  var total = header + mask + n;\r\n  return {payload:n, headerBytes:header, maskBytes:mask, overhead:header+mask, total:total,\r\n          lenField:lenField, ratio:(n>0 ? (header+mask)/n : null)};\r\n}\r\n\r\nfunction backoff(attempt, opts){\r\n  var o = opts||{};\r\n  var base = Number(o.base!==undefined?o.base:500);\r\n  var factor = Number(o.factor!==undefined?o.factor:2);\r\n  var max = Number(o.max!==undefined?o.max:30000);\r\n  var jitter = (o.jitter===undefined) ? 'full' : o.jitter;\r\n  var a = Math.max(0, Math.floor(Number(attempt)||0));\r\n  var raw = base * Math.pow(factor, a);\r\n  var capped = Math.min(max, raw);\r\n  var lo = capped, hi = capped;\r\n  if(jitter==='full'){ lo = 0; hi = capped; }\r\n  else if(jitter==='equal'){ lo = capped/2; hi = capped; }\r\n  else if(jitter==='decorr'){ lo = base; hi = Math.min(max, capped*3); }\r\n  return {attempt:a, raw:raw, capped:capped, min:Math.round(lo), max:Math.round(hi),\r\n          expected:Math.round((lo+hi)/2), jitter:jitter};\r\n}\r\n\r\nfunction backoffSchedule(count, opts){\r\n  var n = Math.max(0, Math.floor(Number(count)||0));\r\n  var out = [], acc = 0;\r\n  for(var i=0;i<n;i++){\r\n    var b = backoff(i, opts);\r\n    acc += b.expected;\r\n    b.cumulative = acc;\r\n    out.push(b);\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction applyTemplate(tpl, ctx){\r\n  var c = ctx||{};\r\n  var seq = (c.seq===undefined) ? 1 : c.seq;\r\n  var ts = (c.ts===undefined) ? 0 : c.ts;\r\n  var rnd = (typeof c.rand === 'function') ? c.rand : function(){ return 0.5; };\r\n  return String(tpl==null?'':tpl).replace(/\\{\\{\\s*([a-zA-Z][a-zA-Z0-9_]*)\\s*(?::\\s*([^}]*))?\\}\\}/g, function(all, key, arg){\r\n    switch(key){\r\n      case 'seq': return String(seq);\r\n      case 'ts': return String(ts);\r\n      case 'iso': return new Date(ts).toISOString();\r\n      case 'rand': {\r\n        var lo = 0, hi = 100;\r\n        if(arg){ var p = String(arg).split('-'); if(p.length===2){ lo=Number(p[0])||0; hi=Number(p[1])||0; } }\r\n        return String(Math.floor(lo + rnd()*(hi-lo+1)));\r\n      }\r\n      case 'uuid': {\r\n        var hex = '0123456789abcdef', s = '';\r\n        for(var i=0;i<32;i++){ s += hex.charAt(Math.floor(rnd()*16)) ; }\r\n        return s.slice(0,8)+'-'+s.slice(8,12)+'-4'+s.slice(13,16)+'-a'+s.slice(17,20)+'-'+s.slice(20,32);\r\n      }\r\n      default: return all;\r\n    }\r\n  });\r\n}\r\n\r\nfunction classifyMessage(data){\r\n  if(data==null) return {kind:'empty', size:0, pretty:''};\r\n  if(typeof data !== 'string'){\r\n    var len = (data.byteLength!==undefined) ? data.byteLength : (data.size!==undefined ? data.size : 0);\r\n    return {kind:'binary', size:len, pretty:'<binary '+len+' bytes>'};\r\n  }\r\n  var size = utf8Length(data);\r\n  var t = data.trim();\r\n  if(t && (t.charAt(0)==='{' || t.charAt(0)==='[')){\r\n    try{\r\n      var v = JSON.parse(t);\r\n      return {kind:'json', size:size, pretty:JSON.stringify(v, null, 2), value:v};\r\n    }catch(e){ /* fallthrough */ }\r\n  }\r\n  return {kind:'text', size:size, pretty:data};\r\n}\r\n\r\nfunction formatBytes(n){\r\n  var v = Number(n)||0;\r\n  if(v<1024) return v+' B';\r\n  if(v<1024*1024) return (v/1024).toFixed(1)+' KB';\r\n  return (v/1048576).toFixed(2)+' MB';\r\n}\r\n\r\nfunction pingStats(rtts){\r\n  var a = (rtts||[]).map(Number).filter(function(x){ return isFinite(x); }).slice().sort(function(x,y){ return x-y; });\r\n  if(!a.length) return {count:0};\r\n  var sum = 0; a.forEach(function(x){ sum+=x; });\r\n  var avg = sum/a.length;\r\n  var jit = 0;\r\n  for(var i=1;i<a.length;i++) jit += Math.abs(a[i]-a[i-1]);\r\n  var idx = Math.min(a.length-1, Math.ceil(a.length*0.95)-1);\r\n  return {count:a.length, min:a[0], max:a[a.length-1], avg:Math.round(avg*100)/100,\r\n          p50:a[Math.floor((a.length-1)/2)], p95:a[Math.max(0,idx)],\r\n          jitter: a.length>1 ? Math.round((jit/(a.length-1))*100)/100 : 0};\r\n}\r\n\r\nfunction stats(log){\r\n  var l = log||[];\r\n  var s = {total:l.length, sent:0, recv:0, sentBytes:0, recvBytes:0, wireBytes:0, errors:0, first:null, last:null};\r\n  l.forEach(function(e){\r\n    if(e.dir==='out'){ s.sent++; s.sentBytes += (e.size||0); s.wireBytes += frameOverhead(e.size||0, true).total; }\r\n    else if(e.dir==='in'){ s.recv++; s.recvBytes += (e.size||0); s.wireBytes += frameOverhead(e.size||0, false).total; }\r\n    if(e.kind==='error') s.errors++;\r\n    if(e.t!==undefined){\r\n      if(s.first===null || e.t<s.first) s.first = e.t;\r\n      if(s.last===null || e.t>s.last) s.last = e.t;\r\n    }\r\n  });\r\n  s.durationMs = (s.first!==null && s.last!==null) ? (s.last-s.first) : 0;\r\n  s.msgPerSec = s.durationMs>0 ? Math.round((s.total/(s.durationMs/1000))*100)/100 : 0;\r\n  s.payloadBytes = s.sentBytes + s.recvBytes;\r\n  s.overheadBytes = s.wireBytes - s.payloadBytes;\r\n  return s;\r\n}\r\n\r\nfunction lint(cfg){\r\n  var c = cfg||{};\r\n  var out = [];\r\n  function add(level, msg){ out.push({level:level, msg:msg}); }\r\n  var u = parseWsUrl(c.url||'');\r\n  if(!u.ok){ add('error', '地址无效：'+u.error); }\r\n  else {\r\n    if(u.upgradedFrom) add('info', '已自动把 '+u.upgradedFrom+':// 升级为 '+u.scheme+'://。');\r\n    if(!u.secure){\r\n      add('warn', '使用明文 ws://：页面若通过 HTTPS 打开，浏览器会以混合内容为由直接拒绝连接。');\r\n      if(u.host!=='localhost' && u.host!=='127.0.0.1' && u.host!=='[::1]')\r\n        add('warn', '明文 WebSocket 在公网上可被中间人读取与篡改，建议改用 wss://。');\r\n    }\r\n    if(u.userinfo) add('warn', 'URL 中的 user:pass@ 认证信息会被浏览器忽略，且可能泄露到日志，请改用子协议或首条消息鉴权。');\r\n    if(u.query && /token|key|secret|auth|password/i.test(u.query))\r\n      add('warn', '查询串里疑似包含凭据：URL 会进入代理与服务端访问日志，建议连上后用消息体传递。');\r\n  }\r\n  var sp = parseSubprotocols(c.subprotocols||'');\r\n  sp.invalid.forEach(function(t){ add('error', '子协议名含非法字符（须为 RFC 7230 token）：\"'+t+'\"'); });\r\n  sp.duplicates.forEach(function(t){ add('warn', '子协议重复：\"'+t+'\"'); });\r\n\r\n  var ka = Number(c.pingInterval||0);\r\n  if(!ka) add('warn', '未启用心跳：多数反向代理（Nginx 默认 60s、多数云网关 60–350s）会静默切断空闲连接，表现为 1006。');\r\n  else if(ka>60000) add('warn', '心跳间隔 '+Math.round(ka/1000)+'s 偏长，可能仍会被 60s 空闲超时的代理切断。');\r\n\r\n  if(!c.reconnect) add('warn', '未开启自动重连：WebSocket 断开后不会自愈，生产环境应配合指数退避重连。');\r\n  else {\r\n    var b = c.backoff||{};\r\n    if((b.jitter||'full')==='none') add('warn', '退避未加抖动：服务重启后大量客户端会在同一毫秒重连，形成惊群。');\r\n    if(Number(b.max||0) > 300000) add('info', '退避上限超过 5 分钟，注意与业务可接受的恢复时延对齐。');\r\n  }\r\n  var pl = Number(c.payloadSize||0);\r\n  if(pl > 1048576) add('warn', '单条消息超过 1 MB：许多网关默认帧上限为 1 MB（如 API Gateway 128 KB），易触发 1009。');\r\n  if(pl > 0 && pl <= 4){\r\n    var fo = frameOverhead(pl, true);\r\n    add('info', '载荷仅 '+pl+' 字节，掩码帧头就占 '+fo.overhead+' 字节，开销率 '+Math.round(fo.ratio*100)+'%，高频小包建议合并批量发送。');\r\n  }\r\n  return out;\r\n}\r\n\r\nvar WebSocketForgePure = {\r\n  CLOSE_CODES:CLOSE_CODES, explainClose:explainClose, parseWsUrl:parseWsUrl,\r\n  parseSubprotocols:parseSubprotocols, utf8Length:utf8Length, frameOverhead:frameOverhead,\r\n  backoff:backoff, backoffSchedule:backoffSchedule, applyTemplate:applyTemplate,\r\n  classifyMessage:classifyMessage, formatBytes:formatBytes, pingStats:pingStats,\r\n  stats:stats, lint:lint\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = WebSocketForgePure;\r\nif (typeof window !== 'undefined') window.WebSocketForgePure = WebSocketForgePure;\r\n\r\n"
+}

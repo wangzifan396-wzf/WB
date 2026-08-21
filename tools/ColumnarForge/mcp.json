@@ -1,0 +1,45 @@
+{
+  "id": "ColumnarForge",
+  "name": "columnar_forge",
+  "title": "ColumnarForge",
+  "description": "列移位（Columnar transposition）密码：把明文按行填入、再按密钥词的字母顺序逐列读出，是典型的置换密码。支持加密与解密，纯本地、零依赖。",
+  "entry": "colOrder",
+  "entries": {
+    "colOrder": {
+      "paramStyle": "single",
+      "paramNames": [
+        "key"
+      ],
+      "fields": []
+    },
+    "colEnc": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "plain",
+        "key"
+      ],
+      "fields": []
+    },
+    "colDec": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cipher",
+        "key"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "description": "输入（key）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction colOrder(key){ key=key.toUpperCase().replace(/[^A-Z]/g,''); var idx=[]; for(var i=0;i<key.length;i++) idx.push([key[i], i]); idx.sort(function(a,b){ return a[0]<b[0]?-1:(a[0]>b[0]?1:a[1]-b[1]); }); return idx.map(function(x){return x[1];}); }\r\nfunction colEnc(plain, key){ plain=plain.replace(/\\s/g,'').toUpperCase(); var ord=colOrder(key), k=key.length, rows=Math.ceil(plain.length/k); var grid=[]; for(var r=0;r<rows;r++){ grid.push([]); for(var c=0;c<k;c++){ var idx=r*k+c; grid[r].push(idx<plain.length?plain[idx]:'X'); } } var out=\"\"; ord.forEach(function(c){ for(var r=0;r<rows;r++) out+=grid[r][c]; }); return out; }\r\nfunction colDec(cipher, key){ var ord=colOrder(key), k=key.length, n=cipher.length, rows=Math.ceil(n/k); var colLen=[]; ord.forEach(function(c){ colLen[c]= (c < n%k)? rows : (n%k===0?rows:rows-1); }); var cols=[]; var p=0; ord.forEach(function(c){ cols[c]=cipher.slice(p,p+colLen[c]); p+=colLen[c]; }); var out=\"\"; for(var r=0;r<rows;r++){ for(var c=0;c<k;c++){ if(r<cols[c].length) out+=cols[c][r]; } } return out; }\r\nvar EXPORTS={colOrder:colOrder, colEnc:colEnc, colDec:colDec};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ColumnarForgePure = EXPORTS; }\r\n\r\n"
+}

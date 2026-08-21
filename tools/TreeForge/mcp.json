@@ -1,0 +1,79 @@
+{
+  "id": "TreeForge",
+  "name": "tree_forge",
+  "title": "TreeForge",
+  "description": "目录树生成器：缩进与路径列表转 tree 连线图，JSON/ASCII 互转，离线可用。",
+  "entry": "trIndentWidth",
+  "entries": {
+    "trIndentWidth": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "trParseIndent": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "trRender": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "root",
+        "ascii"
+      ],
+      "fields": []
+    },
+    "trToJson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "root"
+      ],
+      "fields": []
+    },
+    "trFromJson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "obj"
+      ],
+      "fields": []
+    },
+    "trStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "root"
+      ],
+      "fields": []
+    },
+    "trPaths": {
+      "paramStyle": "single",
+      "paramNames": [
+        "root"
+      ],
+      "fields": []
+    },
+    "trFromPaths": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "line": {
+        "type": "string",
+        "description": "输入（line）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction trIndentWidth(line){\r\n  var w=0;\r\n  for(var i=0;i<line.length;i++){\r\n    if(line[i]===' ') w++;\r\n    else if(line[i]==='\\t') w+=4;\r\n    else break;\r\n  }\r\n  return w;\r\n}\r\nfunction trStripGlyph(line){\r\n  return line.replace(/^[\\s\\u2502\\u251c\\u2514\\u2500|`+\\-]*[\\s]?/, function(mm){\r\n    return mm.replace(/[^\\s]/g,' ');\r\n  });\r\n}\r\nfunction trParseIndent(text){\r\n  var raw=String(text||'').replace(/\\r\\n?/g,'\\n').split('\\n');\r\n  var lines=[];\r\n  for(var i=0;i<raw.length;i++){\r\n    if(!raw[i].trim()) continue;\r\n    var norm = /[\\u2502\\u251c\\u2514\\u2500]/.test(raw[i]) ? trStripGlyph(raw[i]) : raw[i];\r\n    lines.push({ indent:trIndentWidth(norm), name:norm.trim().replace(/\\/$/,''), dir:/\\/$/.test(norm.trim()) });\r\n  }\r\n  if(!lines.length) return { error:'请输入树形文本' };\r\n  var root={ name:'', children:[], indent:-1 }, stack=[root];\r\n  for(var j=0;j<lines.length;j++){\r\n    var l=lines[j];\r\n    while(stack.length>1 && stack[stack.length-1].indent >= l.indent) stack.pop();\r\n    var node={ name:l.name, children:[], indent:l.indent, dir:l.dir };\r\n    stack[stack.length-1].children.push(node);\r\n    stack.push(node);\r\n  }\r\n  return { error:null, root:root, count:lines.length };\r\n}\r\nfunction trRender(root, ascii){\r\n  var G = ascii ? { tee:'|-- ', last:'`-- ', bar:'|   ', gap:'    ' }\r\n                : { tee:'\\u251c\\u2500\\u2500 ', last:'\\u2514\\u2500\\u2500 ', bar:'\\u2502   ', gap:'    ' };\r\n  var out=[];\r\n  function walk(node, prefix){\r\n    for(var i=0;i<node.children.length;i++){\r\n      var c=node.children[i], last = i===node.children.length-1;\r\n      out.push(prefix + (last?G.last:G.tee) + c.name + (c.children.length?'/':''));\r\n      walk(c, prefix + (last?G.gap:G.bar));\r\n    }\r\n  }\r\n  walk(root, '');\r\n  return out.join('\\n');\r\n}\r\nfunction trToJson(root){\r\n  function conv(node){\r\n    if(!node.children.length) return null;\r\n    var o={};\r\n    for(var i=0;i<node.children.length;i++) o[node.children[i].name]=conv(node.children[i]);\r\n    return o;\r\n  }\r\n  return conv(root) || {};\r\n}\r\nfunction trFromJson(obj){\r\n  function build(o, name){\r\n    var node={ name:name, children:[] };\r\n    if(o && typeof o==='object' && !Array.isArray(o)){\r\n      var keys=Object.keys(o);\r\n      for(var i=0;i<keys.length;i++) node.children.push(build(o[keys[i]], keys[i]));\r\n    } else if(Array.isArray(o)){\r\n      for(var j=0;j<o.length;j++){\r\n        if(o[j] && typeof o[j]==='object') node.children.push(build(o[j], '['+j+']'));\r\n        else node.children.push({ name:String(o[j]), children:[] });\r\n      }\r\n    }\r\n    return node;\r\n  }\r\n  return build(obj, '');\r\n}\r\nfunction trStats(root){\r\n  var files=0, dirs=0, maxDepth=0;\r\n  function walk(node, d){\r\n    for(var i=0;i<node.children.length;i++){\r\n      var c=node.children[i];\r\n      if(c.children.length){ dirs++; } else { files++; }\r\n      if(d>maxDepth) maxDepth=d;\r\n      walk(c, d+1);\r\n    }\r\n  }\r\n  walk(root, 1);\r\n  return { files:files, dirs:dirs, total:files+dirs, maxDepth:maxDepth };\r\n}\r\nfunction trPaths(root){\r\n  var out=[];\r\n  function walk(node, prefix){\r\n    for(var i=0;i<node.children.length;i++){\r\n      var c=node.children[i], p=prefix + c.name + (c.children.length?'/':'');\r\n      out.push(p);\r\n      walk(c, prefix + c.name + '/');\r\n    }\r\n  }\r\n  walk(root, '');\r\n  return out;\r\n}\r\nfunction trFromPaths(text){\r\n  var lines=String(text||'').split(/\\n+/).filter(function(l){ return l.trim(); });\r\n  if(!lines.length) return { error:'请输入路径列表' };\r\n  var root={ name:'', children:[], index:{} };\r\n  for(var i=0;i<lines.length;i++){\r\n    var segs=lines[i].trim().replace(/^\\.?\\//,'').split('/').filter(function(s){ return s!==''; });\r\n    var node=root;\r\n    for(var j=0;j<segs.length;j++){\r\n      var hit=null;\r\n      for(var k=0;k<node.children.length;k++) if(node.children[k].name===segs[j]){ hit=node.children[k]; break; }\r\n      if(!hit){ hit={ name:segs[j], children:[] }; node.children.push(hit); }\r\n      node=hit;\r\n    }\r\n  }\r\n  return { error:null, root:root, count:lines.length };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { trIndentWidth:trIndentWidth, trParseIndent:trParseIndent, trRender:trRender,\r\n    trToJson:trToJson, trFromJson:trFromJson, trStats:trStats, trPaths:trPaths, trFromPaths:trFromPaths };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TreeForgePure = { trIndentWidth:trIndentWidth, trParseIndent:trParseIndent, trRender:trRender,\r\n    trToJson:trToJson, trFromJson:trFromJson, trStats:trStats, trPaths:trPaths, trFromPaths:trFromPaths };\r\n}\r\n\r\n"
+}

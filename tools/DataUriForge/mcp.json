@@ -1,0 +1,111 @@
+{
+  "id": "DataUriForge",
+  "name": "data_uri_forge",
+  "title": "DataUriForge",
+  "description": "文件与 data: URI 双向转换：自实现 Base64 与百分号编码，按扩展名推断 MIME 类型，支持 UTF-8 文本与 charset 参数，可直接得到内联到 CSS/HTML 的字符串。",
+  "entry": "encode",
+  "entries": {
+    "encode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "mime",
+        "opt"
+      ],
+      "fields": []
+    },
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "uri"
+      ],
+      "fields": []
+    },
+    "encodeText": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "mime",
+        "opt"
+      ],
+      "fields": []
+    },
+    "guessMime": {
+      "paramStyle": "single",
+      "paramNames": [
+        "name"
+      ],
+      "fields": []
+    },
+    "b64e": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "b64d": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "utf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "fromUtf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "pctEncode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "pctDecode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "fmtSize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "第 1 个参数（bytes）"
+      },
+      "mime": {
+        "type": "string",
+        "description": "第 2 个参数（mime）"
+      },
+      "opt": {
+        "type": "object",
+        "description": "第 3 个参数（opt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  var B64C='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\n  function b64e(b){var s='',i;for(i=0;i+2<b.length;i+=3){var n=(b[i]<<16)|(b[i+1]<<8)|b[i+2];\r\n    s+=B64C[n>>18&63]+B64C[n>>12&63]+B64C[n>>6&63]+B64C[n&63];}\r\n    var r=b.length-i;\r\n    if(r===1){var n1=b[i]<<16;s+=B64C[n1>>18&63]+B64C[n1>>12&63]+'==';}\r\n    else if(r===2){var n2=(b[i]<<16)|(b[i+1]<<8);s+=B64C[n2>>18&63]+B64C[n2>>12&63]+B64C[n2>>6&63]+'=';}\r\n    return s;}\r\n  function b64d(s){s=String(s).replace(/\\s+/g,'').replace(/=+$/,'');\r\n    if(/[^A-Za-z0-9+/]/.test(s)) return null;\r\n    var o=[],i;\r\n    for(i=0;i+3<s.length;i+=4){var n=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6)|B64C.indexOf(s[i+3]);\r\n      o.push(n>>16&255,n>>8&255,n&255);}\r\n    var r=s.length-i;\r\n    if(r===1) return null;\r\n    if(r===2){var n3=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12);o.push(n3>>16&255);}\r\n    else if(r===3){var n4=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6);o.push(n4>>16&255,n4>>8&255);}\r\n    return Uint8Array.from(o);}\r\n  function utf8(s){\r\n    var o=[],i,c;\r\n    for(i=0;i<s.length;i++){\r\n      c=s.charCodeAt(i);\r\n      if(c<128)o.push(c);\r\n      else if(c<2048){o.push(192|c>>6,128|c&63);}\r\n      else if(c>=55296&&c<56320&&i+1<s.length){\r\n        var c2=s.charCodeAt(i+1);i++;\r\n        var cp=65536+((c-55296)<<10)+(c2-56320);\r\n        o.push(240|cp>>18,128|cp>>12&63,128|cp>>6&63,128|cp&63);\r\n      } else {o.push(224|c>>12,128|c>>6&63,128|c&63);}\r\n    }\r\n    return Uint8Array.from(o);}\r\n  function fromUtf8(b){\r\n    var s='',i=0;\r\n    while(i<b.length){\r\n      var c=b[i++];\r\n      if(c<128)s+=String.fromCharCode(c);\r\n      else if(c>191&&c<224)s+=String.fromCharCode((c&31)<<6|(b[i++]&63));\r\n      else if(c>239){\r\n        var cp=((c&7)<<18|(b[i++]&63)<<12|(b[i++]&63)<<6|(b[i++]&63))-65536;\r\n        s+=String.fromCharCode(55296+(cp>>10),56320+(cp&1023));\r\n      } else s+=String.fromCharCode((c&15)<<12|(b[i++]&63)<<6|(b[i++]&63));\r\n    }\r\n    return s;}\r\n\r\n  var MIME={txt:'text/plain',md:'text/markdown',csv:'text/csv',html:'text/html',htm:'text/html',\r\n    css:'text/css',js:'text/javascript',mjs:'text/javascript',json:'application/json',\r\n    xml:'application/xml',yaml:'text/yaml',yml:'text/yaml',svg:'image/svg+xml',png:'image/png',\r\n    jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',avif:'image/avif',\r\n    ico:'image/x-icon',bmp:'image/bmp',pdf:'application/pdf',zip:'application/zip',\r\n    gz:'application/gzip',wasm:'application/wasm',woff:'font/woff',woff2:'font/woff2',\r\n    ttf:'font/ttf',otf:'font/otf',mp3:'audio/mpeg',wav:'audio/wav',ogg:'audio/ogg',\r\n    mp4:'video/mp4',webm:'video/webm',bin:'application/octet-stream'};\r\n  function guessMime(name){\r\n    var m=String(name||'').toLowerCase().match(/\\.([a-z0-9]+)$/);\r\n    return (m&&MIME[m[1]])||'application/octet-stream';\r\n  }\r\n  // 对 SVG 等文本资源，百分号编码通常比 base64 更短\r\n  function pctEncode(bytes){\r\n    var s='';\r\n    for(var i=0;i<bytes.length;i++){\r\n      var c=bytes[i];\r\n      var ch=String.fromCharCode(c);\r\n      if(c>32&&c<127&&'#%<>?[\\\\]^`{|}\"'.indexOf(ch)<0) s+=ch;\r\n      else if(c===32) s+='%20';\r\n      else s+='%'+('0'+c.toString(16).toUpperCase()).slice(-2);\r\n    }\r\n    return s;\r\n  }\r\n  function pctDecode(s){\r\n    var o=[];\r\n    for(var i=0;i<s.length;i++){\r\n      if(s[i]==='%'&&i+2<s.length){ o.push(parseInt(s.substr(i+1,2),16)); i+=2; }\r\n      else if(s[i]==='+') o.push(32);\r\n      else o.push(s.charCodeAt(i));\r\n    }\r\n    return Uint8Array.from(o);\r\n  }\r\n  function encode(bytes,mime,opt){\r\n    opt=opt||{};\r\n    if(!bytes||typeof bytes.length!=='number') return {error:'请提供字节数组'};\r\n    mime=mime||'application/octet-stream';\r\n    var charset=opt.charset?(';charset='+opt.charset):'';\r\n    var uri,mode;\r\n    if(opt.mode==='pct'){ uri='data:'+mime+charset+','+pctEncode(bytes); mode='pct'; }\r\n    else { uri='data:'+mime+charset+';base64,'+b64e(bytes); mode='base64'; }\r\n    var over=bytes.length?((uri.length-bytes.length)/bytes.length*100):0;\r\n    return {value:{uri:uri,mode:mode,raw:bytes.length,len:uri.length,\r\n                   overhead:Math.round(over*10)/10,\r\n                   css:'url(\"'+uri.replace(/\"/g,'\\\\\"')+'\")'}};\r\n  }\r\n  function parse(uri){\r\n    var s=String(uri||'').trim();\r\n    if(s.slice(0,5).toLowerCase()!=='data:') return {error:'不是合法的 data: URI'};\r\n    var comma=s.indexOf(',');\r\n    if(comma<0) return {error:'缺少逗号分隔符'};\r\n    var head=s.slice(5,comma),body=s.slice(comma+1);\r\n    var segs=head.split(';'),mime=segs[0]||'text/plain',isB64=false,params={};\r\n    for(var i=1;i<segs.length;i++){\r\n      if(segs[i].toLowerCase()==='base64'){ isB64=true; continue; }\r\n      var eq=segs[i].indexOf('=');\r\n      if(eq>0) params[segs[i].slice(0,eq)]=segs[i].slice(eq+1);\r\n    }\r\n    var bytes=isB64?b64d(body):pctDecode(body);\r\n    if(bytes===null) return {error:'base64 数据非法'};\r\n    var isText=/^text\\/|json|xml|javascript|svg|yaml/.test(mime);\r\n    return {value:{mime:mime,base64:isB64,params:params,bytes:bytes,size:bytes.length,\r\n                   text:isText?fromUtf8(bytes):null,isText:isText}};\r\n  }\r\n  function encodeText(text,mime,opt){ return encode(utf8(String(text)),mime||'text/plain',opt); }\r\n  function fmtSize(n){\r\n    if(n<1024) return n+' B';\r\n    if(n<1048576) return (n/1024).toFixed(1)+' KB';\r\n    return (n/1048576).toFixed(2)+' MB';\r\n  }\r\n  var API={encode:encode,parse:parse,encodeText:encodeText,guessMime:guessMime,\r\n           b64e:b64e,b64d:b64d,utf8:utf8,fromUtf8:fromUtf8,pctEncode:pctEncode,\r\n           pctDecode:pctDecode,fmtSize:fmtSize};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__DataUriForge__=API;\r\n})();\r\n\r\n"
+}

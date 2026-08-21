@@ -1,0 +1,45 @@
+{
+  "id": "QuizForge",
+  "name": "quiz_forge",
+  "title": "QuizForge",
+  "description": "把题干/选项/答案写成文本，生成可作答的选择题测验，即时算分。",
+  "entry": "parseQuiz",
+  "entries": {
+    "parseQuiz": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "grade": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "quiz",
+        "answers"
+      ],
+      "fields": []
+    },
+    "shuffle": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "arr",
+        "rng"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseQuiz(text){\r\n  text=(text||'').replace(/\\r/g,'');\r\n  var lines=text.split('\\n'), out=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i].trim(); if(!ln||ln[0]==='#') continue;\r\n    var p=ln.split(/\\s*\\|\\s*/);\r\n    if(p.length>=3){\r\n      var ans=parseInt(p[p.length-1],10);\r\n      if(!isNaN(ans)) out.push({q:p[0], options:p.slice(1,p.length-1), answer:ans});\r\n    }\r\n  }\r\n  return out;\r\n}\r\nfunction grade(quiz, answers){\r\n  var correct=0;\r\n  for(var i=0;i<quiz.length;i++){ if(answers[i]===quiz[i].answer) correct++; }\r\n  return {correct:correct, total:quiz.length, pct: quiz.length? Math.round(correct/quiz.length*100):0};\r\n}\r\nfunction shuffle(arr, rng){ var a=arr.slice(); for(var i=a.length-1;i>0;i--){var j=Math.floor(rng()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nvar EXPORTS={parseQuiz:parseQuiz, grade:grade, shuffle:shuffle};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.QuizForgePure = EXPORTS; }\r\n\r\n"
+}

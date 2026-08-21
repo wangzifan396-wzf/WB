@@ -1,0 +1,103 @@
+{
+  "id": "BitwiseForge",
+  "name": "bitwise_forge",
+  "title": "BitwiseForge",
+  "description": "位运算计算器：支持 AND/OR/XOR/NOT/移位/循环移位，提供 0x/0b/十进制二进制可视化，离线可用。",
+  "entry": "bwParse",
+  "entries": {
+    "bwParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "bwBin": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "x",
+        "w"
+      ],
+      "fields": []
+    },
+    "bwAnd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "bwOr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "bwXor": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "bwNot": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "bits"
+      ],
+      "fields": []
+    },
+    "bwShl": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "bwShr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "bwRol": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b",
+        "bits"
+      ],
+      "fields": []
+    },
+    "bwRor": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b",
+        "bits"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8(str){var out=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<0x80)out.push(c);else if(c<0x800){out.push(0xC0|(c>>6),0x80|(c&0x3F));}else if(c>=0xD800&&c<=0xDBFF){var c2=str.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}else{out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));}}return out;}\r\nfunction hexToBytes(h){h=(h||'').replace(/[^0-9a-fA-F]/g,'');if(h.length%2)h='0'+h;var b=[];for(var i=0;i<h.length;i+=2)b.push(parseInt(h.substr(i,2),16));return b;}\r\nfunction bytesToHex(b){var s='';for(var i=0;i<b.length;i++)s+=('0'+b[i].toString(16)).slice(-2);return s;}\r\n\r\nfunction bwParse(s){s=(''+s).trim();if(s==='')return 0n;return BigInt(s);}\r\nfunction bwWidth(w){return BigInt(w>0?w:256);}\r\nfunction bwMask(w){return (1n<<bwWidth(w))-1n;}\r\nfunction bwBin(x,w){x=BigInt(x);var b=bwWidth(w);var m=bwMask(w);var v=(x<0n)?(((x%(1n<<b))+(1n<<b))%(1n<<b)):(x&m);var n=(w>0?w:256);var s='';for(var i=n;i>0;i--)s=s+((v>>BigInt(i-1))&1n);return (w>0?s:'0b'+s);}\r\nfunction bwAnd(a,b){return bwParse(a)&bwParse(b);}\r\nfunction bwOr(a,b){return bwParse(a)|bwParse(b);}\r\nfunction bwXor(a,b){return bwParse(a)^bwParse(b);}\r\nfunction bwNot(a,bits){return (~bwParse(a))&bwMask(bits);}\r\nfunction bwShl(a,b){return bwParse(a)<<BigInt(b);}\r\nfunction bwShr(a,b){return bwParse(a)>>BigInt(b);}\r\nfunction bwRol(a,b,bits){var w=bwWidth(bits);var x=bwParse(a)&bwMask(bits);var nv=(((b%Number(w))+Number(w))%Number(w));var n=BigInt(nv);return (((x<<n)|(x>>(w-n)))&bwMask(bits));}\r\nfunction bwRor(a,b,bits){var w=bwWidth(bits);var x=bwParse(a)&bwMask(bits);var nv=(((b%Number(w))+Number(w))%Number(w));var n=BigInt(nv);return (((x>>n)|((x&((1n<<n)-1n))<<(w-n)))&bwMask(bits));}\r\nvar EXPORTS={bwParse:bwParse,bwBin:bwBin,bwAnd:bwAnd,bwOr:bwOr,bwXor:bwXor,bwNot:bwNot,bwShl:bwShl,bwShr:bwShr,bwRol:bwRol,bwRor:bwRor};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BitwiseForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,57 @@
+{
+  "id": "MathForge",
+  "name": "math_forge",
+  "title": "MathForge",
+  "description": "离线数学表达式求值：安全无 eval，支持 + - * / ^ % 括号、函数与常量。",
+  "entry": "tokenize",
+  "entries": {
+    "tokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "expr"
+      ],
+      "fields": []
+    },
+    "toRPN": {
+      "paramStyle": "single",
+      "paramNames": [
+        "tokens"
+      ],
+      "fields": []
+    },
+    "evalRPN": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rpn"
+      ],
+      "fields": []
+    },
+    "evaluate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "expr"
+      ],
+      "fields": []
+    },
+    "fmt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "expr": {
+        "type": "string",
+        "description": "输入（expr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar MATH_FUNCS={ sin:Math.sin, cos:Math.cos, tan:Math.tan, asin:Math.asin, acos:Math.acos, atan:Math.atan,\r\n  sinh:Math.sinh, cosh:Math.cosh, tanh:Math.tanh, sqrt:Math.sqrt, cbrt:Math.cbrt,\r\n  abs:Math.abs, floor:Math.floor, ceil:Math.ceil, round:Math.round, trunc:Math.trunc,\r\n  exp:Math.exp, log:Math.log, ln:Math.log, log10:Math.log10, log2:Math.log2,\r\n  sign:Math.sign, pow:Math.pow, min:Math.min, max:Math.max };\r\nvar MATH_CONSTS={ pi:Math.PI, e:Math.E, tau:2*Math.PI, phi:(1+Math.sqrt(5))/2 };\r\nvar MATH_PREC={ '+':1, '-':1, '*':2, '/':2, '%':2, '^':3, 'u':4 };\r\nvar MATH_RIGHT={ '^':true, 'u':true };\r\n\r\nfunction tokenize(expr){\r\n  var s=String(expr).toLowerCase().replace(/\\s+/g,'');\r\n  var tokens=[], i=0;\r\n  while(i<s.length){\r\n    var c=s[i];\r\n    if(/[0-9.]/.test(c)){\r\n      var num=''; while(i<s.length && /[0-9.]/.test(s[i])){ num+=s[i]; i++; }\r\n      tokens.push({t:'num', v:parseFloat(num)});\r\n    } else if(/[a-z]/.test(c)){\r\n      var name=''; while(i<s.length && /[a-z]/.test(s[i])){ name+=s[i]; i++; }\r\n      tokens.push({t:'name', v:name});\r\n    } else if('+-*/^()%'.indexOf(c)>=0){\r\n      tokens.push({t:'op', v:c}); i++;\r\n    } else { throw new Error('非法字符: '+c); }\r\n  }\r\n  return tokens;\r\n}\r\nfunction toRPN(tokens){\r\n  var prev='start', proc=[];\r\n  for(var i=0;i<tokens.length;i++){\r\n    var tk=tokens[i];\r\n    if(tk.t==='op' && tk.v==='-'){\r\n      if(prev==='start'||prev==='op'||prev==='('){ proc.push({t:'op', v:'u'}); prev='op'; continue; }\r\n      proc.push(tk); prev='op'; continue;\r\n    }\r\n    if(tk.t==='op' && tk.v==='+'){\r\n      if(prev==='start'||prev==='op'||prev==='('){ prev=(prev==='(')?'(': 'op'; continue; }\r\n      proc.push(tk); prev='op'; continue;\r\n    }\r\n    proc.push(tk);\r\n    if(tk.t==='op') prev='op';\r\n    else if(tk.t==='num') prev='num';\r\n    else if(tk.t==='name') prev='name';\r\n  }\r\n  var out=[], ops=[];\r\n  for(var j=0;j<proc.length;j++){\r\n    var t=proc[j];\r\n    if(t.t==='num') out.push(t);\r\n    else if(t.t==='name'){\r\n      if(MATH_CONSTS[t.v]!==undefined) out.push({t:'num', v:MATH_CONSTS[t.v]});\r\n      else ops.push({t:'func', v:t.v});\r\n    }\r\n    else if(t.t==='op' && t.v==='(') ops.push(t);\r\n    else if(t.t==='op' && t.v===')'){\r\n      while(ops.length && ops[ops.length-1].v!=='(') out.push(ops.pop());\r\n      if(ops.length && ops[ops.length-1].v==='(') ops.pop();\r\n      if(ops.length && ops[ops.length-1].t==='func') out.push(ops.pop());\r\n    }\r\n    else if(t.t==='op'){\r\n      var o1=t.v;\r\n      while(ops.length){\r\n        var top=ops[ops.length-1];\r\n        if(top.t==='op' && top.v!=='(' && ( (MATH_PREC[o1]<MATH_PREC[top.v]) || (MATH_PREC[o1]===MATH_PREC[top.v] && !MATH_RIGHT[o1]) )) out.push(ops.pop());\r\n        else break;\r\n      }\r\n      ops.push({t:'op', v:o1});\r\n    }\r\n  }\r\n  while(ops.length) out.push(ops.pop());\r\n  return out;\r\n}\r\nfunction evalRPN(rpn){\r\n  var st=[];\r\n  for(var i=0;i<rpn.length;i++){\r\n    var tk=rpn[i];\r\n    if(tk.t==='num') st.push(tk.v);\r\n    else if(tk.t==='func'){\r\n      if(st.length<1) throw new Error('函数 '+tk.v+' 缺少参数');\r\n      var a=st.pop();\r\n      if(MATH_FUNCS[tk.v]===undefined) throw new Error('未知函数 '+tk.v);\r\n      st.push(MATH_FUNCS[tk.v](a));\r\n    }\r\n    else if(tk.t==='op'){\r\n      if(tk.v==='u'){ if(!st.length) throw new Error('缺少操作数'); st.push(-st.pop()); continue; }\r\n      if(st.length<2) throw new Error('缺少操作数');\r\n      var b=st.pop(), x=st.pop();\r\n      if(tk.v==='+') st.push(x+b);\r\n      else if(tk.v==='-') st.push(x-b);\r\n      else if(tk.v==='*') st.push(x*b);\r\n      else if(tk.v==='/'){ if(b===0) throw new Error('除以零'); st.push(x/b); }\r\n      else if(tk.v==='%'){ if(b===0) throw new Error('模零'); st.push(x%b); }\r\n      else if(tk.v==='^') st.push(Math.pow(x,b));\r\n    }\r\n  }\r\n  if(st.length!==1) throw new Error('表达式无效');\r\n  return st[0];\r\n}\r\nfunction evaluate(expr){ return evalRPN(toRPN(tokenize(expr))); }\r\nfunction fmt(n){\r\n  if(!isFinite(n)) return String(n);\r\n  if(Math.abs(n-Math.round(n))<1e-10) return String(Math.round(n));\r\n  return String(Math.round(n*1e10)/1e10);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tokenize:tokenize, toRPN:toRPN, evalRPN:evalRPN, evaluate:evaluate, fmt:fmt };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MathForgePure = { tokenize:tokenize, toRPN:toRPN, evalRPN:evalRPN, evaluate:evaluate, fmt:fmt };\r\n}\r\n"
+}

@@ -1,0 +1,39 @@
+{
+  "id": "AmortizationForge",
+  "name": "amortization_forge",
+  "title": "AmortizationForge",
+  "description": "贷款摊销日程：按月等额本息，计算月供、每期本金/利息与余额，以及总利息。",
+  "entry": "schedule",
+  "entries": {
+    "schedule": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "annualRate",
+        "periods"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "principal": {
+        "type": "string",
+        "description": "第 1 个参数（principal）"
+      },
+      "annualRate": {
+        "type": "string",
+        "description": "第 2 个参数（annualRate）"
+      },
+      "periods": {
+        "type": "string",
+        "description": "第 3 个参数（periods）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction schedule(principal, annualRate, periods){\r\n  var r = annualRate/12; // monthly rate\r\n  var n = periods;\r\n  var pmt = (r===0) ? principal/n : principal*r/(1-Math.pow(1+r,-n));\r\n  var rows=[]; var bal=principal;\r\n  for(var i=1;i<=n;i++){\r\n    var interest = bal*r;\r\n    var principalPart = pmt - interest;\r\n    bal -= principalPart;\r\n    if(i===n) bal = 0; // clamp rounding\r\n    rows.push({period:i, payment:pmt, interest:interest, principal:principalPart, balance:Math.max(bal,0)});\r\n  }\r\n  return {pmt:pmt, rows:rows};\r\n}\r\nvar EXPORTS = { schedule:schedule };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.AmortizationForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,59 @@
+{
+  "id": "MindMapForge",
+  "name": "mind_map_forge",
+  "title": "MindMapForge",
+  "description": "思维导图：缩进大纲一键生成 SVG 导图，按层级着色。",
+  "entry": "mmParse",
+  "entries": {
+    "mmParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "mmCountLeaves": {
+      "paramStyle": "object",
+      "paramNames": [
+        "node"
+      ],
+      "fields": [
+        "children"
+      ]
+    },
+    "mmLayout": {
+      "paramStyle": "single",
+      "paramNames": [
+        "root"
+      ],
+      "fields": []
+    },
+    "mmSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "mmEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction mmParse(text){\r\n  if(typeof text!=='string'||!text.trim()) return { value:null, error:'大纲为空' };\r\n  var lines=text.split('\\n').filter(function(l){ return l.trim()!==''; });\r\n  var items=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var raw=lines[i].replace(/\\t/g,'  ');\r\n    var m=raw.match(/^( *)(.*)$/);\r\n    var depth=Math.floor(m[1].length/2);\r\n    items.push({ depth:depth, label:m[2].trim() });\r\n  }\r\n  if(items[0].depth!==0) return { value:null, error:'首行必须无缩进（中心主题）' };\r\n  for(var j=1;j<items.length;j++){\r\n    if(items[j].depth===0) return { value:null, error:'第 '+(j+1)+' 行: 只允许一个中心主题' };\r\n    if(items[j].depth>items[j-1].depth+1) return { value:null, error:'第 '+(j+1)+' 行: 缩进跳级' };\r\n  }\r\n  var root={ label:items[0].label, children:[] };\r\n  var stack=[root];\r\n  for(var k=1;k<items.length;k++){\r\n    var node={ label:items[k].label, children:[] };\r\n    stack.length=items[k].depth;\r\n    stack[stack.length-1].children.push(node);\r\n    stack.push(node);\r\n  }\r\n  return { value:root, error:null };\r\n}\r\nfunction mmCountLeaves(node){\r\n  if(!node.children.length) return 1;\r\n  var s=0;\r\n  for(var i=0;i<node.children.length;i++) s+=mmCountLeaves(node.children[i]);\r\n  return s;\r\n}\r\nfunction mmLayout(root){\r\n  var nodes=[], edges=[], ROW=34, COL=170;\r\n  function place(node, depth, top){\r\n    var leaves=mmCountLeaves(node);\r\n    var y=top+leaves*ROW/2;\r\n    var me={ label:node.label, x:depth*COL+20, y:y, depth:depth };\r\n    nodes.push(me);\r\n    var cur=top;\r\n    for(var i=0;i<node.children.length;i++){\r\n      var child=place(node.children[i], depth+1, cur);\r\n      edges.push({ x1:me.x, y1:me.y, x2:child.x, y2:child.y });\r\n      cur+=mmCountLeaves(node.children[i])*ROW;\r\n    }\r\n    return me;\r\n  }\r\n  place(root, 0, 0);\r\n  var w=0,h=0;\r\n  for(var i=0;i<nodes.length;i++){\r\n    if(nodes[i].x>w) w=nodes[i].x;\r\n    if(nodes[i].y>h) h=nodes[i].y;\r\n  }\r\n  return { nodes:nodes, edges:edges, width:w+180, height:h+40 };\r\n}\r\nfunction mmEsc(s){\r\n  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');\r\n}\r\nfunction mmSvg(text){\r\n  var p=mmParse(text);\r\n  if(p.error) return { value:null, error:p.error };\r\n  var L=mmLayout(p.value);\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+L.width+'\" height=\"'+L.height+'\" viewBox=\"0 0 '+L.width+' '+L.height+'\">';\r\n  s+='<rect width=\"'+L.width+'\" height=\"'+L.height+'\" fill=\"#0A0A0B\"/>';\r\n  for(var i=0;i<L.edges.length;i++){\r\n    var e=L.edges[i], mx=(e.x1+e.x2)/2;\r\n    s+='<path d=\"M'+(e.x1+120)+' '+e.y1+' C'+mx+' '+e.y1+' '+mx+' '+e.y2+' '+e.x2+' '+e.y2+'\" fill=\"none\" stroke=\"rgba(94,106,210,0.55)\" stroke-width=\"1.5\"/>';\r\n  }\r\n  var PAL=['#5E6AD2','#22D3EE','#10B981','#A78BFA','#F5A623'];\r\n  for(var j=0;j<L.nodes.length;j++){\r\n    var n=L.nodes[j], c=PAL[n.depth%PAL.length];\r\n    s+='<rect x=\"'+n.x+'\" y=\"'+(n.y-13)+'\" width=\"120\" height=\"26\" rx=\"7\" fill=\"#141417\" stroke=\"'+c+'\" stroke-width=\"1.2\"/>';\r\n    s+='<text x=\"'+(n.x+60)+'\" y=\"'+(n.y+4)+'\" text-anchor=\"middle\" font-size=\"12\" fill=\"#FFFFFF\" font-family=\"system-ui,sans-serif\">'+mmEsc(n.label.length>9?n.label.slice(0,8)+'…':n.label)+'</text>';\r\n  }\r\n  s+='</svg>';\r\n  return { value:s, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { mmParse:mmParse, mmCountLeaves:mmCountLeaves, mmLayout:mmLayout, mmSvg:mmSvg, mmEsc:mmEsc };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MindMapForgePure = { mmParse:mmParse, mmCountLeaves:mmCountLeaves, mmLayout:mmLayout, mmSvg:mmSvg, mmEsc:mmEsc };\r\n}\r\n"
+}

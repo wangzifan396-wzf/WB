@@ -1,0 +1,57 @@
+{
+  "id": "ExifForge",
+  "name": "exif_forge",
+  "title": "ExifForge",
+  "description": "离线图片 EXIF 元数据查看与清除：解析 JPEG APP1 / TIFF IFD，一键剥离拍摄隐私信息。",
+  "entry": "parseTiff",
+  "entries": {
+    "parseTiff": {
+      "paramStyle": "object",
+      "paramNames": [
+        "tiff"
+      ],
+      "fields": [
+        "buffer",
+        "byteOffset",
+        "byteLength"
+      ]
+    },
+    "parseExifFromJpeg": {
+      "paramStyle": "object",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": [
+        "subarray"
+      ]
+    },
+    "stripExif": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "buffer": {
+        "type": "string",
+        "description": "参数 buffer"
+      },
+      "byteOffset": {
+        "type": "string",
+        "description": "参数 byteOffset"
+      },
+      "byteLength": {
+        "type": "string",
+        "description": "参数 byteLength"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ===== 纯函数区（第一个无属性 script）：可被 Node _test.js 提取并断言 ===== */\r\nfunction parseTiff(tiff){\r\n  var dv = new DataView(tiff.buffer, tiff.byteOffset, tiff.byteLength);\r\n  var le = (dv.getUint8(0)===0x49 && dv.getUint8(1)===0x49); // II = little endian\r\n  function u16(o){ return dv.getUint16(o, le); }\r\n  function u32(o){ return dv.getUint32(o, le); }\r\n  if(dv.getUint16(2, le)!==0x2A) return null;\r\n  var result = {};\r\n  function readIfd(off){\r\n    if(off+2 > dv.byteLength) return;\r\n    var n = u16(off);\r\n    for(var i=0;i<n;i++){\r\n      var e = off + 2 + i*12;\r\n      var tag = u16(e), type = u16(e+2), count = u32(e+4);\r\n      var valOff = e+8;\r\n      var value;\r\n      if(type===2){ // ASCII\r\n        var bytes = count, strOff = (bytes<=4) ? valOff : u32(valOff), s='';\r\n        for(var k=0;k<bytes;k++){ var c=dv.getUint8(strOff+k); if(c===0) break; s+=String.fromCharCode(c); }\r\n        value = s;\r\n      } else if(type===3){ value = u16(valOff); }\r\n      else if(type===4){ value = u32(valOff); }\r\n      else if(type===1){ value = dv.getUint8(valOff); }\r\n      else { value = null; }\r\n      result[tag] = value;\r\n    }\r\n  }\r\n  readIfd(u32(4));\r\n  if(result[0x8769]!=null) readIfd(result[0x8769]); // Exif sub-IFD\r\n  var NAMES = {0x010F:'Make',0x0110:'Model',0x0132:'DateTime',0x0112:'Orientation',\r\n    0x829A:'ExposureTime',0x8827:'ISO',0x9003:'DateTimeOriginal',0xA002:'PixelXDimension',0xA003:'PixelYDimension'};\r\n  var named = {};\r\n  Object.keys(result).forEach(function(t){ var n=NAMES[t]; if(n) named[n]=result[t]; });\r\n  return named;\r\n}\r\nfunction parseExifFromJpeg(bytes){\r\n  if(bytes[0]!==0xFF || bytes[1]!==0xD8) return null;\r\n  var i=2;\r\n  while(i+3 < bytes.length){\r\n    if(bytes[i]!==0xFF) break;\r\n    var marker=bytes[i+1];\r\n    if(marker===0xD9) break;\r\n    if(marker>=0xD0 && marker<=0xD9){ i+=2; continue; }\r\n    var len=(bytes[i+2]<<8)|bytes[i+3];\r\n    if(marker===0xE1 && bytes[i+4]===0x45 && bytes[i+5]===0x78 && bytes[i+6]===0x69 &&\r\n        bytes[i+7]===0x66 && bytes[i+8]===0x00 && bytes[i+9]===0x00){\r\n      var tiff = bytes.subarray(i+10, i+2+len);\r\n      return parseTiff(tiff);\r\n    }\r\n    i += len+2;\r\n  }\r\n  return null;\r\n}\r\nfunction stripExif(bytes){\r\n  if(bytes[0]!==0xFF || bytes[1]!==0xD8) return bytes;\r\n  var out=[0xFF,0xD8], i=2;\r\n  while(i+1 < bytes.length){\r\n    if(bytes[i]!==0xFF){ break; }\r\n    var marker=bytes[i+1];\r\n    if(marker===0xD9){ out.push(0xFF,0xD9); break; }\r\n    if(marker>=0xD0 && marker<=0xD9){ out.push(0xFF,marker); i+=2; continue; }\r\n    var len=(bytes[i+2]<<8)|bytes[i+3];\r\n    var isExif = (marker===0xE1) && bytes[i+4]===0x45 && bytes[i+5]===0x78 && bytes[i+6]===0x69 &&\r\n                 bytes[i+7]===0x66 && bytes[i+8]===0x00 && bytes[i+9]===0x00;\r\n    if(!isExif){ for(var k=0;k<len+2;k++) out.push(bytes[i+k]); }\r\n    i += len+2;\r\n  }\r\n  return Uint8Array.from(out);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parseTiff:parseTiff, parseExifFromJpeg:parseExifFromJpeg, stripExif:stripExif };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ExifForgePure = { parseTiff:parseTiff, parseExifFromJpeg:parseExifFromJpeg, stripExif:stripExif };\r\n}\r\n"
+}

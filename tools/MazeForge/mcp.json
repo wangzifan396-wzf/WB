@@ -1,0 +1,57 @@
+{
+  "id": "MazeForge",
+  "name": "maze_forge",
+  "title": "MazeForge",
+  "description": "迷宫生成与求解：递归回溯完美迷宫 + BFS 最短路。",
+  "entry": "mzRng",
+  "entries": {
+    "mzRng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "mzGen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h",
+        "seed"
+      ],
+      "fields": []
+    },
+    "mzSolve": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "maze",
+        "sx",
+        "sy",
+        "ex",
+        "ey"
+      ],
+      "fields": []
+    },
+    "mzSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "maze",
+        "path"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seed": {
+        "type": "string",
+        "description": "输入（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction mzRng(seed){\r\n  var s=(seed>>>0)||1;\r\n  return function(){\r\n    s|=0; s=(s+0x6D2B79F5)|0;\r\n    var t=Math.imul(s^(s>>>15), 1|s);\r\n    t=(t+Math.imul(t^(t>>>7), 61|t))^t;\r\n    return ((t^(t>>>14))>>>0)/4294967296;\r\n  };\r\n}\r\nfunction mzGen(w, h, seed){\r\n  if(!Number.isInteger(w)||!Number.isInteger(h)||w<3||h<3||w>60||h>60)\r\n    return { value:null, error:'宽高须为 3-60 的整数' };\r\n  var rnd=mzRng(seed===undefined?42:seed);\r\n  var cells=[], y, x;\r\n  for(y=0;y<h;y++){ var r=[]; for(x=0;x<w;x++) r.push({ n:1,s:1,e:1,w:1,seen:0 }); cells.push(r); }\r\n  var stack=[[0,0]]; cells[0][0].seen=1; var visited=1;\r\n  var D=[['n',0,-1,'s'],['s',0,1,'n'],['e',1,0,'w'],['w',-1,0,'e']];\r\n  while(stack.length){\r\n    var cur=stack[stack.length-1], cx=cur[0], cy=cur[1];\r\n    var opts=[];\r\n    for(var d=0;d<4;d++){\r\n      var nx=cx+D[d][1], ny=cy+D[d][2];\r\n      if(nx>=0&&ny>=0&&nx<w&&ny<h&&!cells[ny][nx].seen) opts.push(d);\r\n    }\r\n    if(!opts.length){ stack.pop(); continue; }\r\n    var pick=D[opts[Math.floor(rnd()*opts.length)]];\r\n    var tx=cx+pick[1], ty=cy+pick[2];\r\n    cells[cy][cx][pick[0]]=0;\r\n    cells[ty][tx][pick[3]]=0;\r\n    cells[ty][tx].seen=1; visited++;\r\n    stack.push([tx,ty]);\r\n  }\r\n  for(y=0;y<h;y++) for(x=0;x<w;x++) delete cells[y][x].seen;\r\n  return { value:{ width:w, height:h, cells:cells, visited:visited }, error:null };\r\n}\r\nfunction mzSolve(maze, sx, sy, ex, ey){\r\n  var w=maze.width, h=maze.height, c=maze.cells;\r\n  sx=sx||0; sy=sy||0;\r\n  if(ex===undefined) ex=w-1;\r\n  if(ey===undefined) ey=h-1;\r\n  if(sx<0||sy<0||sx>=w||sy>=h||ex<0||ey<0||ex>=w||ey>=h)\r\n    return { value:null, error:'起终点越界' };\r\n  var prev={}, q=[[sx,sy]], seen={}; seen[sx+','+sy]=1; var expanded=0;\r\n  var D=[['n',0,-1],['s',0,1],['e',1,0],['w',-1,0]];\r\n  while(q.length){\r\n    var cur=q.shift(), x=cur[0], y=cur[1]; expanded++;\r\n    if(x===ex&&y===ey){\r\n      var path=[], k=ex+','+ey;\r\n      while(k){ var p=k.split(','); path.unshift([+p[0],+p[1]]); k=prev[k]; }\r\n      return { value:{ path:path, length:path.length, expanded:expanded }, error:null };\r\n    }\r\n    for(var d=0;d<4;d++){\r\n      if(c[y][x][D[d][0]]) continue;\r\n      var nx=x+D[d][1], ny=y+D[d][2], key=nx+','+ny;\r\n      if(seen[key]) continue;\r\n      seen[key]=1; prev[key]=x+','+y; q.push([nx,ny]);\r\n    }\r\n  }\r\n  return { value:null, error:'不可达（迷宫数据损坏？）' };\r\n}\r\nfunction mzSvg(maze, path){\r\n  var w=maze.width, h=maze.height, C=Math.max(10, Math.min(26, Math.floor(520/w)));\r\n  var W=w*C+4, H=h*C+4, c=maze.cells;\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+W+'\" height=\"'+H+'\" viewBox=\"0 0 '+W+' '+H+'\">';\r\n  s+='<rect width=\"'+W+'\" height=\"'+H+'\" fill=\"#0A0A0B\"/>';\r\n  if(path && path.length){\r\n    var pts=path.map(function(p){ return (p[0]*C+2+C/2)+','+(p[1]*C+2+C/2); }).join(' ');\r\n    s+='<polyline points=\"'+pts+'\" fill=\"none\" stroke=\"#10B981\" stroke-width=\"'+Math.max(2,C/4)+'\" stroke-linejoin=\"round\" stroke-linecap=\"round\" opacity=\"0.9\"/>';\r\n  }\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var px=x*C+2, py=y*C+2, cell=c[y][x];\r\n    if(cell.n) s+='<line x1=\"'+px+'\" y1=\"'+py+'\" x2=\"'+(px+C)+'\" y2=\"'+py+'\" stroke=\"#5E6AD2\" stroke-width=\"1.5\"/>';\r\n    if(cell.w) s+='<line x1=\"'+px+'\" y1=\"'+py+'\" x2=\"'+px+'\" y2=\"'+(py+C)+'\" stroke=\"#5E6AD2\" stroke-width=\"1.5\"/>';\r\n    if(y===h-1&&cell.s) s+='<line x1=\"'+px+'\" y1=\"'+(py+C)+'\" x2=\"'+(px+C)+'\" y2=\"'+(py+C)+'\" stroke=\"#5E6AD2\" stroke-width=\"1.5\"/>';\r\n    if(x===w-1&&cell.e) s+='<line x1=\"'+(px+C)+'\" y1=\"'+py+'\" x2=\"'+(px+C)+'\" y2=\"'+(py+C)+'\" stroke=\"#5E6AD2\" stroke-width=\"1.5\"/>';\r\n  }\r\n  s+='<circle cx=\"'+(2+C/2)+'\" cy=\"'+(2+C/2)+'\" r=\"'+(C/5)+'\" fill=\"#22D3EE\"/>';\r\n  s+='<circle cx=\"'+((w-1)*C+2+C/2)+'\" cy=\"'+((h-1)*C+2+C/2)+'\" r=\"'+(C/5)+'\" fill=\"#F5A623\"/>';\r\n  s+='</svg>';\r\n  return s;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { mzRng:mzRng, mzGen:mzGen, mzSolve:mzSolve, mzSvg:mzSvg };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MazeForgePure = { mzRng:mzRng, mzGen:mzGen, mzSolve:mzSolve, mzSvg:mzSvg };\r\n}\r\n"
+}

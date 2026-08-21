@@ -1,0 +1,124 @@
+{
+  "id": "IcsForge",
+  "name": "ics_forge",
+  "title": "IcsForge",
+  "description": "iCalendar 生成：一行一个事件自动折叠 75 字节、生成 UID 与 RRULE，UTC/浮动/全天三种时间模式，导出前检测时间冲突与结构性错误，离线可用。",
+  "entry": "buildEvent",
+  "entries": {
+    "escapeText": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "parseDateTz": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "parseEvents": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "buildEvent": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ev",
+        "opts"
+      ],
+      "fields": []
+    },
+    "buildCalendar": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "events",
+        "opts"
+      ],
+      "fields": []
+    },
+    "detectConflicts": {
+      "paramStyle": "single",
+      "paramNames": [
+        "events"
+      ],
+      "fields": []
+    },
+    "lintCalendar": {
+      "paramStyle": "single",
+      "paramNames": [
+        "events"
+      ],
+      "fields": []
+    },
+    "foldLine": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "makeUid": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "title",
+        "stamp"
+      ],
+      "fields": []
+    },
+    "rruleOf": {
+      "paramStyle": "object",
+      "paramNames": [
+        "ev"
+      ],
+      "fields": [
+        "interval",
+        "until",
+        "count"
+      ]
+    },
+    "stampUtc": {
+      "paramStyle": "object",
+      "paramNames": [
+        "d"
+      ],
+      "fields": [
+        "getUTCFullYear",
+        "getUTCMonth",
+        "getUTCDate",
+        "getUTCHours",
+        "getUTCMinutes",
+        "getUTCSeconds"
+      ]
+    },
+    "gradeOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "score"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "ev": {
+        "type": "string",
+        "description": "第 1 个参数（ev）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8Bytes(str){\r\n  var out=[], s=String(str===undefined?'':str);\r\n  for(var i=0;i<s.length;i++){\r\n    var c=s.charCodeAt(i);\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xc0|(c>>6), 0x80|(c&63)); }\r\n    else if(c>=0xd800 && c<=0xdbff && i+1<s.length){\r\n      var c2=s.charCodeAt(i+1);\r\n      var cp=0x10000+((c-0xd800)<<10)+(c2-0xdc00); i++;\r\n      out.push(0xf0|(cp>>18), 0x80|((cp>>12)&63), 0x80|((cp>>6)&63), 0x80|(cp&63));\r\n    } else { out.push(0xe0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction rotr32(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }\r\nvar SHA256_K=[\r\n0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,\r\n0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,\r\n0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,\r\n0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,\r\n0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,\r\n0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,\r\n0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,\r\n0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\r\nfunction sha256Bytes(bytes){\r\n  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\r\n  var msg=bytes.slice(), bitLen=msg.length*8;\r\n  msg.push(0x80);\r\n  while(msg.length%64!==56) msg.push(0);\r\n  var hi=Math.floor(bitLen/4294967296)>>>0, lo=(bitLen>>>0);\r\n  msg.push((hi>>>24)&255,(hi>>>16)&255,(hi>>>8)&255,hi&255);\r\n  msg.push((lo>>>24)&255,(lo>>>16)&255,(lo>>>8)&255,lo&255);\r\n  var w=new Array(64);\r\n  for(var i=0;i<msg.length;i+=64){\r\n    for(var t=0;t<16;t++) w[t]=((msg[i+t*4]<<24)|(msg[i+t*4+1]<<16)|(msg[i+t*4+2]<<8)|msg[i+t*4+3])>>>0;\r\n    for(t=16;t<64;t++){\r\n      var s0=(rotr32(w[t-15],7)^rotr32(w[t-15],18)^(w[t-15]>>>3))>>>0;\r\n      var s1=(rotr32(w[t-2],17)^rotr32(w[t-2],19)^(w[t-2]>>>10))>>>0;\r\n      w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;\r\n    }\r\n    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];\r\n    for(t=0;t<64;t++){\r\n      var S1=(rotr32(e,6)^rotr32(e,11)^rotr32(e,25))>>>0;\r\n      var ch=((e&f)^((~e)&g))>>>0;\r\n      var t1=(h+S1+ch+SHA256_K[t]+w[t])>>>0;\r\n      var S0=(rotr32(a,2)^rotr32(a,13)^rotr32(a,22))>>>0;\r\n      var maj=((a&b)^(a&c)^(b&c))>>>0;\r\n      var t2=(S0+maj)>>>0;\r\n      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;\r\n    }\r\n    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;\r\n    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;\r\n  }\r\n  var out=[];\r\n  for(var j=0;j<8;j++) out.push((H[j]>>>24)&255,(H[j]>>>16)&255,(H[j]>>>8)&255,H[j]&255);\r\n  return out;\r\n}\r\nfunction bytesToHex(bytes){\r\n  var s='';\r\n  for(var i=0;i<bytes.length;i++) s += ('0'+(bytes[i]&255).toString(16)).slice(-2);\r\n  return s;\r\n}\r\n\r\nvar ICS_FREQ = { daily:'DAILY', weekly:'WEEKLY', monthly:'MONTHLY', yearly:'YEARLY', day:'DAILY', week:'WEEKLY', month:'MONTHLY', year:'YEARLY' };\r\n\r\nfunction p2(n){ return (n < 10 ? '0' : '') + n; }\r\n\r\nfunction escapeText(s){\r\n  return String(s == null ? '' : s)\r\n    .replace(/\\\\/g, '\\\\\\\\')\r\n    .replace(/;/g, '\\\\;')\r\n    .replace(/,/g, '\\\\,')\r\n    .replace(/\\r?\\n/g, '\\\\n');\r\n}\r\n\r\nfunction hashHex(s){\r\n  var b = utf8Bytes(String(s == null ? '' : s)), h = 0x811c9dc5;\r\n  for (var i = 0; i < b.length; i++){ h ^= b[i]; h = (h * 16777619) >>> 0; }\r\n  return ('0000000' + h.toString(16)).slice(-8);\r\n}\r\n\r\nfunction makeUid(title, stamp){\r\n  return 'nano-' + hashHex(String(title || 'event') + ':' + (stamp || '')) + '@icsforge';\r\n}\r\n\r\nfunction stampUtc(d){\r\n  if (!d) return '';\r\n  return d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate()) + 'T' +\r\n         p2(d.getUTCHours()) + p2(d.getUTCMinutes()) + p2(d.getUTCSeconds()) + 'Z';\r\n}\r\n\r\nfunction dateOnly(d){\r\n  if (!d) return '';\r\n  return d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate());\r\n}\r\n\r\nfunction parseDateTz(s){\r\n  var t = String(s == null ? '' : s).trim();\r\n  if (!t) return null;\r\n  var m = /^(\\d{4})-(\\d{2})-(\\d{2})(?:[T ](\\d{1,2}):(\\d{2})(?::(\\d{2}))?)?\\s*(Z|[+-]\\d{2}:?\\d{2})?$/.exec(t);\r\n  if (!m) return null;\r\n  var y = +m[1], mo = +m[2], da = +m[3];\r\n  var hh = +(m[4] || 0), mm = +(m[5] || 0), ss = +(m[6] || 0);\r\n  var tz = m[7];\r\n  if (!m[4]) return { ms: Date.UTC(y, mo - 1, da), kind: 'date' };\r\n  if (!tz){\r\n    // floating local time: keep the literal components, no Z, no offset\r\n    return { ms: Date.UTC(y, mo - 1, da, hh, mm, ss), kind: 'float', comps: [y, mo, da, hh, mm, ss] };\r\n  }\r\n  var ms = Date.UTC(y, mo - 1, da, hh, mm, ss);\r\n  if (tz !== 'Z'){\r\n    var sign = tz.charAt(0) === '-' ? -1 : 1;\r\n    var dig = tz.slice(1).replace(':', '');\r\n    ms -= sign * (parseInt(dig.slice(0, 2), 10) * 60 + parseInt(dig.slice(2, 4), 10)) * 60000;\r\n  }\r\n  return { ms: ms, kind: 'utc' };\r\n}\r\n\r\nfunction rruleOf(ev){\r\n  if (!ev.repeat) return '';\r\n  var freq = ICS_FREQ[String(ev.repeat).toLowerCase()];\r\n  if (!freq) return '';\r\n  var parts = ['FREQ=' + freq];\r\n  if (ev.interval && +ev.interval > 1) parts.push('INTERVAL=' + (+ev.interval));\r\n  if (ev.until){\r\n    var u = parseDateTz(ev.until);\r\n    if (u) parts.push('UNTIL=' + (u.kind === 'date' ? dateOnly(new Date(u.ms)) : stampUtc(new Date(u.ms))));\r\n  }\r\n  if (ev.count) parts.push('COUNT=' + (+ev.count));\r\n  return parts.join(';');\r\n}\r\n\r\nfunction foldLine(line){\r\n  var s = String(line), bytesPerChar = [], total = 0;\r\n  for (var i = 0; i < s.length; i++){ var b = utf8Bytes(s[i]).length; bytesPerChar.push(b); total += b; }\r\n  if (total <= 75) return s;\r\n  var segs = [], cur = '', curBytes = 0, first = true;\r\n  for (var j = 0; j < s.length; j++){\r\n    var bl = bytesPerChar[j], limit = first ? 75 : 74;\r\n    if (curBytes + bl > limit){\r\n      segs.push(cur); cur = s[j]; curBytes = bl + 1; first = false;\r\n    } else { cur += s[j]; curBytes += bl; }\r\n  }\r\n  segs.push(cur);\r\n  var out = segs[0];\r\n  for (var k = 1; k < segs.length; k++) out += '\\r\\n ' + segs[k];\r\n  return out;\r\n}\r\n\r\nfunction buildEvent(ev, opts){\r\n  opts = opts || {};\r\n  var stamp = opts.stamp ? new Date(opts.stamp) : new Date();\r\n  var sd = parseDateTz(ev.start);\r\n  if (!sd) return null;\r\n  var ed = ev.end ? parseDateTz(ev.end) : null;\r\n  var allDay = sd.kind === 'date';\r\n  var uid = ev.uid || makeUid(ev.title, stampUtc(stamp));\r\n\r\n  var L = ['BEGIN:VEVENT'];\r\n  L.push('UID:' + uid);\r\n  L.push('DTSTAMP:' + stampUtc(stamp));\r\n  if (allDay){\r\n    L.push('DTSTART;VALUE=DATE:' + dateOnly(new Date(sd.ms)));\r\n    var endMs = ed ? ed.ms : sd.ms + 86400000;\r\n    L.push('DTEND;VALUE=DATE:' + dateOnly(new Date(endMs)));\r\n  } else if (sd.kind === 'utc'){\r\n    L.push('DTSTART:' + stampUtc(new Date(sd.ms)));\r\n    L.push('DTEND:' + stampUtc(new Date(ed ? ed.ms : sd.ms + 3600000)));\r\n  } else {\r\n    var c = sd.comps;\r\n    L.push('DTSTART:' + c[0] + p2(c[1]) + p2(c[2]) + 'T' + p2(c[3]) + p2(c[4]) + p2(c[5]));\r\n    if (ed && ed.kind === 'float'){ var ec = ed.comps; L.push('DTEND:' + ec[0] + p2(ec[1]) + p2(ec[2]) + 'T' + p2(ec[3]) + p2(ec[4]) + p2(ec[5])); }\r\n    else if (ed && ed.kind === 'utc'){ L.push('DTEND:' + stampUtc(new Date(ed.ms))); }\r\n    else { L.push('DTEND:' + c[0] + p2(c[1]) + p2(c[2]) + 'T' + p2(c[3] + 1) + p2(c[4]) + p2(c[5])); }\r\n  }\r\n  if (ev.title) L.push('SUMMARY:' + escapeText(ev.title));\r\n  if (ev.loc) L.push('LOCATION:' + escapeText(ev.loc));\r\n  if (ev.desc) L.push('DESCRIPTION:' + escapeText(ev.desc));\r\n  var rr = rruleOf(ev);\r\n  if (rr) L.push('RRULE:' + rr);\r\n  L.push('END:VEVENT');\r\n  // fold every line at 75 octets\r\n  var out = [];\r\n  for (var i = 0; i < L.length; i++) out.push(foldLine(L[i]));\r\n  return out.join('\\r\\n');\r\n}\r\n\r\nfunction buildCalendar(events, opts){\r\n  opts = opts || {};\r\n  if (!events) events = [];\r\n  var L = [];\r\n  L.push('BEGIN:VCALENDAR');\r\n  L.push('VERSION:2.0');\r\n  L.push('PRODID:-//nano-tools//IcsForge//EN');\r\n  L.push('CALSCALE:GREGORIAN');\r\n  L.push('METHOD:PUBLISH');\r\n  for (var i = 0; i < events.length; i++){\r\n    var ev = buildEvent(events[i], opts);\r\n    if (ev) L.push(ev);\r\n  }\r\n  L.push('END:VCALENDAR');\r\n  return L.join('\\r\\n');\r\n}\r\n\r\nfunction parseEvents(text){\r\n  var lines = String(text == null ? '' : text).split(/\\r?\\n/);\r\n  var events = [], cur = null;\r\n  for (var i = 0; i < lines.length; i++){\r\n    var ln = lines[i];\r\n    var h = /^#\\s+(.*)$/.exec(ln);\r\n    if (h){\r\n      if (cur) events.push(cur);\r\n      cur = { title: h[1].replace(/^\\s+|\\s+$/g, '') };\r\n      continue;\r\n    }\r\n    if (!cur) continue;\r\n    var kv = /^\\s*(start|end|repeat|interval|until|count|loc|location|desc|description|uid)\\s*:\\s*(.*)$/i.exec(ln);\r\n    if (kv){\r\n      var k = kv[1].toLowerCase(), v = kv[2].replace(/^\\s+|\\s+$/g, '');\r\n      if (k === 'location') k = 'loc';\r\n      if (k === 'description') k = 'desc';\r\n      cur[k] = v;\r\n      continue;\r\n    }\r\n    // free-form description lines after a blank line\r\n    if (/^\\s*$/.test(ln)) continue;\r\n    if (cur.desc) cur.desc += '\\n' + ln; else cur.desc = ln;\r\n  }\r\n  if (cur) events.push(cur);\r\n  return events;\r\n}\r\n\r\nfunction detectConflicts(events){\r\n  events = events || [];\r\n  var timed = [];\r\n  for (var i = 0; i < events.length; i++){\r\n    var e = events[i];\r\n    var s = parseDateTz(e.start), en = e.end ? parseDateTz(e.end) : null;\r\n    if (!s || s.kind !== 'utc' || !en || en.kind !== 'utc') continue; // only comparable for UTC timed events\r\n    if (e.repeat) continue; // skip recurring for base-instance check\r\n    timed.push({ i: i, title: e.title, s: s.ms, e: en.ms });\r\n  }\r\n  var pairs = [];\r\n  for (var a = 0; a < timed.length; a++){\r\n    for (var b = a + 1; b < timed.length; b++){\r\n      var x = timed[a], y = timed[b];\r\n      if (x.s < y.e && y.s < x.e) pairs.push({ a: x.i, b: y.i, titleA: x.title, titleB: y.title });\r\n    }\r\n  }\r\n  return pairs;\r\n}\r\n\r\nfunction lintCalendar(events){\r\n  events = events || [];\r\n  var issues = [];\r\n  if (!events.length) issues.push({ level:'bad', msg:'没有任何事件' });\r\n  for (var i = 0; i < events.length; i++){\r\n    var e = events[i];\r\n    if (!e.title) issues.push({ level:'bad', msg:'第 ' + (i + 1) + ' 个事件缺少标题' });\r\n    if (!e.start) issues.push({ level:'bad', msg:'事件「' + (e.title || '未命名') + '」缺少 start 时间' });\r\n    else {\r\n      var s = parseDateTz(e.start), en = e.end ? parseDateTz(e.end) : null;\r\n      if (s && en && s.kind === en.kind && en.ms <= s.ms) issues.push({ level:'bad', msg:'事件「' + e.title + '」的结束时间不晚于开始时间' });\r\n    }\r\n    if (e.repeat && !ICS_FREQ[String(e.repeat).toLowerCase()]) issues.push({ level:'warn', msg:'事件「' + e.title + '」的 repeat 取值不被识别' });\r\n  }\r\n  var conflicts = detectConflicts(events);\r\n  for (var c = 0; c < conflicts.length; c++){\r\n    issues.push({ level:'warn', msg:'时间冲突：「' + conflicts[c].titleA + '」与「' + conflicts[c].titleB + '」重叠' });\r\n  }\r\n  var score = 100;\r\n  for (var j = 0; j < issues.length; j++) score -= (issues[j].level === 'bad' ? 20 : 8);\r\n  score = Math.max(0, score);\r\n  return { issues: issues, conflicts: conflicts, score: score, grade: gradeOf(score) };\r\n}\r\n\r\nfunction gradeOf(score){\r\n  if (score >= 90) return 'A';\r\n  if (score >= 75) return 'B';\r\n  if (score >= 60) return 'C';\r\n  if (score >= 40) return 'D';\r\n  return 'F';\r\n}\r\n\r\nvar IcsForgePure = {\r\n  escapeText: escapeText, parseDateTz: parseDateTz, parseEvents: parseEvents,\r\n  buildEvent: buildEvent, buildCalendar: buildCalendar, detectConflicts: detectConflicts,\r\n  lintCalendar: lintCalendar, foldLine: foldLine, makeUid: makeUid, rruleOf: rruleOf,\r\n  stampUtc: stampUtc, gradeOf: gradeOf\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = IcsForgePure;\r\nif (typeof window !== 'undefined') window.IcsForgePure = IcsForgePure;\r\n\r\n"
+}

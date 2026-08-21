@@ -1,0 +1,54 @@
+{
+  "id": "EloForge",
+  "name": "elo_forge",
+  "title": "EloForge",
+  "description": "Elo 等级分：期望胜率 + K 因子单局更新 + 批量对局推演。",
+  "entry": "eloExpect",
+  "entries": {
+    "eloExpect": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ra",
+        "rb"
+      ],
+      "fields": []
+    },
+    "eloUpdate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ra",
+        "rb",
+        "scoreA",
+        "k"
+      ],
+      "fields": []
+    },
+    "eloSeries": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ra",
+        "rb",
+        "scores",
+        "k"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "ra": {
+        "type": "string",
+        "description": "第 1 个参数（ra）"
+      },
+      "rb": {
+        "type": "string",
+        "description": "第 2 个参数（rb）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction eloExpect(ra, rb){\r\n  if(typeof ra!=='number'||typeof rb!=='number'||!isFinite(ra)||!isFinite(rb))\r\n    return { value:null, error:'等级分必须是有限数' };\r\n  return { value: 1/(1+Math.pow(10,(rb-ra)/400)), error:null };\r\n}\r\nfunction eloUpdate(ra, rb, scoreA, k){\r\n  var e=eloExpect(ra,rb);\r\n  if(e.error) return { value:null, error:e.error };\r\n  if(scoreA!==0&&scoreA!==1&&scoreA!==0.5) return { value:null, error:'比分必须是 0 / 0.5 / 1' };\r\n  var kk=(typeof k==='number'&&k>0)?k:32;\r\n  var ea=e.value;\r\n  var na=ra+kk*(scoreA-ea);\r\n  var nb=rb+kk*((1-scoreA)-(1-ea));\r\n  return { value:{ ra:Math.round(na*100)/100, rb:Math.round(nb*100)/100,\r\n    expectA:Math.round(ea*10000)/10000, deltaA:Math.round(kk*(scoreA-ea)*100)/100 }, error:null };\r\n}\r\nfunction eloSeries(ra, rb, scores, k){\r\n  if(!Array.isArray(scores)||!scores.length) return { value:null, error:'对局序列为空' };\r\n  var hist=[], a=ra, b=rb;\r\n  for(var i=0;i<scores.length;i++){\r\n    var r=eloUpdate(a,b,scores[i],k);\r\n    if(r.error) return { value:null, error:'第 '+(i+1)+' 局: '+r.error };\r\n    hist.push({ game:i+1, score:scores[i], expectA:r.value.expectA, deltaA:r.value.deltaA,\r\n      ra:r.value.ra, rb:r.value.rb });\r\n    a=r.value.ra; b=r.value.rb;\r\n  }\r\n  return { value:{ history:hist, finalA:a, finalB:b }, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { eloExpect:eloExpect, eloUpdate:eloUpdate, eloSeries:eloSeries };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.EloForgePure = { eloExpect:eloExpect, eloUpdate:eloUpdate, eloSeries:eloSeries };\r\n}\r\n"
+}

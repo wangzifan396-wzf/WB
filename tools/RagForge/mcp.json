@@ -1,0 +1,75 @@
+{
+  "id": "RagForge",
+  "name": "rag_forge",
+  "title": "RagForge",
+  "description": "RAG 分块规划器：中英混排 token 估算、重叠切分与冗余率、上下文预算分配、Embedding 成本测算，离线可用。",
+  "entry": "estimateTokens",
+  "entries": {
+    "estimateTokens": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "planChunks": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "totalTokens",
+        "chunkSize",
+        "overlap"
+      ],
+      "fields": []
+    },
+    "contextBudget": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "chunkSize",
+        "topK",
+        "promptTokens",
+        "maxContext",
+        "reserveOutput"
+      ],
+      "fields": []
+    },
+    "embedCost": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "chunkCount",
+        "chunkSize",
+        "pricePerMillion"
+      ],
+      "fields": []
+    },
+    "splitText": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "chunkChars",
+        "overlapChars"
+      ],
+      "fields": []
+    },
+    "recallHint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "topK",
+        "chunkSize"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction estimateTokens(text){\r\n  if(!text) return 0;\r\n  var s=String(text);\r\n  var cjk=(s.match(/[\\u4e00-\\u9fff\\u3040-\\u30ff\\uac00-\\ud7af]/g)||[]).length;\r\n  var rest=s.length-cjk;\r\n  return Math.ceil(cjk*1.0 + rest/4);\r\n}\r\nfunction planChunks(totalTokens, chunkSize, overlap){\r\n  totalTokens=Math.max(0, Math.floor(totalTokens||0));\r\n  chunkSize=Math.max(1, Math.floor(chunkSize||0));\r\n  overlap=Math.max(0, Math.floor(overlap||0));\r\n  if(overlap>=chunkSize) return {error:'overlap 必须小于 chunkSize', count:0, stride:0, redundancy:0};\r\n  var stride=chunkSize-overlap;\r\n  if(totalTokens===0) return {error:null, count:0, stride:stride, redundancy:0, lastChunk:0};\r\n  var count = totalTokens<=chunkSize ? 1 : Math.ceil((totalTokens-overlap)/stride);\r\n  var covered = count*chunkSize - (count-1)*overlap;\r\n  var stored = count*chunkSize;\r\n  var redundancy = totalTokens>0 ? Math.round(((stored/totalTokens)-1)*1000)/10 : 0;\r\n  var lastChunk = totalTokens<=chunkSize ? totalTokens : totalTokens-(count-1)*stride;\r\n  return {error:null, count:count, stride:stride, covered:covered, stored:stored, redundancy:redundancy, lastChunk:lastChunk};\r\n}\r\nfunction contextBudget(chunkSize, topK, promptTokens, maxContext, reserveOutput){\r\n  chunkSize=Math.max(0,Math.floor(chunkSize||0));\r\n  topK=Math.max(0,Math.floor(topK||0));\r\n  promptTokens=Math.max(0,Math.floor(promptTokens||0));\r\n  maxContext=Math.max(1,Math.floor(maxContext||0));\r\n  reserveOutput=Math.max(0,Math.floor(reserveOutput||0));\r\n  var retrieved=chunkSize*topK;\r\n  var used=retrieved+promptTokens;\r\n  var available=maxContext-reserveOutput;\r\n  var fits=used<=available;\r\n  var maxTopK = chunkSize>0 ? Math.max(0, Math.floor((available-promptTokens)/chunkSize)) : 0;\r\n  return {retrieved:retrieved, used:used, available:available, fits:fits,\r\n          headroom:available-used, utilization:Math.round((used/available)*1000)/10, maxTopK:maxTopK};\r\n}\r\nfunction embedCost(chunkCount, chunkSize, pricePerMillion){\r\n  var tokens=Math.max(0,chunkCount||0)*Math.max(0,chunkSize||0);\r\n  var usd=(tokens/1000000)*(pricePerMillion||0);\r\n  return {tokens:tokens, usd:Math.round(usd*1000000)/1000000, cny:Math.round(usd*7.2*1000000)/1000000};\r\n}\r\nfunction splitText(text, chunkChars, overlapChars){\r\n  var s=String(text||'');\r\n  chunkChars=Math.max(1,Math.floor(chunkChars||0));\r\n  overlapChars=Math.max(0,Math.floor(overlapChars||0));\r\n  if(overlapChars>=chunkChars) overlapChars=chunkChars-1;\r\n  var out=[], stride=chunkChars-overlapChars, i=0;\r\n  if(s.length===0) return out;\r\n  while(i<s.length){\r\n    out.push(s.slice(i, i+chunkChars));\r\n    if(i+chunkChars>=s.length) break;\r\n    i+=stride;\r\n  }\r\n  return out;\r\n}\r\nfunction recallHint(topK, chunkSize){\r\n  if(topK<=0) return '未检索任何片段，模型只能靠参数化知识回答';\r\n  if(chunkSize<128) return '片段过小，语义可能被截断，建议 256-512';\r\n  if(chunkSize>1500) return '片段过大，噪声高且浪费上下文，建议 512-1024';\r\n  if(topK<3) return 'topK 偏低，召回可能不足，建议 3-8';\r\n  if(topK>12) return 'topK 偏高，噪声上升且成本增加，建议 3-8';\r\n  return '参数处于常见推荐区间';\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { estimateTokens:estimateTokens, planChunks:planChunks, contextBudget:contextBudget, embedCost:embedCost, splitText:splitText, recallHint:recallHint }; }\r\nif (typeof window !== 'undefined') { window.RagForgePure = { estimateTokens:estimateTokens, planChunks:planChunks, contextBudget:contextBudget, embedCost:embedCost, splitText:splitText, recallHint:recallHint }; }\r\n\r\n"
+}

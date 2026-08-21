@@ -1,0 +1,59 @@
+{
+  "id": "ClothForge",
+  "name": "cloth_forge",
+  "title": "ClothForge",
+  "description": "布料模拟：Verlet 积分 + 距离约束，顶部钉住，重力下垂，可拖拽扰动，实时观察弹性形变，离线可用。",
+  "entry": "clInit",
+  "entries": {
+    "clInit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cols",
+        "rows",
+        "spacing",
+        "ox",
+        "oy"
+      ],
+      "fields": []
+    },
+    "clStep": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "gravity",
+        "drag",
+        "iterations"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "cols": {
+        "type": "string",
+        "description": "第 1 个参数（cols）"
+      },
+      "rows": {
+        "type": "string",
+        "description": "第 2 个参数（rows）"
+      },
+      "spacing": {
+        "type": "string",
+        "description": "第 3 个参数（spacing）"
+      },
+      "ox": {
+        "type": "string",
+        "description": "第 4 个参数（ox）"
+      },
+      "oy": {
+        "type": "string",
+        "description": "第 5 个参数（oy）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction clInit(cols, rows, spacing, ox, oy){\r\n  var pts=[]; \r\n  for(var y=0;y<rows;y++){ for(var x=0;x<cols;x++){ var px=ox+x*spacing, py=oy+y*spacing; pts.push({x:px,y:py,px:px,py:py,pin:(y===0 && x%2===0)}); } }\r\n  var cons=[];\r\n  for(var y=0;y<rows;y++){ for(var x=0;x<cols;x++){ var i=y*cols+x; if(x<cols-1) cons.push([i, y*cols+x+1]); if(y<rows-1) cons.push([i, (y+1)*cols+x]); } }\r\n  return {cols:cols, rows:rows, spacing:spacing, pts:pts, cons:cons};\r\n}\r\nfunction clStep(s, gravity, drag, iterations){\r\n  var pts=s.pts.map(function(p){ return {x:p.x,y:p.y,px:p.px,py:p.py,pin:p.pin}; });\r\n  var i;\r\n  for(i=0;i<pts.length;i++){ var p=pts[i]; if(p.pin) continue; var vx=(p.x-p.px)*drag, vy=(p.y-p.py)*drag; p.px=p.x; p.py=p.y; p.x+=vx; p.y+=vy+gravity; }\r\n  for(var k=0;k<iterations;k++){\r\n    for(var c=0;c<s.cons.length;c++){ var a=s.cons[c][0], b=s.cons[c][1]; var pa=pts[a], pb=pts[b]; var dx=pb.x-pa.x, dy=pb.y-pa.y; var d=Math.sqrt(dx*dx+dy*dy)||0.0001; var diff=(d-s.spacing)/d*0.5; var ox=dx*diff, oy=dy*diff; if(!pa.pin){ pa.x+=ox; pa.y+=oy; } if(!pb.pin){ pb.x-=ox; pb.y-=oy; } }\r\n  }\r\n  return {cols:s.cols, rows:s.rows, spacing:s.spacing, pts:pts, cons:s.cons};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { clInit:clInit, clStep:clStep };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ClothForgePure = { clInit:clInit, clStep:clStep };\r\n}\r\n"
+}

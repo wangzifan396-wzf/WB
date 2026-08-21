@@ -1,0 +1,63 @@
+{
+  "id": "MatrixForge",
+  "name": "matrix_forge",
+  "title": "MatrixForge",
+  "description": "线性代数：矩阵加法 / 乘法 / 转置 / 行列式 / 逆矩阵。",
+  "entry": "matAdd",
+  "entries": {
+    "matAdd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "matMul": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "matTrans": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "matDet": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "matInv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "string",
+        "description": "第 1 个参数（a）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 2 个参数（b）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction parseMat(s){\r\n  return s.trim().split('\\n').filter(function(r){return r.trim()!=='';}).map(function(r){\r\n    return r.trim().split(/\\s+/).map(Number);\r\n  });\r\n}\r\nfunction fmt(m){ return m.map(function(r){ return r.map(function(x){ return Math.abs(x)<1e-9?0:x; }).join(' '); }).join('\\n'); }\r\nfunction matAdd(a,b){ if(a.length!==b.length||a[0].length!==b[0].length) throw new Error('DIM'); var r=[]; for(var i=0;i<a.length;i++){ r[i]=[]; for(var j=0;j<a[0].length;j++) r[i][j]=a[i][j]+b[i][j]; } return r; }\r\nfunction matMul(a,b){ if(a[0].length!==b.length) throw new Error('DIM'); var r=[]; for(var i=0;i<a.length;i++){ r[i]=[]; for(var j=0;j<b[0].length;j++){ var s=0; for(var k=0;k<b.length;k++) s+=a[i][k]*b[k][j]; r[i][j]=s; } } return r; }\r\nfunction matTrans(a){ var r=[]; for(var j=0;j<a[0].length;j++){ r[j]=[]; for(var i=0;i<a.length;i++) r[j][i]=a[i][j]; } return r; }\r\nfunction minor(a,ri,ci){ var m=[]; for(var i=0;i<a.length;i++){ if(i===ri) continue; var row=[]; for(var j=0;j<a[0].length;j++){ if(j===ci) continue; row.push(a[i][j]); } m.push(row); } return m; }\r\nfunction matDet(a){ var n=a.length; if(n!==a[0].length) throw new Error('NOT_SQUARE'); if(n===1) return a[0][0]; if(n===2) return a[0][0]*a[1][1]-a[0][1]*a[1][0]; var det=0; for(var j=0;j<n;j++){ det += (j%2===0?1:-1)*a[0][j]*matDet(minor(a,0,j)); } return det; }\r\nfunction matInv(a){ var n=a.length; if(n!==a[0].length) throw new Error('NOT_SQUARE'); var det=matDet(a); if(Math.abs(det)<1e-12) throw new Error('SINGULAR'); if(n===2){ return [[a[1][1]/det, -a[0][1]/det],[-a[1][0]/det, a[0][0]/det]]; } var adj=[]; for(var i=0;i<n;i++){ adj[i]=[]; for(var j=0;j<n;j++){ var sign=((i+j)%2===0)?1:-1; adj[i][j]=sign*matDet(minor(a,i,j))/det; } } return matTrans(adj); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { matAdd:matAdd, matMul:matMul, matTrans:matTrans, matDet:matDet, matInv:matInv, minor:minor };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MatrixForgePure = { matAdd:matAdd, matMul:matMul, matTrans:matTrans, matDet:matDet, matInv:matInv };\r\n}\r\n"
+}

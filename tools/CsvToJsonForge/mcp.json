@@ -1,0 +1,43 @@
+{
+  "id": "CsvToJsonForge",
+  "name": "csv_to_json_forge",
+  "title": "CsvToJsonForge",
+  "description": "CSV ↔ JSON 双向转换：正确解析引号、逗号与换行转义，离线可用。",
+  "entry": "csvToJson",
+  "entries": {
+    "csvToJson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "jsonToCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "parseCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseCsv(text){\r\n  var rows=[]; var row=[]; var field=''; var i=0; var inQ=false;\r\n  text=text.replace(/\\r\\n/g,'\\n').replace(/\\r/g,'\\n');\r\n  while(i<text.length){\r\n    var c=text[i];\r\n    if(inQ){\r\n      if(c==='\"'){ if(text[i+1]==='\"'){ field+='\"'; i+=2; continue; } inQ=false; i++; continue; }\r\n      field+=c; i++; continue;\r\n    } else {\r\n      if(c==='\"'){ inQ=true; i++; continue; }\r\n      if(c===','){ row.push(field); field=''; i++; continue; }\r\n      if(c==='\\n'){ row.push(field); rows.push(row); row=[]; field=''; i++; continue; }\r\n      field+=c; i++;\r\n    }\r\n  }\r\n  if(field.length>0 || row.length>0) { row.push(field); rows.push(row); }\r\n  return rows;\r\n}\r\nfunction csvToJson(text){\r\n  var rows=parseCsv(text).filter(function(r){return r.length>1||r[0]!=='';});\r\n  if(!rows.length) return [];\r\n  var header=rows[0]; var out=[];\r\n  for(var k=1;k<rows.length;k++){ var obj={}; for(var j=0;j<header.length;j++) obj[header[j]]=rows[k][j]!==undefined?rows[k][j]:''; out.push(obj); }\r\n  return out;\r\n}\r\nfunction csvEscape(s){ if(/[\",\\n]/.test(s)) return '\"'+String(s).replace(/\"/g,'\"\"')+'\"'; return s; }\r\nfunction jsonToCsv(arr){\r\n  if(!arr.length) return '';\r\n  var header=Object.keys(arr[0]);\r\n  var lines=[header.join(',')];\r\n  for(var k=0;k<arr.length;k++){ var row=header.map(function(h){return csvEscape(arr[k][h]);}); lines.push(row.join(',')); }\r\n  return lines.join('\\n');\r\n}\r\nvar EXPORTS={csvToJson:csvToJson, jsonToCsv:jsonToCsv, parseCsv:parseCsv};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CsvToJsonForgePure = EXPORTS; }\r\n\r\n"
+}

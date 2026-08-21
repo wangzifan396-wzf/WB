@@ -1,0 +1,49 @@
+{
+  "id": "MarkovChainForge",
+  "name": "markov_chain_forge",
+  "title": "MarkovChainForge",
+  "description": "马尔可夫链：由转移概率矩阵迭代求稳态分布 π（满足 πP = π, Σπ = 1），离线精确。",
+  "entry": "matMul",
+  "entries": {
+    "matMul": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "A",
+        "B"
+      ],
+      "fields": []
+    },
+    "matPow": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "M",
+        "k"
+      ],
+      "fields": []
+    },
+    "steadyState": {
+      "paramStyle": "single",
+      "paramNames": [
+        "P"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "A": {
+        "type": "string",
+        "description": "第 1 个参数（A）"
+      },
+      "B": {
+        "type": "string",
+        "description": "第 2 个参数（B）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction matMul(A,B){ var n=A.length, m=B[0].length, p=B.length; var C=[]; for(var i=0;i<n;i++){ C[i]=[]; for(var j=0;j<m;j++){ var s=0; for(var k=0;k<p;k++) s+=A[i][k]*B[k][j]; C[i][j]=s; } } return C; }\r\nfunction matPow(M, k){ var n=M.length; var R=[]; for(var i=0;i<n;i++){ R[i]=[]; for(var j=0;j<n;j++) R[i][j]= i===j?1:0; } for(var e=0;e<k;e++) R=matMul(R,M); return R; }\r\nfunction steadyState(P){ var n=P.length; var v=[]; for(var i=0;i<n;i++) v.push(1/n);\r\n  for(var it=0; it<5000; it++){ var nv=[]; for(var j=0;j<n;j++){ var s=0; for(var i=0;i<n;i++) s+=v[i]*P[i][j]; nv[j]=s; } var d=0; for(var k=0;k<n;k++) d+=Math.abs(nv[k]-v[k]); v=nv; if(d<1e-13) break; }\r\n  return v; }\r\nvar EXPORTS={matMul:matMul, matPow:matPow, steadyState:steadyState};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MarkovChainForgePure = EXPORTS; }\r\n\r\n"
+}

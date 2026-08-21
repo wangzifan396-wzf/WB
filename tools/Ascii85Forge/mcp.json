@@ -1,0 +1,40 @@
+{
+  "id": "Ascii85Forge",
+  "name": "ascii85_forge",
+  "title": "Ascii85Forge",
+  "description": "ASCII85（btoa 风格）编解码：4 字节→5 字符，支持零压缩与尾部填充，离线可用。",
+  "entry": "encode",
+  "entries": {
+    "encode": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "decode": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "_enc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "_dec": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\nfunction u8(str){ return Array.from(new TextEncoder().encode(str)); }\r\nfunction fromU8(b){ return new TextDecoder().decode(new Uint8Array(b)); }\r\nfunction enc(bytes){\r\n  var out=''; var i=0;\r\n  while(i<bytes.length){\r\n    var b=[0,0,0,0]; var n=Math.min(4,bytes.length-i);\r\n    for(var j=0;j<n;j++) b[j]=bytes[i+j];\r\n    var v=(b[0]<<24)|(b[1]<<16)|(b[2]<<8)|b[3];\r\n    if(n===4 && v===0){ out+='z'; i+=4; continue; }\r\n    var chars=[]; var t=v;\r\n    for(var k=0;k<5;k++){ chars.unshift(String.fromCharCode(33+(t%85))); t=Math.floor(t/85); }\r\n    out+=chars.slice(0,n+1).join('');\r\n    i+=4;\r\n  }\r\n  return out;\r\n}\r\nfunction dec(str){\r\n  str=str.replace(/\\s/g,'');\r\n  var out=[]; var i=0;\r\n  while(i<str.length){\r\n    if(str[i]==='z'){ out.push(0,0,0,0); i++; continue; }\r\n    var group=str.substr(i,5); var n=group.length;\r\n    var v=0;\r\n    for(var k=0;k<5;k++){ var c=k<n? group.charCodeAt(k)-33 : 84; v=v*85+c; }\r\n    for(var j=3;j>=0;j--) out.push((v>>(8*j))&0xff);\r\n    // drop padding bytes for final partial group\r\n    for(var k=0;k<(5-n);k++) out.pop();\r\n    i+=5;\r\n  }\r\n  return out;\r\n}\r\nvar EXPORTS={ encode:function(s){return enc(u8(s));}, decode:function(s){return fromU8(dec(s));}, _enc:enc, _dec:dec };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.Ascii85ForgePure = EXPORTS; }\r\n\r\n"
+}

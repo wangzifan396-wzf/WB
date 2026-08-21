@@ -1,0 +1,64 @@
+{
+  "id": "GanttForge",
+  "name": "gantt_forge",
+  "title": "GanttForge",
+  "description": "甘特图：任务/工期/进度可视化，重叠检测 + 加权进度。",
+  "entry": "gtDate",
+  "entries": {
+    "gtDate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "gtParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "gtStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "tasks"
+      ],
+      "fields": []
+    },
+    "gtOverlaps": {
+      "paramStyle": "single",
+      "paramNames": [
+        "tasks"
+      ],
+      "fields": []
+    },
+    "gtSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "gtEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction gtDate(s){\r\n  var m=/^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(s).trim());\r\n  if(!m) return null;\r\n  var d=Date.UTC(+m[1], +m[2]-1, +m[3]);\r\n  var chk=new Date(d);\r\n  if(chk.getUTCMonth()!==+m[2]-1||chk.getUTCDate()!==+m[3]) return null;\r\n  return d;\r\n}\r\nfunction gtParse(text){\r\n  if(typeof text!=='string'||!text.trim()) return { value:null, error:'任务表为空' };\r\n  var lines=text.split('\\n'), tasks=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var line=lines[i].trim();\r\n    if(!line||line.charAt(0)==='#') continue;\r\n    var parts=line.split(/[,，]/).map(function(s){ return s.trim(); });\r\n    if(parts.length<3) return { value:null, error:'第 '+(i+1)+' 行: 至少需要 任务名, 开始日, 天数' };\r\n    var start=gtDate(parts[1]);\r\n    if(start===null) return { value:null, error:'第 '+(i+1)+' 行: 日期格式应为 YYYY-MM-DD' };\r\n    var days=Number(parts[2]);\r\n    if(!isFinite(days)||days<1||days!==Math.floor(days)) return { value:null, error:'第 '+(i+1)+' 行: 天数必须是正整数' };\r\n    var prog=parts.length>3?Number(parts[3]):0;\r\n    if(!isFinite(prog)||prog<0||prog>100) return { value:null, error:'第 '+(i+1)+' 行: 进度须在 0-100' };\r\n    tasks.push({ name:parts[0], start:start, days:days, progress:prog });\r\n  }\r\n  if(!tasks.length) return { value:null, error:'没有有效任务行' };\r\n  return { value:tasks, error:null };\r\n}\r\nvar GT_DAY=86400000;\r\nfunction gtStats(tasks){\r\n  var min=Infinity, max=-Infinity, i;\r\n  for(i=0;i<tasks.length;i++){\r\n    if(tasks[i].start<min) min=tasks[i].start;\r\n    var end=tasks[i].start+tasks[i].days*GT_DAY;\r\n    if(end>max) max=end;\r\n  }\r\n  var total=Math.round((max-min)/GT_DAY);\r\n  var wsum=0, dsum=0;\r\n  for(i=0;i<tasks.length;i++){ wsum+=tasks[i].progress*tasks[i].days; dsum+=tasks[i].days; }\r\n  return { minStart:min, maxEnd:max, spanDays:total,\r\n    weightedProgress:Math.round(wsum/dsum*100)/100 };\r\n}\r\nfunction gtOverlaps(tasks){\r\n  var out=[];\r\n  for(var i=0;i<tasks.length;i++)\r\n    for(var j=i+1;j<tasks.length;j++){\r\n      var aEnd=tasks[i].start+tasks[i].days*GT_DAY, bEnd=tasks[j].start+tasks[j].days*GT_DAY;\r\n      if(tasks[i].start<bEnd && aEnd>tasks[j].start) out.push([tasks[i].name, tasks[j].name]);\r\n    }\r\n  return out;\r\n}\r\nfunction gtEsc(s){\r\n  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\r\n}\r\nfunction gtSvg(text){\r\n  var p=gtParse(text);\r\n  if(p.error) return { value:null, error:p.error };\r\n  var tasks=p.value, st=gtStats(tasks);\r\n  var LEFT=150, ROW=34, DAYW=Math.max(18, Math.min(46, Math.floor(560/Math.max(st.spanDays,1))));\r\n  var W=LEFT+st.spanDays*DAYW+30, H=46+tasks.length*ROW+26;\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+W+'\" height=\"'+H+'\" viewBox=\"0 0 '+W+' '+H+'\">';\r\n  s+='<rect width=\"'+W+'\" height=\"'+H+'\" fill=\"#0A0A0B\"/>';\r\n  for(var d=0;d<=st.spanDays;d++){\r\n    var gx=LEFT+d*DAYW;\r\n    s+='<line x1=\"'+gx+'\" y1=\"40\" x2=\"'+gx+'\" y2=\"'+(H-20)+'\" stroke=\"rgba(255,255,255,0.08)\" stroke-width=\"1\"/>';\r\n    if(d<st.spanDays && (st.spanDays<=14 || d%2===0)){\r\n      var dd=new Date(st.minStart+d*GT_DAY);\r\n      s+='<text x=\"'+(gx+DAYW/2)+'\" y=\"32\" text-anchor=\"middle\" font-size=\"9\" fill=\"#71717A\" font-family=\"system-ui,sans-serif\">'+(dd.getUTCMonth()+1)+'/'+dd.getUTCDate()+'</text>';\r\n    }\r\n  }\r\n  for(var i=0;i<tasks.length;i++){\r\n    var t=tasks[i], y=46+i*ROW;\r\n    var x=LEFT+Math.round((t.start-st.minStart)/GT_DAY)*DAYW, w=t.days*DAYW;\r\n    s+='<text x=\"'+(LEFT-10)+'\" y=\"'+(y+15)+'\" text-anchor=\"end\" font-size=\"12\" fill=\"#FFFFFF\" font-family=\"system-ui,sans-serif\">'+gtEsc(t.name.length>10?t.name.slice(0,9)+'…':t.name)+'</text>';\r\n    s+='<rect x=\"'+x+'\" y=\"'+y+'\" width=\"'+w+'\" height=\"20\" rx=\"5\" fill=\"#1A1B1E\" stroke=\"rgba(255,255,255,0.14)\"/>';\r\n    if(t.progress>0) s+='<rect x=\"'+x+'\" y=\"'+y+'\" width=\"'+Math.round(w*t.progress/100)+'\" height=\"20\" rx=\"5\" fill=\"'+(t.progress>=100?'#10B981':'#5E6AD2')+'\"/>';\r\n    s+='<text x=\"'+(x+w+6)+'\" y=\"'+(y+15)+'\" font-size=\"10\" fill=\"#A1A1AA\" font-family=\"system-ui,sans-serif\">'+t.progress+'%</text>';\r\n  }\r\n  s+='<text x=\"'+LEFT+'\" y=\"'+(H-6)+'\" font-size=\"11\" fill=\"#A1A1AA\" font-family=\"system-ui,sans-serif\">总跨度 '+st.spanDays+' 天 · 加权进度 '+st.weightedProgress+'%</text>';\r\n  s+='</svg>';\r\n  return { value:s, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { gtDate:gtDate, gtParse:gtParse, gtStats:gtStats, gtOverlaps:gtOverlaps, gtSvg:gtSvg, gtEsc:gtEsc };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.GanttForgePure = { gtDate:gtDate, gtParse:gtParse, gtStats:gtStats, gtOverlaps:gtOverlaps, gtSvg:gtSvg, gtEsc:gtEsc };\r\n}\r\n"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "LudoForge",
+  "name": "ludo_forge",
+  "title": "飞行棋",
+  "description": "掷骰前进、踩中送回、先到终点者胜的小游戏，离线。",
+  "entry": "createGame",
+  "entries": {
+    "createGame": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "rollDie": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rng"
+      ],
+      "fields": []
+    },
+    "step": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "state",
+        "steps"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "number",
+        "description": "输入（n）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar TRACK=50;\r\nfunction createGame(n){ n=Math.max(2,Math.min(4,n||2)); var players=[];\r\n  for(var i=0;i<n;i++) players.push({pos:0, finished:false});\r\n  return {players:players, turn:0, track:TRACK, over:false, winner:-1}; }\r\nfunction rollDie(rng){ rng=rng||Math.random; return 1+Math.floor(rng()*6); }\r\nfunction allFinished(state){ return state.players.every(function(p){return p.finished;}); }\r\nfunction step(state, steps){\r\n  if(state.over) return {error:'游戏已结束'};\r\n  var p=state.players[state.turn];\r\n  if(p.finished) return {error:'当前玩家已完成'};\r\n  var np=p.pos+steps;\r\n  if(np>=state.track){ p.pos=state.track; p.finished=true; state.over=true; state.winner=state.turn; return {pos:p.pos, finished:true, win:true}; }\r\n  p.pos=np;\r\n  for(var i=0;i<state.players.length;i++){ if(i!==state.turn && state.players[i].pos===np && !state.players[i].finished){ state.players[i].pos=0; } }\r\n  state.turn=(state.turn+1)%state.players.length;\r\n  return {pos:p.pos, finished:false, win:false};\r\n}\r\nvar EXPORTS={createGame:createGame, rollDie:rollDie, step:step, TRACK:TRACK};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LudoForgePure = EXPORTS; }\r\n\r\n"
+}

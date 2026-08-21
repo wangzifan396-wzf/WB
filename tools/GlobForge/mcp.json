@@ -1,0 +1,52 @@
+{
+  "id": "GlobForge",
+  "name": "glob_forge",
+  "title": "GlobForge",
+  "description": "离线 Glob 模式测试：支持 * / ** / ? / [abc] / {a,b}，对一批路径实时匹配并统计命中数。",
+  "entry": "globToRegExp",
+  "entries": {
+    "globToRegExp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "glob",
+        "opts"
+      ],
+      "fields": []
+    },
+    "isMatch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pathStr",
+        "glob",
+        "opts"
+      ],
+      "fields": []
+    },
+    "filter": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "paths",
+        "glob",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "glob": {
+        "type": "string",
+        "description": "第 1 个参数（glob）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction escapeChar(c){ return '\\\\^$.*+?()|[]{}'.indexOf(c)>=0 ? '\\\\'+c : c; }\r\nfunction escapeLiteral(s){ var o=''; for(var i=0;i<s.length;i++) o+=escapeChar(s[i]); return o; }\r\nfunction globToRegExp(glob, opts){\r\n  opts=opts||{};\r\n  var g=String(glob), re='', i=0, n=g.length;\r\n  while(i<n){\r\n    var c=g[i];\r\n    if(c==='*'){\r\n      if(g[i+1]==='*'){\r\n        if(g[i+2]==='/'){ re+='(?:.*/)?'; i+=3; continue; }\r\n        re+='.*'; i+=2; continue;\r\n      }\r\n      re+='[^/]*'; i++; continue;\r\n    }\r\n    if(c==='?'){ re+='[^/]'; i++; continue; }\r\n    if(c==='['){\r\n      var j=i+1, cls='[';\r\n      if(g[j]==='!'){ cls+='^'; j++; }\r\n      while(j<n && g[j]!==']'){\r\n        var cc=g[j];\r\n        if('\\\\^$.*+?()|{}'.indexOf(cc)>=0 && cc!=='-') cls+='\\\\'+cc; else cls+=cc;\r\n        j++;\r\n      }\r\n      cls+=']'; re+=cls; i=j+1; continue;\r\n    }\r\n    if(c==='{'){\r\n      var k=i+1, parts=[], cur='';\r\n      while(k<n && g[k]!=='}'){ if(g[k]===','){ parts.push(cur); cur=''; } else cur+=g[k]; k++; }\r\n      parts.push(cur);\r\n      re+='(?:'+parts.map(function(p){ return escapeLiteral(p); }).join('|')+')';\r\n      i=k+1; continue;\r\n    }\r\n    re+=escapeChar(c); i++;\r\n  }\r\n  return new RegExp('^'+re+'$', opts.nocase?'i':'');\r\n}\r\nfunction isMatch(pathStr, glob, opts){ return globToRegExp(glob,opts).test(String(pathStr)); }\r\nfunction filter(paths, glob, opts){\r\n  var re=globToRegExp(glob,opts);\r\n  return paths.filter(function(p){ return re.test(String(p)); });\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { globToRegExp:globToRegExp, isMatch:isMatch, filter:filter };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.GlobForgePure = { globToRegExp:globToRegExp, isMatch:isMatch, filter:filter };\r\n}\r\n"
+}

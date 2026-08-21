@@ -1,0 +1,100 @@
+{
+  "id": "LlmCostForge",
+  "name": "llm_cost_forge",
+  "title": "LlmCostForge",
+  "description": "大模型调用成本测算：token 估算、10 款模型比价、缓存节省与窗口预警，离线可用。",
+  "entry": "lcFindModel",
+  "entries": {
+    "lcFindModel": {
+      "paramStyle": "single",
+      "paramNames": [
+        "id"
+      ],
+      "fields": []
+    },
+    "lcEstimateTokens": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "lcCost": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "inTok",
+        "outTok"
+      ],
+      "fields": []
+    },
+    "lcRound": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "digits"
+      ],
+      "fields": []
+    },
+    "lcFmtUsd": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "lcProject": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "inTok",
+        "outTok",
+        "callsPerDay",
+        "cnyRate"
+      ],
+      "fields": []
+    },
+    "lcCompare": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "inTok",
+        "outTok",
+        "callsPerDay"
+      ],
+      "fields": []
+    },
+    "lcCacheSaving": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "inTok",
+        "outTok",
+        "hitRate",
+        "discount"
+      ],
+      "fields": []
+    },
+    "lcCtxWarn": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "inTok",
+        "outTok"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "输入（id）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar LC_MODELS = [\r\n  { id:'gpt-4o',            label:'GPT-4o',              inp:2.50,  out:10.00, ctx:128000 },\r\n  { id:'gpt-4o-mini',       label:'GPT-4o mini',         inp:0.15,  out:0.60,  ctx:128000 },\r\n  { id:'o3-mini',           label:'o3-mini',             inp:1.10,  out:4.40,  ctx:200000 },\r\n  { id:'claude-sonnet',     label:'Claude Sonnet',       inp:3.00,  out:15.00, ctx:200000 },\r\n  { id:'claude-haiku',      label:'Claude Haiku',        inp:0.80,  out:4.00,  ctx:200000 },\r\n  { id:'gemini-flash',      label:'Gemini Flash',        inp:0.075, out:0.30,  ctx:1000000 },\r\n  { id:'gemini-pro',        label:'Gemini Pro',          inp:1.25,  out:5.00,  ctx:2000000 },\r\n  { id:'deepseek-chat',     label:'DeepSeek Chat',       inp:0.27,  out:1.10,  ctx:64000 },\r\n  { id:'qwen-max',          label:'Qwen Max',            inp:1.60,  out:6.40,  ctx:32000 },\r\n  { id:'local-0',           label:'本地部署（自托管）',    inp:0,     out:0,     ctx:32000 }\r\n];\r\nfunction lcFindModel(id){\r\n  for(var i=0;i<LC_MODELS.length;i++) if(LC_MODELS[i].id===id) return LC_MODELS[i];\r\n  return null;\r\n}\r\nfunction lcEstimateTokens(text){\r\n  var s=String(text||'');\r\n  if(!s) return 0;\r\n  var cjk=(s.match(/[\\u4e00-\\u9fa5\\u3040-\\u30ff\\uac00-\\ud7af]/g)||[]).length;\r\n  var rest=s.length-cjk;\r\n  return Math.max(1, Math.round(cjk*0.95 + rest/3.8));\r\n}\r\nfunction lcCost(model, inTok, outTok){\r\n  if(!model) return null;\r\n  var i=(inTok||0)/1e6*model.inp, o=(outTok||0)/1e6*model.out;\r\n  return { input:i, output:o, total:i+o };\r\n}\r\nfunction lcRound(v, digits){\r\n  var d=Math.pow(10, digits===undefined?6:digits);\r\n  return Math.round(v*d)/d;\r\n}\r\nfunction lcFmtUsd(v){\r\n  if(v===0) return '$0';\r\n  if(v<0.01) return '$'+v.toFixed(6);\r\n  if(v<1) return '$'+v.toFixed(4);\r\n  return '$'+v.toFixed(2);\r\n}\r\nfunction lcProject(model, inTok, outTok, callsPerDay, cnyRate){\r\n  var c=lcCost(model, inTok, outTok);\r\n  if(!c) return null;\r\n  var rate = cnyRate || 7.2;\r\n  var per=c.total, day=per*(callsPerDay||0), mon=day*30, yr=day*365;\r\n  return { per:per, day:day, month:mon, year:yr,\r\n           monthCny:mon*rate, yearCny:yr*rate };\r\n}\r\nfunction lcCompare(inTok, outTok, callsPerDay){\r\n  var out=[];\r\n  for(var i=0;i<LC_MODELS.length;i++){\r\n    var m=LC_MODELS[i], c=lcCost(m, inTok, outTok);\r\n    out.push({ id:m.id, label:m.label, per:c.total, month:c.total*(callsPerDay||0)*30,\r\n               fits:(inTok+outTok)<=m.ctx });\r\n  }\r\n  out.sort(function(a,b){ return a.per-b.per || (a.id<b.id?-1:1); });\r\n  return out;\r\n}\r\nfunction lcCacheSaving(model, inTok, outTok, hitRate, discount){\r\n  var base=lcCost(model, inTok, outTok);\r\n  if(!base) return null;\r\n  var d = discount===undefined ? 0.9 : discount;\r\n  var h = Math.max(0, Math.min(1, hitRate||0));\r\n  var saved = base.input * h * d;\r\n  return { base:base.total, cached:base.total-saved, saved:saved,\r\n           pct: base.total ? saved/base.total : 0 };\r\n}\r\nfunction lcCtxWarn(model, inTok, outTok){\r\n  if(!model) return null;\r\n  var used=(inTok||0)+(outTok||0);\r\n  var ratio=used/model.ctx;\r\n  if(ratio>1) return { level:'错误', msg:'超出上下文窗口（'+used+' > '+model.ctx+'）' };\r\n  if(ratio>0.8) return { level:'警告', msg:'已用 '+(ratio*100).toFixed(1)+'% 上下文窗口，接近上限' };\r\n  return { level:'正常', msg:'占用 '+(ratio*100).toFixed(1)+'% 上下文窗口' };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { LC_MODELS:LC_MODELS, lcFindModel:lcFindModel, lcEstimateTokens:lcEstimateTokens,\r\n    lcCost:lcCost, lcRound:lcRound, lcFmtUsd:lcFmtUsd, lcProject:lcProject, lcCompare:lcCompare,\r\n    lcCacheSaving:lcCacheSaving, lcCtxWarn:lcCtxWarn };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.LlmCostForgePure = { LC_MODELS:LC_MODELS, lcFindModel:lcFindModel, lcEstimateTokens:lcEstimateTokens,\r\n    lcCost:lcCost, lcRound:lcRound, lcFmtUsd:lcFmtUsd, lcProject:lcProject, lcCompare:lcCompare,\r\n    lcCacheSaving:lcCacheSaving, lcCtxWarn:lcCtxWarn };\r\n}\r\n\r\n"
+}

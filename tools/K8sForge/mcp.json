@@ -1,0 +1,161 @@
+{
+  "id": "K8sForge",
+  "name": "k8s_forge",
+  "title": "K8sForge",
+  "description": "Kubernetes 清单生成：Deployment / Service / Ingress / ConfigMap / Secret / HPA / PVC 一键产出合规 YAML，Secret 值自动 base64，命名规范化与镜像 tag、副本数体检，离线可用。",
+  "entry": "buildKind",
+  "entries": {
+    "sanitizeName": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "isValidName": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "b64": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "genDeployment": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "replicas",
+        "image",
+        "port",
+        "cpu",
+        "mem",
+        "namespace",
+        "imagePullPolicy",
+        "env"
+      ]
+    },
+    "genService": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "port",
+        "targetPort",
+        "namespace",
+        "type"
+      ]
+    },
+    "genConfigMap": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "namespace",
+        "data"
+      ]
+    },
+    "genSecret": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "namespace",
+        "data"
+      ]
+    },
+    "genIngress": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "namespace",
+        "host",
+        "service",
+        "port"
+      ]
+    },
+    "genHPA": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "namespace",
+        "minReplicas",
+        "maxReplicas",
+        "cpuUtilization"
+      ]
+    },
+    "genPVC": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "namespace"
+      ]
+    },
+    "buildKind": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "kind"
+      ]
+    },
+    "lintSpec": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "name",
+        "image",
+        "kind",
+        "port",
+        "minReplicas",
+        "maxReplicas"
+      ]
+    },
+    "runtimeYaml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "specs"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "description": "参数 kind"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8Bytes(s){\r\n  var out=[]; s=String(s==null?'':s);\r\n  for(var i=0;i<s.length;i++){\r\n    var c=s.charCodeAt(i);\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800) out.push(0xC0|(c>>6),0x80|(c&63));\r\n    else if(c<0xD800||c>=0xE000) out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63));\r\n    else { i++; var c2=s.charCodeAt(i); var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);\r\n      out.push(0xF0|(cp>>18),0x80|((cp>>12)&63),0x80|((cp>>6)&63),0x80|(cp&63)); }\r\n  }\r\n  return out;\r\n}\r\nvar B64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\nfunction b64encodeBytes(bytes){\r\n  var out='', i;\r\n  for(i=0;i+2<bytes.length;i+=3){\r\n    var n=(bytes[i]<<16)|(bytes[i+1]<<8)|bytes[i+2];\r\n    out+=B64[(n>>18)&63]+B64[(n>>12)&63]+B64[(n>>6)&63]+B64[n&63];\r\n  }\r\n  var rem=bytes.length-i;\r\n  if(rem===1){ var a=bytes[i]<<16; out+=B64[(a>>18)&63]+B64[(a>>12)&63]+'=='; }\r\n  else if(rem===2){ var b=(bytes[i]<<16)|(bytes[i+1]<<8); out+=B64[(b>>18)&63]+B64[(b>>12)&63]+B64[(b>>6)&63]+'='; }\r\n  return out;\r\n}\r\nfunction b64(s){ return b64encodeBytes(utf8Bytes(s==null?'':s)); }\r\n\r\nfunction sanitizeName(s){\r\n  var t=String(s==null?'':s).toLowerCase().trim();\r\n  t=t.replace(/[^a-z0-9.\\-]/g,'-');\r\n  t=t.replace(/-+/g,'-').replace(/^-+/,'').replace(/-+$/,'');\r\n  t=t.slice(0,63);\r\n  return t;\r\n}\r\nfunction isValidName(s){ return /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(String(s==null?'':s)) && String(s).length<=63; }\r\n\r\nfunction indent(lines, pad){ return lines.map(function(l){ return l==='' ? '' : pad+l; }).join('\\n'); }\r\n\r\nfunction genDeployment(o){\r\n  o=o||{};\r\n  var name=sanitizeName(o.name||'app');\r\n  var replicas=o.replicas==null?1:parseInt(o.replicas,10);\r\n  if(!isFinite(replicas)||replicas<0) replicas=1;\r\n  var img=o.image||'nginx:latest';\r\n  var port=o.port==null?80:parseInt(o.port,10);\r\n  if(!isFinite(port)||port<1||port>65535) port=80;\r\n  var cpu=o.cpu||'100m', mem=o.mem||'128Mi', ns=o.namespace||'default';\r\n  var L=[];\r\n  L.push('apiVersion: apps/v1');\r\n  L.push('kind: Deployment');\r\n  L.push('metadata:');\r\n  L.push('  name: '+name);\r\n  L.push('  namespace: '+ns);\r\n  L.push('spec:');\r\n  L.push('  replicas: '+replicas);\r\n  L.push('  selector:');\r\n  L.push('    matchLabels:');\r\n  L.push('      app: '+name);\r\n  L.push('  template:');\r\n  L.push('    metadata:');\r\n  L.push('      labels:');\r\n  L.push('        app: '+name);\r\n  L.push('    spec:');\r\n  L.push('      containers:');\r\n  L.push('      - name: '+name);\r\n  L.push('        image: '+img);\r\n  if(o.imagePullPolicy) L.push('        imagePullPolicy: '+o.imagePullPolicy);\r\n  L.push('        ports:');\r\n  L.push('        - containerPort: '+port);\r\n  L.push('        resources:');\r\n  L.push('          requests:');\r\n  L.push('            cpu: '+cpu);\r\n  L.push('            memory: '+mem);\r\n  if(o.env && o.env.length){\r\n    L.push('        env:');\r\n    o.env.forEach(function(e){ L.push('        - name: '+e.name+'');\r\n      if(e.value!=null) L.push('          value: '+JSON.stringify(String(e.value))); });\r\n  }\r\n  return L.join('\\n');\r\n}\r\n\r\nfunction genService(o){\r\n  o=o||{};\r\n  var name=sanitizeName(o.name||'app');\r\n  var port=o.port==null?80:parseInt(o.port,10);\r\n  var targetPort=o.targetPort==null?port:parseInt(o.targetPort,10);\r\n  var ns=o.namespace||'default', typ=o.type||'ClusterIP';\r\n  var L=[];\r\n  L.push('apiVersion: v1');\r\n  L.push('kind: Service');\r\n  L.push('metadata:');\r\n  L.push('  name: '+name);\r\n  L.push('  namespace: '+ns);\r\n  L.push('spec:');\r\n  L.push('  type: '+typ);\r\n  L.push('  selector:');\r\n  L.push('    app: '+name);\r\n  L.push('  ports:');\r\n  L.push('  - port: '+port);\r\n  L.push('    targetPort: '+targetPort);\r\n  L.push('    protocol: TCP');\r\n  return L.join('\\n');\r\n}\r\n\r\nfunction genConfigMap(o){\r\n  o=o||{};\r\n  var name=sanitizeName(o.name||'config');\r\n  var ns=o.namespace||'default';\r\n  var L=[];\r\n  L.push('apiVersion: v1');\r\n  L.push('kind: ConfigMap');\r\n  L.push('metadata:');\r\n  L.push('  name: '+name);\r\n  L.push('  namespace: '+ns);\r\n  L.push('data:');\r\n  var keys=o.data||{};\r\n  Object.keys(keys).forEach(function(k){ L.push('  '+k+': '+JSON.stringify(String(keys[k]))); });\r\n  if(!Object.keys(keys).length) L.push('  example: \"value\"');\r\n  return L.join('\\n');\r\n}\r\n\r\nfunction genSecret(o){\r\n  o=o||{};\r\n  var name=sanitizeName(o.name||'secret');\r\n  var ns=o.namespace||'default';\r\n  var L=[];\r\n  L.push('apiVersion: v1');\r\n  L.push('kind: Secret');\r\n  L.push('metadata:');\r\n  L.push('  name: '+name);\r\n  L.push('  namespace: '+ns);\r\n  L.push('type: Opaque');\r\n  L.push('data:');\r\n  var keys=o.data||{};\r\n  Object.keys(keys).forEach(function(k){ L.push('  '+k+': '+b64(keys[k])); });\r\n  if(!Object.keys(keys).length) L.push('  token: '+b64('change-me'));\r\n  return L.join('\\n');\r\n}\r\n\r\nfunction genIngress(o){\r\n  o=o||{};\r\n  var name=sanitizeName(o.name||'ingress');\r\n  var ns=o.namespace||'default';\r\n  var host=o.host||'example.com';\r\n  var svc=o.service||sanitizeName(o.name||'app');\r\n  var port=o.port==null?80:parseInt(o.port,10);\r\n  var L=[];\r\n  L.push('apiVersion: networking.k8s.io/v1');\r\n  L.push('kind: Ingress');\r\n  L.push('metadata:');\r\n  L.push('  name: '+name);\r\n  L.push('  namespace: '+ns);\r\n  L.push('spec:');\r\n  L.push('  rules:');\r\n  L.push('  - host: '+host);\r\n  L.push('    http:');\r\n  L.push('      paths:');\r\n  L.push('      - path: /');\r\n  L.push('        pathType: Prefix');\r\n  L.push('        backend:');\r\n  L.push('          service:');\r\n  L.push('            name: '+svc);\r\n  L.push('            port:');\r\n  L.push('              number: '+port);\r\n  return L.join('\\n');\r\n}\r\n\r\nfunction genHPA(o){\r\n  o=o||{};\r\n  var name=sanitizeName(o.name||'app');\r\n  var ns=o.namespace||'default';\r\n  var min=o.minReplicas==null?2:parseInt(o.minReplicas,10);\r\n  var max=o.maxReplicas==null?10:parseInt(o.maxReplicas,10);\r\n  var cpu=o.cpuUtilization==null?80:parseInt(o.cpuUtilization,10);\r\n  var L=[];\r\n  L.push('apiVersion: autoscaling/v2');\r\n  L.push('kind: HorizontalPodAutoscaler');\r\n  L.push('metadata:');\r\n  L.push('  name: '+name);\r\n  L.push('  namespace: '+ns);\r\n  L.push('spec:');\r\n  L.push('  scaleTargetRef:');\r\n  L.push('    apiVersion: apps/v1');\r\n  L.push('    kind: Deployment');\r\n  L.push('    name: '+name);\r\n  L.push('  minReplicas: '+min);\r\n  L.push('  maxReplicas: '+max);\r\n  L.push('  metrics:');\r\n  L.push('  - type: Resource');\r\n  L.push('    resource:');\r\n  L.push('      name: cpu');\r\n  L.push('      target:');\r\n  L.push('        type: Utilization');\r\n  L.push('        averageUtilization: '+cpu);\r\n  return L.join('\\n');\r\n}\r\n\r\nfunction genPVC(o){\r\n  o=o||{};\r\n  var name=sanitizeName(o.name||'data');\r\n  var ns=o.namespace||'default';\r\n  var size=o.size||'1Gi';\r\n  var L=[];\r\n  L.push('apiVersion: v1');\r\n  L.push('kind: PersistentVolumeClaim');\r\n  L.push('metadata:');\r\n  L.push('  name: '+name);\r\n  L.push('  namespace: '+ns);\r\n  L.push('spec:');\r\n  L.push('  accessModes:');\r\n  L.push('    - ReadWriteOnce');\r\n  L.push('  resources:');\r\n  L.push('    requests:');\r\n  L.push('      storage: '+size);\r\n  return L.join('\\n');\r\n}\r\n\r\nvar KIND_BUILDERS = {\r\n  deployment: genDeployment, service: genService, configmap: genConfigMap,\r\n  secret: genSecret, ingress: genIngress, hpa: genHPA, pvc: genPVC\r\n};\r\n\r\nfunction buildKind(opt){\r\n  opt=opt||{};\r\n  var kind=String(opt.kind||'').toLowerCase();\r\n  var fn=KIND_BUILDERS[kind];\r\n  if(!fn) return { error:'未知资源类型: '+kind, value:'' };\r\n  return { error:null, value: fn(opt), kind: kind };\r\n}\r\n\r\nfunction lintSpec(opt){\r\n  opt=opt||{};\r\n  var issues=[];\r\n  var raw=opt.name||'app';\r\n  if(!isValidName(raw)){\r\n    if(sanitizeName(raw)==='' || !isValidName(sanitizeName(raw)))\r\n      issues.push({level:'bad', msg:'名称 \"'+raw+'\" 不符合 RFC 1123（小写字母数字、-、.、≤63 字符）'});\r\n    else\r\n      issues.push({level:'warn', msg:'名称 \"'+raw+'\" 含非法字符，将按 RFC 1123 规范化为 \"'+sanitizeName(raw)+'\"'});\r\n  }\r\n  if(opt.image===undefined || opt.image==='') {\r\n    if(String(opt.kind).toLowerCase()!=='configmap' && String(opt.kind).toLowerCase()!=='secret'\r\n       && String(opt.kind).toLowerCase()!=='pvc' && String(opt.kind).toLowerCase()!=='hpa'\r\n       && String(opt.kind).toLowerCase()!=='ingress')\r\n      issues.push({level:'bad', msg:'缺少容器镜像 image'});\r\n  } else if(/:/.test(opt.image)===false && String(opt.kind).toLowerCase()!=='configmap' && String(opt.kind).toLowerCase()!=='secret')\r\n    issues.push({level:'warn', msg:'镜像 \"'+opt.image+'\" 未指定 tag，将使用 latest'});\r\n  var p=opt.port==null?80:parseInt(opt.port,10);\r\n  if(opt.port!=null && (!isFinite(p)||p<1||p>65535))\r\n    issues.push({level:'bad', msg:'端口 '+opt.port+' 超出 1–65535 范围'});\r\n  if(opt.kind==='hpa'){\r\n    var mn=parseInt(opt.minReplicas,10), mx=parseInt(opt.maxReplicas,10);\r\n    if(isFinite(mn)&&isFinite(mx)&&mn>mx) issues.push({level:'bad', msg:'HPA minReplicas 不能大于 maxReplicas'});\r\n  }\r\n  var score=100; issues.forEach(function(i){ score-=(i.level==='bad'?20:8); });\r\n  return { issues:issues, score:Math.max(0,score) };\r\n}\r\n\r\nfunction runtimeYaml(specs){\r\n  var out=[], errs=[];\r\n  (specs||[]).forEach(function(s){\r\n    var r=buildKind(s);\r\n    if(r.error){ errs.push(r.error); return; }\r\n    out.push(r.value);\r\n  });\r\n  return { value: out.join('\\n---\\n'), errors: errs };\r\n}\r\n\r\nvar K8sForgePure = {\r\n  sanitizeName: sanitizeName, isValidName: isValidName, b64: b64,\r\n  genDeployment: genDeployment, genService: genService, genConfigMap: genConfigMap,\r\n  genSecret: genSecret, genIngress: genIngress, genHPA: genHPA, genPVC: genPVC,\r\n  buildKind: buildKind, lintSpec: lintSpec, runtimeYaml: runtimeYaml,\r\n  KIND_BUILDERS: KIND_BUILDERS\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = K8sForgePure;\r\nif (typeof window !== 'undefined') window.K8sForgePure = K8sForgePure;\r\n\r\n"
+}

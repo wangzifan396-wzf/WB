@@ -1,0 +1,36 @@
+{
+  "id": "LzwForge",
+  "name": "lzw_forge",
+  "title": "LzwForge",
+  "description": "LZW 压缩实验室：字典压缩/解压全程可视，压缩率实时对比。",
+  "entry": "lzwCompress",
+  "entries": {
+    "lzwCompress": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "lzwDecompress": {
+      "paramStyle": "single",
+      "paramNames": [
+        "codes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction lzwCompress(str){\r\n  var dict={}, dictSize=256;\r\n  for(var i=0;i<256;i++) dict[String.fromCharCode(i)]=i;\r\n  var w='';\r\n  var codes=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.charAt(i);\r\n    var wc=w+c;\r\n    if(dict[wc]!==undefined){ w=wc; }\r\n    else { codes.push(dict[w]); if(dictSize<65536) dict[wc]=dictSize++; w=c; }\r\n  }\r\n  if(w!=='') codes.push(dict[w]);\r\n  return codes;\r\n}\r\nfunction lzwDecompress(codes){\r\n  if(!codes.length) return '';\r\n  var dict={}, dictSize=256;\r\n  for(var i=0;i<256;i++) dict[i]=String.fromCharCode(i);\r\n  if(dict[codes[0]]===undefined) throw new Error('bad code '+codes[0]);\r\n  var w=dict[codes[0]];\r\n  var result=w;\r\n  for(var i=1;i<codes.length;i++){\r\n    var k=codes[i];\r\n    var entry;\r\n    if(dict[k]!==undefined) entry=dict[k];\r\n    else if(k===dictSize) entry=w+w.charAt(0);\r\n    else throw new Error('bad code '+k);\r\n    result+=entry;\r\n    if(dictSize<65536) dict[dictSize++]=w+entry.charAt(0);\r\n    w=entry;\r\n  }\r\n  return result;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { lzwCompress:lzwCompress, lzwDecompress:lzwDecompress };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.LzwForgePure = { lzwCompress:lzwCompress, lzwDecompress:lzwDecompress };\r\n}\r\n"
+}

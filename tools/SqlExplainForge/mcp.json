@@ -1,0 +1,29 @@
+{
+  "id": "SqlExplainForge",
+  "name": "sql_explain_forge",
+  "title": "SqlExplainForge",
+  "description": "SQL 执行顺序解析：拆解 SELECT/FROM/JOIN/WHERE/GROUP/ORDER/LIMIT，按真实执行步骤还原，离线可用。",
+  "entry": "sqlExplain",
+  "entries": {
+    "sqlExplain": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sql"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sql": {
+        "type": "string",
+        "description": "输入（sql）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction sqlExplain(sql){\r\n  var r={select:[], from:'', joins:[], where:[], groupBy:'', orderBy:'', limit:null, valid:false, raw:sql};\r\n  if(!sql) return r;\r\n  var s=sql.replace(/--[^\\n]*\\n/g,' ').replace(/\\s+/g,' ').trim();\r\n  var m=s.match(/select\\s+(.*?)\\s+from\\s+/i);\r\n  if(m){ r.select=m[1].split(',').map(function(x){return x.trim();}).filter(Boolean); }\r\n  var fm=s.match(/from\\s+([`\"']?\\w+[`\"']?)/i);\r\n  if(fm) r.from=fm[1].replace(/[`\"']/g,'');\r\n  var jm=s.match(/join\\s+([`\"']?\\w+[`\"']?)(?:\\s+(?!on\\b)[`\"']?\\w+[`\"']?)?\\s+on\\s+([^\\s]+)\\s*=\\s*([^\\s]+)/gi);\r\n  if(jm){ for(var i=0;i<jm.length;i++){ var p=jm[i].match(/join\\s+([`\"']?\\w+[`\"']?)(?:\\s+(?!on\\b)[`\"']?\\w+[`\"']?)?\\s+on\\s+([^\\s]+)\\s*=\\s*([^\\s]+)/i); if(p) r.joins.push({table:p[1].replace(/[`\"']/g,''), on:p[2]+'='+p[3]}); } }\r\n  var wm=s.match(/where\\s+(.*?)(?:\\s+group by|\\s+order by|\\s+limit|$)/i);\r\n  if(wm){ var cond=wm[1].trim(); if(cond) r.where=cond.split(/\\s+and\\s+/i).map(function(x){return x.trim();}); }\r\n  var gm=s.match(/group by\\s+([^\\s]+)/i); if(gm) r.groupBy=gm[1];\r\n  var om=s.match(/order by\\s+([^\\s]+)/i); if(om) r.orderBy=om[1];\r\n  var lm=s.match(/limit\\s+(\\d+)/i); if(lm) r.limit=parseInt(lm[1],10);\r\n  r.valid = r.select.length>0 && !!r.from;\r\n  return r;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { sqlExplain:sqlExplain }; }\r\nif (typeof window !== 'undefined') { window.SqlExplainForgePure = { sqlExplain:sqlExplain }; }\r\n\r\n"
+}

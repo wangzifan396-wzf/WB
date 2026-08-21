@@ -1,0 +1,50 @@
+{
+  "id": "UserStoryForge",
+  "name": "user_story_forge",
+  "title": "用户故事生成",
+  "description": "按角色 / 诉求 / 收益逐条生成 INVEST 风格用户故事与验收标准，离线。",
+  "entry": "splitLines",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseStory": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "genStory": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "toMarkdown": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(text){ return String(text||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction parseStory(line){\r\n  var parts=line.split(/\\s*[\\/|，,]\\s*/);\r\n  var role=parts[0]||'', goal=parts[1]||'', value=parts[2]||'';\r\n  return {role:role, goal:goal, value:value, raw:line};\r\n}\r\nfunction genStory(line){\r\n  var s=parseStory(line);\r\n  var role=s.role||'用户', goal=s.goal||s.raw, value=s.value||'达成业务目标';\r\n  var story='作为'+role+'，我希望'+goal+'，以便'+value+'。';\r\n  var ac=['验收标准（Given/When/Then）：',\r\n    'Given 用户已进入相关场景',\r\n    'When 用户'+goal,\r\n    'Then 系统应给出正确结果并满足预期'];\r\n  return {role:role, goal:goal, value:value, story:story, acceptance:ac.join('\\n')};\r\n}\r\nfunction toMarkdown(text){\r\n  var lines=splitLines(text);\r\n  var out=['# 用户故事','| 编号 | 角色 | 目标 | 价值 | 用户故事 |','|------|------|------|------|----------|'];\r\n  lines.forEach(function(line,i){\r\n    var s=parseStory(line);\r\n    var role=s.role||'用户', goal=s.goal||s.raw, value=s.value||'达成业务目标';\r\n    var story='作为'+role+'，我希望'+goal+'，以便'+value+'。';\r\n    out.push('| '+(i+1)+' | '+role+' | '+goal+' | '+value+' | '+story+' |');\r\n  });\r\n  return {markdown:out.join('\\n'), count:lines.length};\r\n}\r\nvar EXPORTS={splitLines:splitLines, parseStory:parseStory, genStory:genStory, toMarkdown:toMarkdown};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.UserStoryForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,90 @@
+{
+  "id": "CurlForge",
+  "name": "curl_forge",
+  "title": "CurlForge",
+  "description": "离线 curl 命令生成器：method / headers / body / 认证可视化配置，粘贴即用。",
+  "entry": "buildCurl",
+  "entries": {
+    "shq": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "parseHeaders": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "buildCurl": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "url",
+        "method",
+        "silent",
+        "includeHeaders",
+        "followRedirect",
+        "insecure",
+        "headers",
+        "bodyType",
+        "body",
+        "user"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "参数 url"
+      },
+      "method": {
+        "type": "string",
+        "description": "参数 method"
+      },
+      "silent": {
+        "type": "string",
+        "description": "参数 silent"
+      },
+      "includeHeaders": {
+        "type": "string",
+        "description": "参数 includeHeaders"
+      },
+      "followRedirect": {
+        "type": "string",
+        "description": "参数 followRedirect"
+      },
+      "insecure": {
+        "type": "string",
+        "description": "参数 insecure"
+      },
+      "headers": {
+        "type": "array",
+        "description": "参数 headers"
+      },
+      "bodyType": {
+        "type": "string",
+        "description": "参数 bodyType"
+      },
+      "body": {
+        "type": "string",
+        "description": "参数 body"
+      },
+      "user": {
+        "type": "string",
+        "description": "参数 user"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction shq(s){\r\n  s=String(s);\r\n  if(/^[A-Za-z0-9_\\/:.=@%+-]+$/.test(s)) return s;\r\n  return \"'\"+s.replace(/'/g,\"'\\\\''\")+\"'\";\r\n}\r\nfunction parseHeaders(text){\r\n  var out=[];\r\n  String(text||'').split(/\\r?\\n/).forEach(function(line){\r\n    line=line.trim(); if(!line) return;\r\n    var i=line.indexOf(':');\r\n    if(i<1) throw new Error('无效请求头: '+line);\r\n    out.push({key:line.slice(0,i).trim(), value:line.slice(i+1).trim()});\r\n  });\r\n  return out;\r\n}\r\nfunction buildCurl(opt){\r\n  opt=opt||{};\r\n  var url=String(opt.url||'').trim();\r\n  if(!url) throw new Error('URL 不能为空');\r\n  var method=(opt.method||'GET').toUpperCase();\r\n  var parts=['curl'];\r\n  if(opt.silent) parts.push('-s');\r\n  if(opt.includeHeaders) parts.push('-i');\r\n  if(opt.followRedirect) parts.push('-L');\r\n  if(opt.insecure) parts.push('-k');\r\n  if(method!=='GET') parts.push('-X '+method);\r\n  var headers=(opt.headers||[]).slice();\r\n  var bodyType=opt.bodyType||'none';\r\n  var body=opt.body!=null?String(opt.body):'';\r\n  if(bodyType==='json' && !headers.some(function(h){return h.key.toLowerCase()==='content-type';}))\r\n    headers.push({key:'Content-Type',value:'application/json'});\r\n  if(bodyType==='form' && !headers.some(function(h){return h.key.toLowerCase()==='content-type';}))\r\n    headers.push({key:'Content-Type',value:'application/x-www-form-urlencoded'});\r\n  headers.forEach(function(h){ parts.push('-H '+shq(h.key+': '+h.value)); });\r\n  if(opt.user) parts.push('-u '+shq(opt.user));\r\n  if(bodyType!=='none' && body) parts.push('-d '+shq(body));\r\n  parts.push(shq(url));\r\n  return parts.join(' \\\\\\n  ');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { shq:shq, parseHeaders:parseHeaders, buildCurl:buildCurl };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.CurlForgePure = { shq:shq, parseHeaders:parseHeaders, buildCurl:buildCurl };\r\n}\r\n"
+}

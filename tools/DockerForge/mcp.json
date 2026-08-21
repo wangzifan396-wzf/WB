@@ -1,0 +1,43 @@
+{
+  "id": "DockerForge",
+  "name": "docker_forge",
+  "title": "DockerForge",
+  "description": "离线 docker run → docker-compose.yml 转换：支持 30+ 参数，YAML 安全转义。",
+  "entry": "tokenize",
+  "entries": {
+    "tokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cmd"
+      ],
+      "fields": []
+    },
+    "parseDockerRun": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cmd"
+      ],
+      "fields": []
+    },
+    "toCompose": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cmd"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "cmd": {
+        "type": "string",
+        "description": "输入（cmd）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction tokenize(cmd){\r\n  cmd=String(cmd||'').replace(/\\\\\\r?\\n/g,' ').trim();\r\n  var out=[],cur='',q=null;\r\n  for(var i=0;i<cmd.length;i++){\r\n    var c=cmd[i];\r\n    if(q){ if(c===q) q=null; else cur+=c; }\r\n    else if(c==='\"'||c===\"'\") q=c;\r\n    else if(/\\s/.test(c)){ if(cur){ out.push(cur); cur=''; } }\r\n    else cur+=c;\r\n  }\r\n  if(cur) out.push(cur);\r\n  return out;\r\n}\r\nvar FLAG_ARG={'-p':1,'--publish':1,'-v':1,'--volume':1,'-e':1,'--env':1,'--name':1,'--restart':1,'--network':1,'--net':1,'--hostname':1,'-h':1,'--user':1,'-u':1,'-w':1,'--workdir':1,'--entrypoint':1,'--label':1,'-l':1,'--add-host':1,'--dns':1,'--env-file':1,'--memory':1,'-m':1,'--cpus':1,'--device':1,'--cap-add':1,'--cap-drop':1,'--health-cmd':1,'--log-driver':1,'--platform':1,'--pull':1,'--shm-size':1,'--expose':1};\r\nvar FLAG_BOOL={'-d':1,'--detach':1,'-i':1,'--interactive':1,'-t':1,'--tty':1,'--rm':1,'--privileged':1,'--init':1,'--read-only':1,'--no-healthcheck':1,'-P':1,'--publish-all':1};\r\nfunction parseDockerRun(cmd){\r\n  var t=tokenize(cmd);\r\n  if(t[0]==='docker') t.shift();\r\n  if(t[0]==='container') t.shift();\r\n  if(t[0]==='run'||t[0]==='create') t.shift();\r\n  var o={image:null,command:[],name:null,ports:[],volumes:[],env:[],restart:null,networks:[],hostname:null,user:null,workdir:null,entrypoint:null,labels:[],extraHosts:[],dns:[],envFiles:[],devices:[],capAdd:[],capDrop:[],privileged:false,readOnly:false,init:false,tty:false,stdinOpen:false,memory:null,cpus:null,platform:null,shmSize:null,expose:[],unknown:[]};\r\n  var i=0;\r\n  while(i<t.length){\r\n    var a=t[i];\r\n    if(o.image){ o.command.push(a); i++; continue; }\r\n    if(a[0]!=='-'){ o.image=a; i++; continue; }\r\n    var key=a,val=null,eq=a.indexOf('=');\r\n    if(a.slice(0,2)==='--'&&eq>0){ key=a.slice(0,eq); val=a.slice(eq+1); }\r\n    if(FLAG_BOOL[key]){\r\n      if(key==='-d'||key==='--detach'){} \r\n      else if(key==='--rm'){}\r\n      else if(key==='--privileged') o.privileged=true;\r\n      else if(key==='--read-only') o.readOnly=true;\r\n      else if(key==='--init') o.init=true;\r\n      else if(key==='-t'||key==='--tty') o.tty=true;\r\n      else if(key==='-i'||key==='--interactive') o.stdinOpen=true;\r\n      i++; continue;\r\n    }\r\n    if(FLAG_ARG[key]){\r\n      if(val===null){ val=t[i+1]; i+=2; } else i++;\r\n      if(val===undefined){ o.unknown.push(key); break; }\r\n      if(key==='-p'||key==='--publish') o.ports.push(val);\r\n      else if(key==='-v'||key==='--volume') o.volumes.push(val);\r\n      else if(key==='-e'||key==='--env') o.env.push(val);\r\n      else if(key==='--name') o.name=val;\r\n      else if(key==='--restart') o.restart=val;\r\n      else if(key==='--network'||key==='--net') o.networks.push(val);\r\n      else if(key==='--hostname'||key==='-h') o.hostname=val;\r\n      else if(key==='--user'||key==='-u') o.user=val;\r\n      else if(key==='-w'||key==='--workdir') o.workdir=val;\r\n      else if(key==='--entrypoint') o.entrypoint=val;\r\n      else if(key==='--label'||key==='-l') o.labels.push(val);\r\n      else if(key==='--add-host') o.extraHosts.push(val);\r\n      else if(key==='--dns') o.dns.push(val);\r\n      else if(key==='--env-file') o.envFiles.push(val);\r\n      else if(key==='--memory'||key==='-m') o.memory=val;\r\n      else if(key==='--cpus') o.cpus=val;\r\n      else if(key==='--device') o.devices.push(val);\r\n      else if(key==='--cap-add') o.capAdd.push(val);\r\n      else if(key==='--cap-drop') o.capDrop.push(val);\r\n      else if(key==='--platform') o.platform=val;\r\n      else if(key==='--shm-size') o.shmSize=val;\r\n      else if(key==='--expose') o.expose.push(val);\r\n      continue;\r\n    }\r\n    o.unknown.push(a); i++;\r\n  }\r\n  if(!o.image) throw new Error('未找到镜像名，请检查命令');\r\n  return o;\r\n}\r\nfunction yq(s){\r\n  s=String(s);\r\n  if(/^[A-Za-z0-9._\\/:@-]+$/.test(s)) return s;\r\n  return '\"'+s.replace(/\\\\/g,'\\\\\\\\').replace(/\"/g,'\\\\\"')+'\"';\r\n}\r\nfunction yqq(s){\r\n  s=String(s);\r\n  return '\"'+s.replace(/\\\\/g,'\\\\\\\\').replace(/\"/g,'\\\\\"')+'\"';\r\n}\r\nfunction toCompose(cmd){\r\n  var o=parseDockerRun(cmd);\r\n  var svc=o.name||String(o.image).split(':')[0].split('/').pop().replace(/[^A-Za-z0-9_-]/g,'')||'app';\r\n  var L=[];\r\n  L.push('services:');\r\n  L.push('  '+svc+':');\r\n  L.push('    image: '+yq(o.image));\r\n  if(o.name) L.push('    container_name: '+yq(o.name));\r\n  if(o.platform) L.push('    platform: '+yq(o.platform));\r\n  if(o.hostname) L.push('    hostname: '+yq(o.hostname));\r\n  if(o.user) L.push('    user: '+yq(o.user));\r\n  if(o.workdir) L.push('    working_dir: '+yq(o.workdir));\r\n  if(o.entrypoint) L.push('    entrypoint: '+yq(o.entrypoint));\r\n  if(o.restart) L.push('    restart: '+yq(o.restart));\r\n  if(o.privileged) L.push('    privileged: true');\r\n  if(o.readOnly) L.push('    read_only: true');\r\n  if(o.init) L.push('    init: true');\r\n  if(o.tty) L.push('    tty: true');\r\n  if(o.stdinOpen) L.push('    stdin_open: true');\r\n  if(o.memory) L.push('    mem_limit: '+yq(o.memory));\r\n  if(o.cpus) L.push('    cpus: '+yq(o.cpus));\r\n  if(o.shmSize) L.push('    shm_size: '+yq(o.shmSize));\r\n  function list(kk,arr,force){ if(arr.length){ L.push('    '+kk+':'); arr.forEach(function(v){ L.push('      - '+(force?yqq(v):yq(v))); }); } }\r\n  list('ports',o.ports,true);\r\n  list('expose',o.expose);\r\n  list('volumes',o.volumes);\r\n  list('environment',o.env);\r\n  list('env_file',o.envFiles);\r\n  list('labels',o.labels);\r\n  list('extra_hosts',o.extraHosts);\r\n  list('dns',o.dns);\r\n  list('devices',o.devices);\r\n  list('cap_add',o.capAdd);\r\n  list('cap_drop',o.capDrop);\r\n  if(o.networks.length){\r\n    list('networks',o.networks);\r\n  }\r\n  if(o.command.length) L.push('    command: '+yq(o.command.join(' ')));\r\n  if(o.networks.length){\r\n    L.push('networks:');\r\n    o.networks.forEach(function(n){ L.push('  '+n+':'); L.push('    external: true'); });\r\n  }\r\n  var warn=o.unknown.length?('# 警告: 未识别参数 '+o.unknown.join(' ')+'\\n'):'';\r\n  return warn+L.join('\\n')+'\\n';\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tokenize:tokenize, parseDockerRun:parseDockerRun, toCompose:toCompose };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.DockerForgePure = { tokenize:tokenize, parseDockerRun:parseDockerRun, toCompose:toCompose };\r\n}\r\n"
+}

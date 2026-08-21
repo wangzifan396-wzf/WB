@@ -1,0 +1,52 @@
+{
+  "id": "AudioMixForge",
+  "name": "audio_mix_forge",
+  "title": "AudioMixForge",
+  "description": "混合两段音频采样并归一化，支持独立增益。",
+  "entry": "mixSamples",
+  "entries": {
+    "mixSamples": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b",
+        "ga",
+        "gb"
+      ],
+      "fields": []
+    },
+    "norm": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "peak"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "string",
+        "description": "第 1 个参数（a）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 2 个参数（b）"
+      },
+      "ga": {
+        "type": "string",
+        "description": "第 3 个参数（ga）"
+      },
+      "gb": {
+        "type": "string",
+        "description": "第 4 个参数（gb）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction mixSamples(a, b, ga, gb){\r\n  ga=(ga==null)?1:ga; gb=(gb==null)?1:gb;\r\n  var n=Math.min(a.length,b.length);\r\n  var out=new Array(n);\r\n  for(var i=0;i<n;i++){ var v=a[i]*ga+b[i]*gb; out[i]=Math.max(-1,Math.min(1,v)); }\r\n  return out;\r\n}\r\nfunction norm(samples, peak){\r\n  peak=(peak==null)?0.99:peak; var mx=0;\r\n  for(var i=0;i<samples.length;i++){ var a=Math.abs(samples[i]); if(a>mx) mx=a; }\r\n  if(mx===0) return samples.slice();\r\n  var g=peak/mx; return samples.map(function(x){ return Math.max(-1,Math.min(1,x*g)); });\r\n}\r\nvar EXPORTS={mixSamples:mixSamples,norm:norm};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.AudioMixForgePure = EXPORTS; }\r\n\r\n"
+}

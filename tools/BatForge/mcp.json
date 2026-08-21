@@ -1,0 +1,41 @@
+{
+  "id": "BatForge",
+  "name": "bat_forge",
+  "title": "BatForge",
+  "description": "像 bat 一样带行号与语法高亮的代码查看器：支持 JS/TS/Python/SQL/Bash/JSON/HTML/CSS，纯前端着色，可复制高亮结果。",
+  "entry": "highlight",
+  "entries": {
+    "highlight": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "src",
+        "lang"
+      ],
+      "fields": []
+    },
+    "esc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "src": {
+        "type": "string",
+        "description": "第 1 个参数（src）"
+      },
+      "lang": {
+        "type": "string",
+        "description": "第 2 个参数（lang）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\n  var KW={\r\n    js:['var','let','const','function','return','if','else','for','while','new','class','extends','import','export','from','try','catch','throw','typeof','of','in','null','undefined','true','false','async','await','this','switch','case','break','continue','do','void','yield','delete','instanceof'],\r\n    py:['def','class','return','if','elif','else','for','while','import','from','as','try','except','finally','with','lambda','None','True','False','and','or','not','in','is','pass','break','continue','yield','async','await','global','nonlocal','raise','assert','del','print'],\r\n    ts:['var','let','const','function','return','if','else','for','while','new','class','extends','implements','interface','type','enum','import','export','from','try','catch','throw','typeof','of','in','null','undefined','true','false','async','await','this','public','private','readonly'],\r\n    sql:['select','from','where','and','or','not','null','insert','update','delete','create','table','drop','alter','join','left','right','inner','outer','on','group','by','order','limit','as','distinct','count','sum','avg','min','max','values','set'],\r\n    bash:['if','then','else','fi','for','in','do','done','while','case','esac','function','echo','export','local','return','exit','source'],\r\n    sh:['if','then','else','fi','for','in','do','done','while','case','esac','function','echo','export','local','return','exit'],\r\n    json:[], html:[], css:[]\r\n  };\r\n  function highlight(src, lang){\r\n    src=String(src==null?'':src);\r\n    var kws=KW[lang]||KW.js;\r\n    var re=/(\\/\\*[\\s\\S]*?\\*\\/|\\/\\/[^\\n]*|#[^\\n]*|--[^\\n]*|<!--[\\s\\S]*?-->)|(\"(?:[^\"\\\\]|\\\\.)*\"|'(?:[^'\\\\]|\\\\.)*'|`(?:[^`\\\\]|\\\\.)*`)|(\\b\\d+(?:\\.\\d+)?\\b)|([A-Za-z_$][\\w$]*)/g;\r\n    function sp(c,t){ return '<span class=\"'+c+'\">'+esc(t)+'</span>'; }\r\n    var out='', last=0, m;\r\n    while((m=re.exec(src))){\r\n      out+=esc(src.slice(last,m.index));\r\n      if(m[1]) out+=sp('c',m[1]);\r\n      else if(m[2]) out+=sp('s',m[2]);\r\n      else if(m[3]) out+=sp('n',m[3]);\r\n      else if(m[4]) out+= (kws.indexOf(m[4])>=0)? sp('k',m[4]) : esc(m[4]);\r\n      last=re.lastIndex;\r\n    }\r\n    out+=esc(src.slice(last));\r\n    return {value:out};\r\n  }\r\n  var API={highlight:highlight, esc:esc};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__BatForge__=API;\r\n})();\r\n"
+}

@@ -1,0 +1,62 @@
+{
+  "id": "EllipticCurveForge",
+  "name": "elliptic_curve_forge",
+  "title": "EllipticCurveForge",
+  "description": "椭圆曲线点运算（素数域 GF(p)）：点加、倍点与标量乘 kP，密码学基础，离线精确。",
+  "entry": "add",
+  "entries": {
+    "add": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "P",
+        "Q",
+        "a",
+        "p"
+      ],
+      "fields": []
+    },
+    "mul": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "k",
+        "P",
+        "a",
+        "p"
+      ],
+      "fields": []
+    },
+    "modinv": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "p"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "P": {
+        "type": "string",
+        "description": "第 1 个参数（P）"
+      },
+      "Q": {
+        "type": "string",
+        "description": "第 2 个参数（Q）"
+      },
+      "a": {
+        "type": "string",
+        "description": "第 3 个参数（a）"
+      },
+      "p": {
+        "type": "string",
+        "description": "第 4 个参数（p）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction modinv(a,p){ a=((a%p)+p)%p; var t=0,nt=1,r=p,nr=a;\r\n  while(nr!==0){ var q=Math.floor(r/nr); var tmp=t-q*nt; t=nt; nt=tmp; tmp=r-q*nr; r=nr; nr=tmp; }\r\n  if(r>1) return null; if(t<0) t+=p; return t; }\r\nfunction add(P,Q,a,p){ if(P===null) return Q; if(Q===null) return P;\r\n  var x1=P[0],y1=P[1],x2=Q[0],y2=Q[1];\r\n  if(x1===x2 && ((y1+y2)%p+p)%p===0) return null;\r\n  var m; if(x1===x2 && y1===y2){ if(y1===0) return null; m=(3*x1*x1+a)*modinv(2*y1,p)%p; }\r\n  else { m=(y2-y1)*modinv(x2-x1,p)%p; }\r\n  m=((m%p)+p)%p; var x3=((m*m-x1-x2)%p+p)%p; var y3=((m*(x1-x3)-y1)%p+p)%p;\r\n  return [x3,y3]; }\r\nfunction mul(k,P,a,p){ k=((k%p)+p)%p; var R=null, Q=P; while(k>0){ if(k&1) R=add(R,Q,a,p); Q=add(Q,Q,a,p); k=Math.floor(k/2); } return R; }\r\nvar EXPORTS={add:add, mul:mul, modinv:modinv};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EllipticCurveForgePure = EXPORTS; }\r\n\r\n"
+}

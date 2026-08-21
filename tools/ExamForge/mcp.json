@@ -1,0 +1,65 @@
+{
+  "id": "ExamForge",
+  "name": "exam_forge",
+  "title": "试卷生成",
+  "description": "按科目 / 学段 / 时长 / 章节（题型:题数:分值）生成带分值试卷与总分，离线。",
+  "entry": "buildExam",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "parseSections": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "buildExam": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "subject",
+        "grade",
+        "topic",
+        "duration",
+        "sections"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "subject": {
+        "type": "string",
+        "description": "参数 subject"
+      },
+      "grade": {
+        "type": "string",
+        "description": "参数 grade"
+      },
+      "topic": {
+        "type": "string",
+        "description": "参数 topic"
+      },
+      "duration": {
+        "type": "string",
+        "description": "参数 duration"
+      },
+      "sections": {
+        "type": "string",
+        "description": "参数 sections"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nvar QSTEM={\r\n  '选择题':function(t,i){return '关于《'+t+'》，下列说法错误的是？';},\r\n  '填空题':function(t,i){return '请补全与《'+t+'》相关的第 '+i+' 空：________';},\r\n  '简答题':function(t,i){return '请说明《'+t+'》第 '+i+' 个关键步骤。';},\r\n  '计算题':function(t,i){return '计算第 '+i+' 道《'+t+'》相关题目并写出过程。';},\r\n  '论述题':function(t,i){return '论述《'+t+'》在实际中的应用（第 '+i+' 题）。';}\r\n};\r\nfunction parseSections(t){\r\n  var raw=splitLines(t);\r\n  if(!raw.length) raw=['选择题:10:2','填空题:5:3','简答题:3:10'];\r\n  return raw.map(function(l){\r\n    var p=l.split(/[:：]/);\r\n    var type=String(p[0]||'').trim()||'简答题';\r\n    var count=parseInt(p[1],10)||3; if(count<1)count=1; if(count>30)count=30;\r\n    var pts=parseInt(p[2],10)||5; if(pts<1)pts=1; if(pts>50)pts=50;\r\n    return {type:type, count:count, points:pts};\r\n  });\r\n}\r\nfunction buildExam(o){\r\n  o=o||{};\r\n  var subject=String(o.subject||'通用').trim()||'通用';\r\n  var grade=String(o.grade||'').trim();\r\n  var topic=String(o.topic||'').trim()||'（待填写试卷主题）';\r\n  var dur=parseInt(o.duration,10)||90; if(dur<10)dur=10; if(dur>300)dur=300;\r\n  var secs=parseSections(o.sections);\r\n  var lines=[], qn=0, totalPoints=0;\r\n  lines.push('# 试卷：'+subject+(topic?'《'+topic+'》':''));\r\n  lines.push('');\r\n  lines.push('- 适用学段：'+(grade||'不限')+'　考试时长：'+dur+' 分钟');\r\n  lines.push('');\r\n  secs.forEach(function(s,si){\r\n    var def=QSTEM[s.type]||function(t,i){return '请完成第 '+i+' 题。';};\r\n    var secTotal=s.count*s.points; totalPoints+=secTotal;\r\n    lines.push('## 第 '+(si+1)+' 部分　'+s.type+'（共 '+s.count+' 题，每题 '+s.points+' 分，合计 '+secTotal+' 分）');\r\n    for(var i=1;i<=s.count;i++){ qn++; lines.push(qn+'. （'+s.points+' 分）'+def(topic,i)); }\r\n    lines.push('');\r\n  });\r\n  lines.push('## 总分：'+totalPoints+' 分');\r\n  return {title:subject+' 试卷', sectionCount:secs.length, questionCount:qn, totalPoints:totalPoints, duration:dur, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, parseSections:parseSections, buildExam:buildExam};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ExamForgePure = EXPORTS; }\r\n\r\n"
+}

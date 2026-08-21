@@ -1,0 +1,43 @@
+{
+  "id": "MorseForge",
+  "name": "morse_forge",
+  "title": "MorseForge",
+  "description": "离线莫尔斯电码：文本 ↔ 电码互转，自动识别方向，内置完整速查表可点击输入。",
+  "entry": "toMorse",
+  "entries": {
+    "toMorse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fromMorse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "isMorse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar MORSE_MAP={\r\n  'A':'.-','B':'-...','C':'-.-.','D':'-..','E':'.','F':'..-.','G':'--.','H':'....',\r\n  'I':'..','J':'.---','K':'-.-','L':'.-..','M':'--','N':'-.','O':'---','P':'.--.',\r\n  'Q':'--.-','R':'.-.','S':'...','T':'-','U':'..-','V':'...-','W':'.--','X':'-..-',\r\n  'Y':'-.--','Z':'--..',\r\n  '0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....',\r\n  '6':'-....','7':'--...','8':'---..','9':'----.',\r\n  '.':'.-.-.-',',':'--..--','?':'..--..',\"'\":'.----.','!':'-.-.--','/':'-..-.',\r\n  '(':'-.--.',')':'-.--.-','&':'.-...',':':'---...',';':'-.-.-.','=':'-...-',\r\n  '+':'.-.-.','-':'-....-','_':'..--.-','\"':'.-..-.','$':'...-..-','@':'.--.-.'\r\n};\r\nvar MORSE_REV=(function(){ var r={}; for(var k in MORSE_MAP) r[MORSE_MAP[k]]=k; return r; })();\r\nfunction toMorse(text){\r\n  var out=[], words=String(text).toUpperCase().split(/\\s+/);\r\n  for(var w=0;w<words.length;w++){\r\n    if(!words[w]) continue;\r\n    var letters=[];\r\n    for(var i=0;i<words[w].length;i++){\r\n      var ch=words[w][i];\r\n      if(!MORSE_MAP[ch]) throw new Error('无法编码字符: '+ch);\r\n      letters.push(MORSE_MAP[ch]);\r\n    }\r\n    out.push(letters.join(' '));\r\n  }\r\n  return out.join(' / ');\r\n}\r\nfunction fromMorse(code){\r\n  var s=String(code).trim().replace(/\\|/g,'/').replace(/\\u2022/g,'.').replace(/[\\u2013\\u2014]/g,'-');\r\n  if(!/^[.\\-\\/ ]+$/.test(s)) throw new Error('莫尔斯电码仅含 . - 空格 和 /');\r\n  var words=s.split(/\\s*\\/\\s*/), out=[];\r\n  for(var w=0;w<words.length;w++){\r\n    if(!words[w].trim()) continue;\r\n    var letters=words[w].trim().split(/\\s+/), buf='';\r\n    for(var i=0;i<letters.length;i++){\r\n      var ch=MORSE_REV[letters[i]];\r\n      if(!ch) throw new Error('无法解码序列: '+letters[i]);\r\n      buf+=ch;\r\n    }\r\n    out.push(buf);\r\n  }\r\n  return out.join(' ');\r\n}\r\nfunction isMorse(s){ return /^[.\\-\\/\\s\\u2022\\u2013\\u2014|]+$/.test(String(s).trim()) && /[.\\-\\u2022]/.test(String(s)); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { toMorse:toMorse, fromMorse:fromMorse, isMorse:isMorse, MORSE_MAP:MORSE_MAP };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MorseForgePure = { toMorse:toMorse, fromMorse:fromMorse, isMorse:isMorse, MORSE_MAP:MORSE_MAP };\r\n}\r\n"
+}

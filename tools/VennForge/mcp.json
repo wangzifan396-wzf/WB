@@ -1,0 +1,29 @@
+{
+  "id": "VennForge",
+  "name": "venn_forge",
+  "title": "韦恩图",
+  "description": "生成 2 或 3 集的 SVG 韦恩图，离线。",
+  "entry": "vennSvg",
+  "entries": {
+    "vennSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sets"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sets": {
+        "type": "string",
+        "description": "输入（sets）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction esc(s){ s=String(s==null?'':s); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction vennSvg(sets){\r\n  if(!Array.isArray(sets)||(sets.length!==2&&sets.length!==3)) return {error:'需 2 或 3 个集合'};\r\n  for(var i=0;i<sets.length;i++){ var s=sets[i]; if(!s||!s.label||!(+s.size>0)) return {error:'每个集合须有 label 与正 size'}; }\r\n  var maxSize=0; sets.forEach(function(s){ if(+s.size>maxSize) maxSize=+s.size; });\r\n  var pal=['#5E6AD2','#10B981','#F5A623'];\r\n  function rr(sz){ return 30 + (+sz/maxSize)*35; }\r\n  function circ(cx,cy,sz,color,label){ return '<circle cx=\"'+cx+'\" cy=\"'+cy+'\" r=\"'+rr(sz).toFixed(1)+'\" fill=\"'+color+'\" fill-opacity=\"0.42\" stroke=\"'+color+'\" stroke-width=\"1.5\"/>'+(label?'<text x=\"'+cx+'\" y=\"'+(cy+4)+'\" text-anchor=\"middle\" font-size=\"11\" fill=\"#fff\">'+esc(label)+'</text>':''); }\r\n  var parts=[];\r\n  if(sets.length===2){ var dx=22; parts.push(circ(70-dx,80,sets[0].size,pal[0],sets[0].label)); parts.push(circ(70+dx,80,sets[1].size,pal[1],sets[1].label)); }\r\n  else { parts.push(circ(80,72,sets[0].size,pal[0],sets[0].label)); parts.push(circ(120,72,sets[1].size,pal[1],sets[1].label)); parts.push(circ(100,108,sets[2].size,pal[2],sets[2].label)); }\r\n  return {svg:'<svg viewBox=\"0 0 200 160\" xmlns=\"http://www.w3.org/2000/svg\" fill-rule=\"evenodd\">'+parts.join('')+'</svg>'};\r\n}\r\nvar EXPORTS={vennSvg:vennSvg};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.VennForgePure = EXPORTS; }\r\n\r\n"
+}

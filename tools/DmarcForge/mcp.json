@@ -1,0 +1,99 @@
+{
+  "id": "DmarcForge",
+  "name": "dmarc_forge",
+  "title": "DmarcForge",
+  "description": "DMARC 记录分析：标签解读、防护评分分级、语法体检与记录生成，离线可用。",
+  "entry": "dmSplitTags",
+  "entries": {
+    "dmSplitTags": {
+      "paramStyle": "single",
+      "paramNames": [
+        "record"
+      ],
+      "fields": []
+    },
+    "dmParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "record"
+      ],
+      "fields": []
+    },
+    "dmPolicyScore": {
+      "paramStyle": "object",
+      "paramNames": [
+        "t"
+      ],
+      "fields": [
+        "p",
+        "sp",
+        "pct",
+        "rua",
+        "ruf"
+      ]
+    },
+    "dmGrade": {
+      "paramStyle": "single",
+      "paramNames": [
+        "score"
+      ],
+      "fields": []
+    },
+    "dmMailtos": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "dmLint": {
+      "paramStyle": "object",
+      "paramNames": [
+        "parsed"
+      ],
+      "fields": [
+        "error",
+        "tags",
+        "order"
+      ]
+    },
+    "dmExplain": {
+      "paramStyle": "object",
+      "paramNames": [
+        "parsed"
+      ],
+      "fields": [
+        "error",
+        "tags"
+      ]
+    },
+    "dmBuild": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "p",
+        "sp",
+        "rua",
+        "ruf",
+        "pct",
+        "adkim",
+        "aspf"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "record": {
+        "type": "string",
+        "description": "输入（record）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction dmSplitTags(record){\r\n  var out={}, order=[], parts=String(record||'').split(';');\r\n  for(var i=0;i<parts.length;i++){\r\n    var p=parts[i].trim();\r\n    if(!p) continue;\r\n    var eq=p.indexOf('=');\r\n    if(eq<0){ continue; }\r\n    var k=p.slice(0,eq).trim().toLowerCase(), v=p.slice(eq+1).trim();\r\n    if(out[k]===undefined){ out[k]=v; order.push(k); }\r\n  }\r\n  return { tags:out, order:order };\r\n}\r\nfunction dmParse(record){\r\n  var raw=String(record||'').trim().replace(/^\"|\"$/g,'');\r\n  if(!raw) return { error:'请输入 DMARC 记录' };\r\n  var r=dmSplitTags(raw), t=r.tags;\r\n  if(!t.v) return { error:'缺少 v 标签，DMARC 记录必须以 v=DMARC1 开头' };\r\n  if(t.v.toUpperCase()!=='DMARC1') return { error:'v 标签必须为 DMARC1，当前为 '+t.v };\r\n  if(r.order[0]!=='v') return { error:'v 必须是第一个标签' };\r\n  return { error:null, tags:t, order:r.order, raw:raw };\r\n}\r\nfunction dmPolicyScore(t){\r\n  var p=(t.p||'none').toLowerCase(), sp=(t.sp||p).toLowerCase();\r\n  var pct=t.pct===undefined ? 100 : parseInt(t.pct,10);\r\n  if(isNaN(pct)) pct=100;\r\n  var base = p==='reject' ? 60 : p==='quarantine' ? 40 : 10;\r\n  var sub  = sp==='reject' ? 15 : sp==='quarantine' ? 10 : 2;\r\n  var cov  = Math.round(pct/100*15);\r\n  var rep  = (t.rua?7:0) + (t.ruf?3:0);\r\n  return Math.max(0, Math.min(100, base+sub+cov+rep));\r\n}\r\nfunction dmGrade(score){\r\n  if(score>=90) return 'A';\r\n  if(score>=75) return 'B';\r\n  if(score>=60) return 'C';\r\n  if(score>=40) return 'D';\r\n  return 'F';\r\n}\r\nfunction dmMailtos(v){\r\n  if(!v) return [];\r\n  return String(v).split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s; });\r\n}\r\nfunction dmLint(parsed){\r\n  if(!parsed || parsed.error) return [];\r\n  var t=parsed.tags, out=[];\r\n  var p=(t.p||'').toLowerCase();\r\n  if(!t.p) out.push({ level:'错误', msg:'缺少必填的 p 标签（none / quarantine / reject）' });\r\n  else if(['none','quarantine','reject'].indexOf(p)<0) out.push({ level:'错误', msg:'p 取值非法：'+t.p });\r\n  else if(p==='none') out.push({ level:'建议', msg:'p=none 仅监控不拦截，建议逐步升级到 quarantine 再到 reject' });\r\n  if(t.pct!==undefined){\r\n    var pct=parseInt(t.pct,10);\r\n    if(isNaN(pct)||pct<0||pct>100) out.push({ level:'错误', msg:'pct 必须是 0-100 的整数' });\r\n    else if(pct<100) out.push({ level:'建议', msg:'pct='+pct+' 表示只对部分邮件应用策略，全量防护应设为 100' });\r\n  }\r\n  if(!t.rua) out.push({ level:'建议', msg:'未配置 rua，收不到聚合报告将难以观测认证失败情况' });\r\n  var rua=dmMailtos(t.rua);\r\n  for(var i=0;i<rua.length;i++) if(rua[i].indexOf('mailto:')!==0) out.push({ level:'错误', msg:'rua 地址必须以 mailto: 开头：'+rua[i] });\r\n  var ruf=dmMailtos(t.ruf);\r\n  for(var j=0;j<ruf.length;j++) if(ruf[j].indexOf('mailto:')!==0) out.push({ level:'错误', msg:'ruf 地址必须以 mailto: 开头：'+ruf[j] });\r\n  if(t.adkim!==undefined && ['r','s'].indexOf(String(t.adkim).toLowerCase())<0) out.push({ level:'错误', msg:'adkim 只能是 r 或 s' });\r\n  if(t.aspf!==undefined && ['r','s'].indexOf(String(t.aspf).toLowerCase())<0) out.push({ level:'错误', msg:'aspf 只能是 r 或 s' });\r\n  if(t.fo!==undefined && !/^[01ds](:[01ds])*$/.test(String(t.fo))) out.push({ level:'错误', msg:'fo 取值应为 0/1/d/s 的冒号组合' });\r\n  if(t.ri!==undefined && !(parseInt(t.ri,10)>0)) out.push({ level:'错误', msg:'ri 必须是正整数秒数' });\r\n  var known=['v','p','sp','pct','rua','ruf','adkim','aspf','fo','ri','rf'];\r\n  for(var k=0;k<parsed.order.length;k++)\r\n    if(known.indexOf(parsed.order[k])<0) out.push({ level:'建议', msg:'未知标签：'+parsed.order[k] });\r\n  return out;\r\n}\r\nfunction dmExplain(parsed){\r\n  if(!parsed || parsed.error) return [];\r\n  var t=parsed.tags, out=[];\r\n  var pmap={ none:'仅监控，不做任何拦截', quarantine:'认证失败的邮件进入垃圾箱', reject:'认证失败的邮件直接拒收' };\r\n  out.push(['p 主策略', pmap[(t.p||'none').toLowerCase()] || t.p]);\r\n  out.push(['sp 子域策略', t.sp ? (pmap[String(t.sp).toLowerCase()]||t.sp) : '未设置，继承主策略']);\r\n  out.push(['pct 应用比例', (t.pct===undefined?'100':t.pct)+'% 的邮件应用该策略']);\r\n  out.push(['adkim DKIM 对齐', String(t.adkim||'r').toLowerCase()==='s' ? '严格：域名必须完全一致' : '宽松：允许子域']);\r\n  out.push(['aspf SPF 对齐', String(t.aspf||'r').toLowerCase()==='s' ? '严格：域名必须完全一致' : '宽松：允许子域']);\r\n  out.push(['rua 聚合报告', dmMailtos(t.rua).length ? dmMailtos(t.rua).join(', ') : '未配置']);\r\n  out.push(['ruf 取证报告', dmMailtos(t.ruf).length ? dmMailtos(t.ruf).join(', ') : '未配置']);\r\n  out.push(['ri 报告周期', (t.ri ? t.ri : '86400')+' 秒']);\r\n  return out;\r\n}\r\nfunction dmBuild(opt){\r\n  opt = opt || {};\r\n  var parts=['v=DMARC1', 'p='+(opt.p||'none')];\r\n  if(opt.sp) parts.push('sp='+opt.sp);\r\n  if(opt.rua) parts.push('rua=mailto:'+opt.rua);\r\n  if(opt.ruf) parts.push('ruf=mailto:'+opt.ruf);\r\n  if(opt.pct!==undefined && opt.pct!=='' && String(opt.pct)!=='100') parts.push('pct='+opt.pct);\r\n  if(opt.adkim) parts.push('adkim='+opt.adkim);\r\n  if(opt.aspf) parts.push('aspf='+opt.aspf);\r\n  return parts.join('; ') + ';';\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { dmSplitTags:dmSplitTags, dmParse:dmParse, dmPolicyScore:dmPolicyScore,\r\n    dmGrade:dmGrade, dmMailtos:dmMailtos, dmLint:dmLint, dmExplain:dmExplain, dmBuild:dmBuild };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.DmarcForgePure = { dmSplitTags:dmSplitTags, dmParse:dmParse, dmPolicyScore:dmPolicyScore,\r\n    dmGrade:dmGrade, dmMailtos:dmMailtos, dmLint:dmLint, dmExplain:dmExplain, dmBuild:dmBuild };\r\n}\r\n\r\n"
+}

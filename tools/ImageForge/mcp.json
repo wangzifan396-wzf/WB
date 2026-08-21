@@ -1,0 +1,142 @@
+{
+  "id": "ImageForge",
+  "name": "image_forge",
+  "title": "ImageForge",
+  "description": "离线图片编辑器：裁剪、缩放、旋转翻转、亮度 / 对比度 / 饱和度 / 色相 / 模糊调整、滤镜，导出 PNG/JPEG/WebP，零上传。",
+  "entry": "buildFilterCSS",
+  "entries": {
+    "clamp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "esc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "formatBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "computeResize": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "w",
+        "h",
+        "lockAspect",
+        "targetW",
+        "targetH"
+      ]
+    },
+    "rotateDims": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h",
+        "deg"
+      ],
+      "fields": []
+    },
+    "clampCrop": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "r",
+        "W",
+        "H"
+      ],
+      "fields": []
+    },
+    "buildFilterCSS": {
+      "paramStyle": "object",
+      "paramNames": [
+        "a"
+      ],
+      "fields": [
+        "brightness",
+        "contrast",
+        "saturation",
+        "hue",
+        "blur",
+        "sepiaOn",
+        "grayscale",
+        "invert"
+      ]
+    },
+    "adjustPixels": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "a"
+      ],
+      "fields": []
+    },
+    "extForMime": {
+      "paramStyle": "single",
+      "paramNames": [
+        "m"
+      ],
+      "fields": []
+    },
+    "exportName": {
+      "paramStyle": "single",
+      "paramNames": [
+        "mime"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "brightness": {
+        "type": "string",
+        "description": "参数 brightness"
+      },
+      "contrast": {
+        "type": "string",
+        "description": "参数 contrast"
+      },
+      "saturation": {
+        "type": "string",
+        "description": "参数 saturation"
+      },
+      "hue": {
+        "type": "string",
+        "description": "参数 hue"
+      },
+      "blur": {
+        "type": "string",
+        "description": "参数 blur"
+      },
+      "sepiaOn": {
+        "type": "string",
+        "description": "参数 sepiaOn"
+      },
+      "grayscale": {
+        "type": "string",
+        "description": "参数 grayscale"
+      },
+      "invert": {
+        "type": "string",
+        "description": "参数 invert"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction clamp(v,a,b){v=Number(v);if(isNaN(v))v=0;if(v<a)return a;if(v>b)return b;return v;}\r\nfunction esc(s){return String(s).replace(/[&<>\"]/g,function(c){return {\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",'\"':\"&quot;\"}[c];});}\r\nfunction formatBytes(n){\r\n  n=Number(n)||0; if(n<=0) return \"0 B\";\r\n  var u=[\"B\",\"KB\",\"MB\",\"GB\"],i=0;\r\n  while(n>=1024&&i<u.length-1){n/=1024;i++;}\r\n  return (n>=100||i===0?Math.round(n):n.toFixed(1))+\" \"+u[i];\r\n}\r\n// 计算缩放后的尺寸：给宽推高、给高推宽（锁比例）；两者都给且锁比例则以宽为准\r\nfunction computeResize(o){\r\n  o=o||{};\r\n  var w=Math.max(1,Math.round(o.w||1)), h=Math.max(1,Math.round(o.h||1));\r\n  var lock=o.lockAspect!==false;\r\n  var tw=o.targetW, th=o.targetH;\r\n  var ar=w/h;\r\n  if(tw&&!th){ tw=Math.round(tw); th=lock?Math.max(1,Math.round(tw/ar)):h; }\r\n  else if(th&&!tw){ th=Math.round(th); tw=lock?Math.max(1,Math.round(th*ar)):w; }\r\n  else if(tw&&th){ tw=Math.round(tw); th=lock?Math.max(1,Math.round(tw/ar)):Math.round(th); }\r\n  else { tw=w; th=h; }\r\n  return {w:Math.max(1,tw),h:Math.max(1,th)};\r\n}\r\n// 旋转后画布尺寸（90/270 交换宽高）\r\nfunction rotateDims(w,h,deg){ deg=((deg%360)+360)%360; return (deg===90||deg===270)?{w:h,h:w}:{w:w,h:h}; }\r\n// 把裁剪矩形约束到图像范围内并取整\r\nfunction clampCrop(r,W,H){\r\n  r=r||{};\r\n  var x=clamp(r.x||0,0,W), y=clamp(r.y||0,0,H);\r\n  var w=clamp(r.w||1,1,W-x), h=clamp(r.h||1,1,H-y);\r\n  return {x:Math.round(x),y:Math.round(y),w:Math.max(1,Math.round(w)),h:Math.max(1,Math.round(h))};\r\n}\r\n// 构造 CSS filter 字符串（实时预览与导出共用，保证一致）\r\nfunction buildFilterCSS(a){\r\n  a=a||{}; var p=[];\r\n  p.push(\"brightness(\"+(1+(Number(a.brightness)||0)/100).toFixed(3)+\")\");\r\n  p.push(\"contrast(\"+(1+(Number(a.contrast)||0)/100).toFixed(3)+\")\");\r\n  p.push(\"saturate(\"+(1+(Number(a.saturation)||0)/100).toFixed(3)+\")\");\r\n  if(Number(a.hue)) p.push(\"hue-rotate(\"+Math.round(a.hue)+\"deg)\");\r\n  if(Number(a.blur)>0) p.push(\"blur(\"+Number(a.blur)+\"px)\");\r\n  if(a.sepiaOn) p.push(\"sepia(0.6)\");\r\n  if(a.grayscale) p.push(\"grayscale(1)\");\r\n  if(a.invert) p.push(\"invert(1)\");\r\n  return p.join(\" \");\r\n}\r\n// 像素级调整（RGBA 平铺数组）—— 用于无 CSS filter 场景的兜底/测试；返回新数组\r\nfunction adjustPixels(data,a){\r\n  a=a||{};\r\n  var out=data.slice?data.slice():Array.prototype.slice.call(data);\r\n  var b=(Number(a.brightness)||0)*2.55;\r\n  var c=(Number(a.contrast)||0)*2.55; var cf=(259*(c+255))/(255*(259-c));\r\n  var sf=1+((Number(a.saturation)||0)/100);\r\n  for(var i=0;i<out.length;i+=4){\r\n    var r=out[i],g=out[i+1],bl=out[i+2];\r\n    r+=b; g+=b; bl+=b;\r\n    r=cf*(r-128)+128; g=cf*(g-128)+128; bl=cf*(bl-128)+128;\r\n    var lum=0.299*r+0.587*g+0.114*bl;\r\n    r=lum+(r-lum)*sf; g=lum+(g-lum)*sf; bl=lum+(bl-lum)*sf;\r\n    if(a.grayscale){ var lg=0.299*r+0.587*g+0.114*bl; r=lg; g=lg; bl=lg; }\r\n    if(a.invert){ r=255-r; g=255-g; bl=255-bl; }\r\n    out[i]=clamp(Math.round(r),0,255); out[i+1]=clamp(Math.round(g),0,255); out[i+2]=clamp(Math.round(bl),0,255);\r\n  }\r\n  return out;\r\n}\r\nfunction extForMime(m){ return {\"image/png\":\"png\",\"image/jpeg\":\"jpg\",\"image/webp\":\"webp\"}[m]||\"png\"; }\r\nfunction exportName(mime){ return \"imageforge-\"+Date.now()+\".\"+extForMime(mime); }\r\n\r\nvar __API={clamp:clamp,esc:esc,formatBytes:formatBytes,computeResize:computeResize,rotateDims:rotateDims,clampCrop:clampCrop,buildFilterCSS:buildFilterCSS,adjustPixels:adjustPixels,extForMime:extForMime,exportName:exportName};\r\nif(typeof module!=='undefined'&&module.exports){ module.exports=__API; }\r\nif(typeof window!=='undefined'){ window.ImageForgePure=__API; }\r\n"
+}

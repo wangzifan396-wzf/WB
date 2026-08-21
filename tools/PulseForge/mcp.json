@@ -1,0 +1,46 @@
+{
+  "id": "PulseForge",
+  "name": "pulse_forge",
+  "title": "PulseForge",
+  "description": "用 Karvonen 法按年龄与静息心率算最大心率与各强度目标心率区间。",
+  "entry": "mhr",
+  "entries": {
+    "mhr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "age"
+      ],
+      "fields": []
+    },
+    "thr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "age",
+        "rhr",
+        "p"
+      ],
+      "fields": []
+    },
+    "zones": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "age",
+        "rhr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "age": {
+        "type": "string",
+        "description": "输入（age）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction mhr(age){ if(!(age>=0)) return null; return 220-age; }\r\nfunction thr(age,rhr,p){ if(!(age>=0)||!(rhr>=0)||!(p>0&&p<1)) return null; var max=mhr(age); if(max===null)return null; return ((max-rhr)*p)+rhr; }\r\nfunction zones(age,rhr){ if(thr(age,rhr,0.5)===null)return null; return {max:mhr(age), light:thr(age,rhr,0.5), moderate:thr(age,rhr,0.6), vigorous:thr(age,rhr,0.7), peak:thr(age,rhr,0.85)}; }\r\nvar EXPORTS={mhr:mhr,thr:thr,zones:zones};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PulseForgePure = EXPORTS; }\r\n\r\n"
+}

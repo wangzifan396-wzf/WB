@@ -1,0 +1,42 @@
+{
+  "id": "FutoshikiForge",
+  "name": "futoshiki_forge",
+  "title": "FutoshikiForge",
+  "description": "不等式（Futoshiki）谜题：在 N×N 网格里填 1..N，每行每列不重复，且满足相邻格之间的 < / > 约束。内置题目生成与求解，纯本地、零依赖。",
+  "entry": "fuGen",
+  "entries": {
+    "fuGen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "seed"
+      ],
+      "fields": []
+    },
+    "fuSolve": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "puzzle",
+        "cons"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "第 1 个参数（n）"
+      },
+      "seed": {
+        "type": "number",
+        "description": "第 2 个参数（seed）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction fuLatin(n, seed){ var s=seed||1; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;} var g=[]; for(var i=0;i<n;i++) g.push([]); function ok(r,c,v){ for(var j=0;j<c;j++) if(g[r][j]===v) return false; for(var i=0;i<r;i++) if(g[i][c]===v) return false; return true; } function fill(r,c){ if(r===n) return true; if(c===n) return fill(r+1,0); var order=[]; for(var v=1;v<=n;v++) order.push(v); for(var k=order.length-1;k>0;k--){ var j=Math.floor(rnd()*(k+1)); var t=order[k];order[k]=order[j];order[j]=t; } for(var q=0;q<n;q++){ var v=order[q]; if(ok(r,c,v)){ g[r][c]=v; if(fill(r,c+1)) return true; g[r][c]=0; } } return false; } fill(0,0); return g; }\r\nfunction fuGen(n, seed){ var g=fuLatin(n, seed); var cons=[]; var s=seed||1; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;} var dirs=[[0,1],[1,0]]; for(var r=0;r<n;r++) for(var c=0;c<n;c++) for(var d=0;d<2;d++){ var nr=r+dirs[d][0], nc=c+dirs[d][1]; if(nr>=0&&nc>=0&&nr<n&&nc<n&&rnd()<0.4){ cons.push({a:[r,c],b:[nr,nc], op: g[r][c]<g[nr][nc]?'<':'>'}); } }\r\n  var puzzle=[]; for(var i=0;i<n;i++){ puzzle.push([]); for(var j=0;j<n;j++) puzzle[i].push(rnd()<0.45? g[i][j] : 0); }\r\n  return {n:n, puzzle:puzzle, cons:cons, solution:g}; }\r\nfunction fuSolve(puzzle, cons){ var n=puzzle.length; var g=[]; for(var i=0;i<n;i++) g.push(puzzle[i].slice()); function ok(r,c,v){ for(var j=0;j<n;j++) if(g[r][j]===v) return false; for(var i=0;i<n;i++) if(g[i][c]===v) return false; return true; } function consOk(){ for(var k=0;k<cons.length;k++){ var a=cons[k].a,b=cons[k].b; var va=g[a[0]][a[1]], vb=g[b[0]][b[1]]; if(va&&vb){ if(cons[k].op==='<'&&!(va<vb)) return false; if(cons[k].op==='>'&&!(va>vb)) return false; } } return true; } function fill(){ for(var r=0;r<n;r++) for(var c=0;c<n;c++){ if(g[r][c]===0){ for(var v=1;v<=n;v++){ if(ok(r,c,v)){ g[r][c]=v; if(consOk()&&fill()) return true; g[r][c]=0; } } return false; } } return consOk(); } return fill()? g : false; }\r\nvar EXPORTS={fuGen:fuGen, fuSolve:fuSolve};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.FutoshikiForgePure = EXPORTS; }\r\n\r\n"
+}

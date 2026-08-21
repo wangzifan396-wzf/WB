@@ -1,0 +1,50 @@
+{
+  "id": "AstarForge",
+  "name": "astar_forge",
+  "title": "AstarForge",
+  "description": "A* 网格寻路：曼哈顿启发式 + 路径回溯 + 扩展节点统计。",
+  "entry": "asParseGrid",
+  "entries": {
+    "asParseGrid": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "asFindPath": {
+      "paramStyle": "object",
+      "paramNames": [
+        "parsed"
+      ],
+      "fields": [
+        "grid",
+        "rows",
+        "cols",
+        "start",
+        "end"
+      ]
+    },
+    "asRender": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "parsed",
+        "path"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction asParseGrid(text){\r\n  var lines=String(text).replace(/\\r/g,'').split('\\n').filter(function(l){ return l.length>0; });\r\n  if(!lines.length) return { value:null, error:'网格为空' };\r\n  var w=lines[0].length, grid=[], start=null, end=null;\r\n  for(var r=0;r<lines.length;r++){\r\n    if(lines[r].length!==w) return { value:null, error:'第 '+(r+1)+' 行宽度不一致' };\r\n    var row=[];\r\n    for(var c=0;c<w;c++){\r\n      var ch=lines[r][c];\r\n      if(ch==='S'){ if(start) return { value:null, error:'多个起点 S' }; start=[r,c]; row.push(0); }\r\n      else if(ch==='E'){ if(end) return { value:null, error:'多个终点 E' }; end=[r,c]; row.push(0); }\r\n      else if(ch==='#') row.push(1);\r\n      else if(ch==='.') row.push(0);\r\n      else return { value:null, error:'非法字符 \"'+ch+'\" 于 ('+r+','+c+')' };\r\n    }\r\n    grid.push(row);\r\n  }\r\n  if(!start) return { value:null, error:'缺少起点 S' };\r\n  if(!end) return { value:null, error:'缺少终点 E' };\r\n  return { value:{ grid:grid, start:start, end:end, rows:lines.length, cols:w }, error:null };\r\n}\r\nfunction asFindPath(parsed){\r\n  var g=parsed.grid, R=parsed.rows, C=parsed.cols;\r\n  var sr=parsed.start[0], sc=parsed.start[1], er=parsed.end[0], ec=parsed.end[1];\r\n  function h(r,c){ return Math.abs(r-er)+Math.abs(c-ec); }\r\n  var INF=Infinity;\r\n  var gScore=[], came=[], closed=[];\r\n  for(var i=0;i<R;i++){ gScore.push([]); came.push([]); closed.push([]);\r\n    for(var j=0;j<C;j++){ gScore[i].push(INF); came[i].push(null); closed[i].push(false); } }\r\n  gScore[sr][sc]=0;\r\n  var open=[[sr,sc]];\r\n  var expanded=0;\r\n  var DIRS=[[-1,0],[1,0],[0,-1],[0,1]];\r\n  while(open.length){\r\n    var best=0;\r\n    for(var k=1;k<open.length;k++){\r\n      var a=open[k], b=open[best];\r\n      if(gScore[a[0]][a[1]]+h(a[0],a[1]) < gScore[b[0]][b[1]]+h(b[0],b[1])) best=k;\r\n    }\r\n    var cur=open.splice(best,1)[0];\r\n    var r=cur[0], c=cur[1];\r\n    if(closed[r][c]) continue;\r\n    closed[r][c]=true; expanded++;\r\n    if(r===er&&c===ec){\r\n      var path=[[r,c]];\r\n      while(came[r][c]){ var p=came[r][c]; path.push(p); r=p[0]; c=p[1]; }\r\n      path.reverse();\r\n      return { value:{ path:path, cost:path.length-1, expanded:expanded }, error:null };\r\n    }\r\n    for(var d=0;d<4;d++){\r\n      var nr=r+DIRS[d][0], nc=c+DIRS[d][1];\r\n      if(nr<0||nr>=R||nc<0||nc>=C||g[nr][nc]===1||closed[nr][nc]) continue;\r\n      var ng=gScore[r][c]+1;\r\n      if(ng<gScore[nr][nc]){ gScore[nr][nc]=ng; came[nr][nc]=[r,c]; open.push([nr,nc]); }\r\n    }\r\n  }\r\n  return { value:null, error:'无可达路径' };\r\n}\r\nfunction asRender(parsed, path){\r\n  var mark={};\r\n  for(var i=0;i<path.length;i++) mark[path[i][0]+','+path[i][1]]=true;\r\n  var out=[];\r\n  for(var r=0;r<parsed.rows;r++){\r\n    var line='';\r\n    for(var c=0;c<parsed.cols;c++){\r\n      if(r===parsed.start[0]&&c===parsed.start[1]) line+='S';\r\n      else if(r===parsed.end[0]&&c===parsed.end[1]) line+='E';\r\n      else if(parsed.grid[r][c]===1) line+='#';\r\n      else if(mark[r+','+c]) line+='*';\r\n      else line+='.';\r\n    }\r\n    out.push(line);\r\n  }\r\n  return out.join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { asParseGrid:asParseGrid, asFindPath:asFindPath, asRender:asRender };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.AstarForgePure = { asParseGrid:asParseGrid, asFindPath:asFindPath, asRender:asRender };\r\n}\r\n"
+}

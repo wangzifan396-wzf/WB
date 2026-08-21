@@ -1,0 +1,81 @@
+{
+  "id": "FlamegraphForge",
+  "name": "flamegraph_forge",
+  "title": "FlamegraphForge",
+  "description": "火焰图渲染器：折叠栈转 SVG、self 时间排行、最热调用路径，离线可用。",
+  "entry": "fgParseFolded",
+  "entries": {
+    "fgParseFolded": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fgBuild": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "fgFlatten": {
+      "paramStyle": "single",
+      "paramNames": [
+        "root"
+      ],
+      "fields": []
+    },
+    "fgSelfTop": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "flat",
+        "k"
+      ],
+      "fields": []
+    },
+    "fgHotPath": {
+      "paramStyle": "single",
+      "paramNames": [
+        "root"
+      ],
+      "fields": []
+    },
+    "fgStats": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "root",
+        "flat"
+      ],
+      "fields": []
+    },
+    "fgColor": {
+      "paramStyle": "single",
+      "paramNames": [
+        "name"
+      ],
+      "fields": []
+    },
+    "fgPercent": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "total"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction fgParseFolded(text){\r\n  var lines=String(text||'').split(/\\n+/), rows=[], bad=0;\r\n  for(var i=0;i<lines.length;i++){\r\n    var l=lines[i].trim();\r\n    if(!l || l.charAt(0)==='#') continue;\r\n    var m=l.match(/^(.+?)\\s+(\\d+(?:\\.\\d+)?)$/);\r\n    if(!m){ bad++; continue; }\r\n    var frames=m[1].split(';').map(function(s){ return s.trim(); }).filter(function(s){ return s!==''; });\r\n    if(!frames.length){ bad++; continue; }\r\n    rows.push({ frames:frames, value:parseFloat(m[2]) });\r\n  }\r\n  if(!rows.length) return { error:'未解析到有效的折叠栈行（格式：a;b;c 123）', bad:bad };\r\n  return { error:null, rows:rows, bad:bad };\r\n}\r\nfunction fgBuild(rows){\r\n  var root={ name:'root', value:0, children:{}, depth:0 };\r\n  for(var i=0;i<rows.length;i++){\r\n    var node=root, fr=rows[i].frames;\r\n    root.value += rows[i].value;\r\n    for(var j=0;j<fr.length;j++){\r\n      if(!node.children[fr[j]]) node.children[fr[j]]={ name:fr[j], value:0, children:{}, depth:j+1 };\r\n      node = node.children[fr[j]];\r\n      node.value += rows[i].value;\r\n    }\r\n    node.self = (node.self||0) + rows[i].value;\r\n  }\r\n  return root;\r\n}\r\nfunction fgFlatten(root){\r\n  var out=[];\r\n  function walk(node, x){\r\n    out.push({ name:node.name, value:node.value, self:node.self||0, depth:node.depth, x:x });\r\n    var keys=Object.keys(node.children).sort(function(a,b){\r\n      var d=node.children[b].value-node.children[a].value;\r\n      return d!==0 ? d : (a<b?-1:1);\r\n    });\r\n    var cx=x;\r\n    for(var i=0;i<keys.length;i++){ walk(node.children[keys[i]], cx); cx += node.children[keys[i]].value; }\r\n  }\r\n  walk(root, 0);\r\n  return out;\r\n}\r\nfunction fgSelfTop(flat, k){\r\n  var arr=flat.filter(function(f){ return f.depth>0 && f.self>0; })\r\n              .sort(function(a,b){ return b.self-a.self || (a.name<b.name?-1:1); });\r\n  return arr.slice(0, k||5);\r\n}\r\nfunction fgHotPath(root){\r\n  var path=[], node=root;\r\n  while(true){\r\n    var keys=Object.keys(node.children);\r\n    if(!keys.length) break;\r\n    var best=keys[0];\r\n    for(var i=1;i<keys.length;i++) if(node.children[keys[i]].value>node.children[best].value) best=keys[i];\r\n    node=node.children[best]; path.push({ name:node.name, value:node.value });\r\n  }\r\n  return path;\r\n}\r\nfunction fgStats(root, flat){\r\n  var maxDepth=0, leaves=0;\r\n  for(var i=0;i<flat.length;i++){\r\n    if(flat[i].depth>maxDepth) maxDepth=flat[i].depth;\r\n    if(flat[i].self>0) leaves++;\r\n  }\r\n  return { total:root.value, frames:flat.length-1, maxDepth:maxDepth, leaves:leaves };\r\n}\r\nfunction fgColor(name){\r\n  var h=0;\r\n  for(var i=0;i<name.length;i++) h=(h*31+name.charCodeAt(i))>>>0;\r\n  var hue = 15 + (h % 45);\r\n  var sat = 62 + (h>>8) % 20;\r\n  var lig = 44 + (h>>16) % 14;\r\n  return 'hsl('+hue+','+sat+'%,'+lig+'%)';\r\n}\r\nfunction fgPercent(v, total){\r\n  if(!total) return '0.00%';\r\n  return (v/total*100).toFixed(2)+'%';\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { fgParseFolded:fgParseFolded, fgBuild:fgBuild, fgFlatten:fgFlatten,\r\n    fgSelfTop:fgSelfTop, fgHotPath:fgHotPath, fgStats:fgStats, fgColor:fgColor, fgPercent:fgPercent };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.FlamegraphForgePure = { fgParseFolded:fgParseFolded, fgBuild:fgBuild, fgFlatten:fgFlatten,\r\n    fgSelfTop:fgSelfTop, fgHotPath:fgHotPath, fgStats:fgStats, fgColor:fgColor, fgPercent:fgPercent };\r\n}\r\n\r\n"
+}

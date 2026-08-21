@@ -1,0 +1,45 @@
+{
+  "id": "GronForge",
+  "name": "gron_forge",
+  "title": "GronForge",
+  "description": "JSON 展平：把嵌套 JSON 转成 json.a.b[0].c = value; 形式的赋值语句，方便用 grep 检索与比对，复制即用。",
+  "entry": "gron",
+  "entries": {
+    "gron": {
+      "paramStyle": "single",
+      "paramNames": [
+        "json"
+      ],
+      "fields": []
+    },
+    "walk": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "prefix",
+        "val",
+        "out"
+      ],
+      "fields": []
+    },
+    "fmt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "json": {
+        "type": "string",
+        "description": "输入（json）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function fmt(v){\r\n    if(v===null) return 'null';\r\n    if(typeof v==='boolean') return v?'true':'false';\r\n    if(typeof v==='number') return String(v);\r\n    if(typeof v==='string') return JSON.stringify(v);\r\n    if(Array.isArray(v)) return JSON.stringify(v);\r\n    if(typeof v==='object') return '{}';\r\n    return JSON.stringify(v);\r\n  }\r\n  function walk(prefix, val, out){\r\n    if(val!==null && typeof val==='object' && !Array.isArray(val)){\r\n      var keys=Object.keys(val);\r\n      if(keys.length===0){ out.push(prefix+' = {};'); return; }\r\n      keys.forEach(function(k){ walk(prefix+'.'+k, val[k], out); });\r\n    } else if(Array.isArray(val)){\r\n      if(val.length===0){ out.push(prefix+' = [];'); return; }\r\n      val.forEach(function(item, i){ walk(prefix+'['+i+']', item, out); });\r\n    } else {\r\n      out.push(prefix+' = '+fmt(val)+';');\r\n    }\r\n  }\r\n  function gron(json){\r\n    var obj;\r\n    try{ obj=JSON.parse(json); }catch(e){ return {error:'JSON 解析失败: '+e.message}; }\r\n    var out=[];\r\n    walk('json', obj, out);\r\n    return {value: out.join('\\n')};\r\n  }\r\n  var API={gron:gron, walk:walk, fmt:fmt};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__GronForge__=API;\r\n})();\r\n"
+}

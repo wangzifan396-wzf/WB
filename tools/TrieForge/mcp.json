@@ -1,0 +1,61 @@
+{
+  "id": "TrieForge",
+  "name": "trie_forge",
+  "title": "TrieForge",
+  "description": "前缀树 Trie：自动补全、词表检索、前缀计数，零依赖纯函数。",
+  "entry": "trieCreate",
+  "entries": {
+    "trieCreate": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "trieInsert": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "node",
+        "word"
+      ],
+      "fields": []
+    },
+    "trieContains": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "node",
+        "word"
+      ],
+      "fields": []
+    },
+    "trieStartsWith": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "node",
+        "prefix"
+      ],
+      "fields": []
+    },
+    "trieCollect": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "node",
+        "prefix"
+      ],
+      "fields": []
+    },
+    "trieDelete": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "node",
+        "word"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\nfunction trieCreate(){ return {children:{}, end:false, word:null}; }\r\nfunction trieFind(node, word){\r\n  word=String(word); var cur=node;\r\n  for(var i=0;i<word.length;i++){ var ch=word[i]; if(!cur.children[ch]) return null; cur=cur.children[ch]; }\r\n  return cur;\r\n}\r\nfunction trieInsert(node, word){\r\n  word=String(word); var cur=node;\r\n  for(var i=0;i<word.length;i++){ var ch=word[i]; if(!cur.children[ch]) cur.children[ch]={children:{},end:false,word:null}; cur=cur.children[ch]; }\r\n  cur.end=true; cur.word=word; return node;\r\n}\r\nfunction trieContains(node, word){ var cur=trieFind(node, word); return !!(cur && cur.end); }\r\nfunction trieStartsWith(node, prefix){ return !!trieFind(node, prefix); }\r\nfunction trieCollect(node, prefix){\r\n  var start=trieFind(node, prefix)||{children:{}};\r\n  var out=[];\r\n  (function dfs(n){ if(n.end) out.push(n.word); for(var k in n.children) dfs(n.children[k]); })(start);\r\n  out.sort(); return out;\r\n}\r\nfunction trieDelete(node, word){\r\n  function del(n, w, i){\r\n    if(i===w.length){ if(n.end){ n.end=false; n.word=null; return true; } return false; }\r\n    var ch=w[i]; if(!n.children[ch]) return false;\r\n    var can=del(n.children[ch], w, i+1);\r\n    if(can && !n.children[ch].end && Object.keys(n.children[ch].children).length===0){ delete n.children[ch]; }\r\n    return can;\r\n  }\r\n  return del(node, String(word), 0);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { trieCreate:trieCreate, trieInsert:trieInsert, trieContains:trieContains, trieStartsWith:trieStartsWith, trieCollect:trieCollect, trieDelete:trieDelete };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TrieForgePure = { trieCreate:trieCreate, trieInsert:trieInsert, trieContains:trieContains, trieStartsWith:trieStartsWith, trieCollect:trieCollect, trieDelete:trieDelete };\r\n}\r\n"
+}

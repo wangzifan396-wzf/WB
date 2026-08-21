@@ -1,0 +1,53 @@
+{
+  "id": "SequenceForge",
+  "name": "sequence_forge",
+  "title": "SequenceForge",
+  "description": "时序图：轻量 DSL 生成泳道时序图，箭头/自环/虚线回包。",
+  "entry": "sqParse",
+  "entries": {
+    "sqParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "sqLayout": {
+      "paramStyle": "object",
+      "paramNames": [
+        "model"
+      ],
+      "fields": [
+        "actors",
+        "messages"
+      ]
+    },
+    "sqSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "sqEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction sqParse(text){\r\n  if(typeof text!=='string'||!text.trim()) return { value:null, error:'DSL 为空' };\r\n  var lines=text.split('\\n'), actors=[], seen={}, msgs=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var line=lines[i].trim();\r\n    if(!line||line.charAt(0)==='#') continue;\r\n    var m=line.match(/^([^-<>]+?)\\s*(-->|->)\\s*([^:]+?)\\s*:\\s*(.+)$/);\r\n    if(!m) return { value:null, error:'第 '+(i+1)+' 行语法错误（应为 A->B: 消息）' };\r\n    var from=m[1].trim(), to=m[3].trim();\r\n    if(!seen[from]){ seen[from]=1; actors.push(from); }\r\n    if(!seen[to]){ seen[to]=1; actors.push(to); }\r\n    msgs.push({ from:from, to:to, text:m[4].trim(), dashed:m[2]==='-->', self:from===to });\r\n  }\r\n  if(!msgs.length) return { value:null, error:'没有有效消息行' };\r\n  return { value:{ actors:actors, messages:msgs }, error:null };\r\n}\r\nfunction sqLayout(model){\r\n  var COLW=150, TOP=52, ROWH=42;\r\n  var lanes={}, i;\r\n  for(i=0;i<model.actors.length;i++) lanes[model.actors[i]]=40+i*COLW+COLW/2;\r\n  var arrows=[];\r\n  for(i=0;i<model.messages.length;i++){\r\n    var mg=model.messages[i], y=TOP+28+i*ROWH;\r\n    arrows.push({ x1:lanes[mg.from], x2:lanes[mg.to], y:y, text:mg.text, dashed:mg.dashed, self:mg.self });\r\n  }\r\n  return { lanes:lanes, arrows:arrows,\r\n    width:40+model.actors.length*COLW+20,\r\n    height:TOP+28+model.messages.length*ROWH+30 };\r\n}\r\nfunction sqEsc(s){\r\n  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\r\n}\r\nfunction sqSvg(text){\r\n  var p=sqParse(text);\r\n  if(p.error) return { value:null, error:p.error };\r\n  var L=sqLayout(p.value);\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+L.width+'\" height=\"'+L.height+'\" viewBox=\"0 0 '+L.width+' '+L.height+'\">';\r\n  s+='<defs><marker id=\"arr\" markerWidth=\"9\" markerHeight=\"7\" refX=\"8\" refY=\"3.5\" orient=\"auto\"><polygon points=\"0 0, 9 3.5, 0 7\" fill=\"#5E6AD2\"/></marker></defs>';\r\n  s+='<rect width=\"'+L.width+'\" height=\"'+L.height+'\" fill=\"#0A0A0B\"/>';\r\n  var a, x;\r\n  for(a in L.lanes){\r\n    x=L.lanes[a];\r\n    s+='<line x1=\"'+x+'\" y1=\"46\" x2=\"'+x+'\" y2=\"'+(L.height-16)+'\" stroke=\"rgba(255,255,255,0.14)\" stroke-width=\"1\"/>';\r\n    s+='<rect x=\"'+(x-58)+'\" y=\"14\" width=\"116\" height=\"28\" rx=\"7\" fill=\"#141417\" stroke=\"#5E6AD2\" stroke-width=\"1.2\"/>';\r\n    s+='<text x=\"'+x+'\" y=\"32\" text-anchor=\"middle\" font-size=\"12\" fill=\"#FFFFFF\" font-family=\"system-ui,sans-serif\">'+sqEsc(a.length>13?a.slice(0,12)+'…':a)+'</text>';\r\n  }\r\n  for(var i=0;i<L.arrows.length;i++){\r\n    var ar=L.arrows[i], dash=ar.dashed?' stroke-dasharray=\"5,4\"':'';\r\n    if(ar.self){\r\n      s+='<path d=\"M'+ar.x1+' '+(ar.y-8)+' h46 v16 h-46\" fill=\"none\" stroke=\"#22D3EE\" stroke-width=\"1.4\" marker-end=\"url(#arr)\"'+dash+'/>';\r\n      s+='<text x=\"'+(ar.x1+52)+'\" y=\"'+ar.y+'\" font-size=\"11\" fill=\"#A1A1AA\" font-family=\"system-ui,sans-serif\">'+sqEsc(ar.text)+'</text>';\r\n    } else {\r\n      s+='<line x1=\"'+ar.x1+'\" y1=\"'+ar.y+'\" x2=\"'+ar.x2+'\" y2=\"'+ar.y+'\" stroke=\"'+(ar.dashed?'#10B981':'#5E6AD2')+'\" stroke-width=\"1.4\" marker-end=\"url(#arr)\"'+dash+'/>';\r\n      s+='<text x=\"'+((ar.x1+ar.x2)/2)+'\" y=\"'+(ar.y-6)+'\" text-anchor=\"middle\" font-size=\"11\" fill=\"#A1A1AA\" font-family=\"system-ui,sans-serif\">'+sqEsc(ar.text)+'</text>';\r\n    }\r\n  }\r\n  s+='</svg>';\r\n  return { value:s, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { sqParse:sqParse, sqLayout:sqLayout, sqSvg:sqSvg, sqEsc:sqEsc };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SequenceForgePure = { sqParse:sqParse, sqLayout:sqLayout, sqSvg:sqSvg, sqEsc:sqEsc };\r\n}\r\n"
+}

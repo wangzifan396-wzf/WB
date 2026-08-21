@@ -1,0 +1,29 @@
+{
+  "id": "PieChartForge",
+  "name": "pie_chart_forge",
+  "title": "饼图",
+  "description": "按标签/数值生成 SVG 饼图，离线。",
+  "entry": "pieSvg",
+  "entries": {
+    "pieSvg": {
+      "paramStyle": "single",
+      "paramNames": [
+        "items"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "string",
+        "description": "输入（items）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction slice(cx,cy,r,a0,a1,color){\r\n  var s0=[cx+r*Math.cos(a0), cy+r*Math.sin(a0)];\r\n  var e1=[cx+r*Math.cos(a1), cy+r*Math.sin(a1)];\r\n  var large=(a1-a0)>Math.PI?1:0;\r\n  var d='M '+cx+' '+cy+' L '+s0[0].toFixed(2)+' '+s0[1].toFixed(2)+' A '+r+' '+r+' 0 '+large+' 1 '+e1[0].toFixed(2)+' '+e1[1].toFixed(2)+' Z';\r\n  return '<path d=\"'+d+'\" fill=\"'+color+'\" stroke=\"#0A0A0B\" stroke-width=\"1\"/>';\r\n}\r\nfunction pieSvg(items){\r\n  if(!Array.isArray(items)||!items.length) return {error:'至少 1 项'};\r\n  var data=[]; var total=0;\r\n  for(var i=0;i<items.length;i++){ var v=+items[i].value; if(isNaN(v)||v<0) return {error:'数值须为非负数字'}; total+=v; data.push({label:String(items[i].label||('项'+(i+1))), value:v}); }\r\n  if(total<=0) return {error:'总和须为正'};\r\n  var pal=['#5E6AD2','#10B981','#F5A623','#EF4444','#22D3EE','#A78BFA','#F472B6','#34D399'];\r\n  var cx=100,cy=100,r=80,ang=-Math.PI/2; var parts=[];\r\n  for(var j=0;j<data.length;j++){ var frac=data[j].value/total; var a0=ang; var a1=ang+frac*2*Math.PI; ang=a1;\r\n    parts.push(slice(cx,cy,r,a0,a1,pal[j%pal.length])); }\r\n  var svg='<svg viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\">'+parts.join('')+'</svg>';\r\n  return {svg:svg, total:total};\r\n}\r\nvar EXPORTS={pieSvg:pieSvg};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PieChartForgePure = EXPORTS; }\r\n\r\n"
+}

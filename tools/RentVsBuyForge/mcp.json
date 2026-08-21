@@ -1,0 +1,75 @@
+{
+  "id": "RentVsBuyForge",
+  "name": "rent_vs_buy_forge",
+  "title": "租买对比",
+  "description": "用可配置假设对比 30 年买房与租房的净财富，离线。",
+  "entry": "rentVsBuy",
+  "entries": {
+    "rentVsBuy": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "price",
+        "downPct",
+        "rate",
+        "years",
+        "rent",
+        "rentInfl",
+        "investReturn",
+        "homeAppr"
+      ]
+    },
+    "pmt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rate",
+        "n",
+        "principal"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "price": {
+        "type": "string",
+        "description": "参数 price"
+      },
+      "downPct": {
+        "type": "string",
+        "description": "参数 downPct"
+      },
+      "rate": {
+        "type": "string",
+        "description": "参数 rate"
+      },
+      "years": {
+        "type": "string",
+        "description": "参数 years"
+      },
+      "rent": {
+        "type": "string",
+        "description": "参数 rent"
+      },
+      "rentInfl": {
+        "type": "string",
+        "description": "参数 rentInfl"
+      },
+      "investReturn": {
+        "type": "string",
+        "description": "参数 investReturn"
+      },
+      "homeAppr": {
+        "type": "string",
+        "description": "参数 homeAppr"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pmt(rate, n, principal){ if(!(principal>0)) return 0; if(rate<=0) return principal/n;\r\n  var m=rate/12; return principal*m/(1-Math.pow(1+m,-n)); }\r\nfunction rentVsBuy(o){\r\n  o=o||{}; var P=o.price==null?1000000:+o.price, down=o.downPct==null?20:+o.downPct, r=o.rate==null?0.05:+o.rate, Y=o.years==null?30:+o.years;\r\n  var R0=o.rent==null?3000:+o.rent, i=o.rentInfl==null?0.03:+o.rentInfl, g=o.investReturn==null?0.06:+o.investReturn, h=o.homeAppr==null?0.03:+o.homeAppr;\r\n  if(!(P>0)||!(Y>0)) return {error:'房价与年限须为正'};\r\n  var principal=P*(1-down/100); var M=pmt(r,Y*12,principal);\r\n  var months=Y*12; var bal=principal; var buyNW, rentPort=0; var curRent=R0;\r\n  for(var mo=1;mo<=months;mo++){\r\n    if(mo>1) curRent*=(1+i/12);\r\n    var interest=bal*(r/12); var principalPaid=M-interest; bal-=principalPaid; if(bal<0) bal=0;\r\n    var surplus=(principal/Y/12)+M-curRent; rentPort=rentPort*(1+g/12)+surplus;\r\n  }\r\n  var homeValue=P*Math.pow(1+h,Y); buyNW=homeValue-bal;\r\n  return {mortgage:Math.round(M), buyNW:Math.round(buyNW), rentNW:Math.round(rentPort),\r\n          better: buyNW>=rentPort?'买房':'租房', homeValue:Math.round(homeValue)}; }\r\nvar EXPORTS={rentVsBuy:rentVsBuy, pmt:pmt};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RentVsBuyForgePure = EXPORTS; }\r\n\r\n"
+}

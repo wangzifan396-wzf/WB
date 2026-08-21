@@ -1,0 +1,58 @@
+{
+  "id": "DiffForge",
+  "name": "diff_forge",
+  "title": "DiffForge",
+  "description": "离线文本差异对比：基于 LCS 的行级 diff + 并排视图，统计增删，内置逐字符 inline diff。",
+  "entry": "diffLines",
+  "entries": {
+    "diffLines": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "aText",
+        "bText"
+      ],
+      "fields": []
+    },
+    "inlineDiff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "diffStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "diff"
+      ],
+      "fields": []
+    },
+    "unifiedText": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "diff",
+        "aName",
+        "bName"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "aText": {
+        "type": "string",
+        "description": "第 1 个参数（aText）"
+      },
+      "bText": {
+        "type": "string",
+        "description": "第 2 个参数（bText）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction cleanLines(arr){ if(arr.length && arr[arr.length-1]==='') arr.pop(); return arr; }\r\nfunction diffLines(aText, bText){\r\n  var a=cleanLines(String(aText).split('\\n'));\r\n  var b=cleanLines(String(bText).split('\\n'));\r\n  var n=a.length, m=b.length;\r\n  var dp=[]; for(var i=0;i<=n;i++){ dp[i]=new Array(m+1).fill(0); }\r\n  for(var i=n-1;i>=0;i--){ for(var j=m-1;j>=0;j--){ dp[i][j]=(a[i]===b[j])?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]); } }\r\n  var res=[], i=0, j=0;\r\n  while(i<n&&j<m){\r\n    if(a[i]===b[j]){ res.push({type:'eq',a:a[i],b:b[j]}); i++; j++; }\r\n    else if(dp[i+1][j]>=dp[i][j+1]){ res.push({type:'del',a:a[i]}); i++; }\r\n    else { res.push({type:'add',b:b[j]}); j++; }\r\n  }\r\n  while(i<n){ res.push({type:'del',a:a[i]}); i++; }\r\n  while(j<m){ res.push({type:'add',b:b[j]}); j++; }\r\n  return res;\r\n}\r\nfunction inlineDiff(a, b){\r\n  a=String(a); b=String(b);\r\n  var n=a.length, m=b.length;\r\n  var dp=[]; for(var i=0;i<=n;i++){ dp[i]=new Array(m+1).fill(0); }\r\n  for(var i=n-1;i>=0;i--){ for(var j=m-1;j>=0;j--){ dp[i][j]=(a[i]===b[j])?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]); } }\r\n  var res=[], i=0, j=0;\r\n  while(i<n&&j<m){\r\n    if(a[i]===b[j]){ res.push({type:'eq',t:a[i]}); i++; j++; }\r\n    else if(dp[i+1][j]>=dp[i][j+1]){ res.push({type:'del',t:a[i]}); i++; }\r\n    else { res.push({type:'add',t:b[j]}); j++; }\r\n  }\r\n  while(i<n){ res.push({type:'del',t:a[i]}); i++; }\r\n  while(j<m){ res.push({type:'add',t:b[j]}); j++; }\r\n  return res;\r\n}\r\nfunction diffStats(diff){ var add=0,del=0,eq=0; diff.forEach(function(d){ if(d.type==='add')add++; else if(d.type==='del')del++; else eq++; }); return {add:add,del:del,eq:eq}; }\r\nfunction unifiedText(diff, aName, bName){\r\n  aName=aName||'a'; bName=bName||'b';\r\n  var lines=['--- '+aName, '+++ '+bName];\r\n  diff.forEach(function(d){\r\n    if(d.type==='eq') lines.push(' '+d.a);\r\n    else if(d.type==='del') lines.push('-'+d.a);\r\n    else lines.push('+'+d.b);\r\n  });\r\n  return lines.join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { diffLines:diffLines, inlineDiff:inlineDiff, diffStats:diffStats, unifiedText:unifiedText };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.DiffForgePure = { diffLines:diffLines, inlineDiff:inlineDiff, diffStats:diffStats, unifiedText:unifiedText };\r\n}\r\n"
+}

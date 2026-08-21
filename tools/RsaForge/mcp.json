@@ -1,0 +1,62 @@
+{
+  "id": "RsaForge",
+  "name": "rsa_forge",
+  "title": "RsaForge",
+  "description": "本地 RSA 密钥对生成、加密、解密、签名与验签：基于 Web Crypto（RSA-OAEP / RSASSA-PKCS1-v1_5），密钥以 JWK 形式展示，私钥永不离开本机。",
+  "entry": "generate",
+  "entries": {
+    "generate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bits"
+      ],
+      "fields": []
+    },
+    "encrypt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pub",
+        "msg"
+      ],
+      "fields": []
+    },
+    "decrypt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "priv",
+        "ct"
+      ],
+      "fields": []
+    },
+    "sign": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "priv",
+        "msg"
+      ],
+      "fields": []
+    },
+    "verify": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pub",
+        "msg",
+        "sig"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bits": {
+        "type": "string",
+        "description": "输入（bits）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\nvar B64C='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\nfunction b64e(b){var s='',i;for(i=0;i+2<b.length;i+=3){var n=(b[i]<<16)|(b[i+1]<<8)|b[i+2];s+=B64C[n>>18&63]+B64C[n>>12&63]+B64C[n>>6&63]+B64C[n&63];}var r=b.length-i;if(r===1){var n1=b[i]<<16;s+=B64C[n1>>18&63]+B64C[n1>>12&63]+'==';}else if(r===2){var n2=(b[i]<<16)|(b[i+1]<<8);s+=B64C[n2>>18&63]+B64C[n2>>12&63]+B64C[n2>>6&63]+'=';}return s;}\r\nfunction b64d(s){s=String(s).replace(/\\s+/g,'').replace(/=+$/,'');var o=[],i;for(i=0;i+3<s.length;i+=4){var n=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6)|B64C.indexOf(s[i+3]);o.push(n>>16&255,n>>8&255,n&255);}var r=s.length-i;if(r===2){var n3=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12);o.push(n3>>16&255);}else if(r===3){var n4=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6);o.push(n4>>16&255,n4>>8&255);}return Uint8Array.from(o);}\r\n  function b64u(b){return b64e(b).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');}\r\n  function u2b(s){return new TextEncoder().encode(s);}\r\n  function b2s(b){return new TextDecoder().decode(b);}\r\n  function gen(bits){\r\n    return globalThis.crypto.subtle.generateKey(\r\n      {name:'RSA-OAEP',modulusLength:bits,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},\r\n      true,['encrypt','decrypt'])\r\n    .then(function(kp){return Promise.all([globalThis.crypto.subtle.exportKey('jwk',kp.publicKey),globalThis.crypto.subtle.exportKey('jwk',kp.privateKey)]);})\r\n    .then(function(j){return {value:{publicKey:JSON.stringify(j[0]),privateKey:JSON.stringify(j[1])}};})\r\n    .catch(function(e){return {error:String(e&&e.message||e)};});\r\n  }\r\n  function impJwk(jwk,name,usages){var p=JSON.parse(jwk);delete p.alg;delete p.key_ops;return globalThis.crypto.subtle.importKey('jwk',p,{name:name,hash:'SHA-256'},false,usages);}\r\n  function encrypt(pub,msg){return impJwk(pub,'RSA-OAEP',['encrypt']).then(function(k){return globalThis.crypto.subtle.encrypt({name:'RSA-OAEP',hash:'SHA-256'},k,u2b(msg));}).then(function(ct){return {value:b64u(new Uint8Array(ct))};}).catch(function(e){return {error:String(e&&e.message||e)};});}\r\n  function decrypt(priv,ct){return impJwk(priv,'RSA-OAEP',['decrypt']).then(function(k){return globalThis.crypto.subtle.decrypt({name:'RSA-OAEP',hash:'SHA-256'},k,b64d(ct.replace(/-/g,'+').replace(/_/g,'/')));}).then(function(pt){return {value:b2s(pt)};}).catch(function(e){return {error:String(e&&e.message||e)};});}\r\n  function sign(priv,msg){return impJwk(priv,'RSASSA-PKCS1-v1_5',['sign']).then(function(k){return globalThis.crypto.subtle.sign({name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},k,u2b(msg));}).then(function(s){return {value:b64u(new Uint8Array(s))};}).catch(function(e){return {error:String(e&&e.message||e)};});}\r\n  function verify(pub,msg,sig){return impJwk(pub,'RSASSA-PKCS1-v1_5',['verify']).then(function(k){return globalThis.crypto.subtle.verify({name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},k,b64d(sig.replace(/-/g,'+').replace(/_/g,'/')),u2b(msg));}).then(function(v){return {value:v};}).catch(function(e){return {error:String(e&&e.message||e)};});}\r\n  var API={generate:gen,encrypt:encrypt,decrypt:decrypt,sign:sign,verify:verify};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__RsaForge__=API;\r\n})();\r\n\r\n"
+}

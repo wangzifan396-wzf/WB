@@ -1,0 +1,50 @@
+{
+  "id": "Base58Forge",
+  "name": "base58_forge",
+  "title": "Base58Forge",
+  "description": "Base58 编解码器：Bitcoin 字母表，紧凑防误读字节编码。",
+  "entry": "b58encode",
+  "entries": {
+    "b58encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "b58decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "b58encodeStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "b58decodeStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar B58='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';\r\nfunction b58encode(bytes){\r\n  if(!bytes.length) return '';\r\n  var digits=[];\r\n  for(var i=0;i<bytes.length;i++){\r\n    var carry=bytes[i];\r\n    for(var j=0;j<digits.length;j++){ carry += digits[j] << 8; digits[j]=carry % 58; carry=(carry-digits[j])/58; }\r\n    while(carry>0){ digits.push(carry % 58); carry=(carry-carry%58)/58; }\r\n  }\r\n  var s='';\r\n  for(var z=0; z<bytes.length && bytes[z]===0; z++) s+=B58[0];\r\n  for(var k=digits.length-1;k>=0;k--) s+=B58[digits[k]];\r\n  return s;\r\n}\r\nfunction b58decode(str){\r\n  if(!str.length) return [];\r\n  var bytes=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var val=B58.indexOf(str[i]);\r\n    if(val<0) throw new Error('INVALID_CHAR');\r\n    var carry=val;\r\n    for(var j=0;j<bytes.length;j++){ carry += bytes[j]*58; bytes[j]=carry & 0xFF; carry=carry>>8; }\r\n    while(carry>0){ bytes.push(carry & 0xFF); carry=carry>>8; }\r\n  }\r\n  var out=[]; var zeros=0;\r\n  for(var z=0; z<str.length && str[z]===B58[0]; z++) out.push(0);\r\n  for(var k=bytes.length-1;k>=0;k--) out.push(bytes[k]);\r\n  return out;\r\n}\r\nfunction utf8Bytes(str){ var b=[]; for(var i=0;i<str.length;i++){ var c=str.charCodeAt(i); if(c<0x80) b.push(c); else if(c<0x800){ b.push(0xC0|(c>>6), 0x80|(c&0x3F)); } else { b.push(0xE0|(c>>12), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F)); } } return b; }\r\nfunction bytesToUtf8(bytes){ var s='',i=0; while(i<bytes.length){ var c=bytes[i++]; if(c<0x80) s+=String.fromCharCode(c); else if(c<0xE0){ var c2=bytes[i++]; s+=String.fromCharCode(((c&0x1F)<<6)|(c2&0x3F)); } else { var c2=bytes[i++],c3=bytes[i++]; s+=String.fromCharCode(((c&0x0F)<<12)|((c2&0x3F)<<6)|(c3&0x3F)); } } return s; }\r\nfunction b58encodeStr(str){ return b58encode(utf8Bytes(str)); }\r\nfunction b58decodeStr(str){ return bytesToUtf8(b58decode(str)); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { b58encode:b58encode, b58decode:b58decode, b58encodeStr:b58encodeStr, b58decodeStr:b58decodeStr, B58:B58 };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.Base58ForgePure = { b58encode:b58encode, b58decode:b58decode, b58encodeStr:b58encodeStr, b58decodeStr:b58decodeStr };\r\n}\r\n"
+}

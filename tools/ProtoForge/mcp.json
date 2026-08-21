@@ -1,0 +1,109 @@
+{
+  "id": "ProtoForge",
+  "name": "proto_forge",
+  "title": "ProtoForge",
+  "description": "Protobuf 结构解析：message/enum/service/oneof/map 语法解析、wire type 与 tag 字节开销测算、字段号体检与 TypeScript 导出，离线可用。",
+  "entry": "stripComments",
+  "entries": {
+    "stripComments": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseProto": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "wireTypeOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "type"
+      ],
+      "fields": []
+    },
+    "tagBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "num"
+      ],
+      "fields": []
+    },
+    "fieldRows": {
+      "paramStyle": "object",
+      "paramNames": [
+        "msg"
+      ],
+      "fields": [
+        "fields"
+      ]
+    },
+    "tsTypeOf": {
+      "paramStyle": "object",
+      "paramNames": [
+        "f"
+      ],
+      "fields": [
+        "label",
+        "keyType",
+        "valType",
+        "type",
+        "repeated"
+      ]
+    },
+    "toTypeScript": {
+      "paramStyle": "object",
+      "paramNames": [
+        "res"
+      ],
+      "fields": [
+        "enums",
+        "messages",
+        "syntax"
+      ]
+    },
+    "lintProto": {
+      "paramStyle": "object",
+      "paramNames": [
+        "res"
+      ],
+      "fields": [
+        "syntax",
+        "pkg",
+        "messages",
+        "services",
+        "errors",
+        "enums"
+      ]
+    },
+    "stats": {
+      "paramStyle": "object",
+      "paramNames": [
+        "res"
+      ],
+      "fields": [
+        "messages",
+        "services",
+        "enums",
+        "imports"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar PB_SCALARS = {\r\n  'double':{wire:1,size:8,ts:'number'}, 'float':{wire:5,size:4,ts:'number'},\r\n  'int32':{wire:0,size:5,ts:'number'}, 'int64':{wire:0,size:10,ts:'string'},\r\n  'uint32':{wire:0,size:5,ts:'number'}, 'uint64':{wire:0,size:10,ts:'string'},\r\n  'sint32':{wire:0,size:5,ts:'number'}, 'sint64':{wire:0,size:10,ts:'string'},\r\n  'fixed32':{wire:5,size:4,ts:'number'}, 'fixed64':{wire:1,size:8,ts:'string'},\r\n  'sfixed32':{wire:5,size:4,ts:'number'}, 'sfixed64':{wire:1,size:8,ts:'string'},\r\n  'bool':{wire:0,size:1,ts:'boolean'}, 'string':{wire:2,size:0,ts:'string'}, 'bytes':{wire:2,size:0,ts:'Uint8Array'}\r\n};\r\nvar PB_WIRE_NAME = { 0:'Varint', 1:'64-bit', 2:'Length-delimited', 5:'32-bit' };\r\n\r\nfunction stripComments(text){\r\n  var s = String(text == null ? '' : text);\r\n  s = s.replace(/\\/\\*[\\s\\S]*?\\*\\//g, ' ');\r\n  return s.split(/\\r?\\n/).map(function(l){\r\n    var inS = false, inD = false;\r\n    for (var i = 0; i < l.length - 1; i++){\r\n      var c = l.charAt(i);\r\n      if (c === \"'\" && !inD) inS = !inS;\r\n      else if (c === '\"' && !inS) inD = !inD;\r\n      else if (c === '/' && l.charAt(i + 1) === '/' && !inS && !inD) return l.slice(0, i);\r\n    }\r\n    return l;\r\n  }).join('\\n');\r\n}\r\n\r\nfunction wireTypeOf(type){\r\n  if (PB_SCALARS[type]) return PB_SCALARS[type].wire;\r\n  return 2;\r\n}\r\n\r\nfunction tagBytes(num){\r\n  var n = parseInt(num, 10);\r\n  if (!(n > 0)) return 0;\r\n  var tag = n * 8;\r\n  var bytes = 1;\r\n  while (tag >= 128){ tag = Math.floor(tag / 128); bytes++; }\r\n  return bytes;\r\n}\r\n\r\nfunction parseProto(text){\r\n  var src = stripComments(text).replace(/([{};])/g, '$1\\n');\r\n  var lines = src.split(/\\r?\\n/);\r\n  var res = { syntax: '', pkg: '', imports: [], messages: [], enums: [], services: [], options: {}, errors: [] };\r\n  var stack = [], cur = null, curKind = '';\r\n  for (var i = 0; i < lines.length; i++){\r\n    var raw = lines[i], t = raw.trim();\r\n    if (!t) continue;\r\n    var mSyn = /^syntax\\s*=\\s*[\"']([^\"']+)[\"']\\s*;/.exec(t);\r\n    if (mSyn){ res.syntax = mSyn[1]; continue; }\r\n    var mPkg = /^package\\s+([\\w.]+)\\s*;/.exec(t);\r\n    if (mPkg){ res.pkg = mPkg[1]; continue; }\r\n    var mImp = /^import\\s+(?:public\\s+|weak\\s+)?[\"']([^\"']+)[\"']\\s*;/.exec(t);\r\n    if (mImp){ res.imports.push(mImp[1]); continue; }\r\n    var mOpt = /^option\\s+([\\w.()]+)\\s*=\\s*(.+?)\\s*;/.exec(t);\r\n    if (mOpt && !cur){ res.options[mOpt[1]] = mOpt[2].replace(/^[\"']|[\"']$/g, ''); continue; }\r\n    var mMsg = /^message\\s+(\\w+)\\s*\\{?/.exec(t);\r\n    if (mMsg){\r\n      var msg = { name: mMsg[1], fields: [], reserved: [], oneofs: [], line: i + 1, parent: cur ? cur.name : '' };\r\n      res.messages.push(msg);\r\n      if (cur) stack.push({ obj: cur, kind: curKind });\r\n      cur = msg; curKind = 'message';\r\n      continue;\r\n    }\r\n    var mEnum = /^enum\\s+(\\w+)\\s*\\{?/.exec(t);\r\n    if (mEnum){\r\n      var en = { name: mEnum[1], values: [], line: i + 1 };\r\n      res.enums.push(en);\r\n      if (cur) stack.push({ obj: cur, kind: curKind });\r\n      cur = en; curKind = 'enum';\r\n      continue;\r\n    }\r\n    var mSvc = /^service\\s+(\\w+)\\s*\\{?/.exec(t);\r\n    if (mSvc){\r\n      var sv = { name: mSvc[1], rpcs: [], line: i + 1 };\r\n      res.services.push(sv);\r\n      if (cur) stack.push({ obj: cur, kind: curKind });\r\n      cur = sv; curKind = 'service';\r\n      continue;\r\n    }\r\n    if (/^\\}/.test(t)){\r\n      var up = stack.pop();\r\n      cur = up ? up.obj : null; curKind = up ? up.kind : '';\r\n      continue;\r\n    }\r\n    if (curKind === 'service'){\r\n      var mRpc = /^rpc\\s+(\\w+)\\s*\\(\\s*(stream\\s+)?([\\w.]+)\\s*\\)\\s*returns\\s*\\(\\s*(stream\\s+)?([\\w.]+)\\s*\\)/.exec(t);\r\n      if (mRpc) cur.rpcs.push({ name: mRpc[1], input: mRpc[3], output: mRpc[5], clientStream: !!mRpc[2], serverStream: !!mRpc[4] });\r\n      continue;\r\n    }\r\n    if (curKind === 'enum'){\r\n      var mVal = /^(\\w+)\\s*=\\s*(-?\\d+)\\s*(?:\\[[^\\]]*\\])?\\s*;/.exec(t);\r\n      if (mVal) cur.values.push({ name: mVal[1], number: parseInt(mVal[2], 10), line: i + 1 });\r\n      continue;\r\n    }\r\n    if (curKind === 'message'){\r\n      var mRes = /^reserved\\s+(.+?)\\s*;/.exec(t);\r\n      if (mRes){ cur.reserved.push(mRes[1]); continue; }\r\n      var mOne = /^oneof\\s+(\\w+)\\s*\\{?/.exec(t);\r\n      if (mOne){ cur.oneofs.push(mOne[1]); continue; }\r\n      var mMap = /^map\\s*<\\s*([\\w.]+)\\s*,\\s*([\\w.]+)\\s*>\\s+(\\w+)\\s*=\\s*(\\d+)\\s*(?:\\[[^\\]]*\\])?\\s*;/.exec(t);\r\n      if (mMap){\r\n        cur.fields.push({ label: 'map', type: 'map<' + mMap[1] + ',' + mMap[2] + '>', keyType: mMap[1], valType: mMap[2], name: mMap[3], number: parseInt(mMap[4], 10), line: i + 1, repeated: true });\r\n        continue;\r\n      }\r\n      var mFld = /^(optional\\s+|required\\s+|repeated\\s+)?([\\w.]+)\\s+(\\w+)\\s*=\\s*(\\d+)\\s*(?:\\[([^\\]]*)\\])?\\s*;/.exec(t);\r\n      if (mFld){\r\n        var label = (mFld[1] || '').trim();\r\n        cur.fields.push({\r\n          label: label || 'singular', type: mFld[2], name: mFld[3], number: parseInt(mFld[4], 10),\r\n          opts: mFld[5] || '', line: i + 1, repeated: label === 'repeated',\r\n          packed: /packed\\s*=\\s*true/.test(mFld[5] || '')\r\n        });\r\n        continue;\r\n      }\r\n      if (t !== '{' && t !== '}') res.errors.push({ line: i + 1, text: t });\r\n    }\r\n  }\r\n  return res;\r\n}\r\n\r\nfunction fieldRows(msg){\r\n  var out = [];\r\n  for (var i = 0; i < msg.fields.length; i++){\r\n    var f = msg.fields[i], sc = PB_SCALARS[f.type];\r\n    out.push({\r\n      name: f.name, type: f.type, number: f.number, label: f.label,\r\n      wire: wireTypeOf(f.type), wireName: PB_WIRE_NAME[wireTypeOf(f.type)],\r\n      tagBytes: tagBytes(f.number),\r\n      maxBytes: sc ? (sc.size ? tagBytes(f.number) + sc.size : 0) : 0,\r\n      scalar: !!sc, ts: tsTypeOf(f)\r\n    });\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction tsTypeOf(f){\r\n  if (f.label === 'map'){\r\n    var kt = PB_SCALARS[f.keyType] ? PB_SCALARS[f.keyType].ts : 'string';\r\n    var vt = PB_SCALARS[f.valType] ? PB_SCALARS[f.valType].ts : f.valType;\r\n    return 'Record<' + (kt === 'boolean' ? 'string' : kt) + ', ' + vt + '>';\r\n  }\r\n  var base = PB_SCALARS[f.type] ? PB_SCALARS[f.type].ts : f.type.replace(/^.*\\./, '');\r\n  return f.repeated ? base + '[]' : base;\r\n}\r\n\r\nfunction toTypeScript(res){\r\n  var out = [];\r\n  for (var e = 0; e < res.enums.length; e++){\r\n    var en = res.enums[e];\r\n    out.push('export enum ' + en.name + ' {');\r\n    for (var v = 0; v < en.values.length; v++) out.push('  ' + en.values[v].name + ' = ' + en.values[v].number + ',');\r\n    out.push('}');\r\n    out.push('');\r\n  }\r\n  for (var i = 0; i < res.messages.length; i++){\r\n    var m = res.messages[i];\r\n    out.push('export interface ' + m.name + ' {');\r\n    for (var j = 0; j < m.fields.length; j++){\r\n      var f = m.fields[j];\r\n      var opt = (res.syntax === 'proto3' && f.label !== 'repeated' && f.label !== 'map') ? '?' : '';\r\n      out.push('  ' + f.name + opt + ': ' + tsTypeOf(f) + ';');\r\n    }\r\n    out.push('}');\r\n    out.push('');\r\n  }\r\n  return out.join('\\n').replace(/\\n+$/, '\\n');\r\n}\r\n\r\nfunction lintProto(res){\r\n  var issues = [];\r\n  function add(level, where, msg){ issues.push({ level: level, where: where, msg: msg }); }\r\n  if (!res.syntax) add('warn', 'file', '未声明 syntax，protoc 会默认按 proto2 处理');\r\n  if (!res.pkg) add('warn', 'file', '未声明 package，跨文件引用容易撞名');\r\n  if (!res.messages.length && !res.services.length) add('bad', 'file', '没有解析到任何 message 或 service');\r\n  for (var i = 0; i < res.errors.length; i++) add('warn', 'L' + res.errors[i].line, '无法识别的语句：' + res.errors[i].text.slice(0, 48));\r\n  for (var m = 0; m < res.messages.length; m++){\r\n    var msg = res.messages[m], seen = {}, names = {};\r\n    if (!/^[A-Z][A-Za-z0-9]*$/.test(msg.name)) add('warn', msg.name, 'message 名建议使用 PascalCase');\r\n    if (!msg.fields.length) add('warn', msg.name, '空 message，确认是否占位');\r\n    for (var f = 0; f < msg.fields.length; f++){\r\n      var fd = msg.fields[f], at = msg.name + '.' + fd.name;\r\n      if (seen[fd.number]) add('bad', at, '字段编号 ' + fd.number + ' 与 ' + seen[fd.number] + ' 重复');\r\n      else seen[fd.number] = fd.name;\r\n      if (names[fd.name]) add('bad', at, '字段名重复');\r\n      else names[fd.name] = 1;\r\n      if (fd.number < 1) add('bad', at, '字段编号必须 >= 1');\r\n      if (fd.number >= 19000 && fd.number <= 19999) add('bad', at, '字段编号 ' + fd.number + ' 落在 protobuf 保留区 19000-19999');\r\n      if (fd.number > 536870911) add('bad', at, '字段编号超过上限 536870911');\r\n      if (fd.number > 15 && fd.number < 2048 && f < 3) add('warn', at, '前置高频字段用了 ' + fd.number + '（需 2 字节 tag），1-15 更省空间');\r\n      if (res.syntax === 'proto3' && fd.label === 'required') add('bad', at, 'proto3 不支持 required');\r\n      if (!/^[a-z][a-z0-9_]*$/.test(fd.name)) add('warn', at, '字段名建议使用 lower_snake_case');\r\n      if (fd.repeated && PB_SCALARS[fd.type] && PB_SCALARS[fd.type].wire !== 2 && res.syntax !== 'proto3' && !fd.packed)\r\n        add('warn', at, 'repeated 标量建议加 [packed=true]');\r\n      if (fd.type === 'float' || fd.type === 'double'){\r\n        if (/amount|price|money|fee|cost|balance/i.test(fd.name)) add('warn', at, '金额字段用浮点会有精度损失，建议 int64 分单位或 string');\r\n      }\r\n    }\r\n    var used = Object.keys(seen).map(Number).sort(function(a, b){ return a - b; });\r\n    if (used.length){\r\n      var gaps = [];\r\n      for (var g = 1; g < used[used.length - 1]; g++) if (used.indexOf(g) < 0) gaps.push(g);\r\n      if (gaps.length && !msg.reserved.length) add('warn', msg.name, '编号存在空洞 ' + gaps.slice(0, 8).join(',') + (gaps.length > 8 ? '…' : '') + '，删过字段就该写 reserved');\r\n    }\r\n  }\r\n  for (var e = 0; e < res.enums.length; e++){\r\n    var en = res.enums[e];\r\n    if (!en.values.length){ add('warn', en.name, '空枚举'); continue; }\r\n    if (res.syntax === 'proto3' && en.values[0].number !== 0) add('bad', en.name, 'proto3 枚举第一个值必须为 0');\r\n    var ez = {};\r\n    for (var v = 0; v < en.values.length; v++){\r\n      if (ez[en.values[v].number] !== undefined) add('warn', en.name, '枚举值 ' + en.values[v].number + ' 重复（需 allow_alias）');\r\n      ez[en.values[v].number] = 1;\r\n      if (!/^[A-Z][A-Z0-9_]*$/.test(en.values[v].name)) add('warn', en.name + '.' + en.values[v].name, '枚举值建议 UPPER_SNAKE_CASE');\r\n    }\r\n  }\r\n  for (var s = 0; s < res.services.length; s++){\r\n    var sv = res.services[s];\r\n    if (!sv.rpcs.length) add('warn', sv.name, 'service 没有任何 rpc');\r\n    for (var r = 0; r < sv.rpcs.length; r++){\r\n      var rp = sv.rpcs[r];\r\n      if (!/^[A-Z]/.test(rp.name)) add('warn', sv.name + '.' + rp.name, 'rpc 名建议 PascalCase');\r\n    }\r\n  }\r\n  var bad = issues.filter(function(x){ return x.level === 'bad'; }).length;\r\n  return { issues: issues, bad: bad, warn: issues.length - bad, score: Math.max(0, 100 - bad * 15 - (issues.length - bad) * 4) };\r\n}\r\n\r\nfunction stats(res){\r\n  var fields = 0, oneofs = 0, rpcs = 0;\r\n  for (var i = 0; i < res.messages.length; i++){ fields += res.messages[i].fields.length; oneofs += res.messages[i].oneofs.length; }\r\n  for (var s = 0; s < res.services.length; s++) rpcs += res.services[s].rpcs.length;\r\n  return { messages: res.messages.length, enums: res.enums.length, services: res.services.length, fields: fields, oneofs: oneofs, rpcs: rpcs, imports: res.imports.length };\r\n}\r\n\r\nvar ProtoForgePure = {\r\n  stripComments: stripComments, parseProto: parseProto, wireTypeOf: wireTypeOf, tagBytes: tagBytes,\r\n  fieldRows: fieldRows, tsTypeOf: tsTypeOf, toTypeScript: toTypeScript, lintProto: lintProto,\r\n  stats: stats, SCALARS: PB_SCALARS, WIRE_NAME: PB_WIRE_NAME\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = ProtoForgePure;\r\nif (typeof window !== 'undefined') window.ProtoForgePure = ProtoForgePure;\r\n\r\n"
+}

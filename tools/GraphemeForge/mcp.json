@@ -1,0 +1,36 @@
+{
+  "id": "GraphemeForge",
+  "name": "grapheme_forge",
+  "title": "GraphemeForge",
+  "description": "Unicode 字素计数：将 emoji、ZWJ 序列与组合重音计为 1（Intl.Segmenter），离线可用。",
+  "entry": "graphemes",
+  "entries": {
+    "graphemes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "gcCount": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8(str){var out=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<0x80)out.push(c);else if(c<0x800){out.push(0xC0|(c>>6),0x80|(c&0x3F));}else if(c>=0xD800&&c<=0xDBFF){var c2=str.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}else{out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));}}return out;}\r\nfunction hexToBytes(h){h=(h||'').replace(/[^0-9a-fA-F]/g,'');if(h.length%2)h='0'+h;var b=[];for(var i=0;i<h.length;i+=2)b.push(parseInt(h.substr(i,2),16));return b;}\r\nfunction bytesToHex(b){var s='';for(var i=0;i<b.length;i++)s+=('0'+b[i].toString(16)).slice(-2);return s;}\r\n\r\nfunction graphemes(s){\r\n  if(typeof Intl!=='undefined'&&Intl.Segmenter){\r\n    var seg=new Intl.Segmenter('en',{granularity:'grapheme'});var out=[];\r\n    var it=seg.segment(s);var r=it.next?null:null;\r\n    // iterate\r\n    var cur=it; if(cur[Symbol.iterator]){for(var x of cur)out.push(x.segment);}\r\n    return out;\r\n  }\r\n  // fallback: code points, merge ZWJ sequences and combining marks\r\n  var cps=[];for(var i=0;i<s.length;i++){var c=s.codePointAt(i);if(c>0xFFFF)i++;cps.push(c);}\r\n  var out=[];var i2=0;\r\n  while(i2<cps.length){var cp=cps[i2];var j=i2+1;\r\n    while(j<cps.length&&(cps[j]===0x200D||(cps[j]>=0x0300&&cps[j]<=0x036F)||cps[j]===0xFE0F))j++;\r\n    out.push(String.fromCodePoint.apply(null,cps.slice(i2,j)));i2=j;}\r\n  return out;\r\n}\r\nfunction gcCount(s){return graphemes(s).length;}\r\nvar EXPORTS={graphemes:graphemes,gcCount:gcCount};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.GraphemeForgePure = EXPORTS; }\r\n\r\n"
+}

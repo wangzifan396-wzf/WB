@@ -1,0 +1,89 @@
+{
+  "id": "AiAgentSpecForge",
+  "name": "ai_agent_spec_forge",
+  "title": "智能体规格书",
+  "description": "按名称 / 角色 / 模型 / 温度 / 工具 / 记忆生成智能体规格书（含 YAML 快照），离线。",
+  "entry": "buildAgentSpec",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "modelProfile": {
+      "paramStyle": "single",
+      "paramNames": [
+        "kind"
+      ],
+      "fields": []
+    },
+    "tempProfile": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "memoryKey": {
+      "paramStyle": "single",
+      "paramNames": [
+        "m"
+      ],
+      "fields": []
+    },
+    "buildAgentSpec": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "role",
+        "kind",
+        "temp",
+        "tools",
+        "memory",
+        "constraints"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "参数 name"
+      },
+      "role": {
+        "type": "string",
+        "description": "参数 role"
+      },
+      "kind": {
+        "type": "string",
+        "description": "参数 kind"
+      },
+      "temp": {
+        "type": "string",
+        "description": "参数 temp"
+      },
+      "tools": {
+        "type": "string",
+        "description": "参数 tools"
+      },
+      "memory": {
+        "type": "string",
+        "description": "参数 memory"
+      },
+      "constraints": {
+        "type": "string",
+        "description": "参数 constraints"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction modelProfile(kind){\r\n  kind=String(kind||'通用对话');\r\n  if(kind.indexOf('代码')>=0) return {model:'代码增强型', maxTokens:'8K', note:'优先使用沙箱执行验证代码'};\r\n  if(kind.indexOf('长文')>=0) return {model:'长上下文型', maxTokens:'128K', note:'注意上下文窗口与摘要压缩'};\r\n  if(kind.indexOf('多模态')>=0) return {model:'多模态型', maxTokens:'32K', note:'图像输入建议压缩后上传'};\r\n  return {model:'通用对话型', maxTokens:'16K', note:'默认开启流式输出'};\r\n}\r\nfunction tempProfile(t){\r\n  t=String(t||'平衡');\r\n  if(t.indexOf('精确')>=0) return {temp:'0.2', when:'结构化抽取、固定格式输出'};\r\n  if(t.indexOf('创意')>=0) return {temp:'1.0', when:'头脑风暴、文案发散'};\r\n  return {temp:'0.7', when:'日常对话与综合任务'};\r\n}\r\nfunction memoryKey(m){\r\n  m=String(m||'');\r\n  if(m.indexOf('长期')>=0) return 'long-term-rag';\r\n  if(m.indexOf('短期')>=0) return 'session';\r\n  return 'none';\r\n}\r\nfunction buildAgentSpec(o){\r\n  o=o||{};\r\n  var name=String(o.name||'').trim()||'UnnamedAgent';\r\n  var role=String(o.role||'').trim()||'（待补充角色定位）';\r\n  var kind=String(o.kind||'通用对话');\r\n  var temp=String(o.temp||'平衡');\r\n  var tools=splitLines(o.tools);\r\n  var memory=String(o.memory||'短期记忆');\r\n  var constraints=splitLines(o.constraints);\r\n  if(!constraints.length) constraints=['回答须基于检索到的事实，不得编造','涉及敏感操作需向用户二次确认'];\r\n  var mp=modelProfile(kind), tp=tempProfile(temp), mk2=memoryKey(memory);\r\n  var memDesc = mk2==='long-term-rag' ? '会话内上下文 + 向量库长期记忆（RAG 检索）' : (mk2==='session' ? '仅会话内上下文，会话结束即遗忘' : '无记忆，单轮请求独立应答');\r\n  var lines=[];\r\n  lines.push('# 智能体规格书：'+name);\r\n  lines.push('');\r\n  lines.push('## 一、基本信息');\r\n  lines.push('- 名称：'+name);\r\n  lines.push('- 角色定位：'+role);\r\n  lines.push('- 模型类型：'+mp.model+'（'+mp.note+'）');\r\n  lines.push('- 温度：'+tp.temp+'（适用：'+tp.when+'）');\r\n  lines.push('- 最大输出：'+mp.maxTokens);\r\n  lines.push('');\r\n  lines.push('## 二、工具能力');\r\n  if(tools.length){ tools.forEach(function(t,i){ lines.push((i+1)+'. '+t); }); }\r\n  else { lines.push('（无外部工具，纯对话能力）'); }\r\n  lines.push('');\r\n  lines.push('## 三、记忆策略');\r\n  lines.push('- '+memDesc);\r\n  lines.push('');\r\n  lines.push('## 四、约束与安全');\r\n  constraints.forEach(function(c){ lines.push('- '+c); });\r\n  lines.push('');\r\n  lines.push('## 五、YAML 快照');\r\n  lines.push('```yaml');\r\n  lines.push('agent:');\r\n  lines.push('  name: \"'+name+'\"');\r\n  lines.push('  model: \"'+mp.model+'\"');\r\n  lines.push('  temperature: '+tp.temp);\r\n  lines.push('  tools: '+tools.length);\r\n  lines.push('  memory: \"'+mk2+'\"');\r\n  lines.push('```');\r\n  return {title:name+' 智能体规格书', toolCount:tools.length, temperature:tp.temp,\r\n          memory:mk2, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, modelProfile:modelProfile, tempProfile:tempProfile, memoryKey:memoryKey, buildAgentSpec:buildAgentSpec};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.AiAgentSpecForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,59 @@
+{
+  "id": "HexForge",
+  "name": "hex_forge",
+  "title": "HexForge",
+  "description": "离线十六进制查看器：文本(UTF-8)/十六进制/本地文件 → xxd 格式 dump，数据不出本机。",
+  "entry": "utf8Bytes",
+  "entries": {
+    "utf8Bytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "hexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hex"
+      ],
+      "fields": []
+    },
+    "hexdump": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "opts"
+      ],
+      "fields": []
+    },
+    "inputToBytes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "mode"
+      ],
+      "fields": []
+    },
+    "pad8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction utf8Bytes(str){\r\n  var out=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.charCodeAt(i);\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xC0|(c>>6), 0x80|(c&0x3F)); }\r\n    else if(c>=0xD800&&c<=0xDBFF){ var c2=str.charCodeAt(++i); var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF); out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F)); }\r\n    else { out.push(0xE0|(c>>12), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F)); }\r\n  }\r\n  return out;\r\n}\r\nfunction hexToBytes(hex){\r\n  hex=String(hex).replace(/0x/i,'').replace(/[^0-9a-fA-F]/g,'');\r\n  var out=[]; for(var i=0;i+1<hex.length;i+=2){ out.push(parseInt(hex.substr(i,2),16)); }\r\n  if(hex.length%2===1) out.push(parseInt(hex.substr(hex.length-1),16));\r\n  return out;\r\n}\r\nfunction pad8(n){ var s=n.toString(16); while(s.length<8)s='0'+s; return s; }\r\nfunction hexdump(bytes, opts){\r\n  opts=opts||{};\r\n  var width=opts.width||16;\r\n  var lines=[];\r\n  for(var off=0; off<bytes.length; off+=width){\r\n    var chunk=bytes.slice(off, off+width);\r\n    var hex=chunk.map(function(b){ return (b&0xff).toString(16).padStart(2,'0'); }).join(' ');\r\n    while(hex.length<width*3-1) hex+=' ';\r\n    var ascii=chunk.map(function(b){ return (b>=32&&b<127)?String.fromCharCode(b):'.'; }).join('');\r\n    lines.push(pad8(off)+'  '+hex+'  |'+ascii+'|');\r\n  }\r\n  return lines.join('\\n');\r\n}\r\nfunction inputToBytes(text, mode){\r\n  return mode==='hex' ? hexToBytes(text) : utf8Bytes(text);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { utf8Bytes:utf8Bytes, hexToBytes:hexToBytes, hexdump:hexdump, inputToBytes:inputToBytes, pad8:pad8 };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.HexForgePure = { utf8Bytes:utf8Bytes, hexToBytes:hexToBytes, hexdump:hexdump, inputToBytes:inputToBytes, pad8:pad8 };\r\n}\r\n"
+}

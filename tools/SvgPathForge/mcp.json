@@ -1,0 +1,51 @@
+{
+  "id": "SvgPathForge",
+  "name": "svg_path_forge",
+  "title": "SvgPathForge",
+  "description": "SVG path 工具箱：命令解析、相对↔绝对互转、包围盒计算与坐标数值简化取整，离线可用。",
+  "entry": "pathParse",
+  "entries": {
+    "pathParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "d"
+      ],
+      "fields": []
+    },
+    "pathToAbsolute": {
+      "paramStyle": "single",
+      "paramNames": [
+        "d"
+      ],
+      "fields": []
+    },
+    "pathBBox": {
+      "paramStyle": "single",
+      "paramNames": [
+        "d"
+      ],
+      "fields": []
+    },
+    "pathSimplify": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "d",
+        "prec"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "d": {
+        "type": "string",
+        "description": "输入（d）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pathParse(d){\r\n  if(!d) return [];\r\n  var groups=d.match(/[MmLlHhVvCcSsQqTtAaZz][^MmLlHhVvCcSsQqTtAaZz]*/g);\r\n  if(!groups) return [];\r\n  var out=[];\r\n  for(var i=0;i<groups.length;i++){\r\n    var g=groups[i], c=g[0];\r\n    var nums=(g.slice(1).match(/-?\\d*\\.?\\d+(?:e[-+]?\\d+)?/gi)||[]).map(Number);\r\n    out.push({cmd:c, nums:nums});\r\n  }\r\n  return out;\r\n}\r\nfunction pathToAbsolute(d){\r\n  var cmds=pathParse(d), cx=0, cy=0, sx=0, sy=0, out=[];\r\n  for(var i=0;i<cmds.length;i++){\r\n    var c=cmds[i].cmd, n=cmds[i].nums, res=[c.toUpperCase()];\r\n    if('MmLl'.indexOf(c)>=0){ var x=n[0], y=n[1];\r\n      if(c==='m'){ x+=cx; y+=cy; sx+=n[0]; sy+=n[1]; } else { sx=x; sy=y; }\r\n      res.push(x,y); cx=x; cy=y;\r\n    } else if('Hh'.indexOf(c)>=0){ var xh=n[0]; if(c==='h') xh+=cx; res.push(xh); cx=xh; }\r\n    else if('Vv'.indexOf(c)>=0){ var yv=n[0]; if(c==='v') yv+=cy; res.push(yv); cy=yv; }\r\n    else if('Cc'.indexOf(c)>=0){ var x1=n[0],y1=n[1],x2=n[2],y2=n[3],x=n[4],y=n[5];\r\n      if(c==='c'){ x1+=cx;y1+=cy;x2+=cx;y2+=cy;x+=cx;y+=cy; } res.push(x1,y1,x2,y2,x,y); cx=x;cy=y;\r\n    } else if('Ss'.indexOf(c)>=0){ var sx2=n[0],sy2=n[1],x=n[2],y=n[3];\r\n      if(c==='s'){ sx2+=cx;sy2+=cy;x+=cx;y+=cy; } res.push(sx2,sy2,x,y); cx=x;cy=y;\r\n    } else if('Zz'.indexOf(c)>=0){ res=['Z']; cx=sx;cy=sy; }\r\n    else { res=res.concat(n); }\r\n    out.push(res[0] + res.slice(1).join(' '));\r\n  }\r\n  return out.join(' ');\r\n}\r\nfunction pathBBox(d){\r\n  var cmds=pathParse(d), cx=0, cy=0, pts=[];\r\n  for(var i=0;i<cmds.length;i++){\r\n    var c=cmds[i].cmd, n=cmds[i].nums;\r\n    if('MmLl'.indexOf(c)>=0){ var x=n[0],y=n[1]; if(c==='m'||c==='l'){x+=cx;y+=cy;} cx=x;cy=y; pts.push([x,y]); }\r\n    else if('Hh'.indexOf(c)>=0){ var xh=n[0]; if(c==='h')xh+=cx; cx=xh; pts.push([cx,cy]); }\r\n    else if('Vv'.indexOf(c)>=0){ var yv=n[0]; if(c==='v')yv+=cy; cy=yv; pts.push([cx,cy]); }\r\n    else if('Cc'.indexOf(c)>=0){ var x=n[4],y=n[5]; if(c==='c'){x+=cx;y+=cy;} cx=x;cy=y; pts.push([x,y]); }\r\n  }\r\n  if(!pts.length) return null;\r\n  var minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;\r\n  for(var j=0;j<pts.length;j++){ minx=Math.min(minx,pts[j][0]); miny=Math.min(miny,pts[j][1]); maxx=Math.max(maxx,pts[j][0]); maxy=Math.max(maxy,pts[j][1]); }\r\n  return {minX:minx,minY:miny,maxX:maxx,maxY:maxy,width:maxx-minx,height:maxy-miny};\r\n}\r\nfunction pathSimplify(d, prec){\r\n  prec=(prec==null?1:prec); var f=Math.pow(10,prec);\r\n  var cmds=pathParse(d), out=[];\r\n  for(var i=0;i<cmds.length;i++){ var c=cmds[i].cmd, n=cmds[i].nums, r=[c];\r\n    for(var j=0;j<n.length;j++){ r.push(Math.round(n[j]*f)/f); }\r\n    out.push(r[0] + r.slice(1).join(' '));\r\n  }\r\n  return out.join(' ');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { pathParse:pathParse, pathToAbsolute:pathToAbsolute, pathBBox:pathBBox, pathSimplify:pathSimplify }; }\r\nif (typeof window !== 'undefined') { window.SvgPathForgePure = { pathParse:pathParse, pathToAbsolute:pathToAbsolute, pathBBox:pathBBox, pathSimplify:pathSimplify }; }\r\n\r\n"
+}

@@ -1,0 +1,59 @@
+{
+  "id": "AmortizeForge",
+  "name": "amortize_forge",
+  "title": "AmortizeForge",
+  "description": "等额本息或等额本金还款：月供、总利息与各期明细。",
+  "entry": "monthlyPayment",
+  "entries": {
+    "monthlyPayment": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "annualRate",
+        "months"
+      ],
+      "fields": []
+    },
+    "schedule": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "annualRate",
+        "months",
+        "method"
+      ],
+      "fields": []
+    },
+    "totalInterest": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "annualRate",
+        "months",
+        "method"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "principal": {
+        "type": "string",
+        "description": "第 1 个参数（principal）"
+      },
+      "annualRate": {
+        "type": "string",
+        "description": "第 2 个参数（annualRate）"
+      },
+      "months": {
+        "type": "string",
+        "description": "第 3 个参数（months）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction monthlyPayment(principal, annualRate, months){\r\n  var r=annualRate/12;\r\n  if(r===0) return principal/months;\r\n  return principal*r/(1-Math.pow(1+r,-months));\r\n}\r\nfunction schedule(principal, annualRate, months, method){\r\n  method=method||'equal';\r\n  var r=annualRate/12; var rows=[]; var bal=principal;\r\n  if(method==='equal'){\r\n    var pmt=monthlyPayment(principal,annualRate,months);\r\n    for(var m=1;m<=months;m++){var interest=bal*r;var princ=pmt-interest;bal-=princ;if(m===months)bal=0;\r\n      rows.push({month:m,payment:pmt,interest:interest,principal:princ,balance:Math.max(0,bal)});}\r\n  } else {\r\n    var princ0=principal/months;\r\n    for(var m2=1;m2<=months;m2++){var interest2=bal*r;var pmt2=princ0+interest2;bal-=princ0;if(m2===months)bal=0;\r\n      rows.push({month:m2,payment:pmt2,interest:interest2,principal:princ0,balance:Math.max(0,bal)});}\r\n  }\r\n  return rows;\r\n}\r\nfunction totalInterest(principal,annualRate,months,method){var s=schedule(principal,annualRate,months,method);var t=0;for(var i=0;i<s.length;i++)t+=s[i].interest;return t;}\r\nvar EXPORTS={monthlyPayment:monthlyPayment,schedule:schedule,totalInterest:totalInterest};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.AmortizeForgePure = EXPORTS; }\r\n\r\n"
+}

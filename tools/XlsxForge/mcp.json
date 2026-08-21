@@ -1,0 +1,85 @@
+{
+  "id": "XlsxForge",
+  "name": "xlsx_forge",
+  "title": "XlsxForge",
+  "description": "纯前端 Excel 生成器：粘贴 CSV 即打包为标准 .xlsx（inline string + 数字类型自动识别，自实现 STORED ZIP），零依赖离线可用。",
+  "entry": "xlCrc32",
+  "entries": {
+    "xlCrc32": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "xlUtf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "xlZip": {
+      "paramStyle": "single",
+      "paramNames": [
+        "files"
+      ],
+      "fields": []
+    },
+    "xlColName": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "xlParseCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "xlIsNum": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "xlSheetXml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "xlBuild": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "xlEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction xlCrc32(bytes){\r\n  var table=xlCrc32._t;\r\n  if(!table){\r\n    table=xlCrc32._t=[];\r\n    for(var i=0;i<256;i++){ var c=i;\r\n      for(var k=0;k<8;k++) c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1);\r\n      table[i]=c>>>0; }\r\n  }\r\n  var crc=0xFFFFFFFF;\r\n  for(var j=0;j<bytes.length;j++) crc=(crc>>>8) ^ table[(crc ^ bytes[j]) & 0xFF];\r\n  return (crc ^ 0xFFFFFFFF)>>>0;\r\n}\r\nfunction xlUtf8(str){\r\n  var out=[], s=String(str);\r\n  for(var i=0;i<s.length;i++){\r\n    var c=s.codePointAt(i);\r\n    if(c>0xFFFF) i++;\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xC0|(c>>6), 0x80|(c&63)); }\r\n    else if(c<0x10000){ out.push(0xE0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n    else { out.push(0xF0|(c>>18), 0x80|((c>>12)&63), 0x80|((c>>6)&63), 0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction xlZip(files){\r\n  var chunks=[], central=[], offset=0, i;\r\n  function u16(v){ return [v&255,(v>>8)&255]; }\r\n  function u32(v){ return [v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255]; }\r\n  for(i=0;i<files.length;i++){\r\n    var nameB=xlUtf8(files[i].name), data=files[i].data, crc=xlCrc32(data);\r\n    var local=[0x50,0x4B,0x03,0x04].concat(u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(nameB.length),u16(0),nameB,data);\r\n    central.push({ name:nameB, crc:crc, size:data.length, offset:offset });\r\n    chunks.push(local); offset+=local.length;\r\n  }\r\n  var cd=[], cdStart=offset;\r\n  for(i=0;i<central.length;i++){\r\n    var e=central[i];\r\n    cd=cd.concat([0x50,0x4B,0x01,0x02],u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(e.crc),u32(e.size),u32(e.size),u16(e.name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(e.offset),e.name);\r\n  }\r\n  var eocd=[0x50,0x4B,0x05,0x06].concat(u16(0),u16(0),u16(files.length),u16(files.length),u32(cd.length),u32(cdStart),u16(0));\r\n  var all=[]; for(i=0;i<chunks.length;i++) all=all.concat(chunks[i]);\r\n  return new Uint8Array(all.concat(cd, eocd));\r\n}\r\nfunction xlColName(n){\r\n  var s='';\r\n  while(n>0){ var r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=Math.floor((n-1)/26); }\r\n  return s;\r\n}\r\nfunction xlParseCsv(text){\r\n  var rows=[], lines=String(text||'').split('\\n');\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i].replace(/\\r$/,'');\r\n    if(!ln.trim()) continue;\r\n    rows.push(ln.split(',').map(function(c){ return c.trim(); }));\r\n  }\r\n  return rows;\r\n}\r\nfunction xlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction xlIsNum(s){ return s!=='' && isFinite(Number(s)); }\r\nfunction xlSheetXml(rows){\r\n  var body='';\r\n  for(var r=0;r<rows.length;r++){\r\n    body+='<row r=\"'+(r+1)+'\">';\r\n    for(var c=0;c<rows[r].length;c++){\r\n      var v=rows[r][c], ref=xlColName(c+1)+(r+1);\r\n      if(xlIsNum(v)) body+='<c r=\"'+ref+'\"><v>'+Number(v)+'</v></c>';\r\n      else body+='<c r=\"'+ref+'\" t=\"inlineStr\"><is><t xml:space=\"preserve\">'+xlEsc(v)+'</t></is></c>';\r\n    }\r\n    body+='</row>';\r\n  }\r\n  return '<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>'+body+'</sheetData></worksheet>';\r\n}\r\nfunction xlBuild(text){\r\n  var rows=xlParseCsv(text);\r\n  var ct='<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/></Types>';\r\n  var rels='<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>';\r\n  var wb='<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>';\r\n  var wbRels='<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>';\r\n  return xlZip([\r\n    { name:'[Content_Types].xml', data:xlUtf8(ct) },\r\n    { name:'_rels/.rels', data:xlUtf8(rels) },\r\n    { name:'xl/workbook.xml', data:xlUtf8(wb) },\r\n    { name:'xl/_rels/workbook.xml.rels', data:xlUtf8(wbRels) },\r\n    { name:'xl/worksheets/sheet1.xml', data:xlUtf8(xlSheetXml(rows)) }\r\n  ]);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { xlCrc32:xlCrc32, xlUtf8:xlUtf8, xlZip:xlZip, xlColName:xlColName, xlParseCsv:xlParseCsv, xlIsNum:xlIsNum, xlSheetXml:xlSheetXml, xlBuild:xlBuild, xlEsc:xlEsc };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.XlsxForgePure = { xlCrc32:xlCrc32, xlUtf8:xlUtf8, xlZip:xlZip, xlColName:xlColName, xlParseCsv:xlParseCsv, xlIsNum:xlIsNum, xlSheetXml:xlSheetXml, xlBuild:xlBuild, xlEsc:xlEsc };\r\n}\r\n"
+}

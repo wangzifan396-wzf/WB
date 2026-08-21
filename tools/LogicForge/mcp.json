@@ -1,0 +1,51 @@
+{
+  "id": "LogicForge",
+  "name": "logic_forge",
+  "title": "LogicForge",
+  "description": "布尔表达式真值表：支持 ! & | ^ 及蕴含/等价，逐行枚举所有变量组合，离线可用。",
+  "entry": "logicTokens",
+  "entries": {
+    "logicTokens": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "logicParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "toks"
+      ],
+      "fields": []
+    },
+    "logicEval": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ast",
+        "asg"
+      ],
+      "fields": []
+    },
+    "logicTable": {
+      "paramStyle": "single",
+      "paramNames": [
+        "expr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction logicTokens(s){var toks=[];var i=0;\r\n  var two=['->','<->','=>','<='];\r\n  while(i<s.length){var c=s[i];\r\n    if(/\\s/.test(c)){i++;continue;}\r\n    if(c==='('||c===')'||c==='!'||c==='&'||c==='|'||c==='^'){toks.push(c);i++;continue;}\r\n    if(c==='-'&&s[i+1]==='>'){toks.push('->');i+=2;continue;}\r\n    if(c==='<'&&s[i+1]==='-'&&s[i+2]==='>'){toks.push('<->');i+=3;continue;}\r\n    if(/[01]/.test(c)){toks.push('num');i++;continue;}\r\n    if(/[A-Za-z]/.test(c)){var j=i;while(j<s.length&&/[A-Za-z0-9_]/.test(s[j]))j++;toks.push(s.slice(i,j));i=j;continue;}\r\n    throw new Error('bad char '+c);\r\n  }\r\n  return toks;\r\n}\r\nfunction logicParse(toks){\r\n  var i=0;\r\n  function peek(){return toks[i];}\r\n  function eat(){return toks[i++];}\r\n  function parseImpl(){var v=parseOr();while(peek()==='->'||peek()==='<->'){var op=eat();var r=parseOr();v={op:op,a:v,b:r};}return v;}\r\n  function parseOr(){var v=parseXor();while(peek()==='|'){eat();v={op:'|',a:v,b:parseXor()};}return v;}\r\n  function parseXor(){var v=parseAnd();while(peek()==='^'){eat();v={op:'^',a:v,b:parseAnd()};}return v;}\r\n  function parseAnd(){var v=parseNot();while(peek()==='&'){eat();v={op:'&',a:v,b:parseNot()};}return v;}\r\n  function parseNot(){if(peek()==='!'){eat();return {op:'!',a:parseNot()};}return parseAtom();}\r\n  function parseAtom(){var t=peek();if(t==='('){eat();var v=parseImpl();if(peek()===')')eat();return v;}\r\n    if(t==='num'||t==='0'||t==='1'){eat();return {op:'lit',v:1};}\r\n    if(t==='T'||t==='F'){eat();return {op:'lit',v:t==='T'?1:0};}\r\n    if(/^[A-Za-z]/.test(t)){eat();return {op:'var',name:t};}\r\n    throw new Error('unexpected');}\r\n  var ast=parseImpl();if(i<toks.length)throw new Error('trailing');return ast;\r\n}\r\nfunction logicVars(ast,set){if(!ast)return;if(ast.op==='var')set[ast.name]=1;if(ast.a)logicVars(ast.a,set);if(ast.b)logicVars(ast.b,set);}\r\nfunction logicEval(ast,asg){\r\n  if(ast.op==='lit')return ast.v;\r\n  if(ast.op==='var')return asg[ast.name]?1:0;\r\n  if(ast.op==='!')return logicEval(ast.a,asg)?0:1;\r\n  var a=logicEval(ast.a,asg),b=logicEval(ast.b,asg);\r\n  if(ast.op==='&')return (a&&b)?1:0;\r\n  if(ast.op==='|')return (a||b)?1:0;\r\n  if(ast.op==='^')return (a^b)?1:0;\r\n  if(ast.op==='->')return (a&&!b)?0:1;\r\n  if(ast.op==='<->')return (a===b)?1:0;\r\n  return 0;\r\n}\r\nfunction logicTable(expr){\r\n  var toks=logicTokens(expr);var ast=logicParse(toks);var vs={};logicVars(ast,vs);\r\n  var names=Object.keys(vs).sort();var rows=[];\r\n  var n=1<<names.length;\r\n  for(var mask=0;mask<n;mask++){var asg={};for(var k=0;k<names.length;k++)asg[names[k]]=(mask>>k)&1;rows.push({a:asg,v:logicEval(ast,asg)});}\r\n  return {vars:names,rows:rows};\r\n}\r\nvar EXPORTS={logicTokens:logicTokens,logicParse:logicParse,logicEval:logicEval,logicTable:logicTable};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LogicForgePure = EXPORTS; }\r\n\r\n"
+}

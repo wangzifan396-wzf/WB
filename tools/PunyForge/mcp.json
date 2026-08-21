@@ -1,0 +1,50 @@
+{
+  "id": "PunyForge",
+  "name": "puny_forge",
+  "title": "PunyForge",
+  "description": "Punycode/IDN 转换：RFC 3492 编解码，中文等 Unicode 域名 ↔ xn-- ASCII 互转，逐标签处理。",
+  "entry": "encode",
+  "entries": {
+    "encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "encodeDomain": {
+      "paramStyle": "single",
+      "paramNames": [
+        "domain"
+      ],
+      "fields": []
+    },
+    "decodeDomain": {
+      "paramStyle": "single",
+      "paramNames": [
+        "domain"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "输入（input）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar PUNY_BASE=36, PUNY_TMIN=1, PUNY_TMAX=26, PUNY_SKEW=38, PUNY_DAMP=700, PUNY_INITIAL_BIAS=72, PUNY_INITIAL_N=128, PUNY_DELIMITER='-', PUNY_MAXINT=2147483647;\r\nvar PUNY_BASE_MINUS_TMIN = PUNY_BASE - PUNY_TMIN;\r\nfunction punyFloor(x){ return Math.floor(x); }\r\nfunction punyUcs2Decode(str){\r\n  var out=[], counter=0, length=str.length;\r\n  while(counter<length){\r\n    var value=str.charCodeAt(counter++);\r\n    if(value>=0xD800 && value<=0xDBFF && counter<length){\r\n      var extra=str.charCodeAt(counter++);\r\n      if((extra & 0xFC00)===0xDC00){ out.push(((value & 0x3FF)<<10) + (extra & 0x3FF) + 0x10000); }\r\n      else { out.push(value); counter--; }\r\n    } else { out.push(value); }\r\n  }\r\n  return out;\r\n}\r\nfunction punyUcs2Encode(cps){\r\n  var out='';\r\n  for(var i=0;i<cps.length;i++){ out += String.fromCodePoint(cps[i]); }\r\n  return out;\r\n}\r\nfunction punyBasicToDigit(cp){\r\n  if(cp>=0x30 && cp<0x3A) return 26+(cp-0x30);\r\n  if(cp>=0x41 && cp<0x5B) return cp-0x41;\r\n  if(cp>=0x61 && cp<0x7B) return cp-0x61;\r\n  return PUNY_BASE;\r\n}\r\nfunction punyDigitToBasic(digit, flag){\r\n  return digit + 22 + 75*(digit<26?1:0) - ((flag!==0)?32:0);\r\n}\r\nfunction punyAdapt(delta, numPoints, firstTime){\r\n  var k=0;\r\n  delta = firstTime ? punyFloor(delta/PUNY_DAMP) : delta>>1;\r\n  delta += punyFloor(delta/numPoints);\r\n  for(; delta > PUNY_BASE_MINUS_TMIN*PUNY_TMAX>>1; k+=PUNY_BASE){\r\n    delta = punyFloor(delta/PUNY_BASE_MINUS_TMIN);\r\n  }\r\n  return punyFloor(k + (PUNY_BASE_MINUS_TMIN+1)*delta/(delta+PUNY_SKEW));\r\n}\r\nfunction punyDecode(input){\r\n  var output=[]; var inputLength=input.length; var i=0; var n=PUNY_INITIAL_N; var bias=PUNY_INITIAL_BIAS;\r\n  var basic=input.lastIndexOf(PUNY_DELIMITER);\r\n  if(basic<0) basic=0;\r\n  for(var j=0;j<basic;++j){\r\n    if(input.charCodeAt(j)>=0x80) return null;\r\n    output.push(input.charCodeAt(j));\r\n  }\r\n  for(var index=(basic>0?basic+1:0); index<inputLength; ){\r\n    var oldi=i;\r\n    for(var w=1, k=PUNY_BASE; ; k+=PUNY_BASE){\r\n      if(index>=inputLength) return null;\r\n      var digit=punyBasicToDigit(input.charCodeAt(index++));\r\n      if(digit>=PUNY_BASE) return null;\r\n      if(digit>punyFloor((PUNY_MAXINT - i)/w)) return null;\r\n      i += digit*w;\r\n      var t = k<=bias ? PUNY_TMIN : (k>=bias+PUNY_TMAX ? PUNY_TMAX : k-bias);\r\n      if(digit<t) break;\r\n      var baseMinusT = PUNY_BASE - t;\r\n      if(w>punyFloor(PUNY_MAXINT/baseMinusT)) return null;\r\n      w *= baseMinusT;\r\n    }\r\n    var out = output.length+1;\r\n    bias = punyAdapt(i-oldi, out, oldi===0);\r\n    if(punyFloor(i/out) > PUNY_MAXINT - n) return null;\r\n    n += punyFloor(i/out);\r\n    i %= out;\r\n    output.splice(i++, 0, n);\r\n  }\r\n  return punyUcs2Encode(output);\r\n}\r\nfunction punyEncode(input){\r\n  input = punyUcs2Decode(input);\r\n  var inputLength=input.length;\r\n  var output=[]; var n=PUNY_INITIAL_N; var delta=0; var bias=PUNY_INITIAL_BIAS;\r\n  for(var ci=0; ci<inputLength; ci++){\r\n    var currentValue=input[ci];\r\n    if(currentValue<0x80) output.push(String.fromCharCode(currentValue));\r\n  }\r\n  var basicLength=output.length; var handledCPCount=basicLength;\r\n  if(basicLength) output.push(PUNY_DELIMITER);\r\n  while(handledCPCount<inputLength){\r\n    var m=PUNY_MAXINT;\r\n    for(var ci2=0; ci2<inputLength; ci2++){\r\n      var v=input[ci2];\r\n      if(v>=n && v<m) m=v;\r\n    }\r\n    var handledCPCountPlusOne=handledCPCount+1;\r\n    if(m-n > punyFloor((PUNY_MAXINT-delta)/handledCPCountPlusOne)) return null;\r\n    delta += (m-n)*handledCPCountPlusOne;\r\n    n=m;\r\n    for(var ci3=0; ci3<inputLength; ci3++){\r\n      var cv=input[ci3];\r\n      if(cv<n && ++delta>PUNY_MAXINT) return null;\r\n      if(cv===n){\r\n        var q=delta;\r\n        for(var kk=PUNY_BASE; ; kk+=PUNY_BASE){\r\n          var t = kk<=bias ? PUNY_TMIN : (kk>=bias+PUNY_TMAX ? PUNY_TMAX : kk-bias);\r\n          if(q<t) break;\r\n          var qMinusT=q-t; var baseMinusT=PUNY_BASE-t;\r\n          output.push(String.fromCharCode(punyDigitToBasic(t + qMinusT%baseMinusT, 0)));\r\n          q = punyFloor(qMinusT/baseMinusT);\r\n        }\r\n        output.push(String.fromCharCode(punyDigitToBasic(q,0)));\r\n        bias = punyAdapt(delta, handledCPCountPlusOne, handledCPCount===basicLength);\r\n        delta=0;\r\n        ++handledCPCount;\r\n      }\r\n    }\r\n    ++delta; ++n;\r\n  }\r\n  return output.join('');\r\n}\r\nfunction punyEncodeDomain(domain){\r\n  var labels=domain.split('.');\r\n  for(var i=0;i<labels.length;i++){\r\n    var lab=labels[i];\r\n    if(/[^\\0-\\x7F]/.test(lab)) labels[i]='xn--'+punyEncode(lab);\r\n  }\r\n  return labels.join('.');\r\n}\r\nfunction punyDecodeDomain(domain){\r\n  var labels=domain.split('.');\r\n  for(var i=0;i<labels.length;i++){\r\n    var lab=labels[i].toLowerCase();\r\n    if(lab.indexOf('xn--')===0) labels[i]=punyDecode(lab.slice(4));\r\n  }\r\n  return labels.join('.');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { encode:punyEncode, decode:punyDecode, encodeDomain:punyEncodeDomain, decodeDomain:punyDecodeDomain };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.PunyForgePure = { encode:punyEncode, decode:punyDecode, encodeDomain:punyEncodeDomain, decodeDomain:punyDecodeDomain };\r\n}\r\n"
+}

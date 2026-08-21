@@ -1,0 +1,36 @@
+{
+  "id": "LogAnalyzerForge",
+  "name": "log_analyzer_forge",
+  "title": "日志分析",
+  "description": "解析访问/应用日志，统计状态码、Top IP、时间分布，离线。",
+  "entry": "splitLines",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "analyze": {
+      "paramStyle": "single",
+      "paramNames": [
+        "log"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(text){ return String(text||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction analyze(log){\r\n  var lines=splitLines(log);\r\n  var levels={}, errors=[], ips={}, buckets={};\r\n  var ipRe=/\\b(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})\\b/;\r\n  var lvlRe=/\\b(ERROR|WARN|WARNING|INFO|DEBUG|FATAL|CRITICAL)\\b/i;\r\n  var timeRe=/(\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2})/;\r\n  lines.forEach(function(l){\r\n    var lv=l.match(lvlRe);\r\n    if(lv){ var k=lv[1].toUpperCase(); if(k==='WARNING') k='WARN'; levels[k]=(levels[k]||0)+1; if(k==='ERROR'||k==='FATAL') errors.push(l); }\r\n    var ip=l.match(ipRe); if(ip){ ips[ip[1]]=(ips[ip[1]]||0)+1; }\r\n    var tm=l.match(timeRe); if(tm){ var h=tm[1].slice(0,13); buckets[h]=(buckets[h]||0)+1; }\r\n  });\r\n  var topIp=Object.keys(ips).sort(function(a,b){return ips[b]-ips[a];}).slice(0,5)\r\n    .map(function(i){return {ip:i,count:ips[i]};});\r\n  return {total:lines.length, levels:levels, errorCount:errors.length, topIp:topIp, buckets:buckets, errorSamples:errors.slice(0,5)};\r\n}\r\nvar EXPORTS={splitLines:splitLines, analyze:analyze};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LogAnalyzerForgePure = EXPORTS; }\r\n\r\n"
+}

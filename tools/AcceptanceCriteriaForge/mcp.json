@@ -1,0 +1,48 @@
+{
+  "id": "AcceptanceCriteriaForge",
+  "name": "acceptance_criteria_forge",
+  "title": "验收标准生成",
+  "description": "按功能名 / 角色 / 关键能力生成 Given/When/Then 验收标准 + 边界异常 + 非功能，离线。",
+  "entry": "buildAcceptance",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "buildAcceptance": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "feature",
+        "role",
+        "desc"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "feature": {
+        "type": "string",
+        "description": "参数 feature"
+      },
+      "role": {
+        "type": "string",
+        "description": "参数 role"
+      },
+      "desc": {
+        "type": "string",
+        "description": "参数 desc"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction buildAcceptance(o){\r\n  o=o||{};\r\n  var feature=String(o.feature||'').trim()||'（待填写功能名）';\r\n  var role=String(o.role||'用户').trim()||'用户';\r\n  var caps=splitLines(o.desc);\r\n  if(!caps.length) caps=['核心功能可用'];\r\n  var edges=[\r\n    '输入为空或格式非法时，系统应拦截并提示具体原因',\r\n    '无权限用户尝试操作时，系统应拒绝并引导登录 / 授权',\r\n    '并发或重复提交时，系统应保证幂等、不产生重复数据',\r\n    '依赖服务超时或不可用时，系统应降级并给出友好提示'\r\n  ];\r\n  var nfr=[\r\n    '性能：核心路径 P95 响应时间不超过约定阈值',\r\n    '安全：涉及敏感数据的操作需鉴权与审计日志',\r\n    '兼容：在支持的浏览器 / 设备上行为一致'\r\n  ];\r\n  var lines=[];\r\n  lines.push('# 验收标准：'+feature);\r\n  lines.push('');\r\n  lines.push('- 角色：'+role);\r\n  lines.push('');\r\n  lines.push('## 一、功能验收（Given / When / Then）');\r\n  caps.forEach(function(c,i){\r\n    lines.push('### 场景 '+(i+1)+'：'+c);\r\n    lines.push('- **Given**：作为'+role+'，我已登录并进入相关功能页面');\r\n    lines.push('- **When**：我执行「'+c+'」操作');\r\n    lines.push('- **Then**：系统应正确完成「'+c+'」并给出明确反馈');\r\n    lines.push('');\r\n  });\r\n  lines.push('## 二、边界与异常');\r\n  edges.forEach(function(e){ lines.push('- '+e); });\r\n  lines.push('');\r\n  lines.push('## 三、非功能与约束');\r\n  nfr.forEach(function(n){ lines.push('- '+n); });\r\n  return {title:feature+' 验收标准', scenarioCount:caps.length, edgeCount:edges.length, nfrCount:nfr.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, buildAcceptance:buildAcceptance};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.AcceptanceCriteriaForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,79 @@
+{
+  "id": "AvlForge",
+  "name": "avl_forge",
+  "title": "AvlForge",
+  "description": "AVL 自平衡树：LL/RR/LR/RL 四旋转 + 平衡校验 + ASCII 树形。",
+  "entry": "avlInsert",
+  "entries": {
+    "avlInsert": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "root",
+        "key",
+        "log"
+      ],
+      "fields": []
+    },
+    "avlInorder": {
+      "paramStyle": "single",
+      "paramNames": [
+        "root"
+      ],
+      "fields": []
+    },
+    "avlValidate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "root"
+      ],
+      "fields": []
+    },
+    "avlHeight": {
+      "paramStyle": "object",
+      "paramNames": [
+        "n"
+      ],
+      "fields": [
+        "h"
+      ]
+    },
+    "avlBalance": {
+      "paramStyle": "object",
+      "paramNames": [
+        "n"
+      ],
+      "fields": [
+        "left",
+        "right"
+      ]
+    },
+    "avlRender": {
+      "paramStyle": "single",
+      "paramNames": [
+        "root"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "root": {
+        "type": "string",
+        "description": "第 1 个参数（root）"
+      },
+      "key": {
+        "type": "string",
+        "description": "第 2 个参数（key）"
+      },
+      "log": {
+        "type": "string",
+        "description": "第 3 个参数（log）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction avlHeight(n){ return n?n.h:0; }\r\nfunction avlBalance(n){ return n?avlHeight(n.left)-avlHeight(n.right):0; }\r\nfunction avlFix(n){ n.h=1+Math.max(avlHeight(n.left),avlHeight(n.right)); return n; }\r\nfunction avlRotRight(y){\r\n  var x=y.left, t2=x.right;\r\n  x.right=y; y.left=t2;\r\n  avlFix(y); avlFix(x);\r\n  return x;\r\n}\r\nfunction avlRotLeft(x){\r\n  var y=x.right, t2=y.left;\r\n  y.left=x; x.right=t2;\r\n  avlFix(x); avlFix(y);\r\n  return y;\r\n}\r\nfunction avlInsert(root, key, log){\r\n  if(typeof key!=='number'||!isFinite(key)) return { value:root, error:'键必须是有限数' };\r\n  var dup=false;\r\n  function ins(node){\r\n    if(!node) return { key:key, left:null, right:null, h:1 };\r\n    if(key<node.key) node.left=ins(node.left);\r\n    else if(key>node.key) node.right=ins(node.right);\r\n    else { dup=true; return node; }\r\n    avlFix(node);\r\n    var b=avlBalance(node);\r\n    if(b>1 && key<node.left.key){ if(log) log.push('LL@'+node.key+' 右旋'); return avlRotRight(node); }\r\n    if(b<-1 && key>node.right.key){ if(log) log.push('RR@'+node.key+' 左旋'); return avlRotLeft(node); }\r\n    if(b>1 && key>node.left.key){ if(log) log.push('LR@'+node.key+' 先左后右'); node.left=avlRotLeft(node.left); return avlRotRight(node); }\r\n    if(b<-1 && key<node.right.key){ if(log) log.push('RL@'+node.key+' 先右后左'); node.right=avlRotRight(node.right); return avlRotLeft(node); }\r\n    return node;\r\n  }\r\n  var r=ins(root);\r\n  if(dup) return { value:root, error:'重复键 '+key };\r\n  return { value:r, error:null };\r\n}\r\nfunction avlInorder(root){\r\n  var out=[];\r\n  (function walk(n){ if(!n) return; walk(n.left); out.push(n.key); walk(n.right); })(root);\r\n  return out;\r\n}\r\nfunction avlValidate(root){\r\n  var okBST=true, okBal=true;\r\n  (function chk(n,lo,hi){\r\n    if(!n) return 0;\r\n    if((lo!==null&&n.key<=lo)||(hi!==null&&n.key>=hi)) okBST=false;\r\n    var hl=chk(n.left,lo,n.key), hr=chk(n.right,n.key,hi);\r\n    if(Math.abs(hl-hr)>1) okBal=false;\r\n    var h=1+Math.max(hl,hr);\r\n    if(n.h!==h) okBal=false;\r\n    return h;\r\n  })(root,null,null);\r\n  return { bst:okBST, balanced:okBal };\r\n}\r\nfunction avlRender(root){\r\n  if(!root) return '(空树)';\r\n  var lines=[];\r\n  (function draw(n, prefix, isLeft){\r\n    if(!n) return;\r\n    draw(n.right, prefix+(isLeft?'|   ':'    '), false);\r\n    lines.push(prefix+(isLeft?'\\\\-- ':'/-- ')+n.key+' (h'+n.h+')');\r\n    draw(n.left, prefix+(isLeft?'    ':'|   '), true);\r\n  })(root, '', true);\r\n  return lines.join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { avlInsert:avlInsert, avlInorder:avlInorder, avlValidate:avlValidate,\r\n    avlHeight:avlHeight, avlBalance:avlBalance, avlRender:avlRender };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.AvlForgePure = { avlInsert:avlInsert, avlInorder:avlInorder, avlValidate:avlValidate,\r\n    avlHeight:avlHeight, avlBalance:avlBalance, avlRender:avlRender };\r\n}\r\n"
+}

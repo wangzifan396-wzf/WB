@@ -1,0 +1,47 @@
+{
+  "id": "RetroForge",
+  "name": "retro_forge",
+  "title": "迭代回顾生成",
+  "description": "按迭代名 / 形式 / 时长生成迭代回顾会议模板（议程 timebox+便签模板+行动项表），离线。",
+  "entry": "buildAgenda",
+  "entries": {
+    "frameOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "format"
+      ],
+      "fields": []
+    },
+    "buildAgenda": {
+      "paramStyle": "single",
+      "paramNames": [
+        "minutes"
+      ],
+      "fields": []
+    },
+    "buildRetro": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "sprint",
+        "format",
+        "minutes"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "minutes": {
+        "type": "string",
+        "description": "输入（minutes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction frameOf(format){\r\n  format=String(format||'Start/Stop/Continue');\r\n  if(format.indexOf('4L')>=0) return {cols:['Liked（喜欢）','Learned（学到）','Lacked（缺少）','Longed for（期望）'], intro:'四象限回顾，兼顾情绪与认知'};\r\n  if(format.indexOf('Mad')>=0) return {cols:['Mad（气愤）','Sad（难过）','Glad（高兴）'], intro:'情绪导向回顾，适合团队气氛波动期'};\r\n  return {cols:['Start（开始做）','Stop（停止做）','Continue（继续做）'], intro:'经典三栏回顾，通用性最强'};\r\n}\r\nfunction buildAgenda(minutes){\r\n  minutes=parseInt(minutes,10)||60; if(minutes<30)minutes=30; if(minutes>180)minutes=180;\r\n  return [\r\n    ['开场与规则说明', 5],\r\n    ['静默写便签（每人每列至少 1 条）', Math.max(10, Math.round(minutes*0.2))],\r\n    ['轮流分享与分组归类', Math.max(15, Math.round(minutes*0.35))],\r\n    ['投票选出 Top 1-3 改进项', Math.max(5, Math.round(minutes*0.15))],\r\n    ['行动项确认（负责人 + 验收标准）', Math.max(10, Math.round(minutes*0.2))]\r\n  ];\r\n}\r\nfunction buildRetro(o){\r\n  o=o||{};\r\n  var sprint=String(o.sprint||'').trim()||'本迭代';\r\n  var format=String(o.format||'Start/Stop/Continue');\r\n  var minutes=parseInt(o.minutes,10)||60;\r\n  var size=parseInt(o.size,10)||6; if(size<3)size=3; if(size>20)size=20;\r\n  var fr=frameOf(format);\r\n  var agenda=buildAgenda(minutes);\r\n  var lines=[];\r\n  lines.push('# 迭代回顾：'+sprint);\r\n  lines.push('');\r\n  lines.push('## 一、会议信息');\r\n  lines.push('- 形式：'+format+'（'+fr.intro+'）');\r\n  lines.push('- 时长：'+minutes+' 分钟 · 人数：'+size+' 人');\r\n  lines.push('');\r\n  lines.push('## 二、议程（含 timebox）');\r\n  agenda.forEach(function(a,i){ lines.push('- '+a[0]+'：'+a[1]+' 分钟'); });\r\n  lines.push('');\r\n  lines.push('## 三、便签模板');\r\n  fr.cols.forEach(function(c){ lines.push('### '+c); lines.push('- （待填写）'); lines.push(''); });\r\n  lines.push('## 四、行动项');\r\n  lines.push('| 行动项 | 负责人 | 验收标准 | 截止日期 |');\r\n  lines.push('| --- | --- | --- | --- |');\r\n  lines.push('| （待填写） |  |  |  |');\r\n  lines.push('');\r\n  lines.push('> 提示：行动项控制在 1-3 条，下个迭代回顾时首先检视上轮行动项完成情况。');\r\n  return {title:sprint+' 迭代回顾', colCount:fr.cols.length, agendaCount:agenda.length,\r\n          agendaMinutes:agenda.reduce(function(s,a){return s+a[1];},0), markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={frameOf:frameOf, buildAgenda:buildAgenda, buildRetro:buildRetro};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RetroForgePure = EXPORTS; }\r\n\r\n"
+}

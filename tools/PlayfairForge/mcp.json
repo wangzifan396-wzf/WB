@@ -1,0 +1,45 @@
+{
+  "id": "PlayfairForge",
+  "name": "playfair_forge",
+  "title": "PlayfairForge",
+  "description": "Playfair 密码：用密钥词构造 5×5 字母方阵（I/J 合并），按双字母（digraph）规则替换，是经典的对称替换密码。支持加密与解密，纯本地、零依赖。",
+  "entry": "pfKey",
+  "entries": {
+    "pfKey": {
+      "paramStyle": "single",
+      "paramNames": [
+        "key"
+      ],
+      "fields": []
+    },
+    "pfEnc": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "plain",
+        "key"
+      ],
+      "fields": []
+    },
+    "pfDec": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cipher",
+        "key"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "description": "输入（key）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar PF_ALPHA=\"ABCDEFGHIKLMNOPQRSTUVWXYZ\";\r\nfunction pfKey(key){ key=(key||'').toUpperCase().replace(/[^A-Z]/g,'').replace(/J/g,'I'); var seen={}, g=[]; for(var i=0;i<key.length;i++){ if(!seen[key[i]]){ seen[key[i]]=1; g.push(key[i]); } } for(var i=0;i<PF_ALPHA.length;i++){ if(!seen[PF_ALPHA[i]]){ g.push(PF_ALPHA[i]); } } return g; }\r\nfunction pfPos(g, ch){ for(var i=0;i<25;i++) if(g[i]===ch) return [Math.floor(i/5), i%5]; return null; }\r\nfunction pfPrep(s){ s=s.toUpperCase().replace(/[^A-Z]/g,'').replace(/J/g,'I'); var out=\"\"; for(var i=0;i<s.length;i++){ if(i>0&&s[i]===s[i-1]&&(i%2===1)) out+='X'; out+=s[i]; } if(out.length%2) out+='X'; return out; }\r\nfunction pfEnc(plain, key){ var g=pfKey(key), s=pfPrep(plain), out=\"\"; for(var i=0;i<s.length;i+=2){ var a=pfPos(g,s[i]), b=pfPos(g,s[i+1]); if(a[0]===b[0]){ out+=g[a[0]*5+((a[1]+1)%5)]+g[b[0]*5+((b[1]+1)%5)]; } else if(a[1]===b[1]){ out+=g[((a[0]+1)%5)*5+a[1]]+g[((b[0]+1)%5)*5+b[1]]; } else { out+=g[a[0]*5+b[1]]+g[b[0]*5+a[1]]; } } return out; }\r\nfunction pfDec(cipher, key){ var g=pfKey(key), s=cipher.toUpperCase().replace(/[^A-Z]/g,''), out=\"\"; for(var i=0;i<s.length;i+=2){ var a=pfPos(g,s[i]), b=pfPos(g,s[i+1]); if(a[0]===b[0]){ out+=g[a[0]*5+((a[1]+4)%5)]+g[b[0]*5+((b[1]+4)%5)]; } else if(a[1]===b[1]){ out+=g[((a[0]+4)%5)*5+a[1]]+g[((b[0]+4)%5)*5+b[1]]; } else { out+=g[a[0]*5+b[1]]+g[b[0]*5+a[1]]; } } return out; }\r\nvar EXPORTS={pfKey:pfKey, pfEnc:pfEnc, pfDec:pfDec};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PlayfairForgePure = EXPORTS; }\r\n\r\n"
+}

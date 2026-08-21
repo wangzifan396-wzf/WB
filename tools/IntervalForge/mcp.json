@@ -1,0 +1,65 @@
+{
+  "id": "IntervalForge",
+  "name": "interval_forge",
+  "title": "IntervalForge",
+  "description": "区间合并/交集/最大不重叠调度/最少会议室，扫描线 + 贪心。",
+  "entry": "ivParse",
+  "entries": {
+    "ivParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "ivMerge": {
+      "paramStyle": "single",
+      "paramNames": [
+        "intervals"
+      ],
+      "fields": []
+    },
+    "ivIntersect": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "ivSchedule": {
+      "paramStyle": "single",
+      "paramNames": [
+        "intervals"
+      ],
+      "fields": []
+    },
+    "ivRooms": {
+      "paramStyle": "single",
+      "paramNames": [
+        "intervals"
+      ],
+      "fields": []
+    },
+    "ivGaps": {
+      "paramStyle": "single",
+      "paramNames": [
+        "intervals"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction ivParse(text){\r\n  var lines=String(text).replace(/\\r/g,'').split('\\n').map(function(s){ return s.trim(); }).filter(Boolean);\r\n  if(!lines.length) return { value:null, error:'没有区间' };\r\n  var out=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var m=lines[i].split(/[,\\-~\\s]+/).filter(Boolean);\r\n    if(m.length!==2) return { value:null, error:'第 '+(i+1)+' 行格式错误（需 start,end）' };\r\n    var a=Number(m[0]), b=Number(m[1]);\r\n    if(!isFinite(a)||!isFinite(b)) return { value:null, error:'第 '+(i+1)+' 行不是数字' };\r\n    if(a>b) return { value:null, error:'第 '+(i+1)+' 行 start > end' };\r\n    out.push([a,b]);\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nfunction ivMerge(intervals){\r\n  if(!Array.isArray(intervals)||!intervals.length) return { value:[], error:null };\r\n  var s=intervals.slice().sort(function(a,b){ return a[0]-b[0]||a[1]-b[1]; });\r\n  var out=[[s[0][0],s[0][1]]];\r\n  for(var i=1;i<s.length;i++){\r\n    var last=out[out.length-1];\r\n    if(s[i][0]<=last[1]) last[1]=Math.max(last[1],s[i][1]);\r\n    else out.push([s[i][0],s[i][1]]);\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nfunction ivIntersect(a,b){\r\n  var lo=Math.max(a[0],b[0]), hi=Math.min(a[1],b[1]);\r\n  if(lo>hi) return null;\r\n  return [lo,hi];\r\n}\r\nfunction ivSchedule(intervals){\r\n  if(!intervals.length) return { value:{ count:0, picked:[] }, error:null };\r\n  var s=intervals.slice().sort(function(a,b){ return a[1]-b[1]; });\r\n  var picked=[], lastEnd=-Infinity;\r\n  for(var i=0;i<s.length;i++){\r\n    if(s[i][0]>=lastEnd){ picked.push(s[i]); lastEnd=s[i][1]; }\r\n  }\r\n  return { value:{ count:picked.length, picked:picked }, error:null };\r\n}\r\nfunction ivRooms(intervals){\r\n  if(!intervals.length) return { value:0, error:null };\r\n  var evs=[];\r\n  for(var i=0;i<intervals.length;i++){ evs.push([intervals[i][0],1]); evs.push([intervals[i][1],-1]); }\r\n  evs.sort(function(a,b){ return a[0]-b[0]||a[1]-b[1]; }); // end(-1) before start(+1) at same time\r\n  var cur=0, max=0;\r\n  for(var j=0;j<evs.length;j++){ cur+=evs[j][1]; if(cur>max) max=cur; }\r\n  return { value:max, error:null };\r\n}\r\nfunction ivGaps(intervals){\r\n  var m=ivMerge(intervals).value;\r\n  var out=[];\r\n  for(var i=1;i<m.length;i++){\r\n    if(m[i][0]>m[i-1][1]) out.push([m[i-1][1],m[i][0]]);\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { ivParse:ivParse, ivMerge:ivMerge, ivIntersect:ivIntersect,\r\n    ivSchedule:ivSchedule, ivRooms:ivRooms, ivGaps:ivGaps };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.IntervalForgePure = { ivParse:ivParse, ivMerge:ivMerge, ivIntersect:ivIntersect,\r\n    ivSchedule:ivSchedule, ivRooms:ivRooms, ivGaps:ivGaps };\r\n}\r\n"
+}

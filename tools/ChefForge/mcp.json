@@ -1,0 +1,109 @@
+{
+  "id": "ChefForge",
+  "name": "chef_forge",
+  "title": "ChefForge",
+  "description": "链式编解码流水线：Base64/Hex/URL/ROT13/XOR 组合配方、逐步中间结果，离线可用。",
+  "entry": "cfB64Encode",
+  "entries": {
+    "cfB64Encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cfB64Decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cfHexEncode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cfHexDecode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cfRot": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "n"
+      ],
+      "fields": []
+    },
+    "cfUrlEncode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cfUrlDecode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cfReverse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cfXor": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "key"
+      ],
+      "fields": []
+    },
+    "cfEntropy": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cfRun": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "input",
+        "recipe"
+      ],
+      "fields": []
+    },
+    "cfParseRecipe": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction cfB64Encode(s){\r\n  var bytes=cfUtf8Bytes(s), tbl='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', out='';\r\n  for(var i=0;i<bytes.length;i+=3){\r\n    var b0=bytes[i], b1=bytes[i+1], b2=bytes[i+2];\r\n    out += tbl[b0>>2] + tbl[((b0&3)<<4)|((b1===undefined?0:b1)>>4)];\r\n    out += (b1===undefined)?'=':tbl[((b1&15)<<2)|((b2===undefined?0:b2)>>6)];\r\n    out += (b2===undefined)?'=':tbl[b2&63];\r\n  }\r\n  return out;\r\n}\r\nfunction cfB64Decode(s){\r\n  var tbl='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\n  var clean=String(s).replace(/[\\s]/g,'').replace(/-/g,'+').replace(/_/g,'/').replace(/=+$/,'');\r\n  if(/[^A-Za-z0-9+/]/.test(clean)) return null;\r\n  var bytes=[], buf=0, bits=0;\r\n  for(var i=0;i<clean.length;i++){\r\n    buf=(buf<<6)|tbl.indexOf(clean[i]); bits+=6;\r\n    if(bits>=8){ bits-=8; bytes.push((buf>>bits)&255); }\r\n  }\r\n  return cfBytesUtf8(bytes);\r\n}\r\nfunction cfUtf8Bytes(s){\r\n  var out=[];\r\n  for(var i=0;i<s.length;i++){\r\n    var c=s.charCodeAt(i);\r\n    if(c<128) out.push(c);\r\n    else if(c<2048){ out.push(192|(c>>6), 128|(c&63)); }\r\n    else if(c>=55296 && c<56320 && i+1<s.length){\r\n      var c2=s.charCodeAt(i+1), cp=65536+((c-55296)<<10)+(c2-56320); i++;\r\n      out.push(240|(cp>>18), 128|((cp>>12)&63), 128|((cp>>6)&63), 128|(cp&63));\r\n    } else { out.push(224|(c>>12), 128|((c>>6)&63), 128|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction cfBytesUtf8(b){\r\n  var out='', i=0;\r\n  while(i<b.length){\r\n    var c=b[i];\r\n    if(c<128){ out+=String.fromCharCode(c); i++; }\r\n    else if(c<224){ out+=String.fromCharCode(((c&31)<<6)|(b[i+1]&63)); i+=2; }\r\n    else if(c<240){ out+=String.fromCharCode(((c&15)<<12)|((b[i+1]&63)<<6)|(b[i+2]&63)); i+=3; }\r\n    else {\r\n      var cp=((c&7)<<18)|((b[i+1]&63)<<12)|((b[i+2]&63)<<6)|(b[i+3]&63); cp-=65536;\r\n      out+=String.fromCharCode(55296+(cp>>10), 56320+(cp&1023)); i+=4;\r\n    }\r\n  }\r\n  return out;\r\n}\r\nfunction cfHexEncode(s){\r\n  var b=cfUtf8Bytes(s), out=[];\r\n  for(var i=0;i<b.length;i++) out.push(('0'+b[i].toString(16)).slice(-2));\r\n  return out.join(' ');\r\n}\r\nfunction cfHexDecode(s){\r\n  var clean=String(s).replace(/0x/gi,'').replace(/[\\s,:]/g,'');\r\n  if(clean.length%2) return null;\r\n  if(/[^0-9a-fA-F]/.test(clean)) return null;\r\n  var b=[];\r\n  for(var i=0;i<clean.length;i+=2) b.push(parseInt(clean.substr(i,2),16));\r\n  return cfBytesUtf8(b);\r\n}\r\nfunction cfRot(s, n){\r\n  n=((n%26)+26)%26;\r\n  return String(s).replace(/[a-zA-Z]/g, function(ch){\r\n    var base = ch<='Z' ? 65 : 97;\r\n    return String.fromCharCode((ch.charCodeAt(0)-base+n)%26+base);\r\n  });\r\n}\r\nfunction cfUrlEncode(s){ return encodeURIComponent(String(s)); }\r\nfunction cfUrlDecode(s){ try { return decodeURIComponent(String(s)); } catch(e){ return null; } }\r\nfunction cfReverse(s){ return String(s).split('').reverse().join(''); }\r\nfunction cfXor(s, key){\r\n  if(!key) return s;\r\n  var out='';\r\n  for(var i=0;i<s.length;i++) out+=String.fromCharCode(s.charCodeAt(i)^key.charCodeAt(i%key.length));\r\n  return out;\r\n}\r\nfunction cfEntropy(s){\r\n  if(!s || !s.length) return 0;\r\n  var freq={}, i;\r\n  for(i=0;i<s.length;i++) freq[s[i]]=(freq[s[i]]||0)+1;\r\n  var h=0;\r\n  for(var k in freq){ var p=freq[k]/s.length; h -= p*Math.log(p)/Math.LN2; }\r\n  return Math.round(h*1000)/1000;\r\n}\r\nvar CF_OPS = {\r\n  b64e:{label:'Base64 编码', fn:function(s){ return cfB64Encode(s); }},\r\n  b64d:{label:'Base64 解码', fn:function(s){ return cfB64Decode(s); }},\r\n  hexe:{label:'Hex 编码', fn:function(s){ return cfHexEncode(s); }},\r\n  hexd:{label:'Hex 解码', fn:function(s){ return cfHexDecode(s); }},\r\n  urle:{label:'URL 编码', fn:function(s){ return cfUrlEncode(s); }},\r\n  urld:{label:'URL 解码', fn:function(s){ return cfUrlDecode(s); }},\r\n  rot13:{label:'ROT13', fn:function(s){ return cfRot(s,13); }},\r\n  rev:{label:'反转字符串', fn:function(s){ return cfReverse(s); }},\r\n  upper:{label:'转大写', fn:function(s){ return String(s).toUpperCase(); }},\r\n  lower:{label:'转小写', fn:function(s){ return String(s).toLowerCase(); }},\r\n  trim:{label:'去除首尾空白', fn:function(s){ return String(s).trim(); }},\r\n  strip:{label:'删除所有空白', fn:function(s){ return String(s).replace(/\\s+/g,''); }},\r\n  xor:{label:'XOR（需密钥）', fn:function(s,arg){ return cfXor(s,arg||''); }}\r\n};\r\nfunction cfRun(input, recipe){\r\n  var cur=String(input==null?'':input), steps=[];\r\n  if(!recipe || !recipe.length) return { error:null, output:cur, steps:[] };\r\n  for(var i=0;i<recipe.length;i++){\r\n    var st=recipe[i], op=CF_OPS[st.op];\r\n    if(!op) return { error:'未知操作：'+st.op, output:null, steps:steps, failAt:i };\r\n    var next;\r\n    try { next = op.fn(cur, st.arg); } catch(e){ next = null; }\r\n    if(next===null || next===undefined)\r\n      return { error:'第 '+(i+1)+' 步「'+op.label+'」失败：输入格式不匹配', output:null, steps:steps, failAt:i };\r\n    cur = next;\r\n    steps.push({ op:st.op, label:op.label, out:cur, len:cur.length });\r\n  }\r\n  return { error:null, output:cur, steps:steps };\r\n}\r\nfunction cfParseRecipe(text){\r\n  var lines=String(text||'').split(/\\n+/), out=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var l=lines[i].trim();\r\n    if(!l || l.charAt(0)==='#') continue;\r\n    var sp=l.indexOf(' '), op = sp<0 ? l : l.slice(0,sp), arg = sp<0 ? '' : l.slice(sp+1).trim();\r\n    out.push({ op:op, arg:arg });\r\n  }\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { cfB64Encode:cfB64Encode, cfB64Decode:cfB64Decode, cfHexEncode:cfHexEncode,\r\n    cfHexDecode:cfHexDecode, cfRot:cfRot, cfUrlEncode:cfUrlEncode, cfUrlDecode:cfUrlDecode,\r\n    cfReverse:cfReverse, cfXor:cfXor, cfEntropy:cfEntropy, cfRun:cfRun, cfParseRecipe:cfParseRecipe, CF_OPS:CF_OPS };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ChefForgePure = { cfB64Encode:cfB64Encode, cfB64Decode:cfB64Decode, cfHexEncode:cfHexEncode,\r\n    cfHexDecode:cfHexDecode, cfRot:cfRot, cfUrlEncode:cfUrlEncode, cfUrlDecode:cfUrlDecode,\r\n    cfReverse:cfReverse, cfXor:cfXor, cfEntropy:cfEntropy, cfRun:cfRun, cfParseRecipe:cfParseRecipe, CF_OPS:CF_OPS };\r\n}\r\n\r\n"
+}

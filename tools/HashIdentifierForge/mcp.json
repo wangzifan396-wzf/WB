@@ -1,0 +1,29 @@
+{
+  "id": "HashIdentifierForge",
+  "name": "hash_identifier_forge",
+  "title": "HashIdentifierForge",
+  "description": "哈希类型识别：依据长度、字符集与前缀启发式判定 MD5/SHA 系列/bcrypt/argon2 等，离线可用。",
+  "entry": "identify",
+  "entries": {
+    "identify": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "h": {
+        "type": "string",
+        "description": "输入（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction identify(h){\r\n  h=(h||'').trim();\r\n  var res={value:h, length:h.length, charset:'', types:[]};\r\n  if(!h) return res;\r\n  var hex=/^[0-9a-fA-F]+$/.test(h); var b64ok=/^[A-Za-z0-9+/=]+$/.test(h);\r\n  res.charset = hex? 'hex' : (b64ok? 'base64' : 'other');\r\n  var L=h.length;\r\n  var LOWER=h.toLowerCase();\r\n  if(LOWER.indexOf('$2a$')===0||LOWER.indexOf('$2b$')===0||LOWER.indexOf('$2y$')===0) res.types.push('bcrypt');\r\n  else if(LOWER.indexOf('$argon2')===0) res.types.push('argon2');\r\n  else if(LOWER.indexOf('$1$')===0) res.types.push('md5-crypt');\r\n  else if(LOWER.indexOf('$5$')===0) res.types.push('sha256-crypt');\r\n  else if(LOWER.indexOf('$6$')===0) res.types.push('sha512-crypt');\r\n  else if(LOWER.indexOf('scrypt$')===0) res.types.push('scrypt');\r\n  else if(hex){\r\n    if(L===32) res.types.push('MD5');\r\n    else if(L===40) res.types.push('SHA-1');\r\n    else if(L===56) res.types.push('SHA-224');\r\n    else if(L===64) res.types.push('SHA-256');\r\n    else if(L===96) res.types.push('SHA-384');\r\n    else if(L===128) res.types.push('SHA-512');\r\n  }\r\n  if(res.types.length===0) res.types.push('unknown');\r\n  return res;\r\n}\r\nvar EXPORTS={identify:identify};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HashIdentifierForgePure = EXPORTS; }\r\n\r\n"
+}

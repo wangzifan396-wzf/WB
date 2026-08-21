@@ -1,0 +1,44 @@
+{
+  "id": "BridgesForge",
+  "name": "bridges_forge",
+  "title": "BridgesForge",
+  "description": "建桥谜题（Hashiwokakero）：用不交叉的桥连接所有岛屿，每座岛连出的桥数正好等于其数字；内置生成与解法。",
+  "entry": "brGen",
+  "entries": {
+    "brGen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "w",
+        "h",
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "第 1 个参数（n）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "seed": {
+        "type": "string",
+        "description": "第 4 个参数（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }\r\nfunction _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }\r\nfunction _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nfunction _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }\r\n\r\nfunction brGen(n, w, h, seed){ for(var attempt=0; attempt<80; attempt++){ var rnd=_rng((seed>>>0)+attempt*2654435761);\r\n  var islands=[]; var tries=0; while(islands.length<n && tries<3000){ tries++; var x=Math.floor(rnd()*w), y=Math.floor(rnd()*h); if(!islands.some(function(p){return p.x===x&&p.y===y;})) islands.push({x:x,y:y}); }\r\n  if(islands.length<n) continue;\r\n  function between(a,b,c){ return (a<c&&c<b)||(b<c&&c<a); }\r\n  var adj=[]; for(var i=0;i<n;i++) adj.push([]);\r\n  for(var i=0;i<n;i++) for(var j=i+1;j<n;j++){ var A=islands[i],B=islands[j]; if(A.y===B.y){ var lo=Math.min(A.x,B.x), hi=Math.max(A.x,B.x); var blk=islands.some(function(p,k){ return k!==i&&k!==j && p.y===A.y && between(lo,hi,p.x); }); if(!blk) adj[i].push(j); } else if(A.x===B.x){ var lo=Math.min(A.y,B.y), hi=Math.max(A.y,B.y); var blk=islands.some(function(p,k){ return k!==i&&k!==j && p.x===A.x && between(lo,hi,p.y); }); if(!blk) adj[i].push(j); } }\r\n  var visited=[], edges=[], parent=[]; for(var i=0;i<n;i++) visited.push(false);\r\n  function dfs(u){ visited[u]=true; var nb=adj[u].slice(); for(var k=nb.length-1;k>0;k--){ var j=Math.floor(rnd()*(k+1)); var t=nb[k];nb[k]=nb[j];nb[j]=t; } for(var q=0;q<nb.length;q++){ var v=nb[q]; if(!visited[v]){ edges.push([u,v]); dfs(v); } } }\r\n  if(adj[0].length===0) continue; dfs(0);\r\n  if(!visited.every(function(v){return v;})) continue;\r\n  var deg=[]; for(var i=0;i<n;i++) deg.push(0); edges.forEach(function(e){ deg[e[0]]++; deg[e[1]]++; });\r\n  return {islands:islands, edges:edges, clues:deg, w:w, h:h};\r\n } return null;\r\n}\r\nvar EXPORTS={brGen:brGen};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BridgesForgePure = EXPORTS; }\r\n\r\n"
+}

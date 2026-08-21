@@ -1,0 +1,21 @@
+{
+  "id": "SkipListForge",
+  "name": "skip_list_forge",
+  "title": "SkipListForge",
+  "description": "跳表（Skip List）：用概率平衡实现有序集合的插入、查找与升序遍历，离线精确。",
+  "entry": "makeSkipList",
+  "entries": {
+    "makeSkipList": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\nfunction node(v,level){ var f=new Array(level+1).fill(null); return {v:v, forward:f}; }\r\nfunction SkipList(maxLevel,p){ this.maxLevel=maxLevel; this.p=p; this.head=node(-Infinity,maxLevel); this.level=0; }\r\nSkipList.prototype.randomLevel=function(){ var l=0; while(Math.random()<this.p && l<this.maxLevel) l++; return l; };\r\nSkipList.prototype.insert=function(v){ var update=new Array(this.maxLevel+1).fill(null); var x=this.head;\r\n  for(var i=this.level;i>=0;i--){ while(x.forward[i] && x.forward[i].v<v) x=x.forward[i]; update[i]=x; }\r\n  x=x.forward[0];\r\n  if(x && x.v===v) return false;\r\n  var lvl=this.randomLevel();\r\n  if(lvl>this.level){ for(var i=this.level+1;i<=lvl;i++) update[i]=this.head; this.level=lvl; }\r\n  var nn=node(v,lvl);\r\n  for(var i=0;i<=lvl;i++){ nn.forward[i]=update[i].forward[i]; update[i].forward[i]=nn; }\r\n  return true; };\r\nSkipList.prototype.search=function(v){ var x=this.head; for(var i=this.level;i>=0;i--){ while(x.forward[i] && x.forward[i].v<v) x=x.forward[i]; } x=x.forward[0]; return (x && x.v===v); };\r\nSkipList.prototype.toSorted=function(){ var out=[]; var x=this.head.forward[0]; while(x){ out.push(x.v); x=x.forward[0]; } return out; };\r\nfunction makeSkipList(){ return new SkipList(4,0.5); }\r\nvar EXPORTS={makeSkipList:makeSkipList};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SkipListForgePure = EXPORTS; }\r\n\r\n"
+}

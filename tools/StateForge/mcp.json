@@ -1,0 +1,59 @@
+{
+  "id": "StateForge",
+  "name": "state_forge",
+  "title": "StateForge",
+  "description": "有限状态机：定义/事件推演/可达性/死状态检测。",
+  "entry": "fsmParse",
+  "entries": {
+    "fsmParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fsmReachable": {
+      "paramStyle": "object",
+      "paramNames": [
+        "fsm"
+      ],
+      "fields": [
+        "initial",
+        "trans",
+        "states"
+      ]
+    },
+    "fsmDeadStates": {
+      "paramStyle": "object",
+      "paramNames": [
+        "fsm"
+      ],
+      "fields": [
+        "finals",
+        "trans",
+        "states"
+      ]
+    },
+    "fsmRun": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fsm",
+        "events"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction fsmParse(text){\r\n  var lines=String(text).replace(/\\r/g,'').split('\\n').map(function(s){ return s.trim(); }).filter(Boolean);\r\n  if(!lines.length) return { value:null, error:'定义为空' };\r\n  var trans={}, states={}, finals={}, initial=null;\r\n  for(var i=0;i<lines.length;i++){\r\n    var p=lines[i].split(',').map(function(s){ return s.trim(); });\r\n    if(p.length!==3||!p[0]||!p[1]||!p[2]) return { value:null, error:'第 '+(i+1)+' 行需 from,event,to' };\r\n    var from=p[0].replace(/^\\*/,''), ev=p[1], toRaw=p[2], to=toRaw.replace(/^\\*/,'');\r\n    if(p[0][0]==='*') finals[from]=true;\r\n    if(toRaw[0]==='*') finals[to]=true;\r\n    if(initial===null) initial=from;\r\n    states[from]=true; states[to]=true;\r\n    trans[from]=trans[from]||{};\r\n    if(trans[from][ev]!==undefined && trans[from][ev]!==to)\r\n      return { value:null, error:'第 '+(i+1)+' 行: 状态 '+from+' 的事件 '+ev+' 已指向 '+trans[from][ev]+'（非确定）' };\r\n    trans[from][ev]=to;\r\n  }\r\n  return { value:{ initial:initial, states:Object.keys(states).sort(),\r\n    finals:Object.keys(finals).sort(), trans:trans }, error:null };\r\n}\r\nfunction fsmReachable(fsm){\r\n  var seen={}, queue=[fsm.initial];\r\n  seen[fsm.initial]=true;\r\n  while(queue.length){\r\n    var s=queue.shift(), t=fsm.trans[s]||{};\r\n    for(var ev in t){ if(!seen[t[ev]]){ seen[t[ev]]=true; queue.push(t[ev]); } }\r\n  }\r\n  var unreachable=fsm.states.filter(function(s){ return !seen[s]; });\r\n  return { value:{ reachable:Object.keys(seen).sort(), unreachable:unreachable }, error:null };\r\n}\r\nfunction fsmDeadStates(fsm){\r\n  // dead = non-final state with no outgoing transitions, or state that cannot reach any final\r\n  var canReachFinal={};\r\n  fsm.finals.forEach(function(f){ canReachFinal[f]=true; });\r\n  var changed=true;\r\n  while(changed){\r\n    changed=false;\r\n    for(var s in fsm.trans){\r\n      if(canReachFinal[s]) continue;\r\n      for(var ev in fsm.trans[s]){\r\n        if(canReachFinal[fsm.trans[s][ev]]){ canReachFinal[s]=true; changed=true; break; }\r\n      }\r\n    }\r\n  }\r\n  var dead=fsm.states.filter(function(s){ return !canReachFinal[s]; });\r\n  return { value:dead, error:null };\r\n}\r\nfunction fsmRun(fsm, events){\r\n  if(!Array.isArray(events)) return { value:null, error:'事件必须是数组' };\r\n  var cur=fsm.initial, path=[cur];\r\n  for(var i=0;i<events.length;i++){\r\n    var t=fsm.trans[cur]||{};\r\n    if(t[events[i]]===undefined)\r\n      return { value:null, error:'状态 '+cur+' 无事件 \"'+events[i]+'\"（第 '+(i+1)+' 步），可用: '+(Object.keys(t).join(', ')||'无') };\r\n    cur=t[events[i]];\r\n    path.push(cur);\r\n  }\r\n  return { value:{ path:path, end:cur, accepted:fsm.finals.indexOf(cur)>=0 }, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { fsmParse:fsmParse, fsmReachable:fsmReachable, fsmDeadStates:fsmDeadStates, fsmRun:fsmRun };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.StateForgePure = { fsmParse:fsmParse, fsmReachable:fsmReachable, fsmDeadStates:fsmDeadStates, fsmRun:fsmRun };\r\n}\r\n"
+}

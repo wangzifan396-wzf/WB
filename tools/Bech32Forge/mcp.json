@@ -1,0 +1,41 @@
+{
+  "id": "Bech32Forge",
+  "name": "bech32_forge",
+  "title": "Bech32Forge",
+  "description": "Bech32 编解码（BIP173）：含 BCH 校验和，用于 SegWit 地址等，离线可用。",
+  "entry": "bech32Encode",
+  "entries": {
+    "bech32Encode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "hrp",
+        "data"
+      ],
+      "fields": []
+    },
+    "bech32Decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "hrp": {
+        "type": "string",
+        "description": "第 1 个参数（hrp）"
+      },
+      "data": {
+        "type": "string",
+        "description": "第 2 个参数（data）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';\r\nvar FM=[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3];\r\nfunction polymod(values){ var chk=1; for(var i=0;i<values.length;i++){ var top=chk>>25; chk=((chk&0x1ffffff)<<5)^values[i];\r\n  for(var j=0;j<5;j++){ if((top>>j)&1) chk^=FM[j]; } } return chk; }\r\nfunction hrpExpand(hrp){ var out=[]; for(var i=0;i<hrp.length;i++) out.push(hrp.charCodeAt(i)>>5); out.push(0);\r\n  for(var i=0;i<hrp.length;i++) out.push(hrp.charCodeAt(i)&31); return out; }\r\nfunction verifyChecksum(hrp, data){ return polymod(hrpExpand(hrp).concat(data))===1; }\r\nfunction createChecksum(hrp, data){ var values=hrpExpand(hrp).concat(data); values=values.concat([0,0,0,0,0,0]);\r\n  var mod=polymod(values)^1; var out=[]; for(var i=0;i<6;i++) out.push((mod>>((5-i)*5))&31); return out; }\r\nfunction bech32Encode(hrp, data){ hrp=hrp.toLowerCase(); var combined=data.concat(createChecksum(hrp,data)); var s=hrp+'1';\r\n  for(var i=0;i<combined.length;i++) s+=CHARSET[combined[i]]; return s; }\r\nfunction bech32Decode(str){ str=str.toLowerCase(); var pos=str.lastIndexOf('1');\r\n  if(pos<1||pos+7>str.length) return null; var hrp=str.slice(0,pos); var data=[];\r\n  for(var i=pos+1;i<str.length;i++){ var v=CHARSET.indexOf(str[i]); if(v<0) return null; data.push(v); }\r\n  if(!verifyChecksum(hrp,data)) return null; return {hrp:hrp, data:data.slice(0,data.length-6)}; }\r\nvar EXPORTS={bech32Encode:bech32Encode, bech32Decode:bech32Decode};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.Bech32ForgePure = EXPORTS; }\r\n\r\n"
+}

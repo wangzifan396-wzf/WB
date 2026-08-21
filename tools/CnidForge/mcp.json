@@ -1,0 +1,29 @@
+{
+  "id": "CnidForge",
+  "name": "cnid_forge",
+  "title": "CnidForge",
+  "description": "校验中国大陆 18 位身份证号（MOD 11-2），解析出生日期、性别与省区。",
+  "entry": "validate",
+  "entries": {
+    "validate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "id"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "输入（id）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  var W=[7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2], CODE='10X98765432';\r\n  var PROV={11:'北京',12:'天津',13:'河北',14:'山西',15:'内蒙古',21:'辽宁',22:'吉林',23:'黑龙江',31:'上海',32:'江苏',33:'浙江',34:'安徽',35:'福建',36:'江西',37:'山东',41:'河南',42:'湖北',43:'湖南',44:'广东',45:'广西',46:'海南',50:'重庆',51:'四川',52:'贵州',53:'云南',54:'西藏',61:'陕西',62:'甘肃',63:'青海',64:'宁夏',65:'新疆',71:'台湾',81:'香港',82:'澳门',91:'国外'};\r\n  function validate(id){ id=String(id).trim().toUpperCase();\r\n    if(!/^\\d{17}[\\dX]$/.test(id)) return {error:'应为 18 位（末位可为 X）'};\r\n    var sum=0; for(var i=0;i<17;i++) sum+=(+id[i])*W[i];\r\n    var check=CODE[sum%11]; if(check!==id[17]) return {error:'校验位错误（应为 '+check+'）'};\r\n    var y=id.slice(6,10), m=id.slice(10,12), d=id.slice(12,14);\r\n    var dt=new Date(y+'-'+m+'-'+d);\r\n    if(isNaN(dt)||dt.getFullYear()!=+y||dt.getMonth()+1!=+m||dt.getDate()!=+d) return {error:'出生日期无效'};\r\n    var gender=(+id[16])%2===1?'男':'女';\r\n    var region=PROV[+id.slice(0,2)]||('代码 '+id.slice(0,6));\r\n    return {value:{valid:true, id:id, birth:y+'-'+m+'-'+d, gender:gender, region:region}}; }\r\n  var API={validate:validate};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__CnidForge__=API;\r\n})();\r\n"
+}

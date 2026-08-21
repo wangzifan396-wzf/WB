@@ -1,0 +1,51 @@
+{
+  "id": "KenKenForge",
+  "name": "ken_ken_forge",
+  "title": "KenKenForge",
+  "description": "肯肯谜题（KenKen）：在 n×n 网格填入 1..n，每行每列不重复，并满足每个 cage 的加减乘除运算与目标和。",
+  "entry": "kkBuild",
+  "entries": {
+    "kkBuild": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "seed"
+      ],
+      "fields": []
+    },
+    "kkCheck": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "grid",
+        "build"
+      ],
+      "fields": []
+    },
+    "kkOpOk": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "op",
+        "vals",
+        "target"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "第 1 个参数（n）"
+      },
+      "seed": {
+        "type": "string",
+        "description": "第 2 个参数（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction kkLatin(n, seed){ var s=seed||2; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;} var first=[]; for(var i=0;i<n;i++) first.push(i+1); for(var i=n-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=first[i];first[i]=first[j];first[j]=t; } var grid=[]; for(var r=0;r<n;r++){ grid.push([]); for(var c=0;c<n;c++){ grid[r].push(first[(c+r)%n]); } } for(var r2=n-1;r2>0;r2--){ var j2=Math.floor(rnd()*(r2+1)); var t2=grid[r2];grid[r2]=grid[j2];grid[j2]=t2; } var cols=[]; for(var c3=0;c3<n;c3++) cols.push(c3); for(var c4=n-1;c4>0;c4--){ var j3=Math.floor(rnd()*(c4+1)); var t3=cols[c4];cols[c4]=cols[j3];cols[j3]=t3; } var g2=[]; for(var r3=0;r3<n;r3++){ g2.push([]); for(var c5=0;c5<n;c5++) g2[r3].push(grid[r3][cols[c5]]); } return g2; }\r\nfunction kkCages(n, seed){ var s=seed||4; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;} var owner=new Array(n*n).fill(-1); var cages=[]; var id=0; var cells=[]; for(var i=0;i<n*n;i++) cells.push(i); for(var i=cells.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=cells[i];cells[i]=cells[j];cells[j]=t; } cells.forEach(function(start){ if(owner[start]!==-1) return; var sz=1+Math.floor(rnd()*(Math.min(4,n))); if(sz<1)sz=1; var region=[start]; owner[start]=id; var frontier=[start]; while(region.length<sz && frontier.length){ var pick=frontier.splice(Math.floor(rnd()*frontier.length),1)[0]; var pr=pick/n|0, pc=pick%n; var nb=[[pr-1,pc],[pr+1,pc],[pr,pc-1],[pr,pc+1]]; nb.forEach(function(p){ if(p[0]>=0&&p[0]<n&&p[1]>=0&&p[1]<n){ var idx=p[0]*n+p[1]; if(owner[idx]===-1){ owner[idx]=id; region.push(idx); frontier.push(idx); } } }); } cages.push(region.slice()); id++; }); return cages; }\r\nfunction kkBuild(n, seed){ var sol=kkLatin(n,seed); var cages=kkCages(n,seed); var out=[]; cages.forEach(function(region){ var vals=region.map(function(idx){return sol[idx/n|0][idx%n];}); var op, target; if(region.length===1){ op='+'; target=vals[0]; } else { op=['+','*','-','/'][(seed+region[0])%4]; if(op==='-'){ if(region.length!==2){ op='+'; } else { var mx=Math.max(vals[0],vals[1]), mn=Math.min(vals[0],vals[1]); target=mx-mn; } } if(op==='/'){ if(region.length!==2){ op='+'; } else { var mx2=Math.max(vals[0],vals[1]), mn2=Math.min(vals[0],vals[1]); if(mn2!==0 && mx2%mn2===0){ target=mx2/mn2; } else { op='+'; } } } if(op==='+') target=vals.reduce(function(a,b){return a+b;},0); if(op==='*') target=vals.reduce(function(a,b){return a*b;},1); } out.push({cells:region, op:op, target:target}); }); return {size:n, solution:sol, cages:out}; }\r\nfunction kkOpOk(op, vals, target){ if(op==='+') return vals.reduce(function(a,b){return a+b;},0)===target; if(op==='*') return vals.reduce(function(a,b){return a*b;},1)===target; if(op==='-'){ if(vals.length!==2) return false; return Math.max(vals[0],vals[1])-Math.min(vals[0],vals[1])===target; } if(op==='/'){ if(vals.length!==2) return false; var mx=Math.max(vals[0],vals[1]),mn=Math.min(vals[0],vals[1]); return mn!==0 && mx%mn===0 && mx/mn===target; } return false; }\r\nfunction kkCheck(grid, build){ var n=build.size; for(var r=0;r<n;r++){ var seen={}; for(var c=0;c<n;c++){ var v=grid[r][c]; if(v<1||v>n||seen[v]) return false; seen[v]=1; } } for(var c2=0;c2<n;c2++){ var seen2={}; for(var r2=0;r2<n;r2++){ var v2=grid[r2][c2]; if(seen2[v2]) return false; seen2[v2]=1; } } for(var i=0;i<build.cages.length;i++){ var cage=build.cages[i]; var vals=cage.cells.map(function(idx){return grid[idx/n|0][idx%n];}); if(!kkOpOk(cage.op, vals, cage.target)) return false; } return true; }\r\nvar EXPORTS={kkBuild:kkBuild,kkCheck:kkCheck,kkOpOk:kkOpOk};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.KenKenForgePure = EXPORTS; }\r\n\r\n"
+}

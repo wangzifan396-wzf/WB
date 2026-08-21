@@ -1,0 +1,36 @@
+{
+  "id": "Sm3Forge",
+  "name": "sm3_forge",
+  "title": "Sm3Forge",
+  "description": "SM3 国密哈希：符合 GB/T 32905 的 256 位摘要算法，常用于签名与完整性校验。",
+  "entry": "sm3",
+  "entries": {
+    "sm3": {
+      "paramStyle": "single",
+      "paramNames": [
+        "msg"
+      ],
+      "fields": []
+    },
+    "utf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "msg": {
+        "type": "string",
+        "description": "输入（msg）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8(str){var out=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<0x80)out.push(c);else if(c<0x800){out.push(0xC0|(c>>6),0x80|(c&0x3F));}else if(c>=0xD800&&c<=0xDBFF){var c2=str.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}else{out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));}}return out;}\r\n\r\nfunction rotl(x,n){n=((n%32)+32)%32;return ((x<<n)|(x>>>(32-n)))>>>0;}\r\nfunction sm3(msg){\r\n  var m = typeof msg==='string'?utf8(msg):msg.slice();\r\n  var IV=[0x7380166f,0x4914b2b9,0x172442d7,0xda8a0600,0xa96f30bc,0x163138aa,0xe38dee4d,0xb0fb0e4e];\r\n  function T(j){return (j<=15)?0x79cc4519:0x7a879d8a;}\r\n  function FF(x,y,z,j){if(j<=15)return (x^y^z)>>>0;return ((x&y)|(x&z)|(y&z))>>>0;}\r\n  function GG(x,y,z,j){if(j<=15)return (x^y^z)>>>0;return ((x&y)|((~x)&z))>>>0;}\r\n  function P0(x){return (x^rotl(x,9)^rotl(x,17))>>>0;}\r\n  function P1(x){return (x^rotl(x,15)^rotl(x,23))>>>0;}\r\n  var bitLen=m.length*8; m.push(0x80);\r\n  while(m.length%64!==56)m.push(0);\r\n  var hi=Math.floor(bitLen/0x100000000), lo=bitLen>>>0;\r\n  for(var i=3;i>=0;i--)m.push((hi>>>(i*8))&0xff);\r\n  for(i=3;i>=0;i--)m.push((lo>>>(i*8))&0xff);\r\n  var V=IV.slice();\r\n  for(var blk=0;blk<m.length;blk+=64){\r\n    var W=new Array(68),W1=new Array(64);\r\n    for(var t=0;t<16;t++){W[t]=((m[blk+4*t]<<24)|(m[blk+4*t+1]<<16)|(m[blk+4*t+2]<<8)|m[blk+4*t+3])>>>0;}\r\n    for(t=16;t<68;t++){W[t]=(P1((W[t-16]^W[t-9]^rotl(W[t-3],15))>>>0)^rotl(W[t-13],7)^W[t-6])>>>0;}\r\n    for(t=0;t<64;t++){W1[t]=(W[t]^W[t+4])>>>0;}\r\n    var A=V[0],B=V[1],C=V[2],D=V[3],E=V[4],F=V[5],G=V[6],H=V[7];\r\n    for(var j=0;j<64;j++){\r\n      var SS1=rotl((rotl(A,12)+E+rotl(T(j),j))>>>0,7);\r\n      var SS2=(SS1^rotl(A,12))>>>0;\r\n      var TT1=(FF(A,B,C,j)+D+SS2+W1[j])>>>0;\r\n      var TT2=(GG(E,F,G,j)+H+SS1+W[j])>>>0;\r\n      D=C;C=rotl(B,9);B=A;A=TT1;H=G;G=rotl(F,19);F=E;E=P0(TT2);\r\n    }\r\n    var tmp=[A,B,C,D,E,F,G,H];for(var k=0;k<8;k++)V[k]=(V[k]^tmp[k])>>>0;\r\n  }\r\n  return V.map(function(w){return ('00000000'+w.toString(16)).slice(-8);}).join('');\r\n}\r\nvar EXPORTS = { sm3: sm3, utf8: utf8 };\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.Sm3ForgePure = EXPORTS; }\r\n\r\n"
+}

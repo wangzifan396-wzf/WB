@@ -1,0 +1,45 @@
+{
+  "id": "WorldClockForge",
+  "name": "world_clock_forge",
+  "title": "WorldClockForge",
+  "description": "世界时钟：并排显示多个时区当前时间，自动算时差，基于 Intl 离线可用。",
+  "entry": "worldZonePreset",
+  "entries": {
+    "worldZonePreset": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "worldParts": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "zone",
+        "date"
+      ],
+      "fields": []
+    },
+    "worldOffsetMin": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "zone",
+        "date"
+      ],
+      "fields": []
+    },
+    "worldOffsetLabel": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "zone",
+        "date"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\nfunction worldZonePreset(){\r\n  return ['Asia/Shanghai','Asia/Tokyo','Asia/Kolkata','Europe/London','Europe/Paris',\r\n    'America/New_York','America/Los_Angeles','America/Sao_Paulo','UTC','Australia/Sydney'];\r\n}\r\nfunction worldParts(zone, date){\r\n  date = date || new Date();\r\n  var fmt=new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour12:false,\r\n    year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',weekday:'short'});\r\n  var p=fmt.formatToParts(date), o={};\r\n  for(var i=0;i<p.length;i++) o[p[i].type]=p[i].value;\r\n  var hh=o.hour==='24'?'00':o.hour;\r\n  return { y:Number(o.year), m:Number(o.month), d:Number(o.day), hh:hh, mm:o.minute, ss:o.second, wd:o.weekday };\r\n}\r\nfunction worldOffsetMin(zone, date){\r\n  date = date || new Date();\r\n  var fmt=new Intl.DateTimeFormat('en-GB',{timeZone:zone,timeZoneName:'shortOffset'});\r\n  var p=fmt.formatToParts(date), nm='';\r\n  for(var i=0;i<p.length;i++) if(p[i].type==='timeZoneName') nm=p[i].value;\r\n  var m=/GMT([+-])(\\d{1,2})(?::(\\d{2}))?/.exec(nm);\r\n  if(!m) return 0;\r\n  var h=Number(m[2]), mm=m[3]?Number(m[3]):0;\r\n  return (m[1]==='-'?-1:1)*(h*60+mm);\r\n}\r\nfunction worldOffsetLabel(zone, date){\r\n  var v=worldOffsetMin(zone,date);\r\n  if(v===0) return 'UTC';\r\n  var s=v<0?'-':'+', a=Math.abs(v);\r\n  return 'UTC'+(v<0?'−':'+')+Math.floor(a/60)+':'+('0'+(a%60)).slice(-2);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { worldZonePreset:worldZonePreset, worldParts:worldParts, worldOffsetMin:worldOffsetMin, worldOffsetLabel:worldOffsetLabel };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.WorldClockForgePure = { worldZonePreset:worldZonePreset, worldParts:worldParts, worldOffsetMin:worldOffsetMin, worldOffsetLabel:worldOffsetLabel };\r\n}\r\n"
+}

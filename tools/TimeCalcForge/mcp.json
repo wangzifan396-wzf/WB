@@ -1,0 +1,52 @@
+{
+  "id": "TimeCalcForge",
+  "name": "time_calc_forge",
+  "title": "时间计算",
+  "description": "对 HH:MM 时间做加减或求两时间差，离线。",
+  "entry": "toMin",
+  "entries": {
+    "toMin": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "fmt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "min"
+      ],
+      "fields": []
+    },
+    "timeAdd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "t1",
+        "dur"
+      ],
+      "fields": []
+    },
+    "timeDiff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "t1",
+        "t2"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "t": {
+        "type": "string",
+        "description": "输入（t）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction toMin(t){ var p=String(t).split(':'); if(p.length<2) return NaN;\r\n  var h=+p[0], m=+p[1], s=p.length>2?+p[2]:0; if(isNaN(h)||isNaN(m)) return NaN; return h*60+m+s/60; }\r\nfunction fmt(min){ var total=Math.round(min*60); total=((total%(86400))+86400)%86400;\r\n  var h=Math.floor(total/3600), m=Math.floor((total%3600)/60), s=total%60;\r\n  var r=('0'+h).slice(-2)+':'+('0'+m).slice(-2); if(s) r+=':'+('0'+s).slice(-2); return r; }\r\nfunction timeAdd(t1, dur){ var a=toMin(t1), b=toMin(dur); if(isNaN(a)||isNaN(b)) return {error:'时间格式须为 HH:MM 或 HH:MM:SS'};\r\n  var r=((a+b)%1440+1440)%1440; return {result:fmt(r), totalMinutes:Math.round(r)}; }\r\nfunction timeDiff(t1, t2){ var a=toMin(t1), b=toMin(t2); if(isNaN(a)||isNaN(b)) return {error:'时间格式须为 HH:MM'};\r\n  var d=b-a, r=((d%1440)+1440)%1440; return {diff:fmt(r), minutes:Math.round(r), signed:Math.round(d)}; }\r\nvar EXPORTS={toMin:toMin, fmt:fmt, timeAdd:timeAdd, timeDiff:timeDiff};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TimeCalcForgePure = EXPORTS; }\r\n\r\n"
+}

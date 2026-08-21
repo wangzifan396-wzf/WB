@@ -1,0 +1,64 @@
+{
+  "id": "SandForge",
+  "name": "sand_forge",
+  "title": "SandForge",
+  "description": "落沙模拟：元胞自动机，沙粒受重力下落/斜滑，遇墙堆积，可绘制沙与障碍物，实时观察堆积形态，离线可用。",
+  "entry": "sandInit",
+  "entries": {
+    "sandInit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h"
+      ],
+      "fields": []
+    },
+    "sandSet": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "x",
+        "y",
+        "v"
+      ],
+      "fields": []
+    },
+    "sandCount": {
+      "paramStyle": "object",
+      "paramNames": [
+        "s"
+      ],
+      "fields": [
+        "cells"
+      ]
+    },
+    "sandStep": {
+      "paramStyle": "object",
+      "paramNames": [
+        "s"
+      ],
+      "fields": [
+        "w",
+        "h",
+        "cells"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "w": {
+        "type": "string",
+        "description": "第 1 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 2 个参数（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction sandInit(w,h){ return {w:w,h:h,cells:new Int8Array(w*h)}; }\r\nfunction sandSet(s,x,y,v){ if(x>=0&&x<s.w&&y>=0&&y<s.h) s.cells[y*s.w+x]=v; }\r\nfunction sandCount(s){ var c=0; for(var i=0;i<s.cells.length;i++) if(s.cells[i]===1) c++; return c; }\r\nfunction sandStep(s){\r\n  var w=s.w,h=s.h,cells=s.cells,nc=Int8Array.from(cells);\r\n  for(var y=h-1;y>=0;y--){ for(var x=0;x<w;x++){ var i=y*w+x; if(cells[i]!==1) continue;\r\n    if(y+1<h){ var d=cells[(y+1)*w+x];\r\n      if(d===0){ nc[i]=0; nc[(y+1)*w+x]=1; continue; }\r\n      var dl = x>0 ? cells[(y+1)*w+x-1] : 9;\r\n      var dr = x<w-1 ? cells[(y+1)*w+x+1] : 9;\r\n      if(dl===0 && dr===0){ if(((x+(y&1))&1)===0){ nc[i]=0; nc[(y+1)*w+x-1]=1; } else { nc[i]=0; nc[(y+1)*w+x+1]=1; } }\r\n      else if(dl===0){ nc[i]=0; nc[(y+1)*w+x-1]=1; }\r\n      else if(dr===0){ nc[i]=0; nc[(y+1)*w+x+1]=1; }\r\n    }\r\n  } }\r\n  return {w:w,h:h,cells:nc};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { sandInit:sandInit, sandSet:sandSet, sandCount:sandCount, sandStep:sandStep };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SandForgePure = { sandInit:sandInit, sandSet:sandSet, sandCount:sandCount, sandStep:sandStep };\r\n}\r\n"
+}

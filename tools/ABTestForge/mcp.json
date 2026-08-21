@@ -1,0 +1,58 @@
+{
+  "id": "ABTestForge",
+  "name": "ab_test_forge",
+  "title": "ABTestForge",
+  "description": "A/B 检验：两比例 z 检验，输出 p̂₁/p̂₂、z 统计量与双尾 p 值，判断转化率差异是否显著，离线。",
+  "entry": "twoPropZ",
+  "entries": {
+    "twoPropZ": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "x1",
+        "n1",
+        "x2",
+        "n2"
+      ],
+      "fields": []
+    },
+    "normalCdf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "z"
+      ],
+      "fields": []
+    },
+    "erf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "x"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "x1": {
+        "type": "string",
+        "description": "第 1 个参数（x1）"
+      },
+      "n1": {
+        "type": "string",
+        "description": "第 2 个参数（n1）"
+      },
+      "x2": {
+        "type": "string",
+        "description": "第 3 个参数（x2）"
+      },
+      "n2": {
+        "type": "string",
+        "description": "第 4 个参数（n2）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction erf(x){ var s=x<0?-1:1; x=Math.abs(x); var t=1/(1+0.3275911*x);\r\n  var y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x); return s*y; }\r\nfunction normalCdf(z){ return 0.5*(1+erf(z/Math.SQRT2)); }\r\nfunction twoPropZ(x1, n1, x2, n2){ if(n1<1||n2<1||x1<0||x2<0||x1>n1||x2>n2) return null;\r\n  var p1=x1/n1, p2=x2/n2, p=(x1+x2)/(n1+n2); var se=Math.sqrt(p*(1-p)*(1/n1+1/n2));\r\n  if(se===0) return {p1:p1,p2:p2,z:0,p:1}; var z=(p1-p2)/se; var pval=2*(1-normalCdf(Math.abs(z)));\r\n  return {p1:p1,p2:p2,z:z,p:pval}; }\r\nvar EXPORTS={twoPropZ:twoPropZ, normalCdf:normalCdf, erf:erf};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ABTestForgePure = EXPORTS; }\r\n\r\n"
+}

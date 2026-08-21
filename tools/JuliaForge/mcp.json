@@ -1,0 +1,73 @@
+{
+  "id": "JuliaForge",
+  "name": "julia_forge",
+  "title": "JuliaForge",
+  "description": "Julia 集分形渲染器：可调复常数与配色，实时渲染经典分形图案，内置多组预设，离线可用。",
+  "entry": "jlEscape",
+  "entries": {
+    "jlEscape": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "zx",
+        "zy",
+        "cx",
+        "cy",
+        "maxIter"
+      ],
+      "fields": []
+    },
+    "jlMap": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "px",
+        "py",
+        "w",
+        "h",
+        "scale"
+      ],
+      "fields": []
+    },
+    "jlColor": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "smooth",
+        "maxIter"
+      ],
+      "fields": []
+    },
+    "jlPresets": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "zx": {
+        "type": "string",
+        "description": "第 1 个参数（zx）"
+      },
+      "zy": {
+        "type": "string",
+        "description": "第 2 个参数（zy）"
+      },
+      "cx": {
+        "type": "string",
+        "description": "第 3 个参数（cx）"
+      },
+      "cy": {
+        "type": "string",
+        "description": "第 4 个参数（cy）"
+      },
+      "maxIter": {
+        "type": "string",
+        "description": "第 5 个参数（maxIter）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction jlEscape(zx, zy, cx, cy, maxIter){\r\n  var x=zx, y=zy, i=0;\r\n  while(i<maxIter && x*x+y*y<=4){\r\n    var nx=x*x-y*y+cx, ny=2*x*y+cy;\r\n    x=nx; y=ny; i++;\r\n  }\r\n  if(i>=maxIter) return { iter:maxIter, inside:true, smooth:maxIter };\r\n  var mag=Math.sqrt(x*x+y*y);\r\n  var sm=i+1-Math.log(Math.log(Math.max(mag,1.0000001)))/Math.LN2;\r\n  return { iter:i, inside:false, smooth:Math.max(0,sm) };\r\n}\r\nfunction jlMap(px, py, w, h, scale){\r\n  scale=scale||1.6;\r\n  return { x:(px-w/2)/(w/2)*scale, y:(py-h/2)/(h/2)*scale*h/w };\r\n}\r\nfunction jlColor(smooth, maxIter){\r\n  if(smooth>=maxIter) return [10,10,11];\r\n  var t=Math.min(1,smooth/maxIter);\r\n  var h=(220+t*160)%360, s=0.7, l=0.16+0.5*Math.pow(t,0.5);\r\n  var c=(1-Math.abs(2*l-1))*s, hp=h/60, xx=c*(1-Math.abs(hp%2-1));\r\n  var r=0,g=0,b=0;\r\n  if(hp<1){r=c;g=xx;} else if(hp<2){r=xx;g=c;} else if(hp<3){g=c;b=xx;} else if(hp<4){g=xx;b=c;} else if(hp<5){r=xx;b=c;} else {r=c;b=xx;}\r\n  var m=l-c/2;\r\n  return [Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];\r\n}\r\nfunction jlPresets(){ return { seahorse:[-0.7,0.27015], swirl:[-0.4,0.6], nebula:[0.285,0.01], lightning:[-0.8,0.156], dragon:[-0.70176,-0.3842] }; }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { jlEscape:jlEscape, jlMap:jlMap, jlColor:jlColor, jlPresets:jlPresets };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.JuliaForgePure = { jlEscape:jlEscape, jlMap:jlMap, jlColor:jlColor, jlPresets:jlPresets };\r\n}\r\n"
+}

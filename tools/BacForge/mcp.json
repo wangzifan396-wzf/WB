@@ -1,0 +1,56 @@
+{
+  "id": "BacForge",
+  "name": "bac_forge",
+  "title": "BacForge",
+  "description": "血液酒精浓度估算：用威德马克公式估算 BAC 与代谢归零时长，仅供教育。",
+  "entry": "alcoholG",
+  "entries": {
+    "alcoholG": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "volMl",
+        "abv"
+      ],
+      "fields": []
+    },
+    "bac": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sex",
+        "kg",
+        "volMl",
+        "abv",
+        "tHours"
+      ],
+      "fields": []
+    },
+    "soberHours": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sex",
+        "kg",
+        "volMl",
+        "abv",
+        "tHours"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "volMl": {
+        "type": "string",
+        "description": "第 1 个参数（volMl）"
+      },
+      "abv": {
+        "type": "string",
+        "description": "第 2 个参数（abv）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction alcoholG(volMl, abv){ return volMl*abv*0.789; } // 乙醇密度 0.789 g/mL\r\nfunction bac(sex, kg, volMl, abv, tHours){\r\n  var r = sex==='f' ? 0.55 : 0.68; // 威德马克分布系数\r\n  var A = alcoholG(volMl, abv);\r\n  return A/(10*r*kg) - 0.015*tHours; // g/100mL(%), 代谢 0.015/h\r\n}\r\nfunction soberHours(sex, kg, volMl, abv, tHours){\r\n  var b=bac(sex,kg,volMl,abv,tHours); return b>0 ? b/0.015 : 0;\r\n}\r\nvar EXPORTS={alcoholG:alcoholG, bac:bac, soberHours:soberHours};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BacForgePure = EXPORTS; }\r\n\r\n"
+}

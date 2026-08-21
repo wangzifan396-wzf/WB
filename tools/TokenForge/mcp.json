@@ -1,0 +1,51 @@
+{
+  "id": "TokenForge",
+  "name": "token_forge",
+  "title": "TokenForge",
+  "description": "LLM Token 估算与成本计算器：确定性子词分词 + 多模型单价表。",
+  "entry": "tokenize",
+  "entries": {
+    "tokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "countTokens": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "estimateCost": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "model"
+      ],
+      "fields": []
+    },
+    "breakdown": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n// 确定性 GPT 风格子词近似分词（小写 + 4 字符分块 + 标点/空白独立成 token）\r\nfunction tokenize(text){\r\n  if(text==null) return [];\r\n  var raw=String(text);\r\n  var parts=raw.split(/(\\s+)/);\r\n  var toks=[];\r\n  var PUNCT=/^[.,!?;:'\"()\\[\\]{}<>\\/\\\\@#$%^&*\\-_=+~`|]$/;\r\n  for(var i=0;i<parts.length;i++){\r\n    var p=parts[i];\r\n    if(p==='') continue;\r\n    if(/^\\s+$/.test(p)){ toks.push(p); continue; }\r\n    var sub=p.split(/([.,!?;:'\"()\\[\\]{}<>\\/\\\\@#$%^&*\\-_=+~`|])/).filter(function(x){return x.length;});\r\n    for(var j=0;j<sub.length;j++){\r\n      var s=sub[j];\r\n      if(s.length===0) continue;\r\n      if(PUNCT.test(s)){ toks.push(s); }\r\n      else {\r\n        var lower=s.toLowerCase(), k=0;\r\n        while(k<lower.length){ toks.push(lower.slice(k,k+4)); k+=4; }\r\n      }\r\n    }\r\n  }\r\n  return toks;\r\n}\r\nfunction countTokens(text){ return tokenize(text).length; }\r\nvar PRICING={\r\n  'gpt-4o-mini':{in:0.15,out:0.60},\r\n  'gpt-4o':{in:2.5,out:10},\r\n  'claude-3.5-sonnet':{in:3,out:15},\r\n  'deepseek-chat':{in:0.27,out:1.1},\r\n  'gemini-1.5-pro':{in:1.25,out:5}\r\n};\r\nfunction estimateCost(text, model){\r\n  var t=countTokens(text);\r\n  var p=PRICING[model]; if(!p) throw new Error('UNKNOWN_MODEL');\r\n  return { tokens:t, inputCost:t*p.in/1e6, outputCost:t*p.out/1e6 };\r\n}\r\nfunction breakdown(text){\r\n  var t=String(text||'');\r\n  var words=(t.trim().match(/\\S+/g)||[]).length;\r\n  return { chars:t.length, words:words, estTokens:countTokens(t) };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tokenize:tokenize, countTokens:countTokens, estimateCost:estimateCost, breakdown:breakdown, PRICING:PRICING };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TokenForgePure = { tokenize:tokenize, countTokens:countTokens, estimateCost:estimateCost, breakdown:breakdown, PRICING:PRICING };\r\n}\r\n"
+}

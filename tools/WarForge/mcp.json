@@ -1,0 +1,48 @@
+{
+  "id": "WarForge",
+  "name": "war_forge",
+  "title": "WarForge",
+  "description": "战争（War）纸牌游戏：双方各发 26 张，逐轮比大小，赢家收两张；平局“开战”加注，最后牌多者胜。",
+  "entry": "warCmp",
+  "entries": {
+    "warCmp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "c1",
+        "c2"
+      ],
+      "fields": []
+    },
+    "warPlay": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rnd"
+      ],
+      "fields": []
+    },
+    "_rng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "c1": {
+        "type": "string",
+        "description": "第 1 个参数（c1）"
+      },
+      "c2": {
+        "type": "string",
+        "description": "第 2 个参数（c2）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }\r\nfunction _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }\r\nfunction _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nfunction _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }\r\n\r\nfunction warCmp(c1, c2){ return _rankVal(c1.r)-_rankVal(c2.r); }\r\nfunction warPlay(rnd){ var deck=_shuffle(_mkDeck(), rnd); var A=deck.slice(0,26), B=deck.slice(26); var rounds=0;\r\n  while(A.length && B.length && rounds<20000){ rounds++; var c1=A.shift(), c2=B.shift(); var v=warCmp(c1,c2);\r\n    if(v>0){ A.push(c1,c2); } else if(v<0){ B.push(c2,c1); } else { if(A.length<1||B.length<1){ if(A.length===0) B.push(c2,c1); else A.push(c1,c2); continue; } var wa=A.shift(), wb=B.shift(); var wv=warCmp(wa,wb); if(wv>0) A.push(c1,c2,wa,wb); else if(wv<0) B.push(c2,c1,wb,wa); else { A.push(c1,c2,wa); B.push(wb); } }\r\n  }\r\n  return {winner: A.length>B.length?1:(B.length>A.length?2:0), a:A.length, b:B.length, rounds:rounds};\r\n}\r\nvar EXPORTS={warCmp:warCmp, warPlay:warPlay, _rng:_rng};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.WarForgePure = EXPORTS; }\r\n\r\n"
+}

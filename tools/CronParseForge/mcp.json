@@ -1,0 +1,48 @@
+{
+  "id": "CronParseForge",
+  "name": "cron_parse_forge",
+  "title": "CronParseForge",
+  "description": "Cron 表达式解析（标准 5 段：分 时 日 月 周）：字段通配/列表/范围/步长匹配与可读描述，离线精确。",
+  "entry": "fieldMatch",
+  "entries": {
+    "fieldMatch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "spec",
+        "v"
+      ],
+      "fields": []
+    },
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "expr"
+      ],
+      "fields": []
+    },
+    "describe": {
+      "paramStyle": "single",
+      "paramNames": [
+        "expr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "type": "string",
+        "description": "第 1 个参数（spec）"
+      },
+      "v": {
+        "type": "string",
+        "description": "第 2 个参数（v）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction fieldMatch(spec, v){ if(spec==='*') return true; var parts=spec.split(','); for(var i=0;i<parts.length;i++){ var p=parts[i]; if(p.indexOf('/')>=0){ var ab=p.split('/'); var base=ab[0]; var step=parseInt(ab[1],10); var start=(base==='*')?0:parseInt(base,10); if(v>=start && ((v-start)%step)===0) return true; } else if(p.indexOf('-')>=0){ var rng=p.split('-'); var lo=parseInt(rng[0],10), hi=parseInt(rng[1],10); if(v>=lo && v<=hi) return true; } else { if(parseInt(p,10)===v) return true; } } return false; }\r\nfunction parse(expr){ var f=expr.trim().split(/\\s+/); if(f.length!==5) return null; return {minute:f[0], hour:f[1], dom:f[2], month:f[3], dow:f[4]}; }\r\nfunction describe(expr){ var p=parse(expr); if(!p) return '表达式须为 5 段（分 时 日 月 周）'; var parts=[]; parts.push('分='+p.minute); parts.push('时='+p.hour); parts.push('日='+p.dom); parts.push('月='+p.month); parts.push('周='+p.dow); return '每 '+parts.join(' / '); }\r\nvar EXPORTS={fieldMatch:fieldMatch, parse:parse, describe:describe};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CronParseForgePure = EXPORTS; }\r\n\r\n"
+}

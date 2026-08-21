@@ -1,0 +1,43 @@
+{
+  "id": "Sha3Forge",
+  "name": "sha3_forge",
+  "title": "Sha3Forge",
+  "description": "SHA-3 / Keccak 哈希：自研 Keccak-f[1600]，SHA3-256/512 与 keccak256。",
+  "entry": "sha3_256",
+  "entries": {
+    "sha3_256": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "sha3_512": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "keccak256": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar _B0=BigInt(0), _B1=BigInt(1), _B8=BigInt(8), _B64=BigInt(64);\r\nvar _M64=(_B1<<_B64)-_B1;\r\nfunction _rotl64(x,n){ var bn=BigInt(n); return ((x<<bn)|(x>>(_B64-bn)))&_M64; }\r\nvar _RC=['1','8082','800000000000808a','8000000080008000','808b','80000001',\r\n  '8000000080008081','8000000000008009','8a','88','80008009','8000000a',\r\n  '8000808b','800000000000008b','8000000000008089','8000000000008003',\r\n  '8000000000008002','8000000000000080','800a','800000008000000a',\r\n  '8000000080008081','8000000000008080','80000001','8000000080008008']\r\n  .map(function(h){ return BigInt('0x'+h); });\r\nvar _RHO=[0,1,62,28,27,36,44,6,55,20,3,10,43,25,39,41,45,15,21,8,18,2,61,56,14];\r\nfunction keccakF(A){\r\n  for(var round=0;round<24;round++){\r\n    var C=[],D=[],x,y;\r\n    for(x=0;x<5;x++) C[x]=A[x]^A[x+5]^A[x+10]^A[x+15]^A[x+20];\r\n    for(x=0;x<5;x++) D[x]=C[(x+4)%5]^_rotl64(C[(x+1)%5],1);\r\n    for(x=0;x<5;x++) for(y=0;y<5;y++) A[x+5*y]=A[x+5*y]^D[x];\r\n    var B=[];\r\n    for(x=0;x<5;x++) for(y=0;y<5;y++) B[y+5*((2*x+3*y)%5)]=_rotl64(A[x+5*y],_RHO[x+5*y]);\r\n    for(x=0;x<5;x++) for(y=0;y<5;y++)\r\n      A[x+5*y]=B[x+5*y]^(((~B[(x+1)%5+5*y])&_M64)&B[(x+2)%5+5*y]);\r\n    A[0]=A[0]^_RC[round];\r\n  }\r\n  return A;\r\n}\r\nfunction utf8Bytes(str){\r\n  var out=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.codePointAt(i);\r\n    if(c>0xFFFF) i++;\r\n    if(c<0x80) out.push(c);\r\n    else if(c<0x800){ out.push(0xC0|(c>>6),0x80|(c&63)); }\r\n    else if(c<0x10000){ out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63)); }\r\n    else { out.push(0xF0|(c>>18),0x80|((c>>12)&63),0x80|((c>>6)&63),0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction keccakSponge(bytes, rateBytes, outBytes, padByte){\r\n  var A=[],i,b;\r\n  for(i=0;i<25;i++) A[i]=_B0;\r\n  var msg=bytes.slice();\r\n  msg.push(padByte);\r\n  while(msg.length%rateBytes!==0) msg.push(0);\r\n  msg[msg.length-1]|=0x80;\r\n  for(var off=0;off<msg.length;off+=rateBytes){\r\n    for(i=0;i<rateBytes/8;i++){\r\n      var lane=_B0;\r\n      for(b=7;b>=0;b--) lane=(lane<<_B8)|BigInt(msg[off+i*8+b]);\r\n      A[i]=A[i]^lane;\r\n    }\r\n    keccakF(A);\r\n  }\r\n  var out=[];\r\n  while(out.length<outBytes){\r\n    for(i=0;i<rateBytes/8&&out.length<outBytes;i++){\r\n      var l=A[i];\r\n      for(b=0;b<8&&out.length<outBytes;b++){ out.push(Number(l&BigInt(255))); l=l>>_B8; }\r\n    }\r\n    if(out.length<outBytes) keccakF(A);\r\n  }\r\n  return out;\r\n}\r\nfunction toHex(bytes){\r\n  var s='';\r\n  for(var i=0;i<bytes.length;i++) s+=(bytes[i]<16?'0':'')+bytes[i].toString(16);\r\n  return s;\r\n}\r\nfunction sha3_256(str){ return toHex(keccakSponge(utf8Bytes(str),136,32,0x06)); }\r\nfunction sha3_512(str){ return toHex(keccakSponge(utf8Bytes(str),72,64,0x06)); }\r\nfunction keccak256(str){ return toHex(keccakSponge(utf8Bytes(str),136,32,0x01)); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { sha3_256:sha3_256, sha3_512:sha3_512, keccak256:keccak256, utf8Bytes:utf8Bytes };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.Sha3ForgePure = { sha3_256:sha3_256, sha3_512:sha3_512, keccak256:keccak256 };\r\n}\r\n"
+}

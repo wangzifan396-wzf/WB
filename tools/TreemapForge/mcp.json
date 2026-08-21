@@ -1,0 +1,56 @@
+{
+  "id": "TreemapForge",
+  "name": "treemap_forge",
+  "title": "TreemapForge",
+  "description": "方块树图生成器：squarified 布局、面积占比可视化、SVG 导出，离线可用。",
+  "entry": "tmSquarify",
+  "entries": {
+    "tmSquarify": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "values",
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "fields": []
+    },
+    "tmAreaSum": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rects"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "values": {
+        "type": "string",
+        "description": "第 1 个参数（values）"
+      },
+      "x": {
+        "type": "string",
+        "description": "第 2 个参数（x）"
+      },
+      "y": {
+        "type": "string",
+        "description": "第 3 个参数（y）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 4 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 5 个参数（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction tmSquarify(values, x, y, w, h){\r\n  var i, total=0;\r\n  for(i=0;i<values.length;i++) if(values[i]>0) total+=values[i];\r\n  if(total<=0 || w<=0 || h<=0) return [];\r\n  var scale=(w*h)/total;\r\n  var items=[]; for(i=0;i<values.length;i++) if(values[i]>0) items.push({area:values[i]*scale, idx:i});\r\n  var rects=[], rx=x, ry=y, rw=w, rh=h;\r\n  function worst(row, len){\r\n    var s=0, mx=0, mn=1e18;\r\n    for(var k=0;k<row.length;k++){ s+=row[k].area; if(row[k].area>mx)mx=row[k].area; if(row[k].area<mn)mn=row[k].area; }\r\n    if(mn<=0) return 1e18;\r\n    var s2=s*s, l2=len*len;\r\n    return Math.max((l2*mx)/s2, s2/(l2*mn));\r\n  }\r\n  var idx=0;\r\n  while(idx<items.length){\r\n    var row=[items[idx]];\r\n    var len=Math.min(rw, rh);\r\n    while(idx+1<items.length){\r\n      var cand=items[idx+1];\r\n      if(worst(row.concat([cand]), len) <= worst(row, len)){ row.push(cand); idx++; }\r\n      else break;\r\n    }\r\n    var rowArea=0; for(var r=0;r<row.length;r++) rowArea+=row[r].area;\r\n    if(rw>=rh){\r\n      var colW = rowArea/rh;\r\n      var cy=ry;\r\n      for(var a2=0;a2<row.length;a2++){ var hh=row[a2].area/colW; rects.push({idx:row[a2].idx, x:rx, y:cy, w:colW, h:hh}); cy+=hh; }\r\n      rx+=colW; rw-=colW;\r\n    } else {\r\n      var rowH = rowArea/rw;\r\n      var cx=rx;\r\n      for(var a3=0;a3<row.length;a3++){ var ww=row[a3].area/rowH; rects.push({idx:row[a3].idx, x:cx, y:ry, w:ww, h:rowH}); cx+=ww; }\r\n      ry+=rowH; rh-=rowH;\r\n    }\r\n    idx++;\r\n  }\r\n  return rects;\r\n}\r\nfunction tmAreaSum(rects){\r\n  var s=0; for(var i=0;i<rects.length;i++) s+=rects[i].w*rects[i].h; return Math.round(s); return s;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tmSquarify:tmSquarify, tmAreaSum:tmAreaSum };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TreemapForgePure = { tmSquarify:tmSquarify, tmAreaSum:tmAreaSum };\r\n}\r\n\r\n"
+}

@@ -1,0 +1,121 @@
+{
+  "id": "InvoiceForge",
+  "name": "invoice_forge",
+  "title": "InvoiceForge",
+  "description": "离线发票 / 报价单生成器：行项目自动计税、人民币大写金额、A4 实时预览、一键打印导出 PDF。",
+  "entry": "round2",
+  "entries": {
+    "round2": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "escapeHTML": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "formatMoney": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "lineTotal": {
+      "paramStyle": "object",
+      "paramNames": [
+        "item"
+      ],
+      "fields": [
+        "qty",
+        "price"
+      ]
+    },
+    "calcTotals": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "taxRate",
+        "discount"
+      ],
+      "fields": []
+    },
+    "intToCn": {
+      "paramStyle": "single",
+      "paramNames": [
+        "integer"
+      ],
+      "fields": []
+    },
+    "cnUpper": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "genInvoiceNo": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "date",
+        "seq"
+      ],
+      "fields": []
+    },
+    "defaultInvoice": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "toJSON": {
+      "paramStyle": "single",
+      "paramNames": [
+        "inv"
+      ],
+      "fields": []
+    },
+    "fromJSON": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "renderInvoice": {
+      "paramStyle": "object",
+      "paramNames": [
+        "inv"
+      ],
+      "fields": [
+        "items",
+        "taxRate",
+        "discount",
+        "title",
+        "no",
+        "date",
+        "due",
+        "seller",
+        "buyer",
+        "notes"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "number",
+        "description": "输入（n）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ================= InvoiceForge pure functions (top-level, testable) ================= */\r\nfunction round2(n){\r\n  return Math.round((Number(n)||0)*100)/100;\r\n}\r\nfunction escapeHTML(s){\r\n  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');\r\n}\r\nfunction formatMoney(n){\r\n  var v=round2(n);\r\n  var neg=v<0; if(neg) v=-v;\r\n  var parts=v.toFixed(2).split('.');\r\n  parts[0]=parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g,',');\r\n  return (neg?'-':'')+parts.join('.');\r\n}\r\nfunction lineTotal(item){\r\n  return round2((Number(item.qty)||0)*(Number(item.price)||0));\r\n}\r\nfunction calcTotals(items, taxRate, discount){\r\n  var subtotal=0;\r\n  (items||[]).forEach(function(it){ subtotal=round2(subtotal+lineTotal(it)); });\r\n  var disc=round2(Math.min(Number(discount)||0, subtotal));\r\n  var taxable=round2(subtotal-disc);\r\n  var tax=round2(taxable*(Number(taxRate)||0)/100);\r\n  var total=round2(taxable+tax);\r\n  return { subtotal:subtotal, discount:disc, taxable:taxable, tax:tax, total:total };\r\n}\r\nfunction intToCn(integer){\r\n  var digits='零壹贰叁肆伍陆柒捌玖';\r\n  var units=['','拾','佰','仟'];\r\n  var bigUnits=['','万','亿','万亿'];\r\n  integer=Math.floor(Math.abs(Number(integer)||0));\r\n  if(integer===0) return '零';\r\n  var s=String(integer);\r\n  var groups=[];\r\n  while(s.length){ groups.unshift(s.slice(-4)); s=s.slice(0,-4); }\r\n  var out='';\r\n  for(var g=0; g<groups.length; g++){\r\n    var grpVal=parseInt(groups[g],10);\r\n    var bigIdx=groups.length-1-g;\r\n    if(grpVal===0) continue;\r\n    if(out && groups[g].length===4 && groups[g].charAt(0)==='0') out+='零';\r\n    var grp=String(grpVal), gs='', pendingZero=false;\r\n    for(var i=0;i<grp.length;i++){\r\n      var d=+grp.charAt(i), pos=grp.length-1-i;\r\n      if(d===0){ pendingZero=true; continue; }\r\n      if(pendingZero){ gs+='零'; pendingZero=false; }\r\n      gs+=digits.charAt(d)+units[pos];\r\n    }\r\n    out+=gs+bigUnits[bigIdx];\r\n  }\r\n  return out;\r\n}\r\nfunction cnUpper(n){\r\n  var v=round2(Number(n)||0);\r\n  if(v<0) return '负'+cnUpper(-v);\r\n  var digits='零壹贰叁肆伍陆柒捌玖';\r\n  var integer=Math.floor(v);\r\n  var cents=Math.round((v-integer)*100);\r\n  var jiao=Math.floor(cents/10), fen=cents%10;\r\n  var out=intToCn(integer)+'元';\r\n  if(jiao===0&&fen===0) return out+'整';\r\n  if(jiao>0) out+=digits.charAt(jiao)+'角';\r\n  else if(fen>0) out+='零';\r\n  if(fen>0) out+=digits.charAt(fen)+'分';\r\n  else out+='整';\r\n  return out;\r\n}\r\nfunction genInvoiceNo(date, seq){\r\n  var d=date instanceof Date?date:new Date();\r\n  var y=d.getFullYear(), m=('0'+(d.getMonth()+1)).slice(-2), day=('0'+d.getDate()).slice(-2);\r\n  var s=('000'+(seq==null?1:seq)).slice(-4);\r\n  return 'INV-'+y+m+day+'-'+s;\r\n}\r\nfunction defaultInvoice(){\r\n  var today=new Date().toISOString().slice(0,10);\r\n  return {\r\n    title:'报价单', no:genInvoiceNo(new Date(),1), date:today, due:'',\r\n    seller:{ name:'', tax:'', addr:'', bank:'' },\r\n    buyer:{ name:'', tax:'', addr:'' },\r\n    items:[ { name:'示例服务项', qty:1, price:1000 } ],\r\n    taxRate:0, discount:0, notes:''\r\n  };\r\n}\r\nfunction toJSON(inv){\r\n  return JSON.stringify({ app:'InvoiceForge', version:1, invoice:inv }, null, 2);\r\n}\r\nfunction fromJSON(text){\r\n  var data=JSON.parse(text);\r\n  var inv=data&&data.invoice?data.invoice:data;\r\n  if(!inv||!Array.isArray(inv.items)) throw new Error('invalid invoice');\r\n  var base=defaultInvoice();\r\n  for(var k in base) if(inv[k]===undefined) inv[k]=base[k];\r\n  inv.items=inv.items.map(function(it){\r\n    return { name:String(it.name||''), qty:Number(it.qty)||0, price:Number(it.price)||0 };\r\n  });\r\n  return inv;\r\n}\r\nfunction renderInvoice(inv){\r\n  var t=calcTotals(inv.items, inv.taxRate, inv.discount);\r\n  var rows='';\r\n  (inv.items||[]).forEach(function(it,i){\r\n    rows+='<tr><td>'+(i+1)+'</td><td>'+escapeHTML(it.name)+'</td>'\r\n      +'<td class=\"num\">'+(Number(it.qty)||0)+'</td>'\r\n      +'<td class=\"num\">'+formatMoney(it.price)+'</td>'\r\n      +'<td class=\"num\">'+formatMoney(lineTotal(it))+'</td></tr>';\r\n  });\r\n  var h='<h1>'+escapeHTML(inv.title||'报价单')+'</h1>'\r\n    +'<div class=\"inv-no\">编号：'+escapeHTML(inv.no||'-')+' ｜ 日期：'+escapeHTML(inv.date||'-')\r\n    +(inv.due?' ｜ 有效期至：'+escapeHTML(inv.due):'')+'</div>'\r\n    +'<div class=\"parties\"><div class=\"party\"><h4>开票方</h4>'\r\n    +'<div><b>'+escapeHTML(inv.seller.name||'—')+'</b></div>'\r\n    +(inv.seller.tax?'<div>税号：'+escapeHTML(inv.seller.tax)+'</div>':'')\r\n    +(inv.seller.addr?'<div>'+escapeHTML(inv.seller.addr)+'</div>':'')\r\n    +(inv.seller.bank?'<div>'+escapeHTML(inv.seller.bank)+'</div>':'')\r\n    +'</div><div class=\"party\"><h4>收票方</h4>'\r\n    +'<div><b>'+escapeHTML(inv.buyer.name||'—')+'</b></div>'\r\n    +(inv.buyer.tax?'<div>税号：'+escapeHTML(inv.buyer.tax)+'</div>':'')\r\n    +(inv.buyer.addr?'<div>'+escapeHTML(inv.buyer.addr)+'</div>':'')\r\n    +'</div></div>'\r\n    +'<table><thead><tr><th style=\"width:36px\">#</th><th>项目名称</th><th style=\"width:70px\" class=\"num\">数量</th>'\r\n    +'<th style=\"width:100px\" class=\"num\">单价 (¥)</th><th style=\"width:110px\" class=\"num\">金额 (¥)</th></tr></thead>'\r\n    +'<tbody>'+rows+'</tbody></table>'\r\n    +'<div class=\"totals\">'\r\n    +'<div><span>小计</span><span>¥ '+formatMoney(t.subtotal)+'</span></div>'\r\n    +(t.discount>0?'<div><span>优惠</span><span>- ¥ '+formatMoney(t.discount)+'</span></div>':'')\r\n    +(Number(inv.taxRate)>0?'<div><span>税额 ('+inv.taxRate+'%)</span><span>¥ '+formatMoney(t.tax)+'</span></div>':'')\r\n    +'<div class=\"grand\"><span>合计</span><span>¥ '+formatMoney(t.total)+'</span></div></div>'\r\n    +'<div class=\"cnupper\">金额大写：<b>'+cnUpper(t.total)+'</b></div>'\r\n    +(inv.notes?'<div class=\"notes\">'+escapeHTML(inv.notes)+'</div>':'')\r\n    +'<div class=\"foot\"><span>开票人签字：____________</span><span>InvoiceForge · 本地生成</span></div>';\r\n  return h;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { round2:round2, escapeHTML:escapeHTML, formatMoney:formatMoney, lineTotal:lineTotal,\r\n    calcTotals:calcTotals, intToCn:intToCn, cnUpper:cnUpper, genInvoiceNo:genInvoiceNo,\r\n    defaultInvoice:defaultInvoice, toJSON:toJSON, fromJSON:fromJSON, renderInvoice:renderInvoice };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.InvoiceForgePure = { round2:round2, escapeHTML:escapeHTML, formatMoney:formatMoney, lineTotal:lineTotal,\r\n    calcTotals:calcTotals, intToCn:intToCn, cnUpper:cnUpper, genInvoiceNo:genInvoiceNo,\r\n    defaultInvoice:defaultInvoice, toJSON:toJSON, fromJSON:fromJSON, renderInvoice:renderInvoice };\r\n}\r\n"
+}

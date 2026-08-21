@@ -1,0 +1,36 @@
+{
+  "id": "RmbForge",
+  "name": "rmb_forge",
+  "title": "RmbForge",
+  "description": "人民币大写转换器：把数字金额转为人民币大写（如 壹仟贰佰叁拾肆元伍角陆分），并给出千分位数字的阿拉伯写法。",
+  "entry": "rmbUpper",
+  "entries": {
+    "rmbUpper": {
+      "paramStyle": "single",
+      "paramNames": [
+        "amount"
+      ],
+      "fields": []
+    },
+    "rmbDigits": {
+      "paramStyle": "single",
+      "paramNames": [
+        "amount"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "amount": {
+        "type": "string",
+        "description": "输入（amount）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar DIGITS = \"零壹贰叁肆伍陆柒捌玖\";\r\nfunction groupToCN(g){\r\n  var units = [\"\", \"拾\", \"佰\", \"仟\"];\r\n  var s = \"\"; var zero = false; var started = false;\r\n  var len = g.length;\r\n  for (var i = 0; i < len; i++){\r\n    var d = g.charAt(i) - \"0\";\r\n    var u = len - 1 - i;\r\n    if (d === 0){ if (started) zero = true; }\r\n    else { if (zero){ s += \"零\"; zero = false; } s += DIGITS[d] + units[u]; started = true; }\r\n  }\r\n  return s;\r\n}\r\nfunction intPartToCN(s){\r\n  if (s === \"0\") return \"零\";\r\n  var groups = []; var t = s;\r\n  while (t.length > 0){ groups.unshift(t.slice(-4)); t = t.slice(0, -4); }\r\n  var big = [\"兆\", \"亿\", \"万\", \"\"];\r\n  var result = \"\";\r\n  for (var i = 0; i < groups.length; i++){\r\n    var g = groups[i];\r\n    var bu = big[big.length - groups.length + i];\r\n    var sec = groupToCN(g);\r\n    if (sec === \"\"){\r\n      if (result !== \"\" && !result.endsWith(\"零\")) result += \"零\";\r\n      continue;\r\n    }\r\n    result += sec + bu;\r\n  }\r\n  if (result.endsWith(\"零\")) result = result.slice(0, -1);\r\n  return result === \"\" ? \"零\" : result;\r\n}\r\nfunction rmbUpper(amount){\r\n  if (isNaN(amount)) return null;\r\n  var neg = amount < 0;\r\n  amount = Math.abs(amount);\r\n  if (amount >= 1e16) return \"数值过大，仅支持到万亿级\";\r\n  var s = amount.toFixed(2);\r\n  var parts = s.split(\".\");\r\n  var intStr = parts[0].replace(/^0+/, \"\") || \"0\";\r\n  var decStr = parts[1];\r\n  var jiao = decStr.charAt(0) - \"0\";\r\n  var fen = decStr.charAt(1) - \"0\";\r\n  if (intStr === \"0\"){\r\n    var d2 = \"\";\r\n    if (jiao > 0) d2 += DIGITS[jiao] + \"角\";\r\n    if (jiao === 0 && fen > 0) d2 += \"零\";\r\n    if (fen > 0) d2 += DIGITS[fen] + \"分\";\r\n    if (d2 === \"\") d2 = \"零元整\";\r\n    else d2 = \"零元\" + d2;\r\n    return (neg ? \"负\" : \"\") + d2;\r\n  }\r\n  var res = intPartToCN(intStr);\r\n  if (jiao === 0 && fen === 0) res += \"元整\";\r\n  else {\r\n    res += \"元\";\r\n    if (jiao > 0) res += DIGITS[jiao] + \"角\";\r\n    if (jiao === 0 && fen > 0) res += \"零\";\r\n    if (fen > 0) res += DIGITS[fen] + \"分\";\r\n  }\r\n  return (neg ? \"负\" : \"\") + res;\r\n}\r\nfunction rmbDigits(amount){\r\n  if (isNaN(amount)) return null;\r\n  var neg = amount < 0; amount = Math.abs(amount);\r\n  var s = amount.toFixed(2);\r\n  var p = s.split(\".\");\r\n  var intStr = p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \",\");\r\n  return (neg ? \"-\" : \"\") + intStr + \".\" + p[1];\r\n}\r\nvar EXPORTS = { rmbUpper: rmbUpper, rmbDigits: rmbDigits };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RmbForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,46 @@
+{
+  "id": "CsvSqlForge",
+  "name": "csv_sql_forge",
+  "title": "CsvSqlForge",
+  "description": "把 CSV 转为 INSERT 语句，支持 MySQL / PostgreSQL 多行合并与转义。",
+  "entry": "parseCsv",
+  "entries": {
+    "parseCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "sqlVal": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "dialect"
+      ],
+      "fields": []
+    },
+    "csvToSql": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "table",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseCsv(text){\r\n  var rows=[],row=[],field='',i=0,L=text.length,inQ=false;\r\n  while(i<L){\r\n    var c=text[i];\r\n    if(inQ){\r\n      if(c==='\"'){ if(text[i+1]==='\"'){ field+='\"'; i+=2; continue; } inQ=false; i++; continue; }\r\n      if(c==='\\n'){ field+='\\n'; i++; continue; }\r\n      field+=c; i++; continue;\r\n    }\r\n    if(c==='\"'){ inQ=true; i++; continue; }\r\n    if(c===','){ row.push(field); field=''; i++; continue; }\r\n    if(c==='\\n'||c==='\\r'){ if(c==='\\r'&&text[i+1]==='\\n')i++; row.push(field); rows.push(row); row=[]; field=''; i++; continue; }\r\n    field+=c; i++;\r\n  }\r\n  row.push(field); rows.push(row);\r\n  return rows.filter(function(r){return r.length>1||r[0]!=='';});\r\n}\r\nfunction sqlVal(v,dialect){\r\n  if(v===null||v==='') return 'NULL';\r\n  if(/^-?\\d+(\\.\\d+)?$/.test(v)) return v;\r\n  var s=v.replace(/'/g,\"''\");\r\n  return \"'\"+s+\"'\";\r\n}\r\nfunction csvToSql(text, table, opts){\r\n  opts=opts||{}; var dialect=opts.dialect||'mysql'; var batch=opts.batch||1;\r\n  var rows=parseCsv(text); if(!rows.length) return '';\r\n  var header=rows[0].map(function(h){return h.trim();});\r\n  var body=rows.slice(1);\r\n  if(dialect==='postgres'){\r\n    var cols=header.map(function(h){return '\"'+h+'\"';}).join(', ');\r\n    var vals=body.map(function(r){return '('+r.map(function(v){return sqlVal(v,dialect);}).join(', ')+')';}).join(', ');\r\n    return 'INSERT INTO '+table+' ('+cols+') VALUES '+vals+';';\r\n  }\r\n  var stmts=[];\r\n  for(var b=0;b<body.length;b+=batch){\r\n    var chunk=body.slice(b,b+batch);\r\n    chunk.forEach(function(r){\r\n      var cols=header.join(', ');\r\n      var vals=r.map(function(v){return sqlVal(v,dialect);}).join(', ');\r\n      stmts.push('INSERT INTO '+table+' ('+cols+') VALUES ('+vals+');');\r\n    });\r\n  }\r\n  return stmts.join('\\n');\r\n}\r\nvar EXPORTS={parseCsv:parseCsv,sqlVal:sqlVal,csvToSql:csvToSql};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CsvSqlForgePure = EXPORTS; }\r\n\r\n"
+}

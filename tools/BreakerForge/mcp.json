@@ -1,0 +1,65 @@
+{
+  "id": "BreakerForge",
+  "name": "breaker_forge",
+  "title": "BreakerForge",
+  "description": "熔断器 Circuit Breaker：closed/open/half-open 状态机，保护下游服务。",
+  "entry": "cbCreate",
+  "entries": {
+    "cbCreate": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opts"
+      ],
+      "fields": [
+        "failureThreshold",
+        "successThreshold",
+        "timeoutMs"
+      ]
+    },
+    "cbAllow": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cb",
+        "now"
+      ],
+      "fields": []
+    },
+    "cbSuccess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cb",
+        "now"
+      ],
+      "fields": []
+    },
+    "cbFailure": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cb",
+        "now"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "failureThreshold": {
+        "type": "number",
+        "description": "参数 failureThreshold（数值）"
+      },
+      "successThreshold": {
+        "type": "number",
+        "description": "参数 successThreshold（数值）"
+      },
+      "timeoutMs": {
+        "type": "number",
+        "description": "参数 timeoutMs（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction cbCreate(opts){\r\n  opts=opts||{};\r\n  return { state:'CLOSED', failureThreshold:opts.failureThreshold||5, successThreshold:opts.successThreshold||2,\r\n           timeoutMs:opts.timeoutMs||1000, failures:0, successes:0, openedAt:0 };\r\n}\r\nfunction cbAllow(cb, now){\r\n  now = (now===undefined)?0:now;\r\n  if(cb.state==='OPEN'){\r\n    if(now - cb.openedAt >= cb.timeoutMs){ cb.state='HALF_OPEN'; cb.successes=0; return {state:cb.state, allow:true}; }\r\n    return {state:cb.state, allow:false};\r\n  }\r\n  return {state:cb.state, allow:true};\r\n}\r\nfunction cbSuccess(cb, now){\r\n  now=now||0;\r\n  if(cb.state==='HALF_OPEN'){ cb.successes++; if(cb.successes>=cb.successThreshold){ cb.state='CLOSED'; cb.failures=0; cb.successes=0; } }\r\n  else if(cb.state==='CLOSED'){ cb.failures=0; }\r\n  return {state:cb.state, allow: cb.state!=='OPEN'};\r\n}\r\nfunction cbFailure(cb, now){\r\n  now=now||0;\r\n  if(cb.state==='HALF_OPEN'){ cb.state='OPEN'; cb.openedAt=now; cb.successes=0; }\r\n  else { cb.failures++; if(cb.failures>=cb.failureThreshold){ cb.state='OPEN'; cb.openedAt=now; } }\r\n  return {state:cb.state, allow: cb.state!=='OPEN'};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { cbCreate:cbCreate, cbAllow:cbAllow, cbSuccess:cbSuccess, cbFailure:cbFailure };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.BreakerForgePure = { cbCreate:cbCreate, cbAllow:cbAllow, cbSuccess:cbSuccess, cbFailure:cbFailure };\r\n}\r\n"
+}

@@ -1,0 +1,64 @@
+{
+  "id": "RateLimitForge",
+  "name": "rate_limit_forge",
+  "title": "RateLimitForge",
+  "description": "限流算法可视化：令牌桶/漏桶/滑动窗口的可用量、剩余量与容量估算，附算法对比说明，离线可用。",
+  "entry": "tokenBucket",
+  "entries": {
+    "tokenBucket": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "capacity",
+        "refillPerSec",
+        "elapsedSec",
+        "start"
+      ],
+      "fields": []
+    },
+    "leakyBucket": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "capacity",
+        "leakPerSec",
+        "elapsedSec",
+        "start"
+      ],
+      "fields": []
+    },
+    "slidingWindow": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "max",
+        "windowSec",
+        "nowSec",
+        "hits"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "capacity": {
+        "type": "string",
+        "description": "第 1 个参数（capacity）"
+      },
+      "refillPerSec": {
+        "type": "string",
+        "description": "第 2 个参数（refillPerSec）"
+      },
+      "elapsedSec": {
+        "type": "string",
+        "description": "第 3 个参数（elapsedSec）"
+      },
+      "start": {
+        "type": "number",
+        "description": "第 4 个参数（start）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction tokenBucket(capacity, refillPerSec, elapsedSec, start){\r\n  start=start||0;\r\n  var added=elapsedSec*refillPerSec;\r\n  return Math.max(0, Math.min(capacity, start+added));\r\n}\r\nfunction leakyBucket(capacity, leakPerSec, elapsedSec, start){\r\n  start=start||0;\r\n  var leaked=elapsedSec*leakPerSec;\r\n  return Math.max(0, Math.min(capacity, start-leaked));\r\n}\r\nfunction slidingWindow(max, windowSec, nowSec, hits){\r\n  var cnt=0; for(var i=0;i<hits.length;i++){ var d=nowSec-hits[i]; if(d>=0 && d<=windowSec) cnt++; }\r\n  return {count:cnt, allowed:cnt<max, remaining:Math.max(0,max-cnt)};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { tokenBucket:tokenBucket, leakyBucket:leakyBucket, slidingWindow:slidingWindow }; }\r\nif (typeof window !== 'undefined') { window.RateLimitForgePure = { tokenBucket:tokenBucket, leakyBucket:leakyBucket, slidingWindow:slidingWindow }; }\r\n\r\n"
+}

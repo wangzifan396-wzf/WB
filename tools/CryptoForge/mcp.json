@@ -1,0 +1,88 @@
+{
+  "id": "CryptoForge",
+  "name": "crypto_forge",
+  "title": "CryptoForge",
+  "description": "本地 AES-GCM 加密与解密：Web Crypto + PBKDF2 派生密钥、随机盐与 IV 打包，敏感数据不出本机。",
+  "entry": "strToBytes",
+  "entries": {
+    "strToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "bytesToStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "bytesToB64": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "b64ToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "randomBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "formatPackage": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "salt",
+        "iv",
+        "ct"
+      ],
+      "fields": []
+    },
+    "parsePackage": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pkg"
+      ],
+      "fields": []
+    },
+    "deriveKey": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "encrypt": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "decrypt": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ===== 纯函数区（第一个无属性 script）：可被 Node _test.js 提取并断言 ===== */\r\nvar B64C='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\nfunction strToBytes(s){ return new TextEncoder().encode(s); }\r\nfunction bytesToStr(b){ return new TextDecoder().decode(b); }\r\nfunction bytesToB64(bytes){\r\n  var out='', i;\r\n  for(i=0;i+2<bytes.length;i+=3){\r\n    var n=(bytes[i]<<16)|(bytes[i+1]<<8)|bytes[i+2];\r\n    out+=B64C[(n>>18)&63]+B64C[(n>>12)&63]+B64C[(n>>6)&63]+B64C[n&63];\r\n  }\r\n  var rem=bytes.length-i;\r\n  if(rem===1){ var n1=bytes[i]<<16; out+=B64C[(n1>>18)&63]+B64C[(n1>>12)&63]+'=='; }\r\n  else if(rem===2){ var n2=(bytes[i]<<16)|(bytes[i+1]<<8); out+=B64C[(n2>>18)&63]+B64C[(n2>>12)&63]+B64C[(n2>>6)&63]+'='; }\r\n  return out;\r\n}\r\nfunction b64ToBytes(s){\r\n  s=String(s).replace(/\\s+/g,'').replace(/=+$/,'');\r\n  var out=[], i;\r\n  for(i=0;i+3<s.length;i+=4){\r\n    var n=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6)|B64C.indexOf(s[i+3]);\r\n    out.push((n>>16)&255,(n>>8)&255,n&255);\r\n  }\r\n  var rem=s.length-i;\r\n  if(rem===2){ var n3=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12); out.push((n3>>16)&255); }\r\n  else if(rem===3){ var n4=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6); out.push((n4>>16)&255,(n4>>8)&255); }\r\n  return Uint8Array.from(out);\r\n}\r\nfunction randomBytes(n){\r\n  var b=new Uint8Array(n);\r\n  if(typeof globalThis!=='undefined' && globalThis.crypto && globalThis.crypto.getRandomValues) globalThis.crypto.getRandomValues(b);\r\n  else for(var i=0;i<n;i++) b[i]=Math.floor(Math.random()*256);\r\n  return b;\r\n}\r\nfunction formatPackage(salt, iv, ct){\r\n  return 'v1|'+bytesToB64(salt)+'|'+bytesToB64(iv)+'|'+bytesToB64(ct);\r\n}\r\nfunction parsePackage(pkg){\r\n  var p=String(pkg).split('|');\r\n  if(p.length!==4 || p[0]!=='v1') return null;\r\n  try{ return { salt:b64ToBytes(p[1]), iv:b64ToBytes(p[2]), ct:b64ToBytes(p[3]) }; }\r\n  catch(e){ return null; }\r\n}\r\nasync function deriveKey(passphrase, salt){\r\n  var baseKey=await globalThis.crypto.subtle.importKey('raw', strToBytes(passphrase), 'PBKDF2', false, ['deriveKey']);\r\n  return globalThis.crypto.subtle.deriveKey(\r\n    {name:'PBKDF2', salt:salt, iterations:100000, hash:'SHA-256'},\r\n    baseKey, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);\r\n}\r\nasync function encrypt(plaintext, passphrase){\r\n  var salt=randomBytes(16), iv=randomBytes(12);\r\n  var key=await deriveKey(passphrase, salt);\r\n  var ct=await globalThis.crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, key, strToBytes(plaintext));\r\n  return formatPackage(salt, iv, new Uint8Array(ct));\r\n}\r\nasync function decrypt(pkg, passphrase){\r\n  var parts=parsePackage(pkg);\r\n  if(!parts) throw new Error('密文格式无法识别');\r\n  var key=await deriveKey(passphrase, parts.salt);\r\n  var pt=await globalThis.crypto.subtle.decrypt({name:'AES-GCM', iv:parts.iv}, key, parts.ct);\r\n  return bytesToStr(new Uint8Array(pt));\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { strToBytes:strToBytes, bytesToStr:bytesToStr, bytesToB64:bytesToB64, b64ToBytes:b64ToBytes,\r\n    randomBytes:randomBytes, formatPackage:formatPackage, parsePackage:parsePackage, deriveKey:deriveKey, encrypt:encrypt, decrypt:decrypt };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.CryptoForgePure = { strToBytes:strToBytes, bytesToStr:bytesToStr, bytesToB64:bytesToB64, b64ToBytes:b64ToBytes,\r\n    randomBytes:randomBytes, formatPackage:formatPackage, parsePackage:parsePackage, deriveKey:deriveKey, encrypt:encrypt, decrypt:decrypt };\r\n}\r\n"
+}

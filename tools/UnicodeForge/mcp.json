@@ -1,0 +1,64 @@
+{
+  "id": "UnicodeForge",
+  "name": "unicode_forge",
+  "title": "UnicodeForge",
+  "description": "离线 Unicode 检查器：文本 ↔ \\\\uXXXX 转义、码点 U+、UTF-8 字节、HTML 实体互转。",
+  "entry": "toUnicodeEscape",
+  "entries": {
+    "toUnicodeEscape": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fromUnicodeEscape": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "toCodePoints": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "toUtf8Bytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "toHtmlEntities": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fromHtmlEntities": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction pad(s,n){ s=String(s); while(s.length<n) s='0'+s; return s; }\r\nfunction toUnicodeEscape(text){\r\n  text=String(text); var out='';\r\n  for(var i=0;i<text.length;i++){ out+='\\\\u'+pad(text.charCodeAt(i).toString(16).toUpperCase(),4); }\r\n  return out;\r\n}\r\nfunction fromUnicodeEscape(str){\r\n  str=String(str);\r\n  str=str.replace(/\\\\u\\{([0-9a-fA-F]+)\\}/g,function(_,h){ return String.fromCodePoint(parseInt(h,16)); });\r\n  str=str.replace(/\\\\u([0-9a-fA-F]{4})/g,function(_,h){ return String.fromCharCode(parseInt(h,16)); });\r\n  str=str.replace(/\\\\x([0-9a-fA-F]{2})/g,function(_,h){ return String.fromCharCode(parseInt(h,16)); });\r\n  return str;\r\n}\r\nfunction toCodePoints(text){\r\n  text=String(text); var out=[];\r\n  for(var ch of text){ out.push('U+'+pad(ch.codePointAt(0).toString(16).toUpperCase(),4)); }\r\n  return out.join(' ');\r\n}\r\nfunction toUtf8Bytes(text){\r\n  text=String(text); var bytes=[];\r\n  for(var ch of text){\r\n    var cp=ch.codePointAt(0);\r\n    if(cp<0x80) bytes.push(cp);\r\n    else if(cp<0x800) bytes.push(0xC0|(cp>>6),0x80|(cp&0x3F));\r\n    else if(cp<0x10000) bytes.push(0xE0|(cp>>12),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));\r\n    else bytes.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));\r\n  }\r\n  return bytes.map(function(b){ return pad(b.toString(16).toUpperCase(),2); }).join(' ');\r\n}\r\nfunction toHtmlEntities(text){\r\n  text=String(text); var out='';\r\n  for(var ch of text){ out+='&#'+ch.codePointAt(0)+';'; }\r\n  return out;\r\n}\r\nfunction fromHtmlEntities(str){\r\n  return String(str)\r\n    .replace(/&#x([0-9a-fA-F]+);/g,function(_,h){ return String.fromCodePoint(parseInt(h,16)); })\r\n    .replace(/&#(\\d+);/g,function(_,d){ return String.fromCodePoint(parseInt(d,10)); });\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { toUnicodeEscape:toUnicodeEscape, fromUnicodeEscape:fromUnicodeEscape, toCodePoints:toCodePoints, toUtf8Bytes:toUtf8Bytes, toHtmlEntities:toHtmlEntities, fromHtmlEntities:fromHtmlEntities };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.UnicodeForgePure = { toUnicodeEscape:toUnicodeEscape, fromUnicodeEscape:fromUnicodeEscape, toCodePoints:toCodePoints, toUtf8Bytes:toUtf8Bytes, toHtmlEntities:toHtmlEntities, fromHtmlEntities:fromHtmlEntities };\r\n}\r\n"
+}

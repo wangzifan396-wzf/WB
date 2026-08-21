@@ -1,0 +1,41 @@
+{
+  "id": "SteganographyForge",
+  "name": "steganography_forge",
+  "title": "SteganographyForge",
+  "description": "零宽字符文本隐写：将密文按位嵌入载体文本的不可见字符，可提取，离线可用。",
+  "entry": "encode",
+  "entries": {
+    "encode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "msg",
+        "carrier"
+      ],
+      "fields": []
+    },
+    "decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "msg": {
+        "type": "string",
+        "description": "第 1 个参数（msg）"
+      },
+      "carrier": {
+        "type": "string",
+        "description": "第 2 个参数（carrier）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar ZW0='\\u200B', ZW1='\\u200C', ZWSEP='\\u200D';\r\nfunction encode(msg, carrier){ carrier=carrier||''; var bytes=Array.from(new TextEncoder().encode(msg)); var bits='';\r\n  for(var i=0;i<bytes.length;i++){ for(var b=7;b>=0;b--){ bits += ((bytes[i]>>b)&1)?ZW1:ZW0; } }\r\n  return carrier + ZWSEP + bits + ZWSEP;\r\n}\r\nfunction decode(text){ var i=text.indexOf(ZWSEP); if(i<0) return ''; var j=text.indexOf(ZWSEP,i+1); if(j<0) return '';\r\n  var bits=text.slice(i+1,j), bytes=[];\r\n  for(var k=0;k+8<=bits.length;k+=8){ var byte=0; for(var b=0;b<8;b++){ byte=(byte<<1)|(bits[k+b]===ZW1?1:0); } bytes.push(byte); }\r\n  return new TextDecoder().decode(new Uint8Array(bytes));\r\n}\r\nvar EXPORTS={encode:encode, decode:decode, ZW0:ZW0, ZW1:ZW1, ZWSEP:ZWSEP};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SteganographyForgePure = EXPORTS; }\r\n\r\n"
+}

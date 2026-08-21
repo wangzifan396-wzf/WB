@@ -1,0 +1,127 @@
+{
+  "id": "TableForge",
+  "name": "table_forge",
+  "title": "TableForge",
+  "description": "离线表格工作台：粘贴 CSV/TSV/JSON 即解析，单元格编辑、增删行列、排序、筛选、分组聚合，导出 Markdown/HTML/JSON/CSV/TSV。",
+  "entry": "esc",
+  "entries": {
+    "esc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "num": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "detectDelimiter": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseDelimited": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "delim",
+        "quote"
+      ],
+      "fields": []
+    },
+    "toDelimited": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "delim",
+        "quote"
+      ],
+      "fields": []
+    },
+    "toMarkdown": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "toHTML": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "toJSON": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "transpose": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "sortRows": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "colIdx",
+        "dir",
+        "hasHeader"
+      ],
+      "fields": []
+    },
+    "filterRows": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "colIdx",
+        "query",
+        "hasHeader"
+      ],
+      "fields": []
+    },
+    "aggregate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "groupCol",
+        "valCol",
+        "op",
+        "hasHeader"
+      ],
+      "fields": []
+    },
+    "columnStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "values"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ===== 纯函数区（首个无属性 script）：可被 Node _test.js 提取并断言 ===== */\r\n  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\n  function num(v){ var n=parseFloat(String(v==null?'':v).replace(/,/g,'')); return isNaN(n)?NaN:n; }\r\n  function detectDelimiter(text){\r\n    var first = (text.split(/\\r?\\n/)[0]||'');\r\n    var c=(first.match(/,/g)||[]).length, t=(first.match(/\\t/g)||[]).length, s=(first.match(/;/g)||[]).length;\r\n    if (t>=c && t>=s && t>0) return '\\t';\r\n    if (s>=c && s>0) return ';';\r\n    return ',';\r\n  }\r\n  function parseDelimited(text, delim, quote){\r\n    delim = delim || ','; quote = (quote==null)?'\"':quote;\r\n    var rows=[], row=[], field='', i=0, n=text.length, q=false;\r\n    while(i<n){\r\n      var ch=text[i];\r\n      if(q){\r\n        if(ch===quote){ if(text[i+1]===quote){ field+=quote; i+=2; continue; } q=false; i++; continue; }\r\n        field+=ch; i++; continue;\r\n      }\r\n      if(ch===quote && field===''){ q=true; i++; continue; }\r\n      if(ch===delim){ row.push(field); field=''; i++; continue; }\r\n      if(ch==='\\n'||ch==='\\r'){ if(ch==='\\r'&&text[i+1]==='\\n') i++; row.push(field); rows.push(row); row=[]; field=''; i++; continue; }\r\n      field+=ch; i++;\r\n    }\r\n    if(field!=='' || row.length>0){ row.push(field); rows.push(row); }\r\n    while(rows.length && rows[rows.length-1].length===1 && rows[rows.length-1][0]==='') rows.pop();\r\n    while(rows.length && rows[rows.length-1].every(function(x){return x==='';})) rows.pop();\r\n    return rows;\r\n  }\r\n  function toDelimited(rows, delim, quote){\r\n    delim = delim || ','; quote = (quote==null)?'\"':quote;\r\n    return rows.map(function(r){\r\n      return r.map(function(cell){\r\n        var s=String(cell==null?'':cell);\r\n        if(s.indexOf(delim)>=0 || s.indexOf(quote)>=0 || s.indexOf('\\n')>=0 || s.indexOf('\\r')>=0){\r\n          return quote + s.split(quote).join(quote+quote) + quote;\r\n        }\r\n        return s;\r\n      }).join(delim);\r\n    }).join('\\n');\r\n  }\r\n  function toMarkdown(rows){\r\n    if(!rows.length) return '';\r\n    function cells(r){ return '| ' + r.map(function(c){return String(c==null?'':c).trim();}).join(' | ') + ' |'; }\r\n    var head = cells(rows[0]);\r\n    var sep = '| ' + rows[0].map(function(){return '---';}).join(' | ') + ' |';\r\n    var body = rows.slice(1).map(cells).join('\\n');\r\n    return head + '\\n' + sep + (body ? '\\n' + body : '');\r\n  }\r\n  function toHTML(rows){\r\n    if(!rows.length) return '<table></table>';\r\n    var head = rows[0].map(function(c){return '<th>'+esc(c)+'</th>';}).join('');\r\n    var body = rows.slice(1).map(function(r){ return '<tr>'+r.map(function(c){return '<td>'+esc(c)+'</td>';}).join('')+'</tr>'; }).join('');\r\n    return '<table border=\"1\" cellspacing=\"0\" cellpadding=\"6\"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table>';\r\n  }\r\n  function toJSON(rows){\r\n    if(!rows.length) return '[]';\r\n    var header = rows[0];\r\n    var objs = rows.slice(1).map(function(r){\r\n      var o={}; header.forEach(function(h,i){ o[String(h).trim()] = (r[i]==null?'':r[i]); }); return o;\r\n    });\r\n    return JSON.stringify(objs, null, 2);\r\n  }\r\n  function transpose(rows){\r\n    if(!rows.length) return [];\r\n    var cols = Math.max.apply(null, rows.map(function(r){return r.length;}));\r\n    var out=[];\r\n    for(var c=0;c<cols;c++){ var nr=[]; for(var ri=0;ri<rows.length;ri++){ nr.push(rows[ri][c]==null?'':rows[ri][c]); } out.push(nr); }\r\n    return out;\r\n  }\r\n  function sortRows(rows, colIdx, dir, hasHeader){\r\n    if(!rows.length) return rows;\r\n    var head = hasHeader ? rows[0] : null;\r\n    var body = (hasHeader ? rows.slice(1) : rows.slice()).map(function(r){return r.slice();});\r\n    var mul = dir==='desc' ? -1 : 1;\r\n    body.sort(function(a,b){\r\n      var va=num(a[colIdx]), vb=num(b[colIdx]);\r\n      if(!isNaN(va)&&!isNaN(vb)) return (va-vb)*mul;\r\n      var sa=String(a[colIdx]==null?'':a[colIdx]).toLowerCase();\r\n      var sb=String(b[colIdx]==null?'':b[colIdx]).toLowerCase();\r\n      return sa.localeCompare(sb)*mul;\r\n    });\r\n    return hasHeader ? [head].concat(body) : body;\r\n  }\r\n  function filterRows(rows, colIdx, query, hasHeader){\r\n    if(!rows.length) return [];\r\n    var q=String(query).toLowerCase(), out=[];\r\n    for(var i=0;i<rows.length;i++){\r\n      if(hasHeader && i===0){ out.push(rows[i]); continue; }\r\n      var cell=String(rows[i][colIdx]==null?'':rows[i][colIdx]).toLowerCase();\r\n      if(cell.indexOf(q)>=0) out.push(rows[i]);\r\n    }\r\n    return out;\r\n  }\r\n  function aggregate(rows, groupCol, valCol, op, hasHeader){\r\n    if(!rows.length) return [];\r\n    var body = hasHeader ? rows.slice(1) : rows;\r\n    var groups={};\r\n    body.forEach(function(r){ var g=String(r[groupCol]==null?'':r[groupCol]); (groups[g]=groups[g]||[]).push(num(r[valCol])); });\r\n    var out=[];\r\n    Object.keys(groups).forEach(function(g){\r\n      var vals=groups[g].filter(function(v){return !isNaN(v);});\r\n      var res;\r\n      if(op==='count') res=groups[g].length;\r\n      else if(op==='sum') res=vals.reduce(function(a,b){return a+b;},0);\r\n      else if(op==='avg') res= vals.length ? vals.reduce(function(a,b){return a+b;},0)/vals.length : 0;\r\n      else if(op==='min') res= vals.length ? Math.min.apply(null,vals) : 0;\r\n      else if(op==='max') res= vals.length ? Math.max.apply(null,vals) : 0;\r\n      else res=vals.length;\r\n      out.push([g, res]);\r\n    });\r\n    return out;\r\n  }\r\n  function columnStats(values){\r\n    var nums = values.map(num).filter(function(v){return !isNaN(v);});\r\n    var nonempty = values.filter(function(v){return String(v==null?'':v).trim()!=='';}).length;\r\n    var sum = nums.reduce(function(a,b){return a+b;},0);\r\n    return { count:values.length, nonempty:nonempty,\r\n      min: nums.length?Math.min.apply(null,nums):NaN,\r\n      max: nums.length?Math.max.apply(null,nums):NaN,\r\n      sum:sum, avg: nums.length? sum/nums.length : NaN };\r\n  }\r\n  if (typeof module !== 'undefined' && module.exports) {\r\n    module.exports = {\r\n      esc:esc, num:num, detectDelimiter:detectDelimiter, parseDelimited:parseDelimited,\r\n      toDelimited:toDelimited, toMarkdown:toMarkdown, toHTML:toHTML, toJSON:toJSON,\r\n      transpose:transpose, sortRows:sortRows, filterRows:filterRows, aggregate:aggregate, columnStats:columnStats\r\n    };\r\n  }\r\nif (typeof window !== 'undefined') {\r\n  window.TableForgePure = {\r\n    esc:esc, num:num, detectDelimiter:detectDelimiter, parseDelimited:parseDelimited,\r\n    toDelimited:toDelimited, toMarkdown:toMarkdown, toHTML:toHTML, toJSON:toJSON,\r\n    transpose:transpose, sortRows:sortRows, filterRows:filterRows, aggregate:aggregate, columnStats:columnStats\r\n  };\r\n}\r\n"
+}

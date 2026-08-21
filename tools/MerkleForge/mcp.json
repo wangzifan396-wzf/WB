@@ -1,0 +1,68 @@
+{
+  "id": "MerkleForge",
+  "name": "merkle_forge",
+  "title": "MerkleForge",
+  "description": "默克尔树构建与证明器：SHA-256 树 + 包含性证明 + 校验。",
+  "entry": "leafHash",
+  "entries": {
+    "leafHash": {
+      "paramStyle": "single",
+      "paramNames": [
+        "data"
+      ],
+      "fields": []
+    },
+    "nodeHash": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "l",
+        "r"
+      ],
+      "fields": []
+    },
+    "merkleLevels": {
+      "paramStyle": "single",
+      "paramNames": [
+        "leaves"
+      ],
+      "fields": []
+    },
+    "merkleRoot": {
+      "paramStyle": "single",
+      "paramNames": [
+        "leaves"
+      ],
+      "fields": []
+    },
+    "merkleProof": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "leaves",
+        "index"
+      ],
+      "fields": []
+    },
+    "merkleVerify": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "leafData",
+        "proof",
+        "root"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "输入（data）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction utf8Bytes(str){\r\n  var bytes=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.charCodeAt(i);\r\n    if(c<0x80) bytes.push(c);\r\n    else if(c<0x800){ bytes.push(0xc0|(c>>6), 0x80|(c&0x3f)); }\r\n    else if(c>=0xd800 && c<=0xdbff){ var c2=str.charCodeAt(i+1); var cp=0x10000+((c&0x3ff)<<10)+(c2&0x3ff);\r\n      bytes.push(0xf0|(cp>>18),0x80|((cp>>12)&0x3f),0x80|((cp>>6)&0x3f),0x80|(cp&0x3f)); i++; }\r\n    else { bytes.push(0xe0|(c>>12),0x80|((c>>6)&0x3f),0x80|(c&0x3f)); }\r\n  }\r\n  return bytes;\r\n}\r\nvar SHA256_K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,\r\n0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,\r\n0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,\r\n0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,\r\n0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,\r\n0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,\r\n0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,\r\n0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\r\nfunction sha256(bytes){\r\n  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\r\n  var bitLen=bytes.length*8;\r\n  var w=bytes.slice(); w.push(0x80);\r\n  while(w.length%64!==56) w.push(0);\r\n  w.push(0,0,0,0,(bitLen>>>24)&0xff,(bitLen>>>16)&0xff,(bitLen>>>8)&0xff,bitLen&0xff);\r\n  function rotr(x,n){ return ((x>>>n)|(x<<(32-n)))>>>0; }\r\n  var W=new Array(64);\r\n  for(var off=0; off<w.length; off+=64){\r\n    for(var i=0;i<16;i++) W[i]=(w[off+i*4]<<24)|(w[off+i*4+1]<<16)|(w[off+i*4+2]<<8)|w[off+i*4+3];\r\n    for(var i=16;i<64;i++){ var s0=rotr(W[i-15],7)^rotr(W[i-15],18)^(W[i-15]>>>3);\r\n      var s1=rotr(W[i-2],17)^rotr(W[i-2],19)^(W[i-2]>>>10); W[i]=(W[i-16]+s0+W[i-7]+s1)>>>0; }\r\n    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];\r\n    for(var i=0;i<64;i++){\r\n      var S1=rotr(e,6)^rotr(e,11)^rotr(e,25); var ch=(e&f)^((~e)&g);\r\n      var t1=(h+S1+ch+SHA256_K[i]+W[i])>>>0;\r\n      var S0=rotr(a,2)^rotr(a,13)^rotr(a,22); var maj=(a&b)^(a&c)^(b&c);\r\n      var t2=(S0+maj)>>>0;\r\n      h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;\r\n    }\r\n    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;\r\n    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;\r\n  }\r\n  function hx(n){ return ('00000000'+(n>>>0).toString(16)).slice(-8); }\r\n  return H.map(hx).join('');\r\n}\r\nfunction leafHash(data){ return sha256(utf8Bytes('leaf:'+data)); }\r\nfunction nodeHash(l, r){ return sha256(utf8Bytes('node:'+l+r)); }\r\nfunction merkleLevels(leaves){\r\n  if(!leaves.length) throw new Error('EMPTY');\r\n  var lvl=leaves.map(leafHash), out=[lvl];\r\n  while(lvl.length>1){\r\n    var next=[];\r\n    for(var i=0;i<lvl.length;i+=2){\r\n      var l=lvl[i], r=(i+1<lvl.length)?lvl[i+1]:lvl[i];\r\n      next.push(nodeHash(l,r));\r\n    }\r\n    lvl=next; out.push(lvl);\r\n  }\r\n  return out;\r\n}\r\nfunction merkleRoot(leaves){\r\n  var lv=merkleLevels(leaves);\r\n  return lv[lv.length-1][0];\r\n}\r\nfunction merkleProof(leaves, index){\r\n  if(index<0||index>=leaves.length) throw new Error('INDEX_RANGE');\r\n  var lv=merkleLevels(leaves), proof=[], idx=index;\r\n  for(var d=0; d<lv.length-1; d++){\r\n    var layer=lv[d];\r\n    var sib=(idx%2===0) ? (idx+1<layer.length?idx+1:idx) : idx-1;\r\n    proof.push({ hash:layer[sib], right:(idx%2===0) });\r\n    idx=Math.floor(idx/2);\r\n  }\r\n  return proof;\r\n}\r\nfunction merkleVerify(leafData, proof, root){\r\n  var h=leafHash(leafData);\r\n  for(var i=0;i<proof.length;i++){\r\n    h = proof[i].right ? nodeHash(h, proof[i].hash) : nodeHash(proof[i].hash, h);\r\n  }\r\n  return h===root;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { leafHash:leafHash, nodeHash:nodeHash, merkleLevels:merkleLevels,\r\n    merkleRoot:merkleRoot, merkleProof:merkleProof, merkleVerify:merkleVerify, sha256:sha256, utf8Bytes:utf8Bytes };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MerkleForgePure = { leafHash:leafHash, nodeHash:nodeHash, merkleLevels:merkleLevels,\r\n    merkleRoot:merkleRoot, merkleProof:merkleProof, merkleVerify:merkleVerify };\r\n}\r\n"
+}

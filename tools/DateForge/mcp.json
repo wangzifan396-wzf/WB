@@ -1,0 +1,203 @@
+{
+  "id": "DateForge",
+  "name": "date_forge",
+  "title": "DateForge",
+  "description": "离线日期计算器：日期间隔（年月日精确拆分）、加减推算、ISO 周 / 年积日 / 工作日、年龄与下次生日，纯整数序列算法无时区陷阱。",
+  "entry": "pad2",
+  "entries": {
+    "pad2": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "isLeap": {
+      "paramStyle": "single",
+      "paramNames": [
+        "y"
+      ],
+      "fields": []
+    },
+    "dim": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "y",
+        "m"
+      ],
+      "fields": []
+    },
+    "valid": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "y",
+        "m",
+        "d"
+      ],
+      "fields": []
+    },
+    "toSerial": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "y",
+        "m",
+        "d"
+      ],
+      "fields": []
+    },
+    "fromSerial": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "fmt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "o",
+        "sep"
+      ],
+      "fields": []
+    },
+    "weekday": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "y",
+        "m",
+        "d"
+      ]
+    },
+    "weekdayName": {
+      "paramStyle": "single",
+      "paramNames": [
+        "i"
+      ],
+      "fields": []
+    },
+    "diffDays": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "diffYMD": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "addDays": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "o",
+        "n"
+      ],
+      "fields": []
+    },
+    "addMonths": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "o",
+        "n"
+      ],
+      "fields": []
+    },
+    "addYears": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "o",
+        "n"
+      ],
+      "fields": []
+    },
+    "isoWeek": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "y",
+        "m",
+        "d"
+      ]
+    },
+    "dayOfYear": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "y",
+        "m",
+        "d"
+      ]
+    },
+    "workdays": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "age": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "birth",
+        "ref"
+      ],
+      "fields": []
+    },
+    "toUnix": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "y",
+        "m",
+        "d"
+      ]
+    },
+    "fromUnix": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sec"
+      ],
+      "fields": []
+    },
+    "today": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "输入（n）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* DateForge 纯函数内核（无 DOM 依赖，可被 Node 单测直接加载） */\r\nvar DF = (function(){\r\n  'use strict';\r\n  function pad2(n){ return (n<10?'0':'')+n; }\r\n  function isLeap(y){ return (y%4===0 && y%100!==0) || y%400===0; }\r\n  var DIM = [31,28,31,30,31,30,31,31,30,31,30,31];\r\n  function dim(y,m){ return m===2 && isLeap(y) ? 29 : DIM[m-1]; }\r\n  function valid(y,m,d){\r\n    return Number.isInteger(y) && Number.isInteger(m) && Number.isInteger(d) &&\r\n      y>=1 && y<=9999 && m>=1 && m<=12 && d>=1 && d<=dim(y,m);\r\n  }\r\n  /* Howard Hinnant days-from-civil：返回自 1970-01-01 起的天数（可为负） */\r\n  function toSerial(y,m,d){\r\n    var yy = y - (m<=2 ? 1 : 0);\r\n    var era = Math.floor(yy/400);\r\n    var yoe = yy - era*400;\r\n    var doy = Math.floor((153*(m + (m>2 ? -3 : 9)) + 2)/5) + d - 1;\r\n    var doe = yoe*365 + Math.floor(yoe/4) - Math.floor(yoe/100) + doy;\r\n    return era*146097 + doe - 719468;\r\n  }\r\n  function fromSerial(n){\r\n    var z = n + 719468;\r\n    var era = Math.floor(z/146097);\r\n    var doe = z - era*146097;\r\n    var yoe = Math.floor((doe - Math.floor(doe/1460) + Math.floor(doe/36524) - Math.floor(doe/146096))/365);\r\n    var y = yoe + era*400;\r\n    var doy = doe - (365*yoe + Math.floor(yoe/4) - Math.floor(yoe/100));\r\n    var mp = Math.floor((5*doy + 2)/153);\r\n    var d = doy - Math.floor((153*mp+2)/5) + 1;\r\n    var m = mp + (mp<10 ? 3 : -9);\r\n    return { y: y + (m<=2 ? 1 : 0), m: m, d: d };\r\n  }\r\n  function parse(str){\r\n    if(typeof str !== 'string') return null;\r\n    var s = str.trim();\r\n    var m = s.match(/^(\\d{4})[-/.年]?(\\d{1,2})[-/.月]?(\\d{1,2})日?$/);\r\n    if(!m) return null;\r\n    var o = { y:+m[1], m:+m[2], d:+m[3] };\r\n    return valid(o.y,o.m,o.d) ? o : null;\r\n  }\r\n  function fmt(o, sep){\r\n    sep = sep === undefined ? '-' : sep;\r\n    return o.y + sep + pad2(o.m) + sep + pad2(o.d);\r\n  }\r\n  /* 星期：0=周一 … 6=周日（1970-01-01 是周四） */\r\n  function weekday(o){\r\n    var s = toSerial(o.y,o.m,o.d);\r\n    return ((s+3)%7+7)%7;\r\n  }\r\n  var WD_ZH = ['周一','周二','周三','周四','周五','周六','周日'];\r\n  function weekdayName(i){ return WD_ZH[i]; }\r\n  function diffDays(a,b){ return toSerial(b.y,b.m,b.d) - toSerial(a.y,a.m,a.d); }\r\n  /* Y/M/D 分解差（含符号，锚点法：a + Ny+Nm 收敛后再数天） */\r\n  function diffYMD(a,b){\r\n    var sign = 1;\r\n    if(diffDays(a,b) < 0){ var t=a; a=b; b=t; sign=-1; }\r\n    var tm = (b.y - a.y)*12 + (b.m - a.m);\r\n    var anchor = addMonths(a, tm);\r\n    if(diffDays(anchor, b) < 0){ tm -= 1; anchor = addMonths(a, tm); }\r\n    var years = Math.floor(tm/12);\r\n    return { sign:sign, years:years, months: tm - years*12,\r\n             days: diffDays(anchor, b), totalDays: Math.abs(diffDays(a,b)) };\r\n  }\r\n  function addDays(o,n){ return fromSerial(toSerial(o.y,o.m,o.d) + n); }\r\n  function addMonths(o,n){\r\n    var idx = (o.y*12 + (o.m-1)) + n;\r\n    var y = Math.floor(idx/12), m = idx - y*12 + 1;\r\n    var d = Math.min(o.d, dim(y,m));\r\n    return { y:y, m:m, d:d };\r\n  }\r\n  function addYears(o,n){\r\n    var y = o.y + n;\r\n    return { y:y, m:o.m, d: Math.min(o.d, dim(y,o.m)) };\r\n  }\r\n  /* ISO 8601 周数 */\r\n  function isoWeek(o){\r\n    var s = toSerial(o.y,o.m,o.d);\r\n    var dow = ((s+3)%7+7)%7;          /* 0=周一 */\r\n    var thursday = s - dow + 3;\r\n    var t = fromSerial(thursday);\r\n    var week = Math.floor((thursday - toSerial(t.y,1,1))/7) + 1;\r\n    return { year: t.y, week: week };\r\n  }\r\n  function dayOfYear(o){ return toSerial(o.y,o.m,o.d) - toSerial(o.y,1,1) + 1; }\r\n  /* 工作日（周一~周五）计数，含首尾两端 */\r\n  function workdays(a,b){\r\n    var neg = false;\r\n    if(diffDays(a,b) < 0){ var t=a; a=b; b=t; neg=true; }\r\n    var total = diffDays(a,b) + 1;\r\n    var weeks = Math.floor(total/7), rem = total%7;\r\n    var cnt = weeks*5;\r\n    var wd = weekday(a);\r\n    for(var i=0;i<rem;i++){ if(((wd+i)%7) < 5) cnt++; }\r\n    return neg ? -cnt : cnt;\r\n  }\r\n  /* 年龄：生日→参考日 Y/M/D + 下次生日倒计时 */\r\n  function age(birth, ref){\r\n    var a = diffYMD(birth, ref);\r\n    var ny = ref.y;\r\n    var bm = birth.m, bd = birth.d;\r\n    function mk(y){ return { y:y, m:bm, d: Math.min(bd, dim(y,bm)) }; }\r\n    var next = mk(ny);\r\n    if(diffDays(ref, next) <= 0) next = mk(ny+1);\r\n    return { years:a.years, months:a.months, days:a.days, totalDays:a.totalDays,\r\n             nextBirthday: next, nextBirthdayDays: diffDays(ref, next) };\r\n  }\r\n  function toUnix(o){ return toSerial(o.y,o.m,o.d)*86400; }\r\n  function fromUnix(sec){\r\n    var days = Math.floor(sec/86400);\r\n    return fromSerial(days);\r\n  }\r\n  function today(){\r\n    var d = new Date();\r\n    return { y:d.getFullYear(), m:d.getMonth()+1, d:d.getDate() };\r\n  }\r\n  return {\r\n    pad2:pad2, isLeap:isLeap, dim:dim, valid:valid,\r\n    toSerial:toSerial, fromSerial:fromSerial, parse:parse, fmt:fmt,\r\n    weekday:weekday, weekdayName:weekdayName,\r\n    diffDays:diffDays, diffYMD:diffYMD,\r\n    addDays:addDays, addMonths:addMonths, addYears:addYears,\r\n    isoWeek:isoWeek, dayOfYear:dayOfYear, workdays:workdays,\r\n    age:age, toUnix:toUnix, fromUnix:fromUnix, today:today\r\n  };\r\n})();\r\nif(typeof module!=='undefined' && module.exports){ module.exports = DF; }\r\nif(typeof window!=='undefined'){ window.__DATEFORGE__ = DF; }\r\n"
+}

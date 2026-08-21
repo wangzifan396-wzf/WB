@@ -1,0 +1,34 @@
+{
+  "id": "LineChartForge",
+  "name": "line_chart_forge",
+  "title": "折线图",
+  "description": "按数据点生成带坐标轴的 SVG 折线图，离线。",
+  "entry": "lineSvg",
+  "entries": {
+    "lineSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "points",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "points": {
+        "type": "string",
+        "description": "第 1 个参数（points）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction lineSvg(points, opts){\r\n  opts=opts||{};\r\n  if(!Array.isArray(points)||points.length<2) return {error:'至少 2 个点'};\r\n  var pts=points.map(function(p,i){ if(typeof p==='number') return {x:i+1,y:p}; if(p&&typeof p==='object'&&'x'in p) return {x:+p.x,y:+p.y}; if(Array.isArray(p)) return {x:+p[0],y:+p[1]}; return {x:+p[0],y:+p[1]}; });\r\n  for(var i=0;i<pts.length;i++){ if(isNaN(pts[i].x)||isNaN(pts[i].y)) return {error:'点须为数字'}; }\r\n  var xs=pts.map(function(p){return p.x;}), ys=pts.map(function(p){return p.y;});\r\n  var xmin=Math.min.apply(null,xs), xmax=Math.max.apply(null,xs), ymin=Math.min.apply(null,ys), ymax=Math.max.apply(null,ys);\r\n  if(xmin===xmax) xmax=xmin+1; if(ymin===ymax) ymax=ymin+1;\r\n  var pad=24, W=200,H=140, pw=W-pad*2, ph=H-pad*2;\r\n  function sx(x){ return pad + (x-xmin)/(xmax-xmin)*pw; }\r\n  function sy(y){ return pad + ph - (y-ymin)/(ymax-ymin)*ph; }\r\n  var poly=pts.map(function(p){ return sx(p.x).toFixed(1)+','+sy(p.y).toFixed(1); }).join(' ');\r\n  var dots=pts.map(function(p){ return '<circle cx=\"'+sx(p.x).toFixed(1)+'\" cy=\"'+sy(p.y).toFixed(1)+'\" r=\"2.5\" fill=\"#5E6AD2\"/>'; }).join('');\r\n  var svg='<svg viewBox=\"0 0 '+W+' '+H+'\" xmlns=\"http://www.w3.org/2000/svg\">'+\r\n    '<line x1=\"'+pad+'\" y1=\"'+(H-pad)+'\" x2=\"'+(W-pad)+'\" y2=\"'+(H-pad)+'\" stroke=\"#3A3B3E\" stroke-width=\"1\"/>'+\r\n    '<line x1=\"'+pad+'\" y1=\"'+pad+'\" x2=\"'+pad+'\" y2=\"'+(H-pad)+'\" stroke=\"#3A3B3E\" stroke-width=\"1\"/>'+\r\n    '<polyline points=\"'+poly+'\" fill=\"none\" stroke=\"#5E6AD2\" stroke-width=\"2\" stroke-linejoin=\"round\" stroke-linecap=\"round\"/>'+\r\n    dots+'</svg>';\r\n  return {svg:svg, min:ymin, max:ymax};\r\n}\r\nvar EXPORTS={lineSvg:lineSvg};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LineChartForgePure = EXPORTS; }\r\n\r\n"
+}

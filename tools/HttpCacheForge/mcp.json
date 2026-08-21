@@ -1,0 +1,133 @@
+{
+  "id": "HttpCacheForge",
+  "name": "http_cache_forge",
+  "title": "HttpCacheForge",
+  "description": "Cache-Control 策略生成：六种场景预设、max-age/s-maxage/SWR 新鲜度推演、响应头冲突体检与 ETag 生成，离线可用。",
+  "entry": "buildHeader",
+  "entries": {
+    "parseMaxAge": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "formatAge": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sec"
+      ],
+      "fields": []
+    },
+    "buildHeader": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "noStore",
+        "maxAge",
+        "visibility",
+        "noCache",
+        "sMaxAge",
+        "staleWhileRevalidate",
+        "staleIfError",
+        "mustRevalidate",
+        "immutable"
+      ]
+    },
+    "parseHeader": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "freshness": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "age",
+        "maxAge",
+        "staleWhileRevalidate"
+      ]
+    },
+    "preset": {
+      "paramStyle": "single",
+      "paramNames": [
+        "kind"
+      ],
+      "fields": []
+    },
+    "etagFor": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "body",
+        "weak"
+      ],
+      "fields": []
+    },
+    "etagMatch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "reqHeader",
+        "etag"
+      ],
+      "fields": []
+    },
+    "auditHeader": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "noStore": {
+        "type": "string",
+        "description": "参数 noStore"
+      },
+      "maxAge": {
+        "type": "string",
+        "description": "参数 maxAge"
+      },
+      "visibility": {
+        "type": "string",
+        "description": "参数 visibility"
+      },
+      "noCache": {
+        "type": "string",
+        "description": "参数 noCache"
+      },
+      "sMaxAge": {
+        "type": "string",
+        "description": "参数 sMaxAge"
+      },
+      "staleWhileRevalidate": {
+        "type": "string",
+        "description": "参数 staleWhileRevalidate"
+      },
+      "staleIfError": {
+        "type": "string",
+        "description": "参数 staleIfError"
+      },
+      "mustRevalidate": {
+        "type": "string",
+        "description": "参数 mustRevalidate"
+      },
+      "immutable": {
+        "type": "string",
+        "description": "参数 immutable"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar DIRECTIVES = ['public','private','no-cache','no-store','must-revalidate','proxy-revalidate','immutable','no-transform'];\r\nfunction parseMaxAge(str){\r\n  if(str===null || str===undefined || str==='') return {value:null, error:'空值'};\r\n  var s=String(str).trim().toLowerCase();\r\n  if(/^\\d+$/.test(s)) return {value:parseInt(s,10), error:null};\r\n  var m=s.match(/^(\\d+(?:\\.\\d+)?)\\s*(s|sec|m|min|h|hr|d|day|w|week|y|year)s?$/);\r\n  if(!m) return {value:null, error:'无法解析时长: '+str};\r\n  var n=parseFloat(m[1]), u=m[2];\r\n  var mul = {s:1,sec:1,m:60,min:60,h:3600,hr:3600,d:86400,day:86400,w:604800,week:604800,y:31536000,year:31536000}[u];\r\n  return {value: Math.round(n*mul), error:null};\r\n}\r\nfunction formatAge(sec){\r\n  if(typeof sec!=='number' || sec<0 || !isFinite(sec)) return '-';\r\n  if(sec===0) return '0s';\r\n  var units=[['y',31536000],['w',604800],['d',86400],['h',3600],['m',60],['s',1]];\r\n  var out=[], rest=Math.floor(sec);\r\n  for(var i=0;i<units.length;i++){\r\n    var q=Math.floor(rest/units[i][1]);\r\n    if(q>0){ out.push(q+units[i][0]); rest-=q*units[i][1]; }\r\n    if(out.length===2) break;\r\n  }\r\n  return out.join(' ');\r\n}\r\nfunction buildHeader(opt){\r\n  opt = opt || {};\r\n  var parts=[], warns=[];\r\n  if(opt.noStore){\r\n    parts.push('no-store');\r\n    if(opt.maxAge) warns.push('no-store 与 max-age 同时出现，max-age 会被忽略');\r\n    return {header:'Cache-Control: no-store', value:'no-store', directives:['no-store'], warnings:warns};\r\n  }\r\n  if(opt.visibility==='private') parts.push('private');\r\n  else if(opt.visibility==='public') parts.push('public');\r\n  if(opt.noCache) parts.push('no-cache');\r\n  if(typeof opt.maxAge==='number' && opt.maxAge>=0) parts.push('max-age='+opt.maxAge);\r\n  if(typeof opt.sMaxAge==='number' && opt.sMaxAge>=0) parts.push('s-maxage='+opt.sMaxAge);\r\n  if(typeof opt.staleWhileRevalidate==='number' && opt.staleWhileRevalidate>0) parts.push('stale-while-revalidate='+opt.staleWhileRevalidate);\r\n  if(typeof opt.staleIfError==='number' && opt.staleIfError>0) parts.push('stale-if-error='+opt.staleIfError);\r\n  if(opt.mustRevalidate) parts.push('must-revalidate');\r\n  if(opt.immutable) parts.push('immutable');\r\n  if(!parts.length) parts.push('no-cache');\r\n  if(opt.visibility==='private' && typeof opt.sMaxAge==='number') warns.push('private 响应不会被共享缓存存储，s-maxage 无效');\r\n  if(opt.immutable && (!opt.maxAge || opt.maxAge < 86400)) warns.push('immutable 通常配合较长 max-age（>=1 天）用于带指纹的静态资源');\r\n  if(opt.noCache && opt.immutable) warns.push('no-cache 与 immutable 语义冲突');\r\n  var v=parts.join(', ');\r\n  return {header:'Cache-Control: '+v, value:v, directives:parts, warnings:warns};\r\n}\r\nfunction parseHeader(str){\r\n  var out={raw:String(str||''), directives:{}, list:[], unknown:[]};\r\n  var s=out.raw.replace(/^\\s*cache-control\\s*:\\s*/i,'');\r\n  var toks=s.split(',');\r\n  for(var i=0;i<toks.length;i++){\r\n    var t=toks[i].trim();\r\n    if(!t) continue;\r\n    out.list.push(t);\r\n    var eq=t.indexOf('=');\r\n    if(eq>-1){\r\n      var k=t.slice(0,eq).trim().toLowerCase();\r\n      var v=t.slice(eq+1).trim().replace(/^\"|\"$/g,'');\r\n      out.directives[k]= /^\\d+$/.test(v)? parseInt(v,10) : v;\r\n    } else {\r\n      var kk=t.toLowerCase();\r\n      out.directives[kk]=true;\r\n      if(DIRECTIVES.indexOf(kk)===-1) out.unknown.push(kk);\r\n    }\r\n  }\r\n  return out;\r\n}\r\nfunction freshness(opt){\r\n  opt = opt || {};\r\n  var age = typeof opt.age==='number' ? opt.age : 0;\r\n  var maxAge = typeof opt.maxAge==='number' ? opt.maxAge : null;\r\n  var swr = typeof opt.staleWhileRevalidate==='number' ? opt.staleWhileRevalidate : 0;\r\n  if(maxAge===null) return {state:'unknown', remaining:null, note:'未提供 max-age，缓存需启发式判断或回源校验'};\r\n  var remain = maxAge - age;\r\n  if(remain > 0) return {state:'fresh', remaining:remain, note:'命中缓存，剩余 '+formatAge(remain)};\r\n  if(swr > 0 && (age - maxAge) <= swr)\r\n    return {state:'stale-revalidating', remaining:0, note:'过期但在 stale-while-revalidate 窗口内，先返回旧副本再后台刷新'};\r\n  return {state:'stale', remaining:0, note:'已过期 '+formatAge(age-maxAge)+'，需回源校验'};\r\n}\r\nfunction preset(kind){\r\n  var P = {\r\n    'static-hashed': {label:'带指纹静态资源', opt:{visibility:'public', maxAge:31536000, immutable:true}},\r\n    'html': {label:'HTML 文档', opt:{visibility:'public', noCache:true, mustRevalidate:true}},\r\n    'api-private': {label:'用户私有 API', opt:{visibility:'private', noCache:true, mustRevalidate:true}},\r\n    'api-cdn': {label:'可共享 API', opt:{visibility:'public', maxAge:60, sMaxAge:300, staleWhileRevalidate:600}},\r\n    'sensitive': {label:'敏感数据', opt:{noStore:true}},\r\n    'image-cdn': {label:'图片 CDN', opt:{visibility:'public', maxAge:604800, sMaxAge:2592000, staleIfError:86400}}\r\n  };\r\n  return P[kind] || null;\r\n}\r\nfunction etagFor(body, weak){\r\n  var s=String(body||''), h1=0x811c9dc5, h2=0x01000193;\r\n  for(var i=0;i<s.length;i++){\r\n    h1 ^= s.charCodeAt(i); h1 = (h1*16777619)>>>0;\r\n    h2 = ((h2 + s.charCodeAt(i)*(i+1))*2654435761)>>>0;\r\n  }\r\n  var hex = ('00000000'+h1.toString(16)).slice(-8) + ('00000000'+h2.toString(16)).slice(-8);\r\n  return (weak?'W/':'')+'\"'+hex+'\"';\r\n}\r\nfunction etagMatch(reqHeader, etag){\r\n  if(!reqHeader) return false;\r\n  if(reqHeader.trim()==='*') return true;\r\n  var want = String(etag||'').replace(/^W\\//,'');\r\n  var parts = String(reqHeader).split(',');\r\n  for(var i=0;i<parts.length;i++){\r\n    if(parts[i].trim().replace(/^W\\//,'') === want) return true;\r\n  }\r\n  return false;\r\n}\r\nfunction auditHeader(str){\r\n  var p=parseHeader(str), issues=[];\r\n  var d=p.directives;\r\n  if(d['no-store'] && (d['max-age']!==undefined || d['public'])) issues.push({level:'warn', msg:'no-store 与 max-age/public 同时出现，缓存语义混乱'});\r\n  if(d['private'] && d['public']) issues.push({level:'error', msg:'public 与 private 互斥'});\r\n  if(d['private'] && d['s-maxage']!==undefined) issues.push({level:'warn', msg:'private 下 s-maxage 无效'});\r\n  if(d['immutable'] && (d['max-age']===undefined || d['max-age']<86400)) issues.push({level:'warn', msg:'immutable 应配合长 max-age'});\r\n  if(d['max-age']===undefined && d['no-store']===undefined && d['no-cache']===undefined)\r\n    issues.push({level:'warn', msg:'缺少新鲜度指令，缓存将走启发式过期'});\r\n  if(d['max-age']!==undefined && d['max-age']>31536000) issues.push({level:'warn', msg:'max-age 超过 1 年，RFC 建议不超过 31536000'});\r\n  if(p.unknown.length) issues.push({level:'info', msg:'未识别指令: '+p.unknown.join(', ')});\r\n  var errors=0, warnings=0;\r\n  for(var i=0;i<issues.length;i++){ if(issues[i].level==='error') errors++; else if(issues[i].level==='warn') warnings++; }\r\n  return {parsed:p, issues:issues, errors:errors, warnings:warnings, ok: errors===0 && warnings===0};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { DIRECTIVES:DIRECTIVES, parseMaxAge:parseMaxAge, formatAge:formatAge, buildHeader:buildHeader, parseHeader:parseHeader, freshness:freshness, preset:preset, etagFor:etagFor, etagMatch:etagMatch, auditHeader:auditHeader }; }\r\nif (typeof window !== 'undefined') { window.HttpCacheForgePure = { DIRECTIVES:DIRECTIVES, parseMaxAge:parseMaxAge, formatAge:formatAge, buildHeader:buildHeader, parseHeader:parseHeader, freshness:freshness, preset:preset, etagFor:etagFor, etagMatch:etagMatch, auditHeader:auditHeader }; }\r\n\r\n"
+}

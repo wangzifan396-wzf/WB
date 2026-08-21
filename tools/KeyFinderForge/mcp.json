@@ -1,0 +1,48 @@
+{
+  "id": "KeyFinderForge",
+  "name": "key_finder_forge",
+  "title": "KeyFinderForge",
+  "description": "输入一组音名识别可能的大调/小调（基于音阶包含判定），与五度圈工具互补。",
+  "entry": "scale",
+  "entries": {
+    "scale": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "root",
+        "intervals"
+      ],
+      "fields": []
+    },
+    "detectKey": {
+      "paramStyle": "single",
+      "paramNames": [
+        "notes"
+      ],
+      "fields": []
+    },
+    "toPC": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "root": {
+        "type": "string",
+        "description": "第 1 个参数（root）"
+      },
+      "intervals": {
+        "type": "string",
+        "description": "第 2 个参数（intervals）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];\r\nvar PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};\r\nvar MAJOR = [0,2,4,5,7,9,11];\r\nvar MINOR = [0,2,3,5,7,8,10];\r\nfunction toPC(n){ return PC[String(n).charAt(0).toUpperCase()+String(n).slice(1)]; }\r\nfunction scale(root, intervals){ var r=toPC(root); return intervals.map(function(i){ return NAMES[((r+i)%12+12)%12]; }); }\r\nfunction detectKey(notes){\r\n  var pcs = notes.map(toPC).filter(function(x){return x!==undefined;});\r\n  var major=[], minor=[];\r\n  for(var r=0;r<12;r++){\r\n    var mset = scale(NAMES[r], MAJOR), msetMin = scale(NAMES[r], MINOR);\r\n    if(pcs.every(function(p){ return mset.indexOf(NAMES[p])>=0; })) major.push(NAMES[r]+' major');\r\n    if(pcs.every(function(p){ return msetMin.indexOf(NAMES[p])>=0; })) minor.push(NAMES[r]+' minor');\r\n  }\r\n  return {major:major, minor:minor};\r\n}\r\nvar EXPORTS = { NAMES:NAMES, PC:PC, MAJOR:MAJOR, MINOR:MINOR, scale:scale, detectKey:detectKey, toPC:toPC };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.KeyFinderForgePure = EXPORTS; }\r\n\r\n"
+}

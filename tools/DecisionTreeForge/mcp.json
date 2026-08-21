@@ -1,0 +1,60 @@
+{
+  "id": "DecisionTreeForge",
+  "name": "decision_tree_forge",
+  "title": "DecisionTreeForge",
+  "description": "决策树可视化：按 Gini 不纯度选连续特征的二分阈值，把二维数据递归划分成纯叶。",
+  "entry": "dtGini",
+  "entries": {
+    "dtGini": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "counts",
+        "total"
+      ],
+      "fields": []
+    },
+    "dtBestSplit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "feat"
+      ],
+      "fields": []
+    },
+    "dtTrain": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "feats",
+        "depth",
+        "maxDepth"
+      ],
+      "fields": []
+    },
+    "dtPredict": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tree",
+        "x"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "counts": {
+        "type": "string",
+        "description": "第 1 个参数（counts）"
+      },
+      "total": {
+        "type": "string",
+        "description": "第 2 个参数（total）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction dtGini(counts,total){ var g=0; for(var c in counts){ var p=counts[c]/total; g+=p*(1-p); } return g; }\r\nfunction dtBestSplit(data,feat){ var vals=data.map(function(d){return d.x[feat];}), uniq=Array.from(new Set(vals)).sort(function(a,b){return a-b;}), best=null;\r\n  for(var i=0;i<uniq.length-1;i++){ var th=(uniq[i]+uniq[i+1])/2, l={},r={},tl=0,tr=0;\r\n    data.forEach(function(d){ var c=d.y; if(d.x[feat]<=th){ l[c]=(l[c]||0)+1; tl++; } else { r[c]=(r[c]||0)+1; tr++; } });\r\n    if(tl===0||tr===0) continue; var g=tl/data.length*dtGini(l,tl)+tr/data.length*dtGini(r,tr); if(!best||g<best.g) best={th:th,g:g}; }\r\n  return best; }\r\nfunction dtTrain(data,feats,depth,maxDepth){ var cnt={}; data.forEach(function(d){ cnt[d.y]=(cnt[d.y]||0)+1; }); var maj=null,mv=-1;\r\n  for(var c in cnt) if(cnt[c]>mv){mv=cnt[c];maj=+c;}\r\n  if(depth>=maxDepth || data.length<=1) return {leaf:true,cls:maj};\r\n  var bf=null,bs=null,bg=Infinity; feats.forEach(function(f){ var s=dtBestSplit(data,f); if(s&&s.g<bg){bg=s.g;bf=f;bs=s;} });\r\n  if(!bs || bg>=dtGini(cnt,data.length)) return {leaf:true,cls:maj};\r\n  if(!bs || bg>=dtGini(cnt,data.length)) return {leaf:true,cls:maj};\r\n  var ld=[],rd=[]; data.forEach(function(d){ if(d.x[bf]<=bs.th) ld.push(d); else rd.push(d); });\r\n  return {leaf:false,feat:bf,th:bs.th,left:dtTrain(ld,feats,depth+1,maxDepth),right:dtTrain(rd,feats,depth+1,maxDepth),cls:maj}; }\r\nfunction dtPredict(tree,x){ if(tree.leaf) return tree.cls; return x[tree.feat]<=tree.th ? dtPredict(tree.left,x) : dtPredict(tree.right,x); }\r\nvar EXPORTS={dtGini:dtGini, dtBestSplit:dtBestSplit, dtTrain:dtTrain, dtPredict:dtPredict};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DecisionTreeForgePure = EXPORTS; }\r\n\r\n"
+}

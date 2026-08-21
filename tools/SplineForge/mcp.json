@@ -1,0 +1,39 @@
+{
+  "id": "SplineForge",
+  "name": "spline_forge",
+  "title": "SplineForge",
+  "description": "自然三次样条插值：三对角解法求过节点的光滑插值曲线，离线精确。",
+  "entry": "interpolate",
+  "entries": {
+    "interpolate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "xs",
+        "ys",
+        "xq"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "xs": {
+        "type": "string",
+        "description": "第 1 个参数（xs）"
+      },
+      "ys": {
+        "type": "string",
+        "description": "第 2 个参数（ys）"
+      },
+      "xq": {
+        "type": "string",
+        "description": "第 3 个参数（xq）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction interpolate(xs, ys, xq){ var n=xs.length; if(n<2) return null;\r\n  var idx=xs.map(function(v,i){return i;}).sort(function(a,b){return xs[a]-xs[b];});\r\n  var x=idx.map(function(i){return xs[i];}), y=idx.map(function(i){return ys[i];});\r\n  var a=y.slice(); var h=new Array(n-1).fill(0);\r\n  for(var i=0;i<n-1;i++) h[i]=x[i+1]-x[i];\r\n  var alpha=new Array(n).fill(0);\r\n  for(var i=1;i<n-1;i++) alpha[i]=3*((a[i+1]-a[i])/h[i] - (a[i]-a[i-1])/h[i-1]);\r\n  var c=new Array(n).fill(0), l=new Array(n).fill(0), mu=new Array(n).fill(0), z=new Array(n).fill(0);\r\n  l[0]=1;\r\n  for(var i=1;i<n-1;i++){ l[i]=2*(x[i+1]-x[i-1]) - h[i-1]*mu[i-1]; mu[i]=h[i]/l[i]; z[i]=(alpha[i]-h[i-1]*z[i-1])/l[i]; }\r\n  for(var i=n-2;i>=0;i--){ c[i]=z[i]-mu[i]*c[i+1]; }\r\n  var b2=new Array(n-1).fill(0), d2=new Array(n-1).fill(0);\r\n  for(var i=0;i<n-1;i++){ b2[i]=(a[i+1]-a[i])/h[i] - h[i]*(c[i+1]+2*c[i])/3; d2[i]=(c[i+1]-c[i])/(3*h[i]); }\r\n  function seg(xv){ if(xv<=x[0]) return 0; if(xv>=x[n-1]) return n-2; for(var i=0;i<n-1;i++) if(xv>=x[i]&&xv<=x[i+1]) return i; return n-2; }\r\n  var i=seg(xq); var dx=xq-x[i];\r\n  return a[i]+b2[i]*dx+c[i]*dx*dx+d2[i]*dx*dx*dx;\r\n}\r\nvar EXPORTS={interpolate:interpolate};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SplineForgePure = EXPORTS; }\r\n\r\n"
+}

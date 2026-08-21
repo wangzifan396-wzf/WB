@@ -1,0 +1,65 @@
+{
+  "id": "MealPlanForge",
+  "name": "meal_plan_forge",
+  "title": "膳食计划生成",
+  "description": "按目标 / 热量 / 餐数生成一周膳食计划并分配每餐热量，离线。",
+  "entry": "buildPlan",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "buildPlan": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "goal",
+        "kcal",
+        "meals",
+        "days",
+        "pref"
+      ]
+    },
+    "mealsOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "goal": {
+        "type": "string",
+        "description": "参数 goal"
+      },
+      "kcal": {
+        "type": "string",
+        "description": "参数 kcal"
+      },
+      "meals": {
+        "type": "string",
+        "description": "参数 meals"
+      },
+      "days": {
+        "type": "string",
+        "description": "参数 days"
+      },
+      "pref": {
+        "type": "string",
+        "description": "参数 pref"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nvar POOL = {\r\n  '早餐':['燕麦粥配蓝莓','全麦吐司煎蛋','希腊酸奶配坚果','蔬菜蛋饼','红薯牛奶杯'],\r\n  '午餐':['糙米饭配鸡胸与时蔬','藜麦牛油果沙拉','番茄虾仁意面','照烧豆腐盖饭','清蒸鱼配西兰花'],\r\n  '晚餐':['蒜香烤蔬菜','味噌汤豆腐','烤三文鱼配芦笋','鸡丝凉面','南瓜浓汤配全麦'],\r\n  '加餐':['苹果配杏仁','水煮蛋','无糖酸奶','胡萝卜条配鹰嘴豆泥','混合坚果一小把']\r\n};\r\nfunction mealsOf(n){ n=parseInt(n,10)||3; if(n===3) return ['早餐','午餐','晚餐']; if(n===4) return ['早餐','午餐','晚餐','加餐']; return ['早餐','上午加餐','午餐','下午加餐','晚餐']; }\r\nfunction buildPlan(o){\r\n  o=o||{};\r\n  var goal=String(o.goal||'维持').trim()||'维持';\r\n  var kcal=parseInt(o.kcal,10)||2000; if(kcal<800)kcal=800; if(kcal>5000)kcal=5000;\r\n  var meals=mealsOf(o.meals);\r\n  var days=parseInt(o.days,10)||7; if(days<1)days=1; if(days>14)days=14;\r\n  var pref=String(o.pref||'').trim();\r\n  var plan=[];\r\n  for(var d=0; d<days; d++){\r\n    var row=[];\r\n    for(var mi=0; mi<meals.length; mi++){\r\n      var pool=POOL[meals[mi]]||POOL['早餐'];\r\n      row.push(pool[(d+mi)%pool.length]);\r\n    }\r\n    plan.push(row);\r\n  }\r\n  var head=['# 一周膳食计划：'+goal+'（目标 '+kcal+' kcal/天 · '+meals.length+' 餐）',''];\r\n  var sep=meals.map(function(){return '------';}).join('|');\r\n  head.push('| 天 | '+meals.join(' | ')+' |');\r\n  head.push('|----|'+sep+'|');\r\n  var wd=['周一','周二','周三','周四','周五','周六','周日'];\r\n  for(var d2=0; d2<days; d2++){\r\n    head.push('| '+wd[d2%7]+' | '+plan[d2].join(' | ')+' |');\r\n  }\r\n  if(pref) head.push('','> 饮食注意：'+pref);\r\n  return {title:goal+'膳食计划', dayCount:days, mealCount:meals.length, markdown:head.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, buildPlan:buildPlan, mealsOf:mealsOf};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MealPlanForgePure = EXPORTS; }\r\n\r\n"
+}

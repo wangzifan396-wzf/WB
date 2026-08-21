@@ -1,0 +1,57 @@
+{
+  "id": "Ipv6Forge",
+  "name": "ipv6_forge",
+  "title": "Ipv6Forge",
+  "description": "IPv6 地址展开为完整 8 组、用 :: 压缩、归一化并识别类型（环回/链路本地/唯一本地/多播/全球单播/IPv4 映射）。",
+  "entry": "parse6",
+  "entries": {
+    "parse6": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "expand": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ip"
+      ],
+      "fields": []
+    },
+    "compress": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ip"
+      ],
+      "fields": []
+    },
+    "normalize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ip"
+      ],
+      "fields": []
+    },
+    "classify": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ip"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction hexpad(g){ while(g.length<4) g='0'+g; return g; }\r\nfunction fmt6(g){ var v=g.replace(/^0+/,''); return v===''?'0':v; }\r\nfunction ipv4ToGroups(s){\r\n  var p=s.split('.'); if(p.length!==4) return null;\r\n  var b=[]; for(var i=0;i<4;i++){ var x=parseInt(p[i],10); if(isNaN(x)||x<0||x>255) return null; b.push(x); }\r\n  return [ ((b[0]<<8)|b[1]).toString(16), ((b[2]<<8)|b[3]).toString(16) ];\r\n}\r\nfunction parse6(s){\r\n  s=String(s).trim().toLowerCase();\r\n  if(s.indexOf('.')>=0){\r\n    var li=s.lastIndexOf(':'); var tail=s.slice(li+1); var g=ipv4ToGroups(tail); if(!g) return null;\r\n    s=s.slice(0,li+1)+g[0]+':'+g[1];\r\n  }\r\n  var dbl=s.indexOf('::'); var hg, tg;\r\n  if(dbl>=0){ hg=s.slice(0,dbl); tg=s.slice(dbl+2); } else { hg=s; tg=''; }\r\n  var h=(hg?hg.split(':'):[]); var t=(tg?tg.split(':'):[]);\r\n  var need=8-(h.length+t.length);\r\n  if(need<0) return null;\r\n  var groups=h.slice(); for(var i=0;i<need;i++) groups.push('0'); groups=groups.concat(t);\r\n  for(var j=0;j<8;j++){ if(!/^[0-9a-f]{1,4}$/.test(groups[j])) return null; }\r\n  return groups;\r\n}\r\nfunction expand(ip){ var g=parse6(ip); if(!g) return null; var out=[]; for(var i=0;i<8;i++) out.push(hexpad(g[i])); return out.join(':'); }\r\nfunction compress(ip){\r\n  var g=parse6(ip); if(!g) return null;\r\n  var bestStart=-1,bestLen=0,curStart=-1,curLen=0;\r\n  for(var i=0;i<8;i++){\r\n    if(parseInt(g[i],16)===0){ if(curStart<0){curStart=i;curLen=1;} else curLen++; if(curLen>bestLen){bestLen=curLen;bestStart=curStart;} }\r\n    else { curStart=-1; curLen=0; }\r\n  }\r\n  if(bestLen<2){ var parts=[]; for(var k=0;k<8;k++) parts.push(fmt6(g[k])); return parts.join(':'); }\r\n  var head=[], tail=[];\r\n  for(var a=0;a<bestStart;a++) head.push(fmt6(g[a]));\r\n  for(var b=bestStart+bestLen;b<8;b++) tail.push(fmt6(g[b]));\r\n  return head.join(':')+'::'+tail.join(':');\r\n}\r\nfunction normalize(ip){ var e=expand(ip); if(e===null) return null; return {valid:true, expanded:e, compressed:compress(ip)}; }\r\nfunction classify(ip){\r\n  var g=parse6(ip); if(!g) return null;\r\n  var v=g.map(function(x){return parseInt(x,16);});\r\n  var first=v[0];\r\n  var allZero=true; for(var i=0;i<8;i++){ if(v[i]!==0){allZero=false;break;} }\r\n  if(allZero) return {type:'unspecified',desc:'未指定地址 (::)'};\r\n  if(v[0]===0&&v[1]===0&&v[2]===0&&v[3]===0&&v[4]===0&&v[5]===0xffff) return {type:'ipv4-mapped',desc:'IPv4 映射地址 (::ffff:0:0/96)'};\r\n  if(first>=0xfe80 && first<=0xfebf) return {type:'link-local',desc:'链路本地地址 (fe80::/10)'};\r\n  if(first>=0xfc00 && first<=0xfdff) return {type:'unique-local',desc:'唯一本地地址 ULA (fc00::/7)'};\r\n  if((first&0xff00)===0xff00) return {type:'multicast',desc:'多播地址 (ff00::/8)'};\r\n  if(first===0 && v[1]===0&&v[2]===0&&v[3]===0&&v[4]===0&&v[5]===0&&v[6]===0&&v[7]===1) return {type:'loopback',desc:'环回地址 (::1)'};\r\n  return {type:'global',desc:'全球单播地址 (Global Unicast)'};\r\n}\r\nvar EXPORTS={parse6:parse6,expand:expand,compress:compress,normalize:normalize,classify:classify};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.Ipv6ForgePure = EXPORTS; }\r\n\r\n"
+}

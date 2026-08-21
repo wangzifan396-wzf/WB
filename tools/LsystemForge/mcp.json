@@ -1,0 +1,63 @@
+{
+  "id": "LsystemForge",
+  "name": "lsystem_forge",
+  "title": "LsystemForge",
+  "description": "L 系统分形：内置 Koch / 龙曲线 / Plants / Sierpinski，可调迭代次数生成 SVG。",
+  "entry": "lsParse",
+  "entries": {
+    "lsParse": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "axiom",
+        "rules",
+        "iter"
+      ],
+      "fields": []
+    },
+    "lsTurtle": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cmds",
+        "angleDeg"
+      ],
+      "fields": []
+    },
+    "lsBounds": {
+      "paramStyle": "single",
+      "paramNames": [
+        "segs"
+      ],
+      "fields": []
+    },
+    "lsSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "segs",
+        "W",
+        "H"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "axiom": {
+        "type": "string",
+        "description": "第 1 个参数（axiom）"
+      },
+      "rules": {
+        "type": "string",
+        "description": "第 2 个参数（rules）"
+      },
+      "iter": {
+        "type": "string",
+        "description": "第 3 个参数（iter）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction lsParse(axiom, rules, iter){\r\n  var s=axiom;\r\n  for(var k=0;k<iter;k++){\r\n    var n='';\r\n    for(var i=0;i<s.length;i++){ var c=s[i]; n += (rules[c]!==undefined)? rules[c] : c; }\r\n    s=n;\r\n  }\r\n  return s;\r\n}\r\nfunction lsTurtle(cmds, angleDeg){\r\n  var a=angleDeg*Math.PI/180, x=0, y=0, dir=-Math.PI/2, stack=[], segs=[];\r\n  for(var i=0;i<cmds.length;i++){\r\n    var c=cmds[i];\r\n    if(c==='F'||c==='G'){ var nx=x+Math.cos(dir), ny=y+Math.sin(dir); segs.push([x,y,nx,ny]); x=nx; y=ny; }\r\n    else if(c==='f'){ x+=Math.cos(dir); y+=Math.sin(dir); }\r\n    else if(c==='+'){ dir+=a; }\r\n    else if(c==='-'){ dir-=a; }\r\n    else if(c==='['){ stack.push([x,y,dir]); }\r\n    else if(c===']'){ var st=stack.pop(); x=st[0]; y=st[1]; dir=st[2]; }\r\n  }\r\n  return segs;\r\n}\r\nfunction lsBounds(segs){\r\n  var minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9;\r\n  for(var i=0;i<segs.length;i++){ var s=segs[i];\r\n    minX=Math.min(minX,s[0],s[2]); maxX=Math.max(maxX,s[0],s[2]);\r\n    minY=Math.min(minY,s[1],s[3]); maxY=Math.max(maxY,s[1],s[3]); }\r\n  return {minX:minX,minY:minY,maxX:maxX,maxY:maxY};\r\n}\r\nfunction lsSvg(segs, W, H){\r\n  if(!segs.length) return '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+W+'\" height=\"'+H+'\"></svg>';\r\n  var b=lsBounds(segs), w=b.maxX-b.minX||1, h=b.maxY-b.minY||1;\r\n  var sc=Math.min(W/w, H/h)*0.92, ox=(W-w*sc)/2 - b.minX*sc, oy=(H-h*sc)/2 - b.minY*sc;\r\n  var d='';\r\n  for(var i=0;i<segs.length;i++){ var s=segs[i];\r\n    d+='M'+(s[0]*sc+ox).toFixed(1)+' '+(s[1]*sc+oy).toFixed(1)+'L'+(s[2]*sc+ox).toFixed(1)+' '+(s[3]*sc+oy).toFixed(1); }\r\n  return '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+W+'\" height=\"'+H+'\" viewBox=\"0 0 '+W+' '+H+'\">'\r\n    +'<rect width=\"'+W+'\" height=\"'+H+'\" fill=\"#0A0A0B\"/>'\r\n    +'<path d=\"'+d+'\" fill=\"none\" stroke=\"#22D3EE\" stroke-width=\"1.2\" stroke-linecap=\"round\"/></svg>';\r\n}\r\nvar LS_PRESETS = {\r\n  koch:{axiom:'F', rules:{F:'F+F-F-F+F'}, angle:90, base:60},\r\n  dragon:{axiom:'FX', rules:{X:'X+YF+',Y:'-FX-Y'}, angle:90, base:90},\r\n  plant:{axiom:'X', rules:{X:'F+[[X]-X]-F[-FX]+X',F:'FF'}, angle:25, base:25},\r\n  sier:{axiom:'A', rules:{A:'B-A-B',B:'A+B+A'}, angle:60, base:60}\r\n};\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { lsParse:lsParse, lsTurtle:lsTurtle, lsBounds:lsBounds, lsSvg:lsSvg, LS_PRESETS:LS_PRESETS };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.LsystemForgePure = { lsParse:lsParse, lsTurtle:lsTurtle, lsBounds:lsBounds, lsSvg:lsSvg, LS_PRESETS:LS_PRESETS };\r\n}\r\n"
+}

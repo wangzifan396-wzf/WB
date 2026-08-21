@@ -1,0 +1,29 @@
+{
+  "id": "CsvToMdForge",
+  "name": "csv_to_md_forge",
+  "title": "CsvToMdForge",
+  "description": "把 CSV 转换为 Markdown 表格，自动以首行为表头。",
+  "entry": "toMd",
+  "entries": {
+    "toMd": {
+      "paramStyle": "single",
+      "paramNames": [
+        "csv"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "csv": {
+        "type": "string",
+        "description": "输入（csv）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function parseCsv(s){ var rows=[],row=[],field='',i=0,inQ=false;\r\n    while(i<s.length){ var c=s[i];\r\n      if(inQ){ if(c==='\"'){ if(s[i+1]==='\"'){field+='\"';i+=2;continue;} inQ=false;i++;continue; } field+=c;i++; }\r\n      else { if(c==='\"'){inQ=true;i++;continue;} if(c===','){row.push(field);field='';i++;continue;} if(c==='\\r'){i++;continue;} if(c==='\\n'){row.push(field);rows.push(row);row=[];field='';i++;continue;} field+=c;i++; } }\r\n    row.push(field); rows.push(row); return rows; }\r\n  function toMd(csv){ var rows=parseCsv(String(csv==null?'':csv)); if(rows.length===0) return {value:''};\r\n    var header=rows[0]; var lines=['| '+header.join(' | ')+' |','| '+header.map(function(){return '---';}).join(' | ')+' |'];\r\n    for(var i=1;i<rows.length;i++){ lines.push('| '+rows[i].join(' | ')+' |'); }\r\n    return {value:lines.join('\\n')}; }\r\n  var API={toMd:toMd};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__CsvToMdForge__=API;\r\n})();\r\n"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "TopoForge",
+  "name": "topo_forge",
+  "title": "TopoForge",
+  "description": "拓扑排序 / DAG 编排器：Kahn 算法 + 并行批次分层 + 环检测。",
+  "entry": "parseEdges",
+  "entries": {
+    "parseEdges": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "topoSort": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "nodes",
+        "edges"
+      ],
+      "fields": []
+    },
+    "levels": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "nodes",
+        "edges"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction parseEdges(text){\r\n  var nodes={}, edges=[];\r\n  var lines=String(text||'').split(/\\r?\\n/);\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i].trim();\r\n    if(!ln) continue;\r\n    var m=ln.split(/\\s*(?:->|=>)\\s*/);\r\n    if(m.length!==2 || !m[0] || !m[1]) return { nodes:null, edges:null, error:'第 '+(i+1)+' 行格式错误（需 a -> b）' };\r\n    nodes[m[0]]=1; nodes[m[1]]=1;\r\n    edges.push([m[0], m[1]]);\r\n  }\r\n  return { nodes:Object.keys(nodes), edges:edges, error:null };\r\n}\r\nfunction topoSort(nodes, edges){\r\n  var indeg={}, adj={};\r\n  nodes.forEach(function(n){ indeg[n]=0; adj[n]=[]; });\r\n  edges.forEach(function(e){\r\n    if(!(e[0] in indeg) || !(e[1] in indeg)) throw new Error('UNKNOWN_NODE');\r\n    adj[e[0]].push(e[1]); indeg[e[1]]++;\r\n  });\r\n  var q=nodes.filter(function(n){ return indeg[n]===0; }).sort();\r\n  var order=[];\r\n  while(q.length){\r\n    var n=q.shift(); order.push(n);\r\n    adj[n].sort().forEach(function(m){ indeg[m]--; if(indeg[m]===0){ q.push(m); q.sort(); } });\r\n  }\r\n  if(order.length!==nodes.length){\r\n    var cyc=nodes.filter(function(n){ return order.indexOf(n)<0; });\r\n    return { order:null, cycle:cyc };\r\n  }\r\n  return { order:order, cycle:null };\r\n}\r\nfunction levels(nodes, edges){\r\n  var indeg={}, adj={};\r\n  nodes.forEach(function(n){ indeg[n]=0; adj[n]=[]; });\r\n  edges.forEach(function(e){ adj[e[0]].push(e[1]); indeg[e[1]]++; });\r\n  var out=[], cur=nodes.filter(function(n){ return indeg[n]===0; }).sort();\r\n  var seen=0;\r\n  while(cur.length){\r\n    out.push(cur);\r\n    seen+=cur.length;\r\n    var next={};\r\n    cur.forEach(function(n){ adj[n].forEach(function(m){ indeg[m]--; if(indeg[m]===0) next[m]=1; }); });\r\n    cur=Object.keys(next).sort();\r\n  }\r\n  if(seen!==nodes.length) return null;\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parseEdges:parseEdges, topoSort:topoSort, levels:levels };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TopoForgePure = { parseEdges:parseEdges, topoSort:topoSort, levels:levels };\r\n}\r\n"
+}

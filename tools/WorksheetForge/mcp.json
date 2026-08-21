@@ -1,0 +1,72 @@
+{
+  "id": "WorksheetForge",
+  "name": "worksheet_forge",
+  "title": "练习题生成",
+  "description": "按学科 / 学段 / 主题 / 题型生成可打印练习题并附带参考答案，离线。",
+  "entry": "buildWorksheet",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "hashStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cn": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "buildWorksheet": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "subject",
+        "grade",
+        "topic",
+        "types",
+        "per"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "subject": {
+        "type": "string",
+        "description": "参数 subject"
+      },
+      "grade": {
+        "type": "string",
+        "description": "参数 grade"
+      },
+      "topic": {
+        "type": "string",
+        "description": "参数 topic"
+      },
+      "types": {
+        "type": "string",
+        "description": "参数 types"
+      },
+      "per": {
+        "type": "string",
+        "description": "参数 per"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction hashStr(s){ var h=2166136261>>>0; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return h>>>0; }\r\nfunction cn(n){ var a=['零','一','二','三','四','五','六','七','八','九','十']; return n<=10?a[n]:String(n); }\r\nvar TYPES={\r\n  '填空题':function(t,i){return '请根据《'+t+'》的内容，填写第 '+i+' 个空：____________________';},\r\n  '简答题':function(t,i){return '简述《'+t+'》中第 '+i+' 个核心要点。';},\r\n  '判断题':function(t,i){return '判断（ ）：《'+t+'》仅适用于单一固定场景，不存在例外。';},\r\n  '选择题':function(t,i){return '关于《'+t+'》，下列说法错误的是第 '+i+' 项？';},\r\n  '连线题':function(t,i){return '将左侧与《'+t+'》相关的术语与右侧解释连线（第 '+i+' 组）。';},\r\n  '计算题':function(t,i){return '计算并写出第 '+i+' 道与《'+t+'》相关的题目步骤。';}\r\n};\r\nfunction buildWorksheet(o){\r\n  o=o||{};\r\n  var subject=String(o.subject||'通用').trim()||'通用';\r\n  var grade=String(o.grade||'初中').trim()||'初中';\r\n  var topic=String(o.topic||'').trim()||'（待填写主题）';\r\n  var types=splitLines(o.types);\r\n  if(!types.length) types=['填空题','简答题','判断题'];\r\n  var per=parseInt(o.per,10)||4; if(per<1)per=1; if(per>10)per=10;\r\n  var lines=[], total=0, answers=[];\r\n  lines.push('# 练习题：'+subject+'《'+topic+'》');\r\n  lines.push('');\r\n  lines.push('- 学段：'+grade+'　题目数：'+(types.length*per));\r\n  lines.push('');\r\n  types.forEach(function(tp,si){\r\n    lines.push('## '+cn(si+1)+'、'+tp);\r\n    for(var i=1;i<=per;i++){\r\n      total++;\r\n      lines.push(total+'. '+((TYPES[tp]||function(t,k){return '请完成与《'+t+'》相关的第 '+k+' 题。';})(topic,i)));\r\n      var ans='（参考教材 / 教师评定）';\r\n      if(tp==='判断题'){ ans=(hashStr(topic+i)%2===0)?'正确':'错误'; }\r\n      else if(tp==='选择题'){ ans='正确答案：'+String.fromCharCode(65+(hashStr(topic+i)%4)); }\r\n      answers.push({n:total, type:tp, ans:ans});\r\n    }\r\n    lines.push('');\r\n  });\r\n  lines.push('## 参考答案');\r\n  answers.forEach(function(a){ lines.push('- 第 '+a.n+' 题（'+a.type+'）：'+a.ans); });\r\n  return {title:topic+' 练习题', sectionCount:types.length, itemCount:total,\r\n          total:total, answers:answers.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, hashStr:hashStr, cn:cn, buildWorksheet:buildWorksheet};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.WorksheetForgePure = EXPORTS; }\r\n\r\n"
+}

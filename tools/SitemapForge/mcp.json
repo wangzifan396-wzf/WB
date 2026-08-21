@@ -1,0 +1,44 @@
+{
+  "id": "SitemapForge",
+  "name": "sitemap_forge",
+  "title": "SitemapForge",
+  "description": "sitemap.xml 生成器：URL 列表一键生成标准站点地图，支持更新频率 / 优先级 / 日期，离线可用。",
+  "entry": "smParse",
+  "entries": {
+    "smParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "smBuild": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "urls",
+        "opts"
+      ],
+      "fields": []
+    },
+    "smEsc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction smParse(text){\r\n  var lines=String(text||'').split(/\\r?\\n/), urls=[], errors=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var l=lines[i].trim(); if(!l) continue;\r\n    if(/^https?:\\/\\/.+/i.test(l)) urls.push(l); else errors.push(l);\r\n  }\r\n  return { urls:urls, errors:errors };\r\n}\r\nfunction smEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); }\r\nfunction smBuild(urls, opts){\r\n  opts=opts||{};\r\n  var xml='<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n';\r\n  xml+='<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\\n';\r\n  for(var i=0;i<urls.length;i++){\r\n    xml+='  <url><loc>'+smEsc(urls[i])+'</loc>';\r\n    if(opts.lastmod) xml+='<lastmod>'+smEsc(opts.lastmod)+'</lastmod>';\r\n    if(opts.changefreq) xml+='<changefreq>'+smEsc(opts.changefreq)+'</changefreq>';\r\n    if(opts.priority!=null) xml+='<priority>'+opts.priority+'</priority>';\r\n    xml+='</url>\\n';\r\n  }\r\n  xml+='</urlset>';\r\n  return xml;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { smParse:smParse, smBuild:smBuild, smEsc:smEsc };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SitemapForgePure = { smParse:smParse, smBuild:smBuild, smEsc:smEsc };\r\n}\r\n\r\n"
+}

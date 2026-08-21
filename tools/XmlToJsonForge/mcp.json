@@ -1,0 +1,29 @@
+{
+  "id": "XmlToJsonForge",
+  "name": "xml_to_json_forge",
+  "title": "XmlToJsonForge",
+  "description": "递归把 XML（属性/嵌套/重复节点/文本）转换为 JSON。",
+  "entry": "parseXml",
+  "entries": {
+    "parseXml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "xml"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "xml": {
+        "type": "string",
+        "description": "输入（xml）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction stripXml(s){\r\n  return s.replace(/<\\?[\\s\\S]*?\\?>/g,'').replace(/<!--[\\s\\S]*?-->/g,'').replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g,function(_,c){return '\\u0001'+c+'\\u0001';});\r\n}\r\nfunction parseXml(xml){\r\n  var s=stripXml(xml).trim(), i=0, L=s.length;\r\n  function isWs(c){ return c===' '||c==='\\t'||c==='\\n'||c==='\\r'; }\r\n  function skipWs(){ while(i<L && isWs(s[i])) i++; }\r\n  function readName(){ var j=i; while(i<L && /[A-Za-z0-9_:\\-\\.]/.test(s[i])) i++; return s.slice(j,i); }\r\n  function readAttrs(){ var a={}; skipWs();\r\n    while(i<L && s[i]!=='>' && s[i]!=='/' && s[i]!=='?'){\r\n      var nm=readName(); skipWs();\r\n      if(s[i]!=='='){ if(nm)a[nm]=''; i++; continue; }\r\n      i++; skipWs(); var q=s[i];\r\n      if(q==='\"'||q===\"'\"){ i++; var j=i; while(i<L && s[i]!==q) i++; var v=s.slice(j,i); i++; a[nm]=v; }\r\n      skipWs();\r\n    }\r\n    return a;\r\n  }\r\n  function readText(){ var j=i; while(i<L && s[i]!=='<') i++; return s.slice(j,i); }\r\n  function readElement(){\r\n    i++; var name=readName(); var attrs=readAttrs();\r\n    if(s[i]==='/'){ i++; if(s[i]==='>')i++; return {name:name,attrs:attrs,children:[],text:''}; }\r\n    if(s[i]==='>') i++; else throw new Error('bad tag '+name);\r\n    var children=[], text='';\r\n    while(i<L){\r\n      skipWs(); if(i>=L) break;\r\n      if(s[i]==='<'){\r\n        if(s[i+1]==='/'){ i+=2; readName(); if(s[i]==='>')i++; break; }\r\n        if(s[i+1]==='!'||s[i+1]==='?'){ while(i<L && s[i]!=='>') i++; i++; continue; }\r\n        var el=readElement(); if(el) children.push(el);\r\n      } else { text+=readText(); }\r\n    }\r\n    return {name:name,attrs:attrs,children:children,text:text.replace(/\\u0001/g,'')};\r\n  }\r\n  function build(node){\r\n    if(!node) return null;\r\n    var obj={};\r\n    if(node.attrs && Object.keys(node.attrs).length) obj['@attributes']=node.attrs;\r\n    var map={}, hasEl=false;\r\n    for(var k=0;k<node.children.length;k++){ var c=node.children[k]; hasEl=true; var v=build(c);\r\n      if(Object.prototype.hasOwnProperty.call(map,c.name)){ if(!Array.isArray(map[c.name])) map[c.name]=[map[c.name]]; map[c.name].push(v); }\r\n      else map[c.name]=v; }\r\n    for(var key in map) obj[key]=map[key];\r\n    var t=node.text?node.text.trim():'';\r\n    if(t!==''){ if(hasEl) obj['#text']=t; else if(Object.keys(node.attrs).length) obj['#text']=t; else return t; }\r\n    if(!hasEl && !Object.keys(node.attrs).length) return (t!=='')? t : {};\r\n    return obj;\r\n  }\r\n  skipWs();\r\n  if(s[i]!=='<') throw new Error('no root element');\r\n  var root=readElement();\r\n  var val=build(root);\r\n  return (typeof val==='object'&&val!==null)?((function(){var o={};o[root.name]=val;return o;})()):({}); \r\n}\r\nvar EXPORTS={parseXml:parseXml};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.XmlToJsonForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "SunburstForge",
+  "name": "sunburst_forge",
+  "title": "旭日图",
+  "description": "输入分层占比数据，生成 SVG 旭日/环形图，离线。",
+  "entry": "sunburstSvg",
+  "entries": {
+    "sunburstSvg": {
+      "paramStyle": "object",
+      "paramNames": [
+        "data"
+      ],
+      "fields": [
+        "children",
+        "name"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "children": {
+        "type": "string",
+        "description": "参数 children"
+      },
+      "name": {
+        "type": "string",
+        "description": "参数 name"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction esc(s){ s=String(s==null?'':s); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction polar(cx,cy,r,a){ return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; }\r\nfunction arcPath(cx,cy,r0,r1,a0,a1){\r\n  var p0=polar(cx,cy,r1,a0), p1=polar(cx,cy,r1,a1), p2=polar(cx,cy,r0,a1), p3=polar(cx,cy,r0,a0);\r\n  var large=(a1-a0)>Math.PI?1:0;\r\n  return 'M '+p0[0].toFixed(2)+' '+p0[1].toFixed(2)+' A '+r1+' '+r1+' 0 '+large+' 1 '+p1[0].toFixed(2)+' '+p1[1].toFixed(2)+\r\n         ' L '+p2[0].toFixed(2)+' '+p2[1].toFixed(2)+' A '+r0+' '+r0+' 0 '+large+' 0 '+p3[0].toFixed(2)+' '+p3[1].toFixed(2)+' Z';\r\n}\r\nfunction sunburstSvg(data){\r\n  if(!data||!data.children||!data.children.length) return {error:'需 {name, children:[{name,value}]}'};\r\n  var kids=data.children.map(function(c){ return {name:String(c.name||''), value:+c.value}; });\r\n  if(kids.some(function(k){ return isNaN(k.value)||k.value<=0; })) return {error:'每个子项须有正 value'};\r\n  var total=kids.reduce(function(a,b){return a+b.value;},0);\r\n  var cx=110, cy=110, r1=95, r0=42, ang=-Math.PI/2;\r\n  var pal=['#5E6AD2','#10B981','#F5A623','#EF4444','#22D3EE','#A78BFA','#F472B6','#34D399','#FBBF24','#60A5FA'];\r\n  var parts=[];\r\n  kids.forEach(function(k,i){\r\n    var frac=k.value/total, a0=ang, a1=ang+frac*2*Math.PI; ang=a1;\r\n    parts.push('<path d=\"'+arcPath(cx,cy,r0,r1,a0,a1)+'\" fill=\"'+pal[i%pal.length]+'\" stroke=\"#0A0A0B\" stroke-width=\"1\"/>');\r\n    var mid=(a0+a1)/2, mr=(r0+r1)/2, pp=polar(cx,cy,mr,mid);\r\n    parts.push('<text x=\"'+pp[0].toFixed(1)+'\" y=\"'+pp[1].toFixed(1)+'\" text-anchor=\"middle\" font-size=\"10\" fill=\"#fff\">'+esc(k.name)+'</text>');\r\n  });\r\n  parts.push('<circle cx=\"'+cx+'\" cy=\"'+cy+'\" r=\"'+(r0-2)+'\" fill=\"#141417\" stroke=\"#3A3B3E\"/>');\r\n  parts.push('<text x=\"'+cx+'\" y=\"'+(cy+4)+'\" text-anchor=\"middle\" font-size=\"11\" fill=\"#A1A1AA\">'+esc(data.name)+'</text>');\r\n  var svg='<svg viewBox=\"0 0 220 220\" xmlns=\"http://www.w3.org/2000/svg\">'+parts.join('')+'</svg>';\r\n  return {svg:svg, n:kids.length};\r\n}\r\nvar EXPORTS={sunburstSvg:sunburstSvg};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SunburstForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,62 @@
+{
+  "id": "MurmurForge",
+  "name": "murmur_forge",
+  "title": "MurmurForge",
+  "description": "MurmurHash3 x86_32 哈希：UTF-8 输入、自定义种子、分桶路由。",
+  "entry": "mmToUtf8",
+  "entries": {
+    "mmToUtf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "murmur3_32": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bytes",
+        "seed"
+      ],
+      "fields": []
+    },
+    "murmurStr": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "seed"
+      ],
+      "fields": []
+    },
+    "murmurHex": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "seed"
+      ],
+      "fields": []
+    },
+    "murmurBucket": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "seed",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction mmToUtf8(str){\r\n  var out=[];\r\n  for(var i=0;i<str.length;i++){\r\n    var c=str.charCodeAt(i);\r\n    if(c<0x80){ out.push(c); }\r\n    else if(c<0x800){ out.push(0xC0|(c>>6),0x80|(c&63)); }\r\n    else if(c>=0xD800&&c<=0xDBFF&&i+1<str.length){\r\n      var c2=str.charCodeAt(i+1);\r\n      if(c2>=0xDC00&&c2<=0xDFFF){\r\n        var cp=0x10000+((c-0xD800)<<10)+(c2-0xDC00); i++;\r\n        out.push(0xF0|(cp>>18),0x80|((cp>>12)&63),0x80|((cp>>6)&63),0x80|(cp&63));\r\n      } else out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63));\r\n    }\r\n    else { out.push(0xE0|(c>>12),0x80|((c>>6)&63),0x80|(c&63)); }\r\n  }\r\n  return out;\r\n}\r\nfunction mmMul32(a,b){\r\n  var ah=(a>>>16)&0xffff, al=a&0xffff;\r\n  return (((ah*b)<<16)+(al*b))>>>0;\r\n}\r\nfunction mmRotl32(x,r){ return ((x<<r)|(x>>>(32-r)))>>>0; }\r\nfunction murmur3_32(bytes, seed){\r\n  var h1=(seed||0)>>>0, c1=0xcc9e2d51, c2=0x1b873593;\r\n  var len=bytes.length, nblocks=len>>2, i;\r\n  for(i=0;i<nblocks;i++){\r\n    var k1=(bytes[i*4]|(bytes[i*4+1]<<8)|(bytes[i*4+2]<<16)|(bytes[i*4+3]<<24))>>>0;\r\n    k1=mmMul32(k1,c1); k1=mmRotl32(k1,15); k1=mmMul32(k1,c2);\r\n    h1=(h1^k1)>>>0; h1=mmRotl32(h1,13); h1=(mmMul32(h1,5)+0xe6546b64)>>>0;\r\n  }\r\n  var k=0, tail=nblocks*4, rem=len&3;\r\n  if(rem===3) k=(k^(bytes[tail+2]<<16))>>>0;\r\n  if(rem>=2) k=(k^(bytes[tail+1]<<8))>>>0;\r\n  if(rem>=1){\r\n    k=(k^bytes[tail])>>>0;\r\n    k=mmMul32(k,c1); k=mmRotl32(k,15); k=mmMul32(k,c2);\r\n    h1=(h1^k)>>>0;\r\n  }\r\n  h1=(h1^len)>>>0;\r\n  h1=(h1^(h1>>>16))>>>0; h1=mmMul32(h1,0x85ebca6b);\r\n  h1=(h1^(h1>>>13))>>>0; h1=mmMul32(h1,0xc2b2ae35);\r\n  h1=(h1^(h1>>>16))>>>0;\r\n  return h1>>>0;\r\n}\r\nfunction murmurStr(str, seed){ return murmur3_32(mmToUtf8(String(str)), seed||0); }\r\nfunction murmurHex(str, seed){\r\n  var h=murmurStr(str, seed).toString(16);\r\n  while(h.length<8) h='0'+h;\r\n  return h;\r\n}\r\nfunction murmurBucket(str, seed, n){\r\n  if(!n||n<=0) return { value:null, error:'桶数必须大于 0' };\r\n  return { value: murmurStr(str, seed)%n, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { mmToUtf8:mmToUtf8, murmur3_32:murmur3_32, murmurStr:murmurStr,\r\n    murmurHex:murmurHex, murmurBucket:murmurBucket };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MurmurForgePure = { mmToUtf8:mmToUtf8, murmur3_32:murmur3_32, murmurStr:murmurStr,\r\n    murmurHex:murmurHex, murmurBucket:murmurBucket };\r\n}\r\n"
+}

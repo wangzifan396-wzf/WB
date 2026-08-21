@@ -1,0 +1,51 @@
+{
+  "id": "MeetingCostForge",
+  "name": "meeting_cost_forge",
+  "title": "MeetingCostForge",
+  "description": "按参会者时薪与会议时长估算会议成本与年化开销",
+  "entry": "meetingCost",
+  "entries": {
+    "meetingCost": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rates",
+        "durationMin"
+      ],
+      "fields": []
+    },
+    "withPrep": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rates",
+        "durationMin",
+        "prepMin"
+      ],
+      "fields": []
+    },
+    "annual": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cost",
+        "perYear"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "rates": {
+        "type": "string",
+        "description": "第 1 个参数（rates）"
+      },
+      "durationMin": {
+        "type": "string",
+        "description": "第 2 个参数（durationMin）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction meetingCost(rates, durationMin){ if(!Array.isArray(rates)||!rates.length) return {error:'请提供参会者时薪'};\r\n  durationMin=+durationMin; if(!(durationMin>0)) return {error:'会议时长须为正'};\r\n  var sum=0; for(var i=0;i<rates.length;i++) sum+= +rates[i];\r\n  var cost=sum*(durationMin/60);\r\n  return {participants:rates.length, hourlySum:sum, durationMin:durationMin, cost:Math.round(cost*100)/100}; }\r\nfunction withPrep(rates, durationMin, prepMin){ prepMin=+prepMin||0; var base=meetingCost(rates,durationMin); if(base.error) return base;\r\n  var p=meetingCost(rates,prepMin); if(p.error) return p;\r\n  return {participants:rates.length, cost:Math.round((base.cost+p.cost)*100)/100, meeting:base.cost, prep:p.cost}; }\r\nfunction annual(cost, perYear){ perYear=+perYear||1; return Math.round(cost*perYear*100)/100; }\r\nvar EXPORTS={meetingCost:meetingCost, withPrep:withPrep, annual:annual};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MeetingCostForgePure = EXPORTS; }\r\n\r\n"
+}

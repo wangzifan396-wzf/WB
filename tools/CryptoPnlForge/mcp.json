@@ -1,0 +1,37 @@
+{
+  "id": "CryptoPnlForge",
+  "name": "crypto_pnl_forge",
+  "title": "CryptoPnlForge",
+  "description": "加密货币盈亏计算器：录入多笔建仓算均价成本，再按当前价格给出市值、盈亏与收益率。",
+  "entry": "portfolio",
+  "entries": {
+    "portfolio": {
+      "paramStyle": "single",
+      "paramNames": [
+        "lots"
+      ],
+      "fields": []
+    },
+    "pnl": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "lots",
+        "currentPrice"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "lots": {
+        "type": "string",
+        "description": "输入（lots）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction portfolio(lots){ // lots: [{qty, price}]\r\n  var qty=0, cost=0;\r\n  for(var i=0;i<lots.length;i++){ var L=lots[i]; if(!L) continue; var q=+L.qty||0, p=+L.price||0; qty+=q; cost+=q*p; }\r\n  var avg= qty>0 ? cost/qty : 0;\r\n  return {qty:qty, cost:cost, avg:avg};\r\n}\r\nfunction pnl(lots, currentPrice){\r\n  var p=portfolio(lots); var mv=p.qty*currentPrice;\r\n  var profit=mv-p.cost;\r\n  return {qty:p.qty, cost:p.cost, avg:p.avg, marketValue:mv, pnl:profit, pnlPct: p.cost>0? profit/p.cost*100 : 0};\r\n}\r\nvar EXPORTS={portfolio:portfolio, pnl:pnl};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CryptoPnlForgePure = EXPORTS; }\r\n\r\n"
+}

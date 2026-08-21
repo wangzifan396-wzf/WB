@@ -1,0 +1,58 @@
+{
+  "id": "ParticleForge",
+  "name": "particle_forge",
+  "title": "ParticleForge",
+  "description": "粒子系统模拟：支持喷泉/烟花/雪花等模式，基于种子的确定性运动，实时观察粒子积分轨迹，离线可用。",
+  "entry": "pfRng",
+  "entries": {
+    "pfRng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "pfEmit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "mode",
+        "x",
+        "y",
+        "count",
+        "rng"
+      ],
+      "fields": []
+    },
+    "pfStep": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ps",
+        "opts"
+      ],
+      "fields": []
+    },
+    "pfAlpha": {
+      "paramStyle": "object",
+      "paramNames": [
+        "p"
+      ],
+      "fields": [
+        "life",
+        "age"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seed": {
+        "type": "string",
+        "description": "输入（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction pfRng(seed){\r\n  var s=(seed>>>0)||1;\r\n  return function(){ s^=s<<13; s>>>=0; s^=s>>17; s^=s<<5; s>>>=0; return s/4294967296; };\r\n}\r\nfunction pfEmit(mode, x, y, count, rng){\r\n  rng=rng||Math.random;\r\n  var out=[];\r\n  for(var i=0;i<count;i++){\r\n    var a, sp, p;\r\n    if(mode==='fireworks'){\r\n      a=rng()*Math.PI*2; sp=1.5+rng()*3;\r\n      p={ x:x, y:y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:40+Math.floor(rng()*30), age:0, hue:Math.floor(rng()*360) };\r\n    } else if(mode==='snow'){\r\n      p={ x:rng()*480, y:-4, vx:(rng()-0.5)*0.6, vy:0.4+rng()*0.8, life:400, age:0, hue:200 };\r\n    } else {\r\n      a=-Math.PI/2+(rng()-0.5)*0.6; sp=3+rng()*2.5;\r\n      p={ x:x, y:y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:70+Math.floor(rng()*40), age:0, hue:180+Math.floor(rng()*80) };\r\n    }\r\n    out.push(p);\r\n  }\r\n  return out;\r\n}\r\nfunction pfStep(ps, opts){\r\n  opts=opts||{};\r\n  var g=('grav' in opts)?Number(opts.grav):0.12;\r\n  var drag=('drag' in opts)?Number(opts.drag):0.995;\r\n  var w=opts.w||480, h=opts.h||320;\r\n  var out=[];\r\n  for(var i=0;i<ps.length;i++){\r\n    var p=ps[i];\r\n    var vx=p.vx*drag, vy=(p.vy+g)*drag;\r\n    var np={ x:p.x+vx, y:p.y+vy, vx:vx, vy:vy, life:p.life, age:p.age+1, hue:p.hue };\r\n    if(np.age<np.life && np.y<h+8 && np.x>-8 && np.x<w+8) out.push(np);\r\n  }\r\n  return out;\r\n}\r\nfunction pfAlpha(p){ if(!p||p.life<=0) return 0; var t=1-p.age/p.life; return Math.max(0,Math.min(1,t)); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { pfRng:pfRng, pfEmit:pfEmit, pfStep:pfStep, pfAlpha:pfAlpha };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ParticleForgePure = { pfRng:pfRng, pfEmit:pfEmit, pfStep:pfStep, pfAlpha:pfAlpha };\r\n}\r\n"
+}

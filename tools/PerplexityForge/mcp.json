@@ -1,0 +1,44 @@
+{
+  "id": "PerplexityForge",
+  "name": "perplexity_forge",
+  "title": "PerplexityForge",
+  "description": "用一元语言模型演示困惑度计算，离线。",
+  "entry": "tokenize",
+  "entries": {
+    "tokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "train": {
+      "paramStyle": "single",
+      "paramNames": [
+        "corpus"
+      ],
+      "fields": []
+    },
+    "perplexity": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "sentence"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar CORPUS='the cat sat on the mat the cat ate the fish a dog ran to the mat the fish swam in the sea';\r\nfunction tokenize(s){ return String(s).toLowerCase().match(/[a-z0-9]+/g)||[]; }\r\nfunction train(corpus){ corpus=corpus||CORPUS; var toks=tokenize(corpus); var vocab={}; var n=toks.length;\r\n  for(var i=0;i<n;i++){ vocab[toks[i]]=(vocab[toks[i]]||0)+1; }\r\n  return {vocab:vocab, total:n, V:Object.keys(vocab).length}; }\r\nfunction perplexity(model, sentence){ var toks=tokenize(sentence); if(!toks.length) return 1;\r\n  var V=model.V||1, logSum=0;\r\n  for(var i=0;i<toks.length;i++){ var c=model.vocab[toks[i]]||0; var p=(c+1)/(model.total+V); logSum+=Math.log(p); }\r\n  return Math.exp(-logSum/toks.length); }\r\nvar EXPORTS={CORPUS:CORPUS,tokenize:tokenize,train:train,perplexity:perplexity};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PerplexityForgePure = EXPORTS; }\r\n\r\n"
+}

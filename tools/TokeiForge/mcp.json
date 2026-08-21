@@ -1,0 +1,34 @@
+{
+  "id": "TokeiForge",
+  "name": "tokei_forge",
+  "title": "TokeiForge",
+  "description": "代码行数统计：识别多种语言的行注释与块注释，分别统计总行、代码行、注释行与空白行，粘贴即可分析。",
+  "entry": "count",
+  "entries": {
+    "count": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "code",
+        "lang"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "第 1 个参数（code）"
+      },
+      "lang": {
+        "type": "string",
+        "description": "第 2 个参数（lang）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  var LINE={ js:'//', ts:'//', go:'//', c:'//', java:'//', rust:'//', python:'#', ruby:'#', sh:'#', yaml:'#', yml:'#', bash:'#' };\r\n  var BLOCKC={ js:['/*','*/'], ts:['/*','*/'], c:['/*','*/'], java:['/*','*/'], go:['/*','*/'], rust:['/*','*/'], css:['/*','*/'], html:['<!--','-->'], xml:['<!--','-->'] };\r\n  function count(code, lang){\r\n    lang=(lang||'js').toLowerCase();\r\n    var src=String(code||'').replace(/\\r?\\n$/,'');\r\n    if(src==='') return {value:{total:0, blank:0, comment:0, code:0}};\r\n    var lines=src.split(/\\r?\\n/);\r\n    var total=lines.length, blank=0, comment=0, codel=0;\r\n    var inBlock=false;\r\n    var bc=BLOCKC[lang];\r\n    var lineC=LINE[lang];\r\n    for(var i=0;i<lines.length;i++){\r\n      var t=lines[i].trim();\r\n      if(t===''){ blank++; continue; }\r\n      if(inBlock){\r\n        comment++;\r\n        if(bc && t.indexOf(bc[1])>=0) inBlock=false;\r\n        continue;\r\n      }\r\n      if(bc && t.indexOf(bc[0])>=0){\r\n        comment++; inBlock=true;\r\n        if(t.indexOf(bc[1])>=0) inBlock=false;\r\n        continue;\r\n      }\r\n      if(lineC && t.indexOf(lineC)===0){ comment++; continue; }\r\n      codel++;\r\n    }\r\n    return {value:{total:total, blank:blank, comment:comment, code:codel}};\r\n  }\r\n  var API={count:count};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__TokeiForge__=API;\r\n})();\r\n"
+}

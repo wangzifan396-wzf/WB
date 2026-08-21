@@ -1,0 +1,46 @@
+{
+  "id": "BabyGrowthForge",
+  "name": "baby_growth_forge",
+  "title": "BabyGrowthForge",
+  "description": "按简化 WHO 曲线评估婴儿体重百分位",
+  "entry": "percentile",
+  "entries": {
+    "percentile": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sex",
+        "months",
+        "weight"
+      ],
+      "fields": []
+    },
+    "normCdf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "z"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sex": {
+        "type": "string",
+        "description": "第 1 个参数（sex）"
+      },
+      "months": {
+        "type": "string",
+        "description": "第 2 个参数（months）"
+      },
+      "weight": {
+        "type": "string",
+        "description": "第 3 个参数（weight）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar BW_BOY_MED=[3.3,4.5,5.6,6.4,7.0,7.5,7.9,8.3,8.6,8.9,9.2,9.4,9.6,9.9,10.1,10.3,10.5,10.7,10.9,11.1,11.3,11.5,11.7,11.9,12.1];\r\nvar BW_BOY_SD=[0.4,0.5,0.6,0.6,0.7,0.7,0.7,0.8,0.8,0.8,0.9,0.9,0.9,1.0,1.0,1.0,1.0,1.0,1.1,1.1,1.1,1.0,1.1,1.1,1.1];\r\nvar BW_GIRL_MED=[3.2,4.2,5.1,5.8,6.4,6.9,7.3,7.6,7.9,8.2,8.5,8.7,8.9,9.1,9.3,9.5,9.7,9.9,10.1,10.3,10.4,10.6,10.8,11.0,11.1];\r\nvar BW_GIRL_SD=[0.4,0.5,0.6,0.6,0.7,0.7,0.7,0.8,0.8,0.9,0.9,0.9,0.9,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.1,1.1,1.1,1.1,1.1];\r\nfunction erf(x){ var s=x<0?-1:1; x=Math.abs(x); var t=1/(1+0.3275911*x);\r\n  var y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x); return s*y; }\r\nfunction normCdf(z){ return 0.5*(1+erf(z/Math.sqrt(2))); }\r\nfunction percentile(sex,months,weight){ months=Math.round(+months); if(isNaN(months)||months<0||months>24) return {error:'月龄须为 0–24 的整数'};\r\n  var med= sex==='girl'?BW_GIRL_MED:BW_BOY_MED, sd= sex==='girl'?BW_GIRL_SD:BW_BOY_SD; var s=sd[months]; if(!s) return {error:'无可参考数据'};\r\n  var m=med[months], z=(+weight-m)/s; return {z:z, pct:Math.round(normCdf(z)*1000)/10, median:m, sd:s}; }\r\nvar EXPORTS={percentile:percentile, normCdf:normCdf};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BabyGrowthForgePure = EXPORTS; }\r\n\r\n"
+}

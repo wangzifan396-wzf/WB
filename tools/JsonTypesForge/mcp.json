@@ -1,0 +1,39 @@
+{
+  "id": "JsonTypesForge",
+  "name": "json_types_forge",
+  "title": "JsonTypesForge",
+  "description": "从 JSON 样例生成 TypeScript / Go / Rust / Python 类型声明。",
+  "entry": "genTypes",
+  "entries": {
+    "genTypes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sample",
+        "lang",
+        "rootName"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sample": {
+        "type": "string",
+        "description": "第 1 个参数（sample）"
+      },
+      "lang": {
+        "type": "string",
+        "description": "第 2 个参数（lang）"
+      },
+      "rootName": {
+        "type": "string",
+        "description": "第 3 个参数（rootName）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar MAP={\r\n  ts:{bool:'boolean',int:'number',float:'number',str:'string',nul:'unknown',arr:function(t){return t+'[]';},name:function(n){return n;},struct:function(n,f){return 'interface '+n+' {\\n'+f+'\\n}';},field:function(k,t){return '  '+k+': '+t+';';},rootArr:function(t,n){return 'type '+n+' = '+t+';';}},\r\n  go:{bool:'bool',int:'int64',float:'float64',str:'string',nul:'interface{}',arr:function(t){return '[]'+t;},name:function(n){return cap(n);},struct:function(n,f){return 'type '+n+' struct {\\n'+f+'\\n}';},field:function(k,t){return '  '+cap(k)+' '+t+' `json:\"'+k+'\"`;';},rootArr:function(t,n){return 'type '+n+' []'+t;}},\r\n  rust:{bool:'bool',int:'i64',float:'f64',str:'String',nul:'serde_json::Value',arr:function(t){return 'Vec<'+t+'>';},name:function(n){return cap(n);},struct:function(n,f){return '#[derive(Debug, Serialize, Deserialize)]\\nstruct '+n+' {\\n'+f+'\\n}';},field:function(k,t){return '  '+k+': '+t+',';},rootArr:function(t,n){return 'type '+n+' = Vec<'+t+'>;';}},\r\n  py:{bool:'bool',int:'int',float:'float',str:'str',nul:'Any',arr:function(t){return 'List['+t+']';},name:function(n){return cap(n);},struct:function(n,f){return '@dataclass\\nclass '+n+':\\n'+f;},field:function(k,t){return '  '+k+': '+t;},rootArr:function(t,n){return n+' = List['+t+']';}}\r\n};\r\nfunction cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }\r\nfunction genTypes(sample, lang, rootName){\r\n  var M=MAP[lang]||MAP.ts; rootName=rootName||'Root'; var decls=[];\r\n  function typ(v, name){\r\n    if(v===null) return M.nul;\r\n    var tv=typeof v;\r\n    if(tv==='boolean') return M.bool;\r\n    if(tv==='number') return Number.isInteger(v)?M.int:M.float;\r\n    if(tv==='string') return M.str;\r\n    if(Array.isArray(v)){ var inner=v.length?typ(v[0],name+'Item'):M.nul; return M.arr(inner); }\r\n    if(tv==='object'){\r\n      var fields=[];\r\n      for(var k in v){ var f=typ(v[k],k); fields.push(M.field(k,f)); }\r\n      decls.push(M.struct(M.name(name),fields.join('\\n')));\r\n      return M.name(name);\r\n    }\r\n    return M.str;\r\n  }\r\n  var t=typ(sample, rootName);\r\n  if(Array.isArray(sample)) return M.rootArr(t, M.name(rootName));\r\n  return decls.join('\\n\\n');\r\n}\r\nvar EXPORTS={genTypes:genTypes};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.JsonTypesForgePure = EXPORTS; }\r\n\r\n"
+}

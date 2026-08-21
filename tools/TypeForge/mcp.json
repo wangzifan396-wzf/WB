@@ -1,0 +1,69 @@
+{
+  "id": "TypeForge",
+  "name": "type_forge",
+  "title": "TypeForge",
+  "description": "离线 JSON → TypeScript 接口生成：嵌套对象展开、数组联合类型推断，零上传。",
+  "entry": "jsonToInterfaces",
+  "entries": {
+    "jsonToInterfaces": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "root",
+        "rootName"
+      ],
+      "fields": []
+    },
+    "inferType": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "parseSafe": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "pascalCase": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "propKey": {
+      "paramStyle": "single",
+      "paramNames": [
+        "k"
+      ],
+      "fields": []
+    },
+    "singular": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "root": {
+        "type": "string",
+        "description": "第 1 个参数（root）"
+      },
+      "rootName": {
+        "type": "string",
+        "description": "第 2 个参数（rootName）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction isValidId(k){ return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k); }\r\nfunction propKey(k){ return isValidId(k) ? k : JSON.stringify(k); }\r\nfunction singular(s){ s=String(s==null?'Item':s); var r=s.replace(/s$/,''); return r||'Item'; }\r\nfunction pascalCase(s){\r\n  s=String(s==null?'':s).replace(/[^A-Za-z0-9]+/g,' ').trim();\r\n  if(!s) return 'Root';\r\n  return s.split(/\\s+/).map(function(w){ return w.charAt(0).toUpperCase()+w.slice(1); }).join('');\r\n}\r\nfunction parseSafe(s){ try{ return {ok:true, value:JSON.parse(s)}; } catch(e){ return {ok:false, error:e.message}; } }\r\nfunction inferType(v){\r\n  if(v===null) return 'null';\r\n  if(Array.isArray(v)) return 'array';\r\n  var t=typeof v;\r\n  if(t==='object') return 'object';\r\n  return t;\r\n}\r\nfunction jsonToInterfaces(root, rootName){\r\n  var out=[]; var names={};\r\n  function uniqueName(base){ base=pascalCase(base); var n=base,i=2; while(names[n]){ n=base+(i++); } names[n]=1; return n; }\r\n  function typeOf(v, keyHint){\r\n    if(v===null) return 'null';\r\n    if(Array.isArray(v)){\r\n      if(!v.length) return 'any[]';\r\n      var set={}, order=[];\r\n      for(var i=0;i<v.length;i++){ var tt=typeOf(v[i], singular(keyHint)); if(!set[tt]){ set[tt]=1; order.push(tt); } }\r\n      var inner = order.length===1 ? order[0] : ('('+order.join(' | ')+')');\r\n      return inner+'[]';\r\n    }\r\n    var t=typeof v;\r\n    if(t==='object') return emit(v, keyHint);\r\n    if(t==='number'||t==='string'||t==='boolean') return t;\r\n    return 'any';\r\n  }\r\n  function emit(obj, keyHint){\r\n    var name=uniqueName(keyHint||'Object');\r\n    var lines=['export interface '+name+' {'];\r\n    var keys=Object.keys(obj);\r\n    for(var i=0;i<keys.length;i++){ lines.push('  '+propKey(keys[i])+': '+typeOf(obj[keys[i]], keys[i])+';'); }\r\n    lines.push('}');\r\n    out.push(lines.join('\\n'));\r\n    return name;\r\n  }\r\n  rootName = rootName || 'Root';\r\n  if(Array.isArray(root)){\r\n    out.push('export type '+pascalCase(rootName)+' = '+typeOf(root, rootName)+';');\r\n  } else if(root!==null && typeof root==='object'){\r\n    emit(root, rootName);\r\n  } else {\r\n    out.push('export type '+pascalCase(rootName)+' = '+typeOf(root, rootName)+';');\r\n  }\r\n  return out.join('\\n\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { jsonToInterfaces:jsonToInterfaces, inferType:inferType, parseSafe:parseSafe, pascalCase:pascalCase, propKey:propKey, singular:singular };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TypeForgePure = { jsonToInterfaces:jsonToInterfaces, inferType:inferType, parseSafe:parseSafe, pascalCase:pascalCase, propKey:propKey, singular:singular };\r\n}\r\n"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "UAForge",
+  "name": "ua_forge",
+  "title": "UAForge",
+  "description": "离线 User-Agent 解析器：浏览器 / 内核 / 系统 / 设备类型识别，含爬虫检测。",
+  "entry": "parseUA",
+  "entries": {
+    "parseUA": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ua"
+      ],
+      "fields": []
+    },
+    "formatUA": {
+      "paramStyle": "object",
+      "paramNames": [
+        "r"
+      ],
+      "fields": [
+        "browser",
+        "browserVersion",
+        "engine",
+        "os",
+        "osVersion",
+        "device",
+        "bot"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "ua": {
+        "type": "string",
+        "description": "输入（ua）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction parseUA(ua){\r\n  ua=String(ua||'').trim();\r\n  if(!ua) throw new Error('UA 不能为空');\r\n  var r={browser:'未知',browserVersion:'',engine:'未知',os:'未知',osVersion:'',device:'桌面',bot:false};\r\n  var m;\r\n  if(/bot|crawler|spider|slurp|bingpreview|facebookexternalhit/i.test(ua)){ r.bot=true; r.device='爬虫'; }\r\n  if((m=ua.match(/Windows NT ([\\d.]+)/))){ r.os='Windows'; var NT={'10.0':'10/11','6.3':'8.1','6.2':'8','6.1':'7'}; r.osVersion=NT[m[1]]||('NT '+m[1]); }\r\n  else if((m=ua.match(/iPhone OS ([\\d_]+)/))){ r.os='iOS'; r.osVersion=m[1].replace(/_/g,'.'); r.device='手机'; }\r\n  else if((m=ua.match(/iPad; CPU OS ([\\d_]+)/))){ r.os='iPadOS'; r.osVersion=m[1].replace(/_/g,'.'); r.device='平板'; }\r\n  else if((m=ua.match(/Mac OS X ([\\d_.]+)/))){ r.os='macOS'; r.osVersion=m[1].replace(/_/g,'.'); }\r\n  else if((m=ua.match(/Android ([\\d.]+)/))){ r.os='Android'; r.osVersion=m[1]; r.device=/Mobile/.test(ua)?'手机':'平板'; }\r\n  else if(/CrOS/.test(ua)){ r.os='ChromeOS'; }\r\n  else if(/Linux/.test(ua)){ r.os='Linux'; }\r\n  if((m=ua.match(/Edg(?:e|A|iOS)?\\/([\\d.]+)/))){ r.browser='Edge'; r.browserVersion=m[1]; r.engine='Blink'; }\r\n  else if((m=ua.match(/OPR\\/([\\d.]+)/))){ r.browser='Opera'; r.browserVersion=m[1]; r.engine='Blink'; }\r\n  else if((m=ua.match(/SamsungBrowser\\/([\\d.]+)/))){ r.browser='Samsung Internet'; r.browserVersion=m[1]; r.engine='Blink'; }\r\n  else if((m=ua.match(/MicroMessenger\\/([\\d.]+)/))){ r.browser='微信内置浏览器'; r.browserVersion=m[1]; r.engine='Blink'; }\r\n  else if((m=ua.match(/UCBrowser\\/([\\d.]+)/))){ r.browser='UC 浏览器'; r.browserVersion=m[1]; r.engine='Blink'; }\r\n  else if((m=ua.match(/Firefox\\/([\\d.]+)/))){ r.browser='Firefox'; r.browserVersion=m[1]; r.engine='Gecko'; }\r\n  else if((m=ua.match(/CriOS\\/([\\d.]+)/))){ r.browser='Chrome (iOS)'; r.browserVersion=m[1]; r.engine='WebKit'; }\r\n  else if((m=ua.match(/FxiOS\\/([\\d.]+)/))){ r.browser='Firefox (iOS)'; r.browserVersion=m[1]; r.engine='WebKit'; }\r\n  else if((m=ua.match(/Chrome\\/([\\d.]+)/))){ r.browser='Chrome'; r.browserVersion=m[1]; r.engine='Blink'; }\r\n  else if((m=ua.match(/Version\\/([\\d.]+).*Safari/))){ r.browser='Safari'; r.browserVersion=m[1]; r.engine='WebKit'; }\r\n  else if(/Safari/.test(ua)){ r.browser='Safari'; r.engine='WebKit'; }\r\n  else if((m=ua.match(/MSIE ([\\d.]+)/))||/Trident/.test(ua)){ r.browser='IE'; r.browserVersion=m?m[1]:'11'; r.engine='Trident'; }\r\n  if(r.engine==='未知'){\r\n    if(/AppleWebKit/.test(ua)) r.engine='WebKit';\r\n    else if(/Gecko\\//.test(ua)) r.engine='Gecko';\r\n  }\r\n  return r;\r\n}\r\nfunction formatUA(r){\r\n  var L=[];\r\n  L.push('浏览器: '+r.browser+(r.browserVersion?' '+r.browserVersion:''));\r\n  L.push('内核: '+r.engine);\r\n  L.push('系统: '+r.os+(r.osVersion?' '+r.osVersion:''));\r\n  L.push('设备类型: '+r.device);\r\n  if(r.bot) L.push('识别为爬虫 / 机器人');\r\n  return L.join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parseUA:parseUA, formatUA:formatUA };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.UAForgePure = { parseUA:parseUA, formatUA:formatUA };\r\n}\r\n"
+}

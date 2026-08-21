@@ -1,0 +1,58 @@
+{
+  "id": "HarForge",
+  "name": "har_forge",
+  "title": "HarForge",
+  "description": "HAR 抓包分析：统计请求数、传输量、加载耗时与失败请求，按资源类型与域名聚合，列出最慢与最大的请求、各阶段耗时合计，并给出针对性的优化建议。",
+  "entry": "analyze",
+  "entries": {
+    "analyze": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fmtBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "fmtMs": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "hostOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "u"
+      ],
+      "fields": []
+    },
+    "typeOf": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "mime",
+        "url"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n'use strict';\r\nfunction fmtBytes(n){\r\n  if(!isFinite(n)||n<0) return '-';\r\n  var u=['B','KB','MB','GB'],i=0;\r\n  while(n>=1024&&i<u.length-1){n/=1024;i++;}\r\n  return (i===0?n:Math.round(n*10)/10)+' '+u[i];\r\n}\r\nfunction fmtMs(n){\r\n  if(!isFinite(n)||n<0) return '-';\r\n  return n<1000?(Math.round(n)+' ms'):((Math.round(n/100)/10)+' s');\r\n}\r\nfunction hostOf(u){\r\n  var m=/^[a-zA-Z][a-zA-Z0-9+.-]*:\\/\\/([^\\/?#]+)/.exec(String(u||''));\r\n  return m?m[1]:'(相对路径)';\r\n}\r\nfunction typeOf(mime,url){\r\n  var m=String(mime||'').split(';')[0].toLowerCase();\r\n  if(m.indexOf('javascript')>=0||m.indexOf('ecmascript')>=0) return 'JS';\r\n  if(m==='text/css') return 'CSS';\r\n  if(m.indexOf('html')>=0) return 'HTML';\r\n  if(m.indexOf('json')>=0) return 'JSON';\r\n  if(m.indexOf('xml')>=0) return 'XML';\r\n  if(m.indexOf('image/')===0) return '图片';\r\n  if(m.indexOf('font')>=0||/\\.(woff2?|ttf|otf|eot)(\\?|$)/i.test(url||'')) return '字体';\r\n  if(m.indexOf('video/')===0||m.indexOf('audio/')===0) return '音视频';\r\n  if(m) return '其他';\r\n  return '未知';\r\n}\r\nfunction num(v){ var n=Number(v); return isFinite(n)&&n>0?n:0; }\r\nfunction analyze(text){\r\n  if(typeof text!=='string'||!text.trim()) return {value:null,error:'请粘贴 HAR 文件内容（DevTools 网络面板可导出）'};\r\n  var har;\r\n  try{ har=JSON.parse(text); }catch(e){ return {value:null,error:'JSON 解析失败：'+e.message}; }\r\n  var log=har&&har.log?har.log:har;\r\n  if(!log||!log.entries||!log.entries.length) return {value:null,error:'未找到 log.entries，确认这是 HAR 文件'};\r\n  var es=log.entries,list=[],i;\r\n  var totalTime=0,totalTransfer=0,totalContent=0,cached=0;\r\n  var tSum={blocked:0,dns:0,connect:0,ssl:0,send:0,wait:0,receive:0};\r\n  var byType={},byDomain={},statuses={},methods={};\r\n  var tMin=null,tMax=null;\r\n  for(i=0;i<es.length;i++){\r\n    var e=es[i]||{},req=e.request||{},res=e.response||{},c=res.content||{},tm=e.timings||{};\r\n    var url=req.url||'',host=hostOf(url);\r\n    var content=num(c.size);\r\n    var transfer=num(e._transferSize);\r\n    if(!transfer) transfer=num(res.bodySize)+num(res.headersSize);\r\n    if(!transfer) transfer=content;\r\n    var dur=num(e.time);\r\n    var st=num(res.status);\r\n    var isCache=(st===304)||(res._fromCache?true:false)||(num(res.bodySize)===0&&content>0&&st===200&&num(e._transferSize)===0);\r\n    var ty=typeOf(c.mimeType||res.content&&res.content.mimeType,url);\r\n    totalTime+=dur; totalTransfer+=transfer; totalContent+=content;\r\n    if(isCache) cached++;\r\n    var kk;\r\n    for(kk in tSum){ var v=Number(tm[kk]); if(isFinite(v)&&v>0) tSum[kk]+=v; }\r\n    if(!byType[ty]) byType[ty]={type:ty,count:0,bytes:0,time:0};\r\n    byType[ty].count++; byType[ty].bytes+=transfer; byType[ty].time+=dur;\r\n    if(!byDomain[host]) byDomain[host]={domain:host,count:0,bytes:0,time:0};\r\n    byDomain[host].count++; byDomain[host].bytes+=transfer; byDomain[host].time+=dur;\r\n    var sk=st?String(st):'0';\r\n    statuses[sk]=(statuses[sk]||0)+1;\r\n    var mk=(req.method||'GET').toUpperCase();\r\n    methods[mk]=(methods[mk]||0)+1;\r\n    var started=e.startedDateTime?Date.parse(e.startedDateTime):NaN;\r\n    if(isFinite(started)){\r\n      if(tMin===null||started<tMin) tMin=started;\r\n      var end=started+dur;\r\n      if(tMax===null||end>tMax) tMax=end;\r\n    }\r\n    list.push({url:url,short:url.split('?')[0].split('/').pop()||host,host:host,method:mk,status:st,\r\n               type:ty,transfer:transfer,content:content,time:dur,cached:isCache,\r\n               wait:num(tm.wait),blocked:num(tm.blocked),receive:num(tm.receive),start:started});\r\n  }\r\n  function arr(o){ var a=[],k; for(k in o) a.push(o[k]); return a; }\r\n  var types=arr(byType).sort(function(a,b){return b.bytes-a.bytes;});\r\n  var domains=arr(byDomain).sort(function(a,b){return b.bytes-a.bytes;});\r\n  var slowest=list.slice().sort(function(a,b){return b.time-a.time;}).slice(0,10);\r\n  var largest=list.slice().sort(function(a,b){return b.transfer-a.transfer;}).slice(0,10);\r\n  var errors=list.filter(function(x){return x.status>=400||x.status===0;});\r\n  var span=(tMin!==null&&tMax!==null)?(tMax-tMin):totalTime;\r\n  var advice=[];\r\n  var jsBytes=byType['JS']?byType['JS'].bytes:0, imgBytes=byType['图片']?byType['图片'].bytes:0;\r\n  if(jsBytes>1024*1024) advice.push('JS 传输量 '+fmtBytes(jsBytes)+' 偏大，考虑代码分割与按需加载');\r\n  if(imgBytes>2*1024*1024) advice.push('图片传输量 '+fmtBytes(imgBytes)+' 偏大，考虑 WebP/AVIF 与响应式尺寸');\r\n  if(domains.length>10) advice.push('涉及 '+domains.length+' 个域名，跨域连接握手成本高，可合并或预连接');\r\n  if(errors.length) advice.push('存在 '+errors.length+' 个失败请求（4xx/5xx/0），优先排查');\r\n  if(list.length>80) advice.push('请求数 '+list.length+' 偏多，可合并静态资源或启用 HTTP/2 多路复用');\r\n  if(cached===0&&list.length>10) advice.push('没有命中缓存的请求，检查 Cache-Control 与 ETag 配置');\r\n  if(tSum.wait>totalTime*0.5&&totalTime>0) advice.push('等待服务器响应（TTFB）占总耗时超过一半，瓶颈在后端');\r\n  if(!advice.length) advice.push('未发现明显性能问题');\r\n  return {value:{\r\n    summary:{count:list.length,span:span,totalTime:totalTime,totalTransfer:totalTransfer,totalContent:totalContent,\r\n             cached:cached,errors:errors.length,domains:domains.length,\r\n             avgTime:list.length?totalTime/list.length:0,\r\n             saved:totalContent>totalTransfer?(totalContent-totalTransfer):0},\r\n    types:types,domains:domains.slice(0,10),statuses:statuses,methods:methods,\r\n    slowest:slowest,largest:largest,errorList:errors.slice(0,10),timings:tSum,advice:advice,\r\n    creator:(log.creator&&log.creator.name)||'未知',pages:(log.pages&&log.pages.length)||0\r\n  },error:null};\r\n}\r\nvar API={analyze:analyze,fmtBytes:fmtBytes,fmtMs:fmtMs,hostOf:hostOf,typeOf:typeOf};\r\nif(typeof module!=='undefined'&&module.exports) module.exports=API;\r\nif(typeof window!=='undefined') window.__HarForge__=API;\r\n})();\r\n\r\n"
+}

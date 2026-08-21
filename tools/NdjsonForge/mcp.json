@@ -1,0 +1,113 @@
+{
+  "id": "NdjsonForge",
+  "name": "ndjson_forge",
+  "title": "NdjsonForge",
+  "description": "NDJSON/JSON Lines 处理：逐行校验与错误定位、嵌套字段画像、类型一致性体检、JSON 数组与 CSV 互转，离线可用。",
+  "entry": "parseNdjson",
+  "entries": {
+    "parseNdjson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "stringifyNdjson": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "arr",
+        "pretty"
+      ],
+      "fields": []
+    },
+    "fromJsonArray": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "toJsonArray": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "pretty"
+      ],
+      "fields": []
+    },
+    "typeOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "flattenObject": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "obj",
+        "prefix",
+        "out",
+        "depth"
+      ],
+      "fields": []
+    },
+    "profileSchema": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "validateShape": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "csvEscape": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "toCsv": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "delimiter"
+      ],
+      "fields": []
+    },
+    "filterLines": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "expr"
+      ],
+      "fields": []
+    },
+    "stats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseNdjson(text){\r\n  var src = String(text===undefined?'':text);\r\n  var lines = src.split(/\\r?\\n/);\r\n  var rows=[], errors=[], blank=0;\r\n  for(var i=0;i<lines.length;i++){\r\n    var raw=lines[i];\r\n    if(!raw.trim()){ blank++; continue; }\r\n    try {\r\n      rows.push({line:i+1, value: JSON.parse(raw)});\r\n    } catch(e){\r\n      errors.push({line:i+1, message: String(e.message||e), preview: raw.length>80 ? raw.slice(0,80)+'…' : raw});\r\n    }\r\n  }\r\n  return {rows:rows, errors:errors, blank:blank, totalLines:lines.length, ok: errors.length===0};\r\n}\r\nfunction stringifyNdjson(arr, pretty){\r\n  if(!Array.isArray(arr)) return {text:'', count:0, error:'输入必须是数组'};\r\n  var out=[];\r\n  for(var i=0;i<arr.length;i++) out.push(JSON.stringify(arr[i]));\r\n  return {text: out.join('\\n'), count: out.length, error:null};\r\n}\r\nfunction fromJsonArray(text){\r\n  var v;\r\n  try { v = JSON.parse(String(text||'')); } catch(e){ return {text:'', count:0, error:'JSON 解析失败: '+e.message}; }\r\n  if(!Array.isArray(v)){\r\n    if(v && typeof v==='object') return stringifyNdjson([v]);\r\n    return {text:'', count:0, error:'顶层不是数组，无法逐行展开'};\r\n  }\r\n  return stringifyNdjson(v);\r\n}\r\nfunction toJsonArray(text, pretty){\r\n  var p=parseNdjson(text);\r\n  var vals=[];\r\n  for(var i=0;i<p.rows.length;i++) vals.push(p.rows[i].value);\r\n  return {text: pretty ? JSON.stringify(vals, null, 2) : JSON.stringify(vals), count: vals.length, errors: p.errors};\r\n}\r\nfunction typeOf(v){\r\n  if(v===null) return 'null';\r\n  if(Array.isArray(v)) return 'array';\r\n  var t=typeof v;\r\n  if(t==='number') return Number.isInteger(v) ? 'integer' : 'number';\r\n  return t;\r\n}\r\nfunction flattenObject(obj, prefix, out, depth){\r\n  out = out || {};\r\n  depth = depth===undefined ? 0 : depth;\r\n  prefix = prefix || '';\r\n  if(depth>8) { out[prefix||'$']=obj; return out; }\r\n  if(obj===null || typeof obj!=='object' || Array.isArray(obj)){\r\n    out[prefix||'$']=obj;\r\n    return out;\r\n  }\r\n  var keys=Object.keys(obj);\r\n  if(!keys.length){ out[prefix||'$']={}; return out; }\r\n  for(var i=0;i<keys.length;i++){\r\n    var k=keys[i], key = prefix ? prefix+'.'+k : k, v=obj[k];\r\n    if(v && typeof v==='object' && !Array.isArray(v)) flattenObject(v, key, out, depth+1);\r\n    else out[key]=v;\r\n  }\r\n  return out;\r\n}\r\nfunction profileSchema(text){\r\n  var p=parseNdjson(text);\r\n  var fields={}, order=[], total=p.rows.length;\r\n  for(var i=0;i<p.rows.length;i++){\r\n    var flat=flattenObject(p.rows[i].value);\r\n    for(var k in flat){\r\n      if(!flat.hasOwnProperty(k)) continue;\r\n      if(!fields[k]){ fields[k]={name:k, count:0, types:{}, nulls:0, samples:[]}; order.push(k); }\r\n      var f=fields[k];\r\n      f.count++;\r\n      var t=typeOf(flat[k]);\r\n      if(t==='null') f.nulls++;\r\n      f.types[t]=(f.types[t]||0)+1;\r\n      if(f.samples.length<3 && t!=='null') f.samples.push(flat[k]);\r\n    }\r\n  }\r\n  var list=[];\r\n  for(var j=0;j<order.length;j++){\r\n    var g=fields[order[j]];\r\n    var tk=Object.keys(g.types);\r\n    tk.sort(function(a,b){ return g.types[b]-g.types[a]; });\r\n    list.push({\r\n      name:g.name, count:g.count, presence: total? Math.round(g.count/total*100) : 0,\r\n      types:tk, primaryType: tk[0]||'unknown', mixed: tk.filter(function(x){return x!=='null';}).length>1,\r\n      nulls:g.nulls, samples:g.samples\r\n    });\r\n  }\r\n  return {fields:list, records:total, errors:p.errors, fieldCount:list.length};\r\n}\r\nfunction validateShape(text){\r\n  var prof=profileSchema(text), issues=[];\r\n  for(var i=0;i<prof.fields.length;i++){\r\n    var f=prof.fields[i];\r\n    if(f.presence<100 && prof.records>1) issues.push({level:'warn', field:f.name, msg:'字段仅在 '+f.presence+'% 的记录中出现'});\r\n    if(f.mixed) issues.push({level:'error', field:f.name, msg:'类型不一致: '+f.types.join(' / ')});\r\n  }\r\n  for(var j=0;j<prof.errors.length;j++) issues.push({level:'error', field:'第 '+prof.errors[j].line+' 行', msg:prof.errors[j].message});\r\n  var errors=0, warnings=0;\r\n  for(var k=0;k<issues.length;k++){ if(issues[k].level==='error') errors++; else warnings++; }\r\n  return {issues:issues, errors:errors, warnings:warnings, ok: errors===0, records:prof.records, fieldCount:prof.fieldCount};\r\n}\r\nfunction csvEscape(v){\r\n  if(v===null || v===undefined) return '';\r\n  var s = (typeof v==='object') ? JSON.stringify(v) : String(v);\r\n  if(/[\",\\n\\r]/.test(s)) return '\"'+s.replace(/\"/g,'\"\"')+'\"';\r\n  return s;\r\n}\r\nfunction toCsv(text, delimiter){\r\n  var d = delimiter || ',';\r\n  var p=parseNdjson(text);\r\n  if(!p.rows.length) return {text:'', rows:0, columns:[], error:'无有效记录'};\r\n  var cols=[], seen={};\r\n  var flats=[];\r\n  for(var i=0;i<p.rows.length;i++){\r\n    var f=flattenObject(p.rows[i].value);\r\n    flats.push(f);\r\n    for(var k in f){ if(f.hasOwnProperty(k) && !seen[k]){ seen[k]=1; cols.push(k); } }\r\n  }\r\n  var out=[cols.map(csvEscape).join(d)];\r\n  for(var j=0;j<flats.length;j++){\r\n    var row=[];\r\n    for(var c=0;c<cols.length;c++) row.push(csvEscape(flats[j][cols[c]]));\r\n    out.push(row.join(d));\r\n  }\r\n  return {text: out.join('\\n'), rows: flats.length, columns: cols, error:null};\r\n}\r\nfunction filterLines(text, expr){\r\n  var p=parseNdjson(text);\r\n  var q=String(expr||'').trim();\r\n  if(!q) return {text: p.rows.map(function(r){return JSON.stringify(r.value);}).join('\\n'), matched:p.rows.length, total:p.rows.length, error:null};\r\n  var m = q.match(/^([A-Za-z0-9_.$[\\]]+)\\s*(==|!=|>=|<=|>|<|~)\\s*(.+)$/);\r\n  if(!m) return {text:'', matched:0, total:p.rows.length, error:'表达式格式: field op value（op 为 == != > < >= <= ~）'};\r\n  var field=m[1], op=m[2], rhs=m[3].trim().replace(/^[\"']|[\"']$/g,'');\r\n  var num=parseFloat(rhs), isNum=!isNaN(num) && /^-?\\d+(\\.\\d+)?$/.test(rhs);\r\n  var kept=[];\r\n  for(var i=0;i<p.rows.length;i++){\r\n    var flat=flattenObject(p.rows[i].value);\r\n    var v=flat[field];\r\n    var pass=false;\r\n    if(op==='~') pass = v!==undefined && String(v).indexOf(rhs)>-1;\r\n    else if(op==='==') pass = String(v)===rhs || (isNum && v===num);\r\n    else if(op==='!=') pass = !(String(v)===rhs || (isNum && v===num));\r\n    else {\r\n      var lv = typeof v==='number' ? v : parseFloat(v);\r\n      if(isNaN(lv) || !isNum) pass=false;\r\n      else if(op==='>') pass = lv>num;\r\n      else if(op==='<') pass = lv<num;\r\n      else if(op==='>=') pass = lv>=num;\r\n      else if(op==='<=') pass = lv<=num;\r\n    }\r\n    if(pass) kept.push(JSON.stringify(p.rows[i].value));\r\n  }\r\n  return {text: kept.join('\\n'), matched: kept.length, total: p.rows.length, error:null};\r\n}\r\nfunction stats(text){\r\n  var p=parseNdjson(text);\r\n  var bytes=0, maxLine=0, types={};\r\n  var src=String(text||'').split(/\\r?\\n/);\r\n  for(var i=0;i<src.length;i++){\r\n    bytes += src[i].length + 1;\r\n    if(src[i].length>maxLine) maxLine=src[i].length;\r\n  }\r\n  for(var j=0;j<p.rows.length;j++){\r\n    var t=typeOf(p.rows[j].value);\r\n    types[t]=(types[t]||0)+1;\r\n  }\r\n  return {\r\n    records:p.rows.length, invalid:p.errors.length, blank:p.blank,\r\n    bytes: bytes>0 ? bytes-1 : 0,\r\n    avgBytes: p.rows.length ? Math.round((bytes-1)/p.rows.length) : 0,\r\n    maxLineLength:maxLine, valueTypes:types\r\n  };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { parseNdjson:parseNdjson, stringifyNdjson:stringifyNdjson, fromJsonArray:fromJsonArray, toJsonArray:toJsonArray, typeOf:typeOf, flattenObject:flattenObject, profileSchema:profileSchema, validateShape:validateShape, csvEscape:csvEscape, toCsv:toCsv, filterLines:filterLines, stats:stats }; }\r\nif (typeof window !== 'undefined') { window.NdjsonForgePure = { parseNdjson:parseNdjson, stringifyNdjson:stringifyNdjson, fromJsonArray:fromJsonArray, toJsonArray:toJsonArray, typeOf:typeOf, flattenObject:flattenObject, profileSchema:profileSchema, validateShape:validateShape, csvEscape:csvEscape, toCsv:toCsv, filterLines:filterLines, stats:stats }; }\r\n\r\n"
+}

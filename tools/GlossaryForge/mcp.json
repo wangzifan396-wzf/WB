@@ -1,0 +1,56 @@
+{
+  "id": "GlossaryForge",
+  "name": "glossary_forge",
+  "title": "术语表生成",
+  "description": "批量解析「术语: 定义」生成排序术语表（表格/列表），支持字母序与长度排序，离线。",
+  "entry": "buildGlossary",
+  "entries": {
+    "parseGlossary": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "sortTerms": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "order"
+      ],
+      "fields": []
+    },
+    "buildGlossary": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "text",
+        "order",
+        "format"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "参数 text"
+      },
+      "order": {
+        "type": "string",
+        "description": "参数 order"
+      },
+      "format": {
+        "type": "string",
+        "description": "参数 format"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseGlossary(text){\r\n  return String(text||'').split(/\\n+/).map(function(l){\r\n    l=l.trim(); if(!l) return null;\r\n    var i=l.indexOf(':'), j=l.indexOf('：');\r\n    var pos=-1;\r\n    if(i>=0&&(j<0||i<j)) pos=i; else if(j>=0) pos=j;\r\n    if(pos<=0||pos>=l.length-1) return null;\r\n    return {term:l.slice(0,pos).trim(), def:l.slice(pos+1).trim()};\r\n  }).filter(function(x){return x && x.term && x.def;});\r\n}\r\nfunction sortTerms(items, order){\r\n  var arr=items.slice();\r\n  order=String(order||'字母序');\r\n  if(order.indexOf('字母')>=0){\r\n    arr.sort(function(a,b){ return a.term<b.term?-1:(a.term>b.term?1:0); });\r\n  } else if(order.indexOf('长度')>=0){\r\n    arr.sort(function(a,b){ return a.term.length-b.term.length || (a.term<b.term?-1:1); });\r\n  }\r\n  return arr;\r\n}\r\nfunction buildGlossary(o){\r\n  o=o||{};\r\n  var items=parseGlossary(o.text);\r\n  var order=String(o.order||'字母序');\r\n  var fmt=String(o.format||'表格');\r\n  var sorted=sortTerms(items, order);\r\n  var lines=[];\r\n  lines.push('# 术语表（共 '+items.length+' 条）');\r\n  lines.push('');\r\n  if(!items.length){\r\n    lines.push('（暂无有效词条，请按「术语: 定义」每行一条填写）');\r\n  } else if(fmt.indexOf('列表')>=0){\r\n    sorted.forEach(function(x){ lines.push('- **'+x.term+'**：'+x.def); });\r\n  } else {\r\n    lines.push('| 术语 | 定义 |');\r\n    lines.push('| --- | --- |');\r\n    sorted.forEach(function(x){ lines.push('| '+x.term+' | '+x.def.replace(/\\|/g,'/')+' |'); });\r\n  }\r\n  return {count:items.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={parseGlossary:parseGlossary, sortTerms:sortTerms, buildGlossary:buildGlossary};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.GlossaryForgePure = EXPORTS; }\r\n\r\n"
+}

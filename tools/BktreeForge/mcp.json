@@ -1,0 +1,72 @@
+{
+  "id": "BktreeForge",
+  "name": "bktree_forge",
+  "title": "BktreeForge",
+  "description": "BK 树容错查找：编辑距离三角不等式剪枝，拼写纠错索引。",
+  "entry": "bkLevenshtein",
+  "entries": {
+    "bkLevenshtein": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "bkCreate": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "bkAdd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tree",
+        "word"
+      ],
+      "fields": []
+    },
+    "bkBuild": {
+      "paramStyle": "single",
+      "paramNames": [
+        "words"
+      ],
+      "fields": []
+    },
+    "bkSearch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tree",
+        "word",
+        "maxDist"
+      ],
+      "fields": []
+    },
+    "bkDepth": {
+      "paramStyle": "object",
+      "paramNames": [
+        "tree"
+      ],
+      "fields": [
+        "root"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "string",
+        "description": "第 1 个参数（a）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 2 个参数（b）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction bkLevenshtein(a, b){\r\n  a=String(a); b=String(b);\r\n  var m=a.length, n=b.length;\r\n  if(m===0) return n;\r\n  if(n===0) return m;\r\n  var prev=new Array(n+1), cur=new Array(n+1), i, j;\r\n  for(j=0;j<=n;j++) prev[j]=j;\r\n  for(i=1;i<=m;i++){\r\n    cur[0]=i;\r\n    for(j=1;j<=n;j++){\r\n      cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a[i-1]===b[j-1]?0:1));\r\n    }\r\n    var t=prev; prev=cur; cur=t;\r\n  }\r\n  return prev[n];\r\n}\r\nfunction bkCreate(){\r\n  return { root:null, size:0 };\r\n}\r\nfunction bkAdd(tree, word){\r\n  var w=String(word);\r\n  if(!w) return tree;\r\n  if(!tree.root){ tree.root={ word:w, children:{} }; tree.size=1; return tree; }\r\n  var node=tree.root;\r\n  for(;;){\r\n    var d=bkLevenshtein(w, node.word);\r\n    if(d===0) return tree;\r\n    if(node.children[d]) node=node.children[d];\r\n    else { node.children[d]={ word:w, children:{} }; tree.size++; return tree; }\r\n  }\r\n}\r\nfunction bkBuild(words){\r\n  var t=bkCreate();\r\n  for(var i=0;i<words.length;i++) bkAdd(t, words[i]);\r\n  return t;\r\n}\r\nfunction bkSearch(tree, word, maxDist){\r\n  var w=String(word), md=Math.max(0, Math.floor(maxDist||0));\r\n  var out=[];\r\n  if(!tree||!tree.root) return out;\r\n  var stack=[tree.root];\r\n  while(stack.length){\r\n    var node=stack.pop();\r\n    var d=bkLevenshtein(w, node.word);\r\n    if(d<=md) out.push({ word:node.word, dist:d });\r\n    var lo=d-md, hi=d+md, k;\r\n    for(k in node.children){\r\n      var kd=Number(k);\r\n      if(kd>=lo&&kd<=hi) stack.push(node.children[k]);\r\n    }\r\n  }\r\n  out.sort(function(p,q){ return p.dist-q.dist || (p.word<q.word?-1:1); });\r\n  return out;\r\n}\r\nfunction bkDepth(tree){\r\n  if(!tree||!tree.root) return 0;\r\n  var walk=function(node){\r\n    var best=1, k;\r\n    for(k in node.children){\r\n      var d=1+walk(node.children[k]);\r\n      if(d>best) best=d;\r\n    }\r\n    return best;\r\n  };\r\n  return walk(tree.root);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { bkLevenshtein:bkLevenshtein, bkCreate:bkCreate, bkAdd:bkAdd,\r\n    bkBuild:bkBuild, bkSearch:bkSearch, bkDepth:bkDepth };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.BktreeForgePure = { bkLevenshtein:bkLevenshtein, bkCreate:bkCreate, bkAdd:bkAdd,\r\n    bkBuild:bkBuild, bkSearch:bkSearch, bkDepth:bkDepth };\r\n}\r\n"
+}

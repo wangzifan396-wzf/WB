@@ -1,0 +1,39 @@
+{
+  "id": "BattleForge",
+  "name": "battle_forge",
+  "title": "BattleForge",
+  "description": "海战棋（Battleship）：10×10 海域藏着电脑的 5 艘战舰，逐格炮击搜寻并击沉全部即获胜，单人推理。",
+  "entry": "bsPlace",
+  "entries": {
+    "bsPlace": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "bsFire": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "state",
+        "r",
+        "c"
+      ],
+      "fields": []
+    },
+    "bsAllSunk": {
+      "paramStyle": "object",
+      "paramNames": [
+        "state"
+      ],
+      "fields": [
+        "ships"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\nvar BS_SIZE=10, BS_FLEET=[5,4,3,3,2];\r\nfunction bsPlace(){\r\n  var board=new Array(BS_SIZE*BS_SIZE).fill(0), ships=[];\r\n  BS_FLEET.forEach(function(sz){\r\n    var placed=false, guard=0;\r\n    while(!placed && guard<800){ guard++;\r\n      var horiz=Math.random()<0.5; var r=Math.floor(Math.random()*BS_SIZE), c=Math.floor(Math.random()*BS_SIZE);\r\n      var cells=[], ok=true;\r\n      for(var i=0;i<sz;i++){ var rr=r+(horiz?0:i), cc=c+(horiz?i:0); if(rr<0||rr>=BS_SIZE||cc<0||cc>=BS_SIZE){ok=false;break;} if(board[rr*BS_SIZE+cc]===1){ok=false;break;} cells.push(rr*BS_SIZE+cc); }\r\n      if(!ok) continue;\r\n      cells.forEach(function(idx){ board[idx]=1; });\r\n      ships.push({cells:cells.slice(), hits:new Array(sz).fill(false)}); placed=true;\r\n    }\r\n  });\r\n  return {board:board, ships:ships};\r\n}\r\nfunction bsFire(state, r, c){\r\n  var idx=r*BS_SIZE+c; if(state.board[idx]!==1) return {result:'miss', sunk:false};\r\n  for(var s=0;s<state.ships.length;s++){ var ship=state.ships[s]; var ci=ship.cells.indexOf(idx); if(ci>=0){ if(ship.hits[ci]) return {result:'hit', sunk:false, already:true}; ship.hits[ci]=true; var sunk=ship.hits.every(function(h){return h;}); return {result:'hit', sunk:sunk}; } }\r\n  return {result:'miss', sunk:false};\r\n}\r\nfunction bsAllSunk(state){ return state.ships.every(function(sh){return sh.hits.every(function(h){return h;});}); }\r\nvar EXPORTS={bsPlace:bsPlace,bsFire:bsFire,bsAllSunk:bsAllSunk,BS_SIZE:BS_SIZE,BS_FLEET:BS_FLEET};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BattleForgePure = EXPORTS; }\r\n\r\n"
+}

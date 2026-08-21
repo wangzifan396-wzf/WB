@@ -1,0 +1,36 @@
+{
+  "id": "EquationBalancerForge",
+  "name": "equation_balancer_forge",
+  "title": "EquationBalancerForge",
+  "description": "基于原子矩阵有理数零空间，自动给出最小整数配平系数，支持氧化还原复杂方程。",
+  "entry": "balance",
+  "entries": {
+    "balance": {
+      "paramStyle": "single",
+      "paramNames": [
+        "eq"
+      ],
+      "fields": []
+    },
+    "parseCounts": {
+      "paramStyle": "single",
+      "paramNames": [
+        "form"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "eq": {
+        "type": "string",
+        "description": "输入（eq）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseCounts(form){\r\n  form=String(form).replace(/[\\s·×*]/g,'.');\r\n  var i=0, n=form.length;\r\n  function readFactor(){\r\n    var map={};\r\n    while(i<n){\r\n      var c=form[i];\r\n      if(c==='('){ i++; var g=readFactor();\r\n        var num=1; if(i<n && /[0-9]/.test(form[i])){num=0;while(i<n&&/[0-9]/.test(form[i])){num=num*10+(form[i].charCodeAt(0)-48);i++;}}\r\n        for(var k in g) map[k]=(map[k]||0)+g[k]*num;\r\n        continue;\r\n      }\r\n      if(c===')'){ i++; break; }\r\n      if(c==='.'){ i++;\r\n        var mult=1; if(i<n && /[0-9]/.test(form[i])){mult=0;while(i<n&&/[0-9]/.test(form[i])){mult=mult*10+(form[i].charCodeAt(0)-48);i++;}}\r\n        var rest=readFactor();\r\n        for(var k in rest) map[k]=(map[k]||0)+rest[k]*mult;\r\n        break;\r\n      }\r\n      if(/[A-Z]/.test(c)){\r\n        var sym=c; i++;\r\n        while(i<n && /[a-z]/.test(form[i])){ sym+=form[i]; i++; }\r\n        var cnt=1; if(i<n && /[0-9]/.test(form[i])){cnt=0;while(i<n&&/[0-9]/.test(form[i])){cnt=cnt*10+(form[i].charCodeAt(0)-48);i++;}}\r\n        map[sym]=(map[sym]||0)+cnt;\r\n        continue;\r\n      }\r\n      i++;\r\n    }\r\n    return map;\r\n  }\r\n  return readFactor();\r\n}\r\n\r\nfunction gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}\r\nfunction lcm(a,b){ if(a===0||b===0) return 0; return Math.abs(a*b)/gcd(a,b); }\r\nfunction F(n,d){ if(d===undefined)d=1; if(d<0){n=-n;d=-d;} var g=gcd(Math.abs(n),Math.abs(d))||1; return [n/g,d/g]; }\r\nfunction fadd(a,b){ return F(a[0]*b[1]+b[0]*a[1], a[1]*b[1]); }\r\nfunction fmul(a,b){ return F(a[0]*b[0], a[1]*b[1]); }\r\nfunction fneg(a){ return [-a[0],a[1]]; }\r\nfunction fdiv(a,b){ return F(a[0]*b[1], a[1]*b[0]); }\r\n// 有理数 RREF\r\nfunction rref(A, cols){\r\n  var M=A.map(function(r){return r.slice();}); var row=0;\r\n  for(var col=0; col<cols && row<M.length; col++){\r\n    var piv=-1; for(var r=row;r<M.length;r++){ if(M[r][col][0]!==0){piv=r;break;} }\r\n    if(piv<0) continue;\r\n    var tmp=M[row];M[row]=M[piv];M[piv]=tmp;\r\n    var pv=M[row][col]; for(var c=0;c<cols;c++) M[row][c]=fdiv(M[row][c],pv);\r\n    for(var r2=0;r2<M.length;r2++){ if(r2===row) continue; var f=M[r2][col]; if(f[0]===0) continue;\r\n      for(var c2=0;c2<cols;c2++) M[r2][c2]=fadd(M[r2][c2], fmul(fneg(f), M[row][c2])); }\r\n    row++;\r\n  }\r\n  return M;\r\n}\r\nfunction nullBasis(M, cols){\r\n  var R=rref(M, cols); var pivCol=[];\r\n  for(var r=0;r<R.length;r++){ for(var c=0;c<cols;c++){ if(R[r][c][0]===1 && R[r][c][1]===1){ pivCol[r]=c; break; } } }\r\n  var basis=[];\r\n  for(var j=0;j<cols;j++){\r\n    var isFree=true; for(var r=0;r<R.length;r++){ if(pivCol[r]===j){isFree=false;break;} }\r\n    if(!isFree) continue;\r\n    var v=new Array(cols); for(var c=0;c<cols;c++) v[c]=F(0,1);\r\n    v[j]=F(1,1);\r\n    for(var r=0;r<R.length;r++){ if(pivCol[r]!==undefined){ v[pivCol[r]]=fneg(R[r][j]); } }\r\n    basis.push(v);\r\n  }\r\n  return basis;\r\n}\r\nfunction fracToInts(v){\r\n  var L=1; for(var i=0;i<v.length;i++) L=lcm(L, v[i][1]);\r\n  var ints=[]; for(var i=0;i<v.length;i++) ints.push(v[i][0]*L/v[i][1]);\r\n  // 使首项为正\r\n  var first=0; while(first<ints.length && ints[first]===0) first++;\r\n  if(first<ints.length && ints[first]<0){ for(var i=0;i<ints.length;i++) ints[i]=-ints[i]; }\r\n  var g=0; for(var i=0;i<ints.length;i++) g=gcd(g,Math.abs(ints[i]));\r\n  if(g>1){ for(var i=0;i<ints.length;i++) ints[i]=ints[i]/g; }\r\n  return ints;\r\n}\r\nfunction balance(eq){\r\n  var sides=eq.split(/\\s*(?:->|→|=)\\s*/); if(sides.length!==2) return {error:\"需写成 A + B -> C + D\"};\r\n  function species(s){ return s.split('+').map(function(p){ p=p.replace(/^\\s*\\d+\\s*/,'').trim(); return p; }).filter(Boolean); }\r\n  var R=species(sides[0]), P=species(sides[1]);\r\n  var all=R.concat(P);\r\n  var elemSet={}; all.forEach(function(sp){ var c=parseCounts(sp); for(var k in c) elemSet[k]=1; });\r\n  var elems=Object.keys(elemSet);\r\n  // 矩阵 elems × species；反应物列为 +，产物列为 -\r\n  var M=elems.map(function(e){\r\n    var row=all.map(function(sp){ var c=parseCounts(sp); return F(c[e]||0,1); });\r\n    for(var i=R.length;i<all.length;i++) row[i]=fneg(row[i]);\r\n    return row;\r\n  });\r\n  var basis=nullBasis(M, all.length);\r\n  if(basis.length===0) return {error:\"无法配平（可能已配平或矛盾）\"};\r\n  var ints;\r\n  if(basis.length===1){ ints=fracToInts(basis[0]); }\r\n  else {\r\n    // 多维零空间：搜索小整数组合使全为正\r\n    var best=null;\r\n    var lim=6;\r\n    (function combine(idx, acc){\r\n      if(idx===basis.length){ var sum=new Array(all.length); for(var i=0;i<all.length;i++) sum[i]=F(0,1);\r\n        for(var k=0;k<acc.length;k++){ for(var i=0;i<all.length;i++) sum[i]=fadd(sum[i], fmul(F(acc[k],1), basis[k][i])); }\r\n        var allPos=true; for(var i=0;i<all.length;i++){ if(sum[i][0]<=0){allPos=false;break;} }\r\n        if(allPos){ var ii=fracToInts(sum); var mx=Math.max.apply(null, ii.map(Math.abs));\r\n          if(!best || mx<best.mx) best={ints:ii, mx:mx}; }\r\n        return;\r\n      }\r\n      for(var w=1;w<=lim;w++){ acc.push(w); combine(idx+1,acc); acc.pop(); }\r\n    })(0,[]);\r\n    if(!best) ints=fracToInts(basis[0]); else ints=best.ints;\r\n  }\r\n  // 组装字符串\r\n  function sideStr(arr, off){ return arr.map(function(sp,i){ var c=ints[off+i]; return (c===1?\"\":c)+\" \"+sp; }).join(\" + \"); }\r\n  return {ok:true, coeffs:ints, text: sideStr(R,0)+\" -> \"+sideStr(P,R.length)};\r\n}\r\nvar EXPORTS={balance:balance, parseCounts:parseCounts};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EquationBalancerForgePure = EXPORTS; }\r\n\r\n"
+}

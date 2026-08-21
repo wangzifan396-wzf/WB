@@ -1,0 +1,41 @@
+{
+  "id": "HtmlEntityForge",
+  "name": "html_entity_forge",
+  "title": "HtmlEntityForge",
+  "description": "HTML 实体编解码：命名/十进制/十六进制，XSS 安全转义。",
+  "entry": "encode",
+  "entries": {
+    "encode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "str",
+        "opts"
+      ],
+      "fields": []
+    },
+    "decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "第 1 个参数（str）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar HE_NAMED = {\r\n  '\\u0026':'amp', '\\u003c':'lt', '\\u003e':'gt', '\\u0022':'quot', '\\u0027':'apos',\r\n  '\\u00a0':'nbsp', '\\u00a1':'iexcl', '\\u00a2':'cent', '\\u00a3':'pound', '\\u00a5':'yen', '\\u20ac':'euro',\r\n  '\\u00a7':'sect', '\\u00a9':'copy', '\\u00ae':'reg', '\\u00b0':'deg', '\\u00b1':'plusmn', '\\u00b2':'sup2',\r\n  '\\u00b3':'sup3', '\\u00d7':'times', '\\u00f7':'divide', '\\u2026':'hellip', '\\u2018':'lsquo', '\\u2019':'rsquo',\r\n  '\\u201c':'ldquo', '\\u201d':'rdquo', '\\u2013':'ndash', '\\u2014':'mdash', '\\u2122':'trade'\r\n};\r\nvar HE_DECODE = {\r\n  'amp':'\\u0026','lt':'\\u003c','gt':'\\u003e','quot':'\\u0022','apos':'\\u0027',\r\n  'nbsp':'\\u00a0','iexcl':'\\u00a1','cent':'\\u00a2','pound':'\\u00a3','yen':'\\u00a5','euro':'\\u20ac',\r\n  'sect':'\\u00a7','copy':'\\u00a9','reg':'\\u00ae','deg':'\\u00b0','plusmn':'\\u00b1','sup2':'\\u00b2',\r\n  'sup3':'\\u00b3','times':'\\u00d7','divide':'\\u00f7','hellip':'\\u2026','lsquo':'\\u2018','rsquo':'\\u2019',\r\n  'ldquo':'\\u201c','rdquo':'\\u201d','ndash':'\\u2013','mdash':'\\u2014','trade':'\\u2122'\r\n};\r\nfunction heEncode(str, opts){\r\n  opts=opts||{};\r\n  var mode=opts.mode||'named';\r\n  if(typeof str!=='string') return {error:'Input must be string'};\r\n  var out='';\r\n  for(var i=0;i<str.length;i++){\r\n    var ch=str.charAt(i);\r\n    var code=str.charCodeAt(i);\r\n    if(HE_NAMED[ch]!==undefined){\r\n      if(mode==='decimal'){ out+='&#'+code+';'; continue; }\r\n      if(mode==='hex'){ out+='&#x'+code.toString(16)+';'; continue; }\r\n      out+='&'+HE_NAMED[ch]+';';\r\n      continue;\r\n    }\r\n    if(code>127){\r\n      if(mode==='decimal') out+='&#'+code+';';\r\n      else if(mode==='hex') out+='&#x'+code.toString(16)+';';\r\n      else out+='&#'+code+';';\r\n    } else {\r\n      out+=ch;\r\n    }\r\n  }\r\n  return {value:out, error:null};\r\n}\r\nfunction heDecode(str){\r\n  if(typeof str!=='string') return {error:'Input must be string'};\r\n  var re=/&(#[xX][0-9a-fA-F]+;|#[0-9]+;|[a-zA-Z][a-zA-Z0-9]*;)/g;\r\n  var out=str.replace(re, function(m){\r\n    if(m.charAt(1)==='#'){\r\n      var num = (m.charAt(2)==='x'||m.charAt(2)==='X') ? parseInt(m.slice(3,-1),16) : parseInt(m.slice(2,-1),10);\r\n      if(isNaN(num)) return m;\r\n      return String.fromCharCode(num);\r\n    }\r\n    var name=m.slice(1,-1);\r\n    var ch=HE_DECODE[name];\r\n    return ch!==undefined?ch:m;\r\n  });\r\n  return {value:out, error:null};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { encode:heEncode, decode:heDecode };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.HtmlEntityForgePure = { encode:heEncode, decode:heDecode };\r\n}\r\n"
+}

@@ -1,0 +1,73 @@
+{
+  "id": "SyllabusForge",
+  "name": "syllabus_forge",
+  "title": "课程大纲生成",
+  "description": "按课程名 / 周数 / 目标 / 考核方式生成整期课程大纲（周次安排+考核构成），离线。",
+  "entry": "buildSyllabus",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "weekThemes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "goals"
+      ],
+      "fields": []
+    },
+    "assessPlan": {
+      "paramStyle": "single",
+      "paramNames": [
+        "mode"
+      ],
+      "fields": []
+    },
+    "buildSyllabus": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "weeks",
+        "perWeek",
+        "goals",
+        "mode"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "参数 name"
+      },
+      "weeks": {
+        "type": "string",
+        "description": "参数 weeks"
+      },
+      "perWeek": {
+        "type": "string",
+        "description": "参数 perWeek"
+      },
+      "goals": {
+        "type": "string",
+        "description": "参数 goals"
+      },
+      "mode": {
+        "type": "string",
+        "description": "参数 mode"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nfunction weekThemes(n, goals){\r\n  n=parseInt(n,10)||16; if(n<4)n=4; if(n>24)n=24;\r\n  var weeks=['绪论与课程导学'];\r\n  var body=n-4;\r\n  for(var i=0;i<body;i++){ weeks.push(goals[i%Math.max(goals.length,1)]||'专题讲授与练习'); }\r\n  weeks.push('综合复习与答疑');\r\n  weeks.push('期末考核');\r\n  weeks.push('机动与补遗');\r\n  return weeks;\r\n}\r\nfunction assessPlan(mode){\r\n  mode=String(mode||'考试为主');\r\n  if(mode.indexOf('项目')>=0) return [['平时表现',20],['阶段作业',30],['项目答辩',50]];\r\n  if(mode.indexOf('考查')>=0) return [['平时表现',30],['阶段测验',30],['期末作品',40]];\r\n  return [['平时作业',20],['期中测验',30],['期末考试',50]];\r\n}\r\nfunction buildSyllabus(o){\r\n  o=o||{};\r\n  var name=String(o.name||'').trim()||'（待填写课程名）';\r\n  var weeks=parseInt(o.weeks,10)||16; if(weeks<4)weeks=4; if(weeks>24)weeks=24;\r\n  var perWeek=parseInt(o.perWeek,10)||2; if(perWeek<1)perWeek=1; if(perWeek>8)perWeek=8;\r\n  var goals=splitLines(o.goals);\r\n  if(!goals.length) goals=['（待补充课程目标）'];\r\n  var mode=String(o.mode||'考试为主').trim()||'考试为主';\r\n  var themes=weekThemes(weeks, goals);\r\n  var assess=assessPlan(mode);\r\n  var totalHours=weeks*perWeek;\r\n  var lines=[];\r\n  lines.push('# 课程大纲：'+name);\r\n  lines.push('');\r\n  lines.push('## 一、基本信息');\r\n  lines.push('- 总周数：'+weeks+' 周');\r\n  lines.push('- 周课时：'+perWeek+' 学时（共 '+totalHours+' 学时）');\r\n  lines.push('- 考核方式：'+mode);\r\n  lines.push('');\r\n  lines.push('## 二、课程目标');\r\n  goals.forEach(function(g,i){ lines.push((i+1)+'. '+g); });\r\n  lines.push('');\r\n  lines.push('## 三、周次安排');\r\n  themes.forEach(function(t,i){ lines.push('- 第 '+(i+1)+' 周：'+t); });\r\n  lines.push('');\r\n  lines.push('## 四、考核构成');\r\n  assess.forEach(function(a){ lines.push('- '+a[0]+'：'+a[1]+'%'); });\r\n  lines.push('');\r\n  lines.push('> 说明：周次主题默认由课程目标轮转填充，请按实际教学进度调整。');\r\n  return {title:name+' 课程大纲', weekCount:themes.length, totalHours:totalHours, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, weekThemes:weekThemes, assessPlan:assessPlan, buildSyllabus:buildSyllabus};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SyllabusForgePure = EXPORTS; }\r\n\r\n"
+}

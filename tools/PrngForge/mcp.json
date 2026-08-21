@@ -1,0 +1,63 @@
+{
+  "id": "PrngForge",
+  "name": "prng_forge",
+  "title": "PrngForge",
+  "description": "可复现伪随机：mulberry32 / sfc32 / xoshiro128**，种子→序列/洗牌。",
+  "entry": "prngCreate",
+  "entries": {
+    "prngCreate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "algo",
+        "seedStr"
+      ],
+      "fields": []
+    },
+    "prngSequence": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "algo",
+        "seedStr",
+        "n"
+      ],
+      "fields": []
+    },
+    "prngIntRange": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "algo",
+        "seedStr",
+        "n",
+        "lo",
+        "hi"
+      ],
+      "fields": []
+    },
+    "prngShuffle": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "algo",
+        "seedStr",
+        "arr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "algo": {
+        "type": "string",
+        "description": "第 1 个参数（algo）"
+      },
+      "seedStr": {
+        "type": "string",
+        "description": "第 2 个参数（seedStr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction seedHash(str){\r\n  var h=1779033703^String(str).length;\r\n  for(var i=0;i<String(str).length;i++){\r\n    h=Math.imul(h^String(str).charCodeAt(i),3432918353);\r\n    h=(h<<13)|(h>>>19);\r\n  }\r\n  return function(){\r\n    h=Math.imul(h^(h>>>16),2246822507);\r\n    h=Math.imul(h^(h>>>13),3266489909);\r\n    h^=h>>>16;\r\n    return h>>>0;\r\n  };\r\n}\r\nfunction mulberry32(seed){\r\n  var a=seed>>>0;\r\n  return function(){\r\n    a|=0; a=(a+0x6D2B79F5)|0;\r\n    var t=Math.imul(a^(a>>>15),1|a);\r\n    t=(t+Math.imul(t^(t>>>7),61|t))^t;\r\n    return ((t^(t>>>14))>>>0)/4294967296;\r\n  };\r\n}\r\nfunction sfc32(a,b,c,d){\r\n  return function(){\r\n    a>>>=0; b>>>=0; c>>>=0; d>>>=0;\r\n    var t=(a+b)|0;\r\n    a=b^(b>>>9);\r\n    b=(c+(c<<3))|0;\r\n    c=(c<<21)|(c>>>11);\r\n    d=(d+1)|0;\r\n    t=(t+d)|0;\r\n    c=(c+t)|0;\r\n    return (t>>>0)/4294967296;\r\n  };\r\n}\r\nfunction xoshiro128ss(a,b,c,d){\r\n  return function(){\r\n    var t=b<<9, r=Math.imul(b,5);\r\n    r=((r<<7)|(r>>>25))>>>0;\r\n    r=Math.imul(r,9)>>>0;\r\n    c^=a; d^=b; b^=c; a^=d; c^=t;\r\n    d=(d<<11)|(d>>>21);\r\n    return r/4294967296;\r\n  };\r\n}\r\nfunction prngCreate(algo, seedStr){\r\n  var h=seedHash(seedStr);\r\n  if(algo==='mulberry32') return mulberry32(h());\r\n  if(algo==='sfc32') return sfc32(h(),h(),h(),h());\r\n  if(algo==='xoshiro128ss') return xoshiro128ss(h(),h(),h(),h());\r\n  throw new Error('unknown algo: '+algo);\r\n}\r\nfunction prngSequence(algo, seedStr, n){\r\n  var f=prngCreate(algo, seedStr), out=[];\r\n  for(var i=0;i<n;i++) out.push(f());\r\n  return out;\r\n}\r\nfunction prngIntRange(algo, seedStr, n, lo, hi){\r\n  var f=prngCreate(algo, seedStr), out=[];\r\n  for(var i=0;i<n;i++) out.push(lo+Math.floor(f()*(hi-lo+1)));\r\n  return out;\r\n}\r\nfunction prngShuffle(algo, seedStr, arr){\r\n  var f=prngCreate(algo, seedStr), a=arr.slice();\r\n  for(var i=a.length-1;i>0;i--){\r\n    var j=Math.floor(f()*(i+1));\r\n    var t=a[i]; a[i]=a[j]; a[j]=t;\r\n  }\r\n  return a;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { seedHash:seedHash, mulberry32:mulberry32, sfc32:sfc32, xoshiro128ss:xoshiro128ss,\r\n    prngCreate:prngCreate, prngSequence:prngSequence, prngIntRange:prngIntRange, prngShuffle:prngShuffle };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.PrngForgePure = { prngCreate:prngCreate, prngSequence:prngSequence,\r\n    prngIntRange:prngIntRange, prngShuffle:prngShuffle };\r\n}\r\n"
+}

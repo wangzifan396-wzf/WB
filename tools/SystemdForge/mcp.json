@@ -1,0 +1,160 @@
+{
+  "id": "SystemdForge",
+  "name": "systemd_forge",
+  "title": "SystemdForge",
+  "description": "systemd unit 助手：按表单生成带安全加固项的 service 与 timer 文件并附安装命令；校验模式内置 20+ 条检查，覆盖相对路径、sudo、结尾 &、非法 Restart 与缺失 Install 等错误。",
+  "entry": "build",
+  "entries": {
+    "build": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "execStart",
+        "description",
+        "documentation",
+        "after",
+        "requires",
+        "type",
+        "remain",
+        "pidfile",
+        "user",
+        "group",
+        "workdir",
+        "envFile",
+        "env",
+        "execReload",
+        "execStop",
+        "restart",
+        "restartSec",
+        "timeout",
+        "hardening",
+        "limitNofile",
+        "wantedBy",
+        "timer",
+        "onCalendar"
+      ]
+    },
+    "lint": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseUnit": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "参数 name"
+      },
+      "execStart": {
+        "type": "string",
+        "description": "参数 execStart"
+      },
+      "description": {
+        "type": "string",
+        "description": "参数 description"
+      },
+      "documentation": {
+        "type": "string",
+        "description": "参数 documentation"
+      },
+      "after": {
+        "type": "string",
+        "description": "参数 after"
+      },
+      "requires": {
+        "type": "string",
+        "description": "参数 requires"
+      },
+      "type": {
+        "type": "string",
+        "description": "参数 type"
+      },
+      "remain": {
+        "type": "string",
+        "description": "参数 remain"
+      },
+      "pidfile": {
+        "type": "string",
+        "description": "参数 pidfile"
+      },
+      "user": {
+        "type": "string",
+        "description": "参数 user"
+      },
+      "group": {
+        "type": "string",
+        "description": "参数 group"
+      },
+      "workdir": {
+        "type": "string",
+        "description": "参数 workdir"
+      },
+      "envFile": {
+        "type": "string",
+        "description": "参数 envFile"
+      },
+      "env": {
+        "type": "string",
+        "description": "参数 env"
+      },
+      "execReload": {
+        "type": "string",
+        "description": "参数 execReload"
+      },
+      "execStop": {
+        "type": "string",
+        "description": "参数 execStop"
+      },
+      "restart": {
+        "type": "string",
+        "description": "参数 restart"
+      },
+      "restartSec": {
+        "type": "string",
+        "description": "参数 restartSec"
+      },
+      "timeout": {
+        "type": "string",
+        "description": "参数 timeout"
+      },
+      "hardening": {
+        "type": "string",
+        "description": "参数 hardening"
+      },
+      "limitNofile": {
+        "type": "string",
+        "description": "参数 limitNofile"
+      },
+      "wantedBy": {
+        "type": "string",
+        "description": "参数 wantedBy"
+      },
+      "timer": {
+        "type": "string",
+        "description": "参数 timer"
+      },
+      "onCalendar": {
+        "type": "string",
+        "description": "参数 onCalendar"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n'use strict';\r\nvar RESTARTS={'no':'从不自动重启','on-success':'正常退出后重启','on-failure':'异常退出/超时才重启',\r\n  'on-abnormal':'被信号杀死或超时才重启','on-abort':'收到未捕获信号才重启','on-watchdog':'看门狗超时才重启','always':'无论如何都重启'};\r\nvar TYPES={'simple':'ExecStart 进程即主进程，启动后立即视为就绪','exec':'与 simple 类似但等到 execve 成功才算启动完成',\r\n  'forking':'主进程会 fork 后退出，需配合 PIDFile','oneshot':'跑完就退出，常配合 RemainAfterExit',\r\n  'notify':'服务通过 sd_notify 主动上报就绪','idle':'延迟到其他任务派发完再启动','dbus':'服务就绪以取得 D-Bus 名称为准'};\r\nfunction esc(v){ return String(v==null?'':v).replace(/\\r?\\n/g,' ').trim(); }\r\nfunction build(o){\r\n  o=o||{};\r\n  var name=esc(o.name||'myapp');\r\n  if(!/^[A-Za-z0-9_.@-]+$/.test(name)) return {value:null,error:'服务名只能包含字母、数字与 _ . @ -'};\r\n  var exec=esc(o.execStart||'');\r\n  if(!exec) return {value:null,error:'请填写 ExecStart 启动命令'};\r\n  var L=[],warn=[];\r\n  L.push('[Unit]');\r\n  L.push('Description='+esc(o.description||(name+' service')));\r\n  if(o.documentation) L.push('Documentation='+esc(o.documentation));\r\n  L.push('After='+esc(o.after||'network-online.target'));\r\n  if((o.after||'network-online.target').indexOf('network-online')>=0) L.push('Wants=network-online.target');\r\n  if(o.requires) L.push('Requires='+esc(o.requires));\r\n  L.push('');\r\n  L.push('[Service]');\r\n  var type=o.type||'simple';\r\n  L.push('Type='+type);\r\n  if(type==='oneshot'&&o.remain!==false) L.push('RemainAfterExit=yes');\r\n  if(type==='forking'&&o.pidfile) L.push('PIDFile='+esc(o.pidfile));\r\n  if(o.user) L.push('User='+esc(o.user));\r\n  if(o.group) L.push('Group='+esc(o.group));\r\n  if(o.workdir) L.push('WorkingDirectory='+esc(o.workdir));\r\n  if(o.envFile) L.push('EnvironmentFile=-'+esc(o.envFile));\r\n  var envs=(o.env||'').split(/\\r?\\n/).filter(function(x){return x.trim();});\r\n  for(var i=0;i<envs.length;i++){\r\n    var kv=envs[i].trim();\r\n    L.push('Environment='+(/\\s/.test(kv)?('\"'+kv+'\"'):kv));\r\n  }\r\n  L.push('ExecStart='+exec);\r\n  if(o.execReload) L.push('ExecReload='+esc(o.execReload));\r\n  if(o.execStop) L.push('ExecStop='+esc(o.execStop));\r\n  var restart=o.restart||'on-failure';\r\n  if(type!=='oneshot'){\r\n    L.push('Restart='+restart);\r\n    if(restart!=='no') L.push('RestartSec='+(o.restartSec||'5'));\r\n  }\r\n  if(o.timeout) L.push('TimeoutStopSec='+esc(o.timeout));\r\n  if(o.hardening!==false){\r\n    L.push('NoNewPrivileges=yes');\r\n    L.push('PrivateTmp=yes');\r\n    L.push('ProtectSystem=strict');\r\n    L.push('ProtectHome=yes');\r\n    if(o.workdir) L.push('ReadWritePaths='+esc(o.workdir));\r\n  }\r\n  if(o.limitNofile) L.push('LimitNOFILE='+esc(o.limitNofile));\r\n  L.push('StandardOutput=journal');\r\n  L.push('StandardError=journal');\r\n  L.push('');\r\n  L.push('[Install]');\r\n  L.push('WantedBy='+esc(o.wantedBy||'multi-user.target'));\r\n  var unit=L.join('\\n')+'\\n';\r\n  var timer='';\r\n  if(o.timer){\r\n    var T=[];\r\n    T.push('[Unit]');\r\n    T.push('Description=Timer for '+name);\r\n    T.push('');\r\n    T.push('[Timer]');\r\n    T.push('OnCalendar='+esc(o.onCalendar||'daily'));\r\n    T.push('Persistent=true');\r\n    T.push('AccuracySec=1min');\r\n    T.push('Unit='+name+'.service');\r\n    T.push('');\r\n    T.push('[Install]');\r\n    T.push('WantedBy=timers.target');\r\n    timer=T.join('\\n')+'\\n';\r\n    if(type!=='oneshot') warn.push('定时任务建议把 Type 设为 oneshot，否则 systemd 会认为服务常驻');\r\n  }\r\n  if(!o.user) warn.push('未指定 User，服务将以 root 运行，建议创建专用低权限账号');\r\n  if(exec.charAt(0)!=='/') warn.push('ExecStart 必须使用绝对路径，systemd 不会走 PATH 查找');\r\n  var cmds=['sudo cp '+name+'.service /etc/systemd/system/'+name+'.service',\r\n            'sudo systemctl daemon-reload',\r\n            'sudo systemctl enable --now '+name+(o.timer?'.timer':'.service'),\r\n            'systemctl status '+name,\r\n            'journalctl -u '+name+' -f'];\r\n  return {value:{unit:unit,timer:timer,warn:warn,cmds:cmds,fileName:name+'.service',\r\n                 typeDesc:TYPES[type]||'',restartDesc:RESTARTS[restart]||''},error:null};\r\n}\r\nfunction parseUnit(text){\r\n  var lines=String(text||'').split(/\\r?\\n/),sec='',out={},order=[],i;\r\n  for(i=0;i<lines.length;i++){\r\n    var l=lines[i].trim();\r\n    if(!l||l.charAt(0)==='#'||l.charAt(0)===';') continue;\r\n    var m=/^\\[([^\\]]+)\\]$/.exec(l);\r\n    if(m){ sec=m[1]; if(!out[sec]){out[sec]={};order.push(sec);} continue; }\r\n    var j=l.indexOf('=');\r\n    if(j<0) continue;\r\n    var k=l.slice(0,j).trim(),v=l.slice(j+1).trim();\r\n    if(!sec) continue;\r\n    if(!out[sec]) out[sec]={};\r\n    if(out[sec][k]!==undefined) out[sec][k]=[].concat(out[sec][k],v);\r\n    else out[sec][k]=v;\r\n  }\r\n  return {sections:out,order:order};\r\n}\r\nfunction lint(text){\r\n  if(typeof text!=='string'||!text.trim()) return {value:null,error:'请粘贴 systemd unit 文件内容'};\r\n  var p=parseUnit(text),S=p.sections,issues=[];\r\n  function add(sev,msg,fix){ issues.push({sev:sev,msg:msg,fix:fix||''}); }\r\n  if(!p.order.length) return {value:null,error:'未识别到任何 [Section]，确认这是 unit 文件'};\r\n  var isTimer=!!S['Timer'],isSock=!!S['Socket'];\r\n  if(!S['Unit']) add('error','缺少 [Unit] 段','补上 [Unit] 与 Description');\r\n  else if(!S['Unit']['Description']) add('warning','[Unit] 缺少 Description','加一句人类可读的描述，systemctl 列表才好认');\r\n  if(!isTimer&&!isSock&&!S['Service']) add('error','缺少 [Service] 段','service 单元必须有 [Service]');\r\n  if(S['Service']){\r\n    var sv=S['Service'],type=sv['Type']||'simple';\r\n    if(!sv['ExecStart']&&type!=='oneshot') add('error','[Service] 缺少 ExecStart','指定启动命令的绝对路径');\r\n    var ex=[].concat(sv['ExecStart']||[])[0]||'';\r\n    if(ex){\r\n      var head=ex.replace(/^[-@+!]+/,'').split(/\\s+/)[0];\r\n      if(head&&head.charAt(0)!=='/') add('error','ExecStart 不是绝对路径：'+head,'systemd 不解析 PATH，写成 /usr/bin/xxx');\r\n      if(/\\bsudo\\b/.test(ex)) add('error','ExecStart 中使用了 sudo','改用 User= 指定运行身份');\r\n      if(/[|<>]|&&|\\$\\(/.test(ex)) add('warning','ExecStart 含 shell 语法（管道/重定向/变量替换）','包一层 /bin/sh -c \"...\" 或写成脚本');\r\n      if(/\\s&\\s*$/.test(ex)) add('error','ExecStart 结尾的 & 会让 systemd 误判进程退出','去掉 &，交给 systemd 管理前台进程');\r\n    }\r\n    if(!TYPES[type]) add('warning','未知的 Type='+type,'常用值：simple / exec / forking / oneshot / notify');\r\n    if(type==='forking'&&!sv['PIDFile']) add('warning','Type=forking 未配 PIDFile','systemd 可能追踪不到主进程');\r\n    if(type==='oneshot'&&sv['Restart']&&sv['Restart']!=='no') add('warning','Type=oneshot 配合 Restart='+sv['Restart']+' 会反复拉起','oneshot 通常配 RemainAfterExit=yes 且不重启');\r\n    if(sv['Restart']&&!RESTARTS[sv['Restart']]) add('error','非法的 Restart='+sv['Restart'],'合法值：'+Object.keys(RESTARTS).join(' / '));\r\n    if(sv['Restart']&&sv['Restart']!=='no'&&!sv['RestartSec']) add('info','设置了 Restart 但没有 RestartSec','加 RestartSec=5 避免崩溃时疯狂重启');\r\n    if(!sv['User']) add('info','未指定 User，默认以 root 运行','建议建立专用系统账号并设置 User=');\r\n    else if(sv['User']==='root') add('warning','显式以 root 运行','除非确有必要，否则降权运行');\r\n    if(!sv['NoNewPrivileges']) add('info','未开启 NoNewPrivileges','加 NoNewPrivileges=yes 阻止提权');\r\n    if(!sv['ProtectSystem']) add('info','未开启 ProtectSystem','加 ProtectSystem=strict 只读挂载系统目录');\r\n    if(sv['Environment']){\r\n      var envs=[].concat(sv['Environment']);\r\n      for(var i=0;i<envs.length;i++){\r\n        if(/\\s/.test(envs[i])&&envs[i].charAt(0)!=='\"') add('warning','Environment 含空格却未加引号：'+envs[i],'写成 Environment=\"K=a b\"');\r\n      }\r\n    }\r\n    if(sv['EnvironmentFile']&&String([].concat(sv['EnvironmentFile'])[0]).charAt(0)!=='-')\r\n      add('info','EnvironmentFile 未加 - 前缀','文件缺失时服务会启动失败，加 - 可容忍缺失');\r\n  }\r\n  if(isTimer){\r\n    var tm=S['Timer'];\r\n    if(!tm['OnCalendar']&&!tm['OnUnitActiveSec']&&!tm['OnBootSec']) add('error','[Timer] 没有任何触发条件','至少设置 OnCalendar= 或 OnBootSec=');\r\n    if(tm['OnCalendar']&&!tm['Persistent']) add('info','OnCalendar 未设 Persistent','设 Persistent=true 可在关机错过后补跑');\r\n  }\r\n  if(!S['Install']&&!isSock) add('warning','缺少 [Install] 段','没有 WantedBy 时 systemctl enable 会失败');\r\n  else if(S['Install']&&!S['Install']['WantedBy']&&!S['Install']['RequiredBy']) add('warning','[Install] 缺少 WantedBy','通常写 WantedBy=multi-user.target');\r\n  var stats={error:0,warning:0,info:0},k;\r\n  for(k=0;k<issues.length;k++) stats[issues[k].sev]++;\r\n  return {value:{issues:issues,stats:stats,sections:p.order,\r\n                 score:Math.max(0,100-stats.error*20-stats.warning*8-stats.info*3)},error:null};\r\n}\r\nvar API={build:build,lint:lint,parseUnit:parseUnit,TYPES:TYPES,RESTARTS:RESTARTS};\r\nif(typeof module!=='undefined'&&module.exports) module.exports=API;\r\nif(typeof window!=='undefined') window.__SystemdForge__=API;\r\n})();\r\n\r\n"
+}

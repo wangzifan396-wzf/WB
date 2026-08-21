@@ -1,0 +1,51 @@
+{
+  "id": "RecipeForge",
+  "name": "recipe_forge",
+  "title": "RecipeForge",
+  "description": "食谱管理：录入配料一键按份量缩放，本地保存多个食谱，离线可用。",
+  "entry": "recipeParseLine",
+  "entries": {
+    "recipeParseLine": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "recipeParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "recipeScale": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "factor"
+      ],
+      "fields": []
+    },
+    "recipeRender": {
+      "paramStyle": "single",
+      "paramNames": [
+        "items"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "line": {
+        "type": "string",
+        "description": "输入（line）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction recipeParseLine(line){\r\n  line=String(line||'').trim(); if(!line) return null;\r\n  var m=line.match(/^([0-9]+(?:\\.[0-9]+)?)\\s+(\\S+)\\s*(.*)$/);\r\n  if(m){\r\n    var amt=Number(m[1]), tok=m[2], rest=m[3].trim();\r\n    if(/^[A-Za-z%]+$/.test(tok)) return { amount:amt, unit:tok, name:rest||tok };\r\n    return { amount:amt, unit:'', name:tok+(rest?(' '+rest):'') };\r\n  }\r\n  return { amount:null, unit:'', name:line };\r\n}\r\nfunction recipeParse(text){\r\n  var items=[], lines=String(text||'').split('\\n');\r\n  for(var i=0;i<lines.length;i++){ var r=recipeParseLine(lines[i]); if(r) items.push(r); }\r\n  return items;\r\n}\r\nfunction recipeScale(items, factor){\r\n  factor=Number(factor);\r\n  return items.map(function(it){ return { amount: it.amount==null?null:Math.round(it.amount*factor*100)/100, unit:it.unit, name:it.name }; });\r\n}\r\nfunction recipeRender(items){\r\n  var html='';\r\n  for(var i=0;i<items.length;i++){\r\n    var it=items[i];\r\n    var amt = it.amount==null? '适量' : (it.amount+ (it.unit?(' '+it.unit):''));\r\n    html+='<div class=\"item\"><span>'+it.name+'</span><span class=\"n\">'+amt+'</span></div>';\r\n  }\r\n  return html;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { recipeParseLine:recipeParseLine, recipeParse:recipeParse, recipeScale:recipeScale, recipeRender:recipeRender };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.RecipeForgePure = { recipeParseLine:recipeParseLine, recipeParse:recipeParse, recipeScale:recipeScale, recipeRender:recipeRender };\r\n}\r\n"
+}

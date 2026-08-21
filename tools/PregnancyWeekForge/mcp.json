@@ -1,0 +1,64 @@
+{
+  "id": "PregnancyWeekForge",
+  "name": "pregnancy_week_forge",
+  "title": "孕周",
+  "description": "按末次月经推算孕周、孕期阶段与预产期，离线。",
+  "entry": "gestationalAge",
+  "entries": {
+    "gestationalAge": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "lmpY",
+        "lmpM",
+        "lmpD",
+        "asOfY",
+        "asOfM",
+        "asOfD"
+      ],
+      "fields": []
+    },
+    "addDays": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "y",
+        "m",
+        "d",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "lmpY": {
+        "type": "string",
+        "description": "第 1 个参数（lmpY）"
+      },
+      "lmpM": {
+        "type": "string",
+        "description": "第 2 个参数（lmpM）"
+      },
+      "lmpD": {
+        "type": "string",
+        "description": "第 3 个参数（lmpD）"
+      },
+      "asOfY": {
+        "type": "string",
+        "description": "第 4 个参数（asOfY）"
+      },
+      "asOfM": {
+        "type": "string",
+        "description": "第 5 个参数（asOfM）"
+      },
+      "asOfD": {
+        "type": "string",
+        "description": "第 6 个参数（asOfD）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction addDays(y,m,d,n){ var dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCDate(dt.getUTCDate()+n); return dt; }\r\nfunction gestationalAge(lmpY,lmpM,lmpD, asOfY,asOfM,asOfD){\r\n  lmpY=+lmpY;lmpM=+lmpM;lmpD=+lmpD; asOfY=+asOfY;asOfM=+asOfM;asOfD=+asOfD;\r\n  if(!(lmpY>0)||!(lmpM>=1&&lmpM<=12)||!(lmpD>=1&&lmpD<=31)) return {error:'LMP 日期无效'};\r\n  var lmp=Date.UTC(lmpY,lmpM-1,lmpD), asOf=Date.UTC(asOfY,asOfM-1,asOfD);\r\n  if(asOf<lmp) return {error:'计算日期早于 LMP'};\r\n  var days=Math.floor((asOf-lmp)/86400000);\r\n  var weeks=Math.floor(days/7), rem=days%7;\r\n  var trimester = weeks<14?'孕早期': weeks<28?'孕中期':'孕晚期';\r\n  var edd=addDays(lmpY,lmpM,lmpD,280);\r\n  var ez=('0'+(edd.getUTCMonth()+1)).slice(-2), ed=('0'+edd.getUTCDate()).slice(-2);\r\n  return {weeks:weeks, days:rem, trimester:trimester, edd:edd.getUTCFullYear()+'-'+ez+'-'+ed, totalDays:days}; }\r\nvar EXPORTS={gestationalAge:gestationalAge, addDays:addDays};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PregnancyWeekForgePure = EXPORTS; }\r\n\r\n"
+}

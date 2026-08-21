@@ -1,0 +1,37 @@
+{
+  "id": "ResistorForge",
+  "name": "resistor_forge",
+  "title": "ResistorForge",
+  "description": "电阻色环工具：4/5/6 色环互转阻值，支持倍率、容差与六环温度系数，反向可由阻值与容差换算色环，电子入门好帮手。",
+  "entry": "bandsToValue",
+  "entries": {
+    "bandsToValue": {
+      "paramStyle": "single",
+      "paramNames": [
+        "colors"
+      ],
+      "fields": []
+    },
+    "valueToBands": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ohms",
+        "tol"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "colors": {
+        "type": "string",
+        "description": "输入（colors）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  var DIG={black:0,brown:1,red:2,orange:3,yellow:4,green:5,blue:6,violet:7,grey:8,white:9};\r\n  var TOL={brown:1,red:2,gold:5,silver:10};var TEMP={brown:100,red:50,orange:15,yellow:25};\r\n  function bandsToValue(colors){if(!colors||!colors.length)return{error:'请提供色环'};var n=colors.length;if(n!==4&&n!==5&&n!==6)return{error:'仅支持 4/5/6 色环'};var sig=n>=5?3:2;var digs=colors.slice(0,sig).map(function(c){return DIG[c];});if(digs.indexOf(undefined)>=0)return{error:'含未知颜色'};var mult=DIG[colors[sig]];if(mult==null)return{error:'倍率色环无效'};var val=0;digs.forEach(function(d){val=val*10+d;});val*=Math.pow(10,mult);var tol=TOL[colors[sig+1]];var temp=n===6?TEMP[colors[5]]:null;return {value:{ohms:val,tolerance:(tol==null?'?':tol),tempco:temp,label:val+' Ω ±'+(tol==null?'?':tol)+'%'+(temp!=null?' '+temp+'ppm/K':'')}};}\r\n  var DIG_INV={};for(var _k in DIG)DIG_INV[DIG[_k]]=_k;\r\n  function valueToBands(ohms,tol){ohms=Math.round(ohms);if(ohms<=0)return{error:'阻值须为正'};var s=String(ohms);var exp=0;while(s.length>2&&s.slice(-1)==='0'){s=s.slice(0,-1);exp++;}if(s.length<2)s=('0'+s).slice(-2);var d1=parseInt(s.charAt(0),10),d2=parseInt(s.charAt(1),10);if(DIG_INV[d1]==null||DIG_INV[d2]==null)return{error:'无法表示'};var mult=DIG_INV[exp];if(mult==null)return{error:'超出色环表示范围'};var tolC=tol===5?'gold':tol===2?'red':tol===1?'brown':'gold';return {value:[DIG_INV[d1],DIG_INV[d2],mult,tolC]};}\r\n  var API={bandsToValue:bandsToValue,valueToBands:valueToBands,DIG:DIG,TOL:TOL};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__ResistorForge__=API;\r\n})();\r\n\r\n"
+}

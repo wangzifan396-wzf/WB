@@ -1,0 +1,73 @@
+{
+  "id": "DitherForge",
+  "name": "dither_forge",
+  "title": "DitherForge",
+  "description": "图像抖动：有序 Bayer 与 Floyd-Steinberg 误差扩散，1-bit 输出。",
+  "entry": "dtGray",
+  "entries": {
+    "dtGray": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "r",
+        "g",
+        "b"
+      ],
+      "fields": []
+    },
+    "dtThreshold": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "gray",
+        "w",
+        "h"
+      ],
+      "fields": []
+    },
+    "dtBayer": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "gray",
+        "w",
+        "h"
+      ],
+      "fields": []
+    },
+    "dtFloyd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "gray",
+        "w",
+        "h"
+      ],
+      "fields": []
+    },
+    "dtDemo": {
+      "paramStyle": "single",
+      "paramNames": [
+        "size"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "r": {
+        "type": "string",
+        "description": "第 1 个参数（r）"
+      },
+      "g": {
+        "type": "string",
+        "description": "第 2 个参数（g）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 3 个参数（b）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar DT_BAYER4 = [\r\n  [ 0,  8,  2, 10],\r\n  [12,  4, 14,  6],\r\n  [ 3, 11,  1,  9],\r\n  [15,  7, 13,  5]\r\n];\r\nfunction dtGray(r, g, b){ return 0.299*r + 0.587*g + 0.114*b; }\r\nfunction dtThreshold(gray, w, h){\r\n  var out = [];\r\n  for(var i=0;i<w*h;i++) out.push(gray[i] >= 128 ? 255 : 0);\r\n  return out;\r\n}\r\nfunction dtBayer(gray, w, h){\r\n  var out = [];\r\n  for(var y=0;y<h;y++){\r\n    for(var x=0;x<w;x++){\r\n      var t = (DT_BAYER4[y & 3][x & 3] + 0.5) / 16 * 255;\r\n      out.push(gray[y*w+x] >= t ? 255 : 0);\r\n    }\r\n  }\r\n  return out;\r\n}\r\nfunction dtFloyd(gray, w, h){\r\n  var buf = gray.slice(), out = new Array(w*h);\r\n  for(var y=0;y<h;y++){\r\n    for(var x=0;x<w;x++){\r\n      var i = y*w + x;\r\n      var old = buf[i], nv = old >= 128 ? 255 : 0;\r\n      out[i] = nv;\r\n      var err = old - nv;\r\n      if(x+1 < w) buf[i+1] += err * 7/16;\r\n      if(y+1 < h){\r\n        if(x > 0) buf[i+w-1] += err * 3/16;\r\n        buf[i+w] += err * 5/16;\r\n        if(x+1 < w) buf[i+w+1] += err * 1/16;\r\n      }\r\n    }\r\n  }\r\n  return out;\r\n}\r\nfunction dtDemo(size){\r\n  // gradient sphere on gradient background\r\n  var g = [];\r\n  for(var y=0;y<size;y++){\r\n    for(var x=0;x<size;x++){\r\n      var v = (x / (size-1)) * 160;\r\n      var dx = x - size*0.5, dy = y - size*0.45, r = size*0.32;\r\n      var d2 = dx*dx + dy*dy;\r\n      if(d2 < r*r){\r\n        var z = Math.sqrt(r*r - d2);\r\n        var lx = -0.5, ly = -0.6, lz = 0.62;\r\n        var lum = Math.max(0, (dx/r)*lx + (dy/r)*ly + (z/r)*lz);\r\n        v = 40 + lum * 215;\r\n      }\r\n      g.push(v);\r\n    }\r\n  }\r\n  return g;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { DT_BAYER4:DT_BAYER4, dtGray:dtGray, dtThreshold:dtThreshold, dtBayer:dtBayer, dtFloyd:dtFloyd, dtDemo:dtDemo };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.DitherForgePure = { DT_BAYER4:DT_BAYER4, dtGray:dtGray, dtThreshold:dtThreshold, dtBayer:dtBayer, dtFloyd:dtFloyd, dtDemo:dtDemo };\r\n}\r\n"
+}

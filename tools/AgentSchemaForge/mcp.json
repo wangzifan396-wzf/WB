@@ -1,0 +1,75 @@
+{
+  "id": "AgentSchemaForge",
+  "name": "agent_schema_forge",
+  "title": "AgentSchemaForge",
+  "description": "Agent 工具调用 Schema 生成：OpenAI/Anthropic/MCP 三种风格互转、lint 检查与调用参数校验，离线可用。",
+  "entry": "buildSchema",
+  "entries": {
+    "parseParamLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "buildSchema": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "name",
+        "description",
+        "params",
+        "style"
+      ],
+      "fields": []
+    },
+    "lintSchema": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "name",
+        "description",
+        "params"
+      ],
+      "fields": []
+    },
+    "schemaTokenCost": {
+      "paramStyle": "single",
+      "paramNames": [
+        "schema"
+      ],
+      "fields": []
+    },
+    "validateCall": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "schema",
+        "argsObj"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "第 1 个参数（name）"
+      },
+      "description": {
+        "type": "string",
+        "description": "第 2 个参数（description）"
+      },
+      "params": {
+        "type": "string",
+        "description": "第 3 个参数（params）"
+      },
+      "style": {
+        "type": "string",
+        "description": "第 4 个参数（style）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar JSON_TYPES = ['string','number','integer','boolean','array','object'];\r\nfunction parseParamLines(text){\r\n  var out=[], lines=String(text||'').split(/\\r?\\n/);\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i].trim();\r\n    if(!ln || ln.charAt(0)==='#') continue;\r\n    var parts=ln.split('|');\r\n    var name=(parts[0]||'').trim();\r\n    if(!name) continue;\r\n    var type=(parts[1]||'string').trim().toLowerCase();\r\n    var desc=(parts[2]||'').trim();\r\n    var req=/^(y|yes|true|1|required)$/i.test((parts[3]||'').trim());\r\n    var en=(parts[4]||'').trim();\r\n    var p={name:name, type:type, description:desc, required:req};\r\n    if(en) p['enum']=en.split(',').map(function(s){ return s.trim(); }).filter(Boolean);\r\n    out.push(p);\r\n  }\r\n  return out;\r\n}\r\nfunction buildSchema(name, description, params, style){\r\n  var props={}, required=[];\r\n  for(var i=0;i<params.length;i++){\r\n    var p=params[i];\r\n    var s={type: JSON_TYPES.indexOf(p.type)>=0 ? p.type : 'string'};\r\n    if(p.description) s.description=p.description;\r\n    if(p['enum'] && p['enum'].length) s['enum']=p['enum'];\r\n    if(s.type==='array') s.items={type:'string'};\r\n    props[p.name]=s;\r\n    if(p.required) required.push(p.name);\r\n  }\r\n  var parameters={type:'object', properties:props};\r\n  if(required.length) parameters.required=required;\r\n  parameters.additionalProperties=false;\r\n  if(style==='anthropic'){\r\n    return {name:name, description:description, input_schema:parameters};\r\n  }\r\n  if(style==='mcp'){\r\n    return {name:name, description:description, inputSchema:parameters};\r\n  }\r\n  return {type:'function', 'function':{name:name, description:description, parameters:parameters}};\r\n}\r\nfunction lintSchema(name, description, params){\r\n  var errs=[], warns=[];\r\n  if(!name) errs.push('工具名不能为空');\r\n  else if(!/^[a-zA-Z0-9_-]{1,64}$/.test(name)) errs.push('工具名须为 1-64 位字母/数字/下划线/连字符');\r\n  if(!description) warns.push('缺少描述，模型难以判断何时调用该工具');\r\n  else if(description.length<15) warns.push('描述过短（建议 >=15 字），模型选择准确率会下降');\r\n  if(!params.length) warns.push('未定义参数，若工具确实无入参可忽略');\r\n  var seen={};\r\n  for(var i=0;i<params.length;i++){\r\n    var p=params[i];\r\n    if(seen[p.name]) errs.push('参数名重复：'+p.name);\r\n    seen[p.name]=1;\r\n    if(!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(p.name)) errs.push('参数名非法：'+p.name);\r\n    if(JSON_TYPES.indexOf(p.type)<0) errs.push('未知类型：'+p.type+'（'+p.name+'）');\r\n    if(!p.description) warns.push('参数 '+p.name+' 缺少描述');\r\n  }\r\n  if(params.length>10) warns.push('参数过多（'+params.length+'），建议拆分为多个工具');\r\n  return {valid: errs.length===0, errors:errs, warnings:warns};\r\n}\r\nfunction schemaTokenCost(schema){\r\n  var s=JSON.stringify(schema);\r\n  return {chars:s.length, approxTokens:Math.ceil(s.length/4)};\r\n}\r\nfunction validateCall(schema, argsObj){\r\n  var params = schema && (schema.parameters || schema.input_schema || schema.inputSchema\r\n              || (schema['function'] && schema['function'].parameters));\r\n  if(!params) return {valid:false, errors:['无法从 schema 中定位参数定义']};\r\n  var errs=[], props=params.properties||{}, req=params.required||[];\r\n  for(var i=0;i<req.length;i++){\r\n    if(!(req[i] in argsObj)) errs.push('缺少必填参数：'+req[i]);\r\n  }\r\n  for(var k in argsObj){\r\n    if(!argsObj.hasOwnProperty(k)) continue;\r\n    if(!props[k]){ errs.push('未声明的参数：'+k); continue; }\r\n    var want=props[k].type, got=Array.isArray(argsObj[k])?'array':typeof argsObj[k];\r\n    if(want==='integer'){ if(got!=='number' || argsObj[k]%1!==0) errs.push(k+' 应为 integer'); }\r\n    else if(want==='number'){ if(got!=='number') errs.push(k+' 应为 number'); }\r\n    else if(want && want!==got) errs.push(k+' 应为 '+want+'，实际 '+got);\r\n    if(props[k]['enum'] && props[k]['enum'].indexOf(argsObj[k])<0) errs.push(k+' 不在枚举范围内');\r\n  }\r\n  return {valid: errs.length===0, errors:errs};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { parseParamLines:parseParamLines, buildSchema:buildSchema, lintSchema:lintSchema, schemaTokenCost:schemaTokenCost, validateCall:validateCall, JSON_TYPES:JSON_TYPES }; }\r\nif (typeof window !== 'undefined') { window.AgentSchemaForgePure = { parseParamLines:parseParamLines, buildSchema:buildSchema, lintSchema:lintSchema, schemaTokenCost:schemaTokenCost, validateCall:validateCall, JSON_TYPES:JSON_TYPES }; }\r\n\r\n"
+}

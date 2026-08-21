@@ -1,0 +1,58 @@
+{
+  "id": "AspectForge",
+  "name": "aspect_forge",
+  "title": "AspectForge",
+  "description": "宽高比计算工具：由像素宽高化简比例（如 16:9），匹配常见预设，或按预设与单边尺寸反推另一边，适合视频与图像裁剪。",
+  "entry": "reduce",
+  "entries": {
+    "reduce": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h"
+      ],
+      "fields": []
+    },
+    "fromDims": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h"
+      ],
+      "fields": []
+    },
+    "fromOne": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "ratio",
+        "axis"
+      ],
+      "fields": []
+    },
+    "parseRatio": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "w": {
+        "type": "string",
+        "description": "第 1 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 2 个参数（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}\r\n  function reduce(w,h){var g=gcd(w,h);return {w:w/g,h:h/g};}\r\n  function parseRatio(s){var m=String(s).match(/^\\s*(\\d+)\\s*[:/]\\s*(\\d+)\\s*$/);if(!m)return null;return {w:parseInt(m[1],10),h:parseInt(m[2],10)};}\r\n  function fromDims(w,h){if(!w||!h)return{error:'宽高均需为正'};var r=reduce(w,h);return {value:{w:w,h:h,gcd:r.w+' : '+r.h,decimal:(w/h).toFixed(3)}};}\r\n  function fromOne(a,ratio,axis){var r=parseRatio(ratio);if(!r)return{error:'比例格式如 16:9'};if(axis==='w'){return {value:{w:a,h:Math.round(a*r.h/r.w)}};}else{return {value:{h:a,w:Math.round(a*r.w/r.h)}};}}\r\n  var PRESETS=[['16:9','16:9'],['4:3','4:3'],['1:1','1:1'],['21:9','21:9'],['3:2','3:2'],['9:16','9:16'],['2.35:1','235:100']];\r\n  var API={reduce:reduce,fromDims:fromDims,fromOne:fromOne,parseRatio:parseRatio,PRESETS:PRESETS};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__AspectForge__=API;\r\n})();\r\n\r\n"
+}

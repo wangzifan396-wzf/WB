@@ -1,0 +1,36 @@
+{
+  "id": "CnnumForge",
+  "name": "cnnum_forge",
+  "title": "CnnumForge",
+  "description": "中文数字与阿拉伯数字互转，支持十百千万亿与零的解析。",
+  "entry": "cnToNum",
+  "entries": {
+    "cnToNum": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "numToCn": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  var D='零一二三四五六七八九', S=['','十','百','千'], B=['','万','亿','兆'];\r\n  var dmap={'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};\r\n  var umap={'十':10,'百':100,'千':1000}, bmap={'万':10000,'亿':100000000};\r\n  function cnToNum(s){ s=String(s).replace(/[零〇]/g,''); if(s==='') return {value:0};\r\n    var total=0,section=0,num=0;\r\n    for(var i=0;i<s.length;i++){ var ch=s[i];\r\n      if(dmap[ch]!==undefined){ num=dmap[ch]; }\r\n      else if(umap[ch]!==undefined){ num=num===0?umap[ch]:num*umap[ch]; section+=num; num=0; }\r\n      else if(bmap[ch]!==undefined){ section=(section||1)*bmap[ch]; total+=section; section=0; num=0; }\r\n      else return {error:'无法识别: '+ch}; }\r\n    total+=section+num; return {value:total}; }\r\n  function numToCn(n){ n=Math.trunc(Number(n));\r\n    if(!isFinite(n)) return {error:'无效数字'};\r\n    if(n<0){ var r=numToCn(-n); return {value:'负'+r.value}; }\r\n    if(n===0) return {value:'零'};\r\n    var s=String(n), groups=[];\r\n    for(var i=s.length;i>0;i-=4) groups.unshift(s.slice(Math.max(0,i-4),i));\r\n    var out='';\r\n    for(var g=0;g<groups.length;g++){ var grp=groups[g], sec='', zero=false;\r\n      for(var p=0;p<grp.length;p++){ var digit=+grp[p], pos=grp.length-1-p;\r\n        if(digit===0){ zero=true; } else { if(zero&&sec!=='') sec+='零'; sec+=D[digit]+S[pos]; zero=false; } }\r\n      if(sec!=='') out+=sec+B[groups.length-1-g];\r\n      else if(out!=='' && g<groups.length-1 && !/零$/.test(out)) out+='零';\r\n    }\r\n    out=out.replace(/零+/g,'零').replace(/零$/,'').replace(/^一十/,'十');\r\n    return {value:out}; }\r\n  var API={cnToNum:cnToNum,numToCn:numToCn};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__CnnumForge__=API;\r\n})();\r\n"
+}

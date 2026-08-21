@@ -1,0 +1,60 @@
+{
+  "id": "OhmsForge",
+  "name": "ohms_forge",
+  "title": "OhmsForge",
+  "description": "已知电压/电流/电阻/功率中任意两个求解其余，并计算串并联等效电阻。",
+  "entry": "solve",
+  "entries": {
+    "solve": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "v",
+        "i",
+        "r",
+        "p"
+      ]
+    },
+    "series": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "parallel": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "v": {
+        "type": "string",
+        "description": "参数 v"
+      },
+      "i": {
+        "type": "string",
+        "description": "参数 i"
+      },
+      "r": {
+        "type": "string",
+        "description": "参数 r"
+      },
+      "p": {
+        "type": "string",
+        "description": "参数 p"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction solve(o){\r\n  var v=o.v,i=o.i,r=o.r,p=o.p;\r\n  var known=0;[v,i,r,p].forEach(function(x){if(typeof x==='number'&&isFinite(x))known++;});\r\n  if(known<2)return {error:'至少需要提供两个量'};\r\n  if(v!=null&&i!=null){r=v/i;p=v*i;}\r\n  else if(v!=null&&r!=null){if(r===0)return {error:'电阻不能为 0'};i=v/r;p=v*v/r;}\r\n  else if(i!=null&&r!=null){v=i*r;p=i*i*r;}\r\n  else if(v!=null&&p!=null){if(v===0)return {error:'电压不能为 0'};i=p/v;r=v/i;}\r\n  else if(i!=null&&p!=null){if(i===0)return {error:'电流不能为 0'};v=p/i;r=v/i;}\r\n  else if(r!=null&&p!=null){if(r===0)return {error:'电阻不能为 0'};i=Math.sqrt(p/r);v=i*r;}\r\n  else return {error:'需要提供可求解的组合'};\r\n  return {v:v,i:i,r:r,p:p};\r\n}\r\nfunction series(arr){var s=0;for(var k=0;k<arr.length;k++)s+=arr[k];return s;}\r\nfunction parallel(arr){var inv=0;for(var k=0;k<arr.length;k++){if(arr[k]===0)return Infinity;inv+=1/arr[k];}return inv?1/inv:Infinity;}\r\nvar EXPORTS={solve:solve,series:series,parallel:parallel};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.OhmsForgePure = EXPORTS; }\r\n\r\n"
+}

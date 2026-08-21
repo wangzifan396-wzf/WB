@@ -1,0 +1,36 @@
+{
+  "id": "YamlToJsonForge",
+  "name": "yaml_to_json_forge",
+  "title": "YamlToJsonForge",
+  "description": "YAML(JSON 子集) ⇄ JSON 互转：映射/标量/标量序列解析与发射，离线可用。",
+  "entry": "parseYaml",
+  "entries": {
+    "parseYaml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "emitYaml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseScalar(s){\r\n  s=String(s).trim();\r\n  if(s===''||s==='null'||s==='~') return null;\r\n  if(s==='true') return true; if(s==='false') return false;\r\n  if(/^-?\\d+$/.test(s)) return parseInt(s,10);\r\n  if(/^-?\\d+\\.\\d+$/.test(s)) return parseFloat(s);\r\n  if((s[0]==='\"'&&s[s.length-1]==='\"')||(s[0]===\"'\"&&s[s.length-1]===\"'\")) return s.slice(1,-1);\r\n  return s;\r\n}\r\nfunction parseYaml(text){\r\n  var raw=String(text).split(/\\r?\\n/); var lines=[];\r\n  for(var i=0;i<raw.length;i++){ var l=raw[i].replace(/\\t/g,'  '); if(l.trim()===''||/^\\s*#/.test(l)) continue; lines.push(l); }\r\n  function ind(l){ return l.match(/^ */)[0].length; }\r\n  function parse(lines, base){\r\n    if(lines.length && /^\\s*-(\\s|$)/.test(lines[0])){\r\n      var arr=[], i=0;\r\n      while(i<lines.length){ var l=lines[i], d=ind(l); if(d<base) break;\r\n        var content=l.slice(d+1).replace(/^-\\s?/,'');\r\n        if(content===''){ var sub=[], j=i+1; while(j<lines.length&&ind(lines[j])>d){sub.push(lines[j]);j++;} arr.push(parse(sub,d+1)); i=j; }\r\n        else if(content.indexOf(':')>=0){ var item=[content], j=i+1; while(j<lines.length&&ind(lines[j])>d){item.push(lines[j].slice(d+1));j++;} arr.push(parse(item,0)); i=j; }\r\n        else { arr.push(parseScalar(content)); i++; }\r\n      }\r\n      return arr;\r\n    }\r\n    var obj={}, i=0;\r\n    while(i<lines.length){ var l=lines[i], d=ind(l); if(d<base) break;\r\n      var mm=l.slice(d).match(/^([^:]+):\\s?(.*)$/); if(!mm){i++;continue;}\r\n      var key=mm[1].trim(), val=mm[2];\r\n      if(val===''){ var sub=[], j=i+1; while(j<lines.length&&ind(lines[j])>d){sub.push(lines[j]);j++;} obj[key]= sub.length?parse(sub,d+1):null; i=j; }\r\n      else { obj[key]=parseScalar(val); i++; }\r\n    }\r\n    return obj;\r\n  }\r\n  return parse(lines,0);\r\n}\r\nfunction emitYaml(v){\r\n  function esc(s){ if(typeof s==='string'){ if(s===''||/[:#\\n]/.test(s)||/^\\s|\\s$/.test(s)) return '\"'+s+'\"'; } return s; }\r\n  function rec(v,d){\r\n    if(Array.isArray(v)){ if(!v.length) return '[]'; return v.map(function(it){ return d+'- '+ (typeof it==='object'&&it!==null? '\\n'+rec(it,d+'  ').replace(/^/gm,d+'  ') : esc(it)); }).join('\\n'); }\r\n    if(v!==null&&typeof v==='object'){ var ks=Object.keys(v); if(!ks.length) return '{}'; return ks.map(function(k){ var val=v[k]; if(val!==null&&typeof val==='object'){ return d+k+':\\n'+rec(val,d+'  '); } return d+k+': '+esc(val); }).join('\\n'); }\r\n    return d+esc(v);\r\n  }\r\n  return rec(v,'');\r\n}\r\nvar EXPORTS={parseYaml:parseYaml, emitYaml:emitYaml};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.YamlToJsonForgePure = EXPORTS; }\r\n\r\n"
+}

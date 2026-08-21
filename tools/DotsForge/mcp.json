@@ -1,0 +1,61 @@
+{
+  "id": "DotsForge",
+  "name": "dots_forge",
+  "title": "DotsForge",
+  "description": "点格游戏（Dots and Boxes）：轮流连接相邻圆点，围出方框得分并再走一步，终局圈地多者胜，你执 A 对战机器。",
+  "entry": "dotsNew",
+  "entries": {
+    "dotsNew": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "m"
+      ],
+      "fields": []
+    },
+    "dotsAdd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "type",
+        "i"
+      ],
+      "fields": []
+    },
+    "dotsBoxComplete": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "br",
+        "bc"
+      ],
+      "fields": []
+    },
+    "dotsDone": {
+      "paramStyle": "object",
+      "paramNames": [
+        "s"
+      ],
+      "fields": [
+        "boxes"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "number",
+        "description": "第 1 个参数（n）（数值）"
+      },
+      "m": {
+        "type": "number",
+        "description": "第 2 个参数（m）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction dotsNew(n,m){ n=n||4; m=m||4; return { n:n, m:m, h:new Array((n+1)*m).fill(false), v:new Array(n*(m+1)).fill(false), boxes:new Array(n*m).fill(null), turn:'A', scores:{A:0,B:0} }; }\r\nfunction dotsBoxComplete(s, br, bc){ var e=dotsBoxEdges(s,br,bc); return e.top&&e.bottom&&e.left&&e.right; }\r\nfunction dotsBoxEdges(s, br, bc){ return { top:s.h[br*s.m+bc], bottom:s.h[(br+1)*s.m+bc], left:s.v[br*(s.m+1)+bc], right:s.v[br*(s.m+1)+bc+1] }; }\r\nfunction dotsAdd(s, type, i){\r\n  if(type==='h'){ if(i<0||i>=s.h.length||s.h[i]) return {box:false}; s.h[i]=true; }\r\n  else { if(i<0||i>=s.v.length||s.v[i]) return {box:false}; s.v[i]=true; }\r\n  var completed=[], r, c;\r\n  if(type==='h'){ r=Math.floor(i/s.m); c=i%s.m; if(r-1>=0 && dotsBoxComplete(s,r-1,c)) completed.push([r-1,c]); if(r<s.n && dotsBoxComplete(s,r,c)) completed.push([r,c]); }\r\n  else { var per=s.m+1; r=Math.floor(i/per); c=i%per; if(c-1>=0 && dotsBoxComplete(s,r,c-1)) completed.push([r,c-1]); if(c<s.m && dotsBoxComplete(s,r,c)) completed.push([r,c]); }\r\n  var owner=s.turn; completed.forEach(function(b){ var bi=b[0]*s.m+b[1]; if(s.boxes[bi]===null){ s.boxes[bi]=owner; s.scores[owner]++; } });\r\n  if(completed.length===0){ s.turn = s.turn==='A'?'B':'A'; }\r\n  return {box:completed.length>0, boxes:completed, turn:s.turn};\r\n}\r\nfunction dotsDone(s){ return s.boxes.every(function(b){return b!==null;}); }\r\nvar EXPORTS={dotsNew:dotsNew,dotsAdd:dotsAdd,dotsBoxComplete:dotsBoxComplete,dotsDone:dotsDone};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DotsForgePure = EXPORTS; }\r\n\r\n"
+}

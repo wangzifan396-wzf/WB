@@ -1,0 +1,47 @@
+{
+  "id": "GeometryForge",
+  "name": "geometry_forge",
+  "title": "GeometryForge",
+  "description": "三角形求解器：SSS/SAS/ASA 通过余弦/正弦定理求解，并算海伦面积，离线可用。",
+  "entry": "solveTriangle",
+  "entries": {
+    "solveTriangle": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "lawCosSide": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b",
+        "C"
+      ],
+      "fields": []
+    },
+    "lawCosAngle": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b",
+        "c"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction deg(r){return r*180/Math.PI;}\r\nfunction rad(d){return d*Math.PI/180;}\r\nfunction lawCosSide(a,b,C){return Math.sqrt(a*a+b*b-2*a*b*Math.cos(C));}\r\nfunction lawCosAngle(a,b,c){return Math.acos((a*a+b*b-c*c)/(2*a*b));}\r\nfunction solveTriangle(s){ // s: {a,b,c,A,B,C} 角度为度，未知用 undefined\r\n  var o={};for(var k in s)o[k]=s[k];\r\n  function set(name,v){o[name]=v;}\r\n  if(o.a!=null&&o.b!=null&&o.c!=null){\r\n    set('A',deg(lawCosAngle(o.b,o.c,o.a)));set('B',deg(lawCosAngle(o.a,o.c,o.b)));set('C',deg(lawCosAngle(o.a,o.b,o.c)));\r\n  } else if(o.a!=null&&o.b!=null&&o.C!=null){\r\n    var c=lawCosSide(o.a,o.b,rad(o.C));set('c',c);\r\n    set('A',deg(lawCosAngle(o.b,c,o.a)));set('B',deg(lawCosAngle(o.a,c,o.b)));\r\n  } else if(o.A!=null&&o.B!=null&&o.a!=null){\r\n    var C=180-o.A-o.B;set('C',C);\r\n    var b=o.a*Math.sin(rad(o.B))/Math.sin(rad(o.A));var c=o.a*Math.sin(rad(C))/Math.sin(rad(o.A));\r\n    set('b',b);set('c',c);\r\n  } else throw new Error('无法求解：请提供 SSS / SAS / ASA(AAS) 组合');\r\n  var p=(o.a+o.b+o.c)/2;set('area',Math.sqrt(Math.max(0,p*(p-o.a)*(p-o.b)*(p-o.c))));\r\n  return o;\r\n}\r\nvar EXPORTS={solveTriangle:solveTriangle,lawCosSide:lawCosSide,lawCosAngle:lawCosAngle};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.GeometryForgePure = EXPORTS; }\r\n\r\n"
+}

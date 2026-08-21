@@ -1,0 +1,44 @@
+{
+  "id": "YahtzeeForge",
+  "name": "yahtzee_forge",
+  "title": "YahtzeeForge",
+  "description": "快艇骰子（Yahtzee）：掷五颗骰子，最多重掷两次，在 13 个计分格里锁定最高分，含各类牌型自动计分与推荐。",
+  "entry": "yahRoll",
+  "entries": {
+    "yahRoll": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "yahScore": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cat",
+        "dice"
+      ],
+      "fields": []
+    },
+    "yahBest": {
+      "paramStyle": "single",
+      "paramNames": [
+        "dice"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seed": {
+        "type": "number",
+        "description": "输入（seed）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction yahRoll(seed){ var s=seed||1; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;} var d=[]; for(var i=0;i<5;i++) d.push(1+Math.floor(rnd()*6)); return d; }\r\nfunction yahScore(cat, dice){ var cnt={}; dice.forEach(function(d){cnt[d]=(cnt[d]||0)+1;}); var groups=Object.keys(cnt).map(function(k){return [cnt[k],+k];}).sort(function(a,b){return b[0]-a[0]||b[1]-a[1];}); var sum=dice.reduce(function(a,b){return a+b;},0);\r\n  if(cat==='ones') return cnt[1]?cnt[1]:0;\r\n  if(cat==='twos') return cnt[2]?cnt[2]*2:0;\r\n  if(cat==='threes') return cnt[3]?cnt[3]*3:0;\r\n  if(cat==='fours') return cnt[4]?cnt[4]*4:0;\r\n  if(cat==='fives') return cnt[5]?cnt[5]*5:0;\r\n  if(cat==='sixes') return cnt[6]?cnt[6]*6:0;\r\n  if(cat==='three') return (groups[0][0]>=3)?sum:0;\r\n  if(cat==='four') return (groups[0][0]>=4)?sum:0;\r\n  if(cat==='full') return ((groups[0][0]===3&&groups[1][0]===2)||(groups[0][0]===2&&groups[1][0]===3))?25:0;\r\n  if(cat==='sm'){ var set={}; dice.forEach(function(d){set[d]=1;}); var has=false; for(var v=1;v<=6;v++){ if(set[v]&&set[v+1]&&set[v+2]&&set[v+3]) has=true; } return has?30:0; }\r\n  if(cat==='lg'){ var s2=dice.slice().sort(function(a,b){return a-b;}); var ok=s2[4]-s2[0]===4 && (new Set(s2)).size===5; return ok?40:0; }\r\n  if(cat==='yah') return groups[0][0]===5?50:0;\r\n  if(cat==='chance') return sum;\r\n  return 0; }\r\nfunction yahBest(dice){ var cats=['ones','twos','threes','fours','fives','sixes','three','four','full','sm','lg','yah','chance']; var max=-1, bc=null; cats.forEach(function(c){ var s=yahScore(c,dice); if(s>max){max=s;bc=c;} }); return {cat:bc, score:max}; }\r\nvar EXPORTS={yahRoll:yahRoll,yahScore:yahScore,yahBest:yahBest};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.YahtzeeForgePure = EXPORTS; }\r\n\r\n"
+}

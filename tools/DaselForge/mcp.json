@@ -1,0 +1,49 @@
+{
+  "id": "DaselForge",
+  "name": "dasel_forge",
+  "title": "DaselForge",
+  "description": "数据选择器：用 .a.b[0].c 这样的路径在 JSON 中取值，支持对象键与数组下标，结果格式化输出可一键复制。",
+  "entry": "select",
+  "entries": {
+    "select": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "path"
+      ],
+      "fields": []
+    },
+    "parsePath": {
+      "paramStyle": "single",
+      "paramNames": [
+        "path"
+      ],
+      "fields": []
+    },
+    "walk": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "obj",
+        "parts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "path": {
+        "type": "string",
+        "description": "第 2 个参数（path）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function parsePath(path){\r\n    var cleaned=String(path||'').replace(/^\\./,'');\r\n    var parts=[], buf='', i=0;\r\n    while(i<cleaned.length){\r\n      var c=cleaned[i];\r\n      if(c==='.'){ if(buf){parts.push(buf);} buf=''; i++; }\r\n      else if(c==='['){\r\n        if(buf){parts.push(buf);buf='';}\r\n        var j=cleaned.indexOf(']',i); if(j<0){parts.push(cleaned.slice(i));break;}\r\n        parts.push(cleaned.slice(i,j+1)); i=j+1;\r\n      } else { buf+=c; i++; }\r\n    }\r\n    if(buf) parts.push(buf);\r\n    return parts;\r\n  }\r\n  function walk(obj, parts){\r\n    var cur=obj;\r\n    for(var i=0;i<parts.length;i++){\r\n      var p=parts[i]; if(p==='') continue;\r\n      var idx=p.match(/^\\[(\\d+)\\]$/);\r\n      if(idx){ cur=cur[parseInt(idx[1],10)]; }\r\n      else { cur=cur[p]; }\r\n      if(cur===undefined) return {error:'路径不存在: '+parts.slice(0,i+1).join('.')};\r\n    }\r\n    return {value: cur};\r\n  }\r\n  function select(data, path){\r\n    var obj;\r\n    try{ obj=JSON.parse(data); }catch(e){ return {error:'JSON 解析失败: '+e.message}; }\r\n    var r=walk(obj, parsePath(path));\r\n    if(r.error) return r;\r\n    return {value: JSON.stringify(r.value, null, 2)};\r\n  }\r\n  var API={select:select, parsePath:parsePath, walk:walk};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__DaselForge__=API;\r\n})();\r\n"
+}

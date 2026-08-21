@@ -1,0 +1,49 @@
+{
+  "id": "PaletteFromImgForge",
+  "name": "palette_from_img_forge",
+  "title": "PaletteFromImgForge",
+  "description": "上传图片，用中位切分算法提取 8 色板，离线 Canvas 处理。",
+  "entry": "extractPalette",
+  "entries": {
+    "extractPalette": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pixels",
+        "n"
+      ],
+      "fields": []
+    },
+    "medianCut": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pixels",
+        "depth"
+      ],
+      "fields": []
+    },
+    "avgColor": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pixels"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pixels": {
+        "type": "string",
+        "description": "第 1 个参数（pixels）"
+      },
+      "n": {
+        "type": "string",
+        "description": "第 2 个参数（n）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction avgColor(pixels){ var r=0,g=0,b=0; for(var i=0;i<pixels.length;i++){r+=pixels[i][0];g+=pixels[i][1];b+=pixels[i][2];} var n=pixels.length||1; return [Math.round(r/n),Math.round(g/n),Math.round(b/n)]; }\r\nfunction medianCut(pixels, depth){\r\n  if(depth===0 || pixels.length<=1) return pixels;\r\n  var ch=0, maxR=0;\r\n  for(var c=0;c<3;c++){ var mn=255,mx=0; for(var i=0;i<pixels.length;i++){ var v=pixels[i][c]; if(v<mn)mn=v; if(v>mx)mx=v; } if(mx-mn>maxR){maxR=mx-mn;ch=c;} }\r\n  var arr=pixels.slice().sort(function(a,b){return a[ch]-b[ch];});\r\n  var mid=arr.length>>1;\r\n  return medianCut(arr.slice(0,mid),depth-1).concat(medianCut(arr.slice(mid),depth-1));\r\n}\r\nfunction extractPalette(pixels, n){\r\n  var depth=Math.max(1, Math.ceil(Math.log(n)/Math.log(2)));\r\n  var leaves=medianCut(pixels.slice(), depth);\r\n  var out=[]; var per=Math.max(1, Math.floor(leaves.length/n));\r\n  for(var i=0;i<n;i++){ var seg=leaves.slice(i*per,(i+1)*per); if(seg.length) out.push(avgColor(seg)); }\r\n  while(out.length<n) out.push(out[out.length-1]||[0,0,0]);\r\n  return out;\r\n}\r\nvar EXPORTS={extractPalette:extractPalette, medianCut:medianCut, avgColor:avgColor};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PaletteFromImgForgePure = EXPORTS; }\r\n\r\n"
+}

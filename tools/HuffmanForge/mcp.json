@@ -1,0 +1,58 @@
+{
+  "id": "HuffmanForge",
+  "name": "huffman_forge",
+  "title": "HuffmanForge",
+  "description": "霍夫曼熵编码压缩器：基于字符频率的最优前缀码，无损还原。",
+  "entry": "huffFreq",
+  "entries": {
+    "huffFreq": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "huffBuild": {
+      "paramStyle": "single",
+      "paramNames": [
+        "freqs"
+      ],
+      "fields": []
+    },
+    "huffCodes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "tree"
+      ],
+      "fields": []
+    },
+    "huffEncode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "huffDecode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bits",
+        "codes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction huffFreq(text){\r\n  var f={};\r\n  for(var i=0;i<text.length;i++){ var c=text[i]; f[c]=(f[c]||0)+1; }\r\n  return f;\r\n}\r\nfunction cmpNode(x,y){ if(x.f!==y.f) return x.f-y.f; return x.seq-y.seq; }\r\nfunction huffBuild(freqs){\r\n  var items=[];\r\n  for(var k in freqs){ if(freqs.hasOwnProperty(k)) items.push({ch:k, f:freqs[k], left:null, right:null}); }\r\n  if(items.length===0) return null;\r\n  if(items.length===1){ return {ch:items[0].ch, f:items[0].f, left:null, right:null}; }\r\n  var seq=0; items.forEach(function(it){ it.seq=seq++; });\r\n  items.sort(cmpNode);\r\n  while(items.length>1){\r\n    var a=items.shift(), b=items.shift();\r\n    var node={ch:null, f:a.f+b.f, left:a, right:b, seq:seq++};\r\n    items.push(node); items.sort(cmpNode);\r\n  }\r\n  return items[0];\r\n}\r\nfunction huffCodes(tree){\r\n  var codes={};\r\n  (function walk(node, prefix){\r\n    if(node===null) return;\r\n    if(node.ch!==null){ codes[node.ch]=(prefix===''?'0':prefix); return; }\r\n    walk(node.left, prefix+'0'); walk(node.right, prefix+'1');\r\n  })(tree, '');\r\n  return codes;\r\n}\r\nfunction huffEncode(text){\r\n  var f=huffFreq(text);\r\n  var tree=huffBuild(f);\r\n  var codes=huffCodes(tree);\r\n  if(text.length===0) return {codes:codes, bits:''};\r\n  var bits='';\r\n  for(var i=0;i<text.length;i++) bits+=codes[text[i]];\r\n  return {codes:codes, bits:bits};\r\n}\r\nfunction huffDecode(bits, codes){\r\n  var rev={};\r\n  for(var c in codes){ if(codes.hasOwnProperty(c)) rev[codes[c]]=c; }\r\n  var out='', cur='';\r\n  for(var i=0;i<bits.length;i++){\r\n    cur+=bits[i];\r\n    if(rev.hasOwnProperty(cur)){ out+=rev[cur]; cur=''; }\r\n  }\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { huffFreq:huffFreq, huffBuild:huffBuild, huffCodes:huffCodes, huffEncode:huffEncode, huffDecode:huffDecode };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.HuffmanForgePure = { huffFreq:huffFreq, huffBuild:huffBuild, huffCodes:huffCodes, huffEncode:huffEncode, huffDecode:huffDecode };\r\n}\r\n"
+}

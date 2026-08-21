@@ -1,0 +1,96 @@
+{
+  "id": "LambdaForge",
+  "name": "lambda_forge",
+  "title": "LambdaForge",
+  "description": "AWS Lambda 工作台：校验内存/超时/架构配置是否越界，按请求数、平均时长与内存估算月成本并对比 x86 与 arm64，生成基础执行角色 IAM 策略与 SAM 片段。规划无服务器函数、控制账单与合规，零依赖、离线可用。",
+  "entry": "vcpu",
+  "entries": {
+    "vcpu": {
+      "paramStyle": "single",
+      "paramNames": [
+        "mb"
+      ],
+      "fields": []
+    },
+    "validate": {
+      "paramStyle": "object",
+      "paramNames": [
+        "cfg"
+      ],
+      "fields": [
+        "mem",
+        "timeout",
+        "eps",
+        "arch"
+      ]
+    },
+    "cost": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opts"
+      ],
+      "fields": [
+        "requests",
+        "durationMs",
+        "mem",
+        "arch"
+      ]
+    },
+    "compareCost": {
+      "paramStyle": "single",
+      "paramNames": [
+        "opts"
+      ],
+      "fields": []
+    },
+    "recommend": {
+      "paramStyle": "object",
+      "paramNames": [
+        "cfg"
+      ],
+      "fields": [
+        "mem",
+        "durationMs",
+        "timeout"
+      ]
+    },
+    "iamRole": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opts"
+      ],
+      "fields": [
+        "s3",
+        "dynamo"
+      ]
+    },
+    "samSnippet": {
+      "paramStyle": "object",
+      "paramNames": [
+        "cfg"
+      ],
+      "fields": [
+        "name",
+        "runtime",
+        "handler",
+        "mem",
+        "timeout",
+        "arch",
+        "s3"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "mb": {
+        "type": "string",
+        "description": "输入（mb）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  var PRICE={x86:{gbsec:0.0000166667, req:0.0000002}, arm:{gbsec:0.0000133334, req:0.0000002}};\r\n  var LIMITS={memMin:128, memMax:10240, timeoutMin:1, timeoutMax:900,\r\n              epsMin:512, epsMax:10240, envCountMax:500, envSizeMax:4096};\r\n  function vcpu(mb){ return mb/1769; }\r\n  function validate(cfg){\r\n    cfg=cfg||{};\r\n    var errs=[];\r\n    var m=cfg.mem, t=cfg.timeout, e=cfg.eps, arch=cfg.arch||'x86';\r\n    if(m==null||m%1!==0||m<LIMITS.memMin||m>LIMITS.memMax) errs.push('内存需在 '+LIMITS.memMin+'–'+LIMITS.memMax+' MB');\r\n    if(t==null||t%1!==0||t<LIMITS.timeoutMin||t>LIMITS.timeoutMax) errs.push('超时需在 '+LIMITS.timeoutMin+'–'+LIMITS.timeoutMax+' s');\r\n    if(e!=null && (e<LIMITS.epsMin||e>LIMITS.epsMax)) errs.push('临时存储需在 '+LIMITS.epsMin+'–'+LIMITS.epsMax+' MB');\r\n    if(arch!=='x86'&&arch!=='arm') errs.push('架构只能是 x86 或 arm');\r\n    if(m!=null && m>3008 && m%512!==0) errs.push('内存 >3008 MB 时只能按 1024 MB 步进');\r\n    return errs;\r\n  }\r\n  function cost(opts){\r\n    var R=opts.requests, D=opts.durationMs, M=opts.mem, arch=opts.arch||'x86';\r\n    if(!R||!D||!M) return {value:null,error:'请填写月请求数、平均时长(ms)、内存(MB)'};\r\n    var gbsec=R*(D/1000)*(M/1024);\r\n    var p=PRICE[arch]||PRICE.x86;\r\n    var compute=gbsec*p.gbsec;\r\n    var reqcost=R*p.req;\r\n    var total=compute+reqcost;\r\n    return {value:{gbsec:Math.round(gbsec*1000)/1000,\r\n                   computeUsd:Math.round(compute*100000)/100000,\r\n                   requestUsd:Math.round(reqcost*100000)/100000,\r\n                   totalUsd:Math.round(total*100000)/100000, arch:arch}, error:''};\r\n  }\r\n  function compareCost(opts){\r\n    var a=cost(opts), b=cost(Object.assign({},opts,{arch:'arm'}));\r\n    if(a.error||b.error) return {value:null,error:a.error||b.error};\r\n    var save=Math.round((1-b.value.totalUsd/a.value.totalUsd)*1000)/10;\r\n    return {value:{x86:a.value.totalUsd, arm:b.value.totalUsd, savePct:save}, error:''};\r\n  }\r\n  function recommend(cfg){\r\n    var recs=[]; var v=vcpu(cfg.mem||512);\r\n    if(v<0.5) recs.push('当前单 vCPU 比重仅 '+Math.round(v*100)/100+'；CPU 密集型任务建议提到 1024 MB 以上以拿到更多算力');\r\n    if(cfg.durationMs && cfg.timeout && cfg.durationMs>cfg.timeout*1000*0.8) recs.push('平均时长已接近超时上限，建议调高 timeout 或优化代码');\r\n    if(!recs.length) recs.push('配置看起来合理');\r\n    return recs;\r\n  }\r\n  function iamRole(opts){\r\n    opts=opts||{};\r\n    var stmts=[{Effect:'Allow',\r\n      Action:['logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents'],\r\n      Resource:'arn:aws:logs:*:*:*'}];\r\n    if(opts.s3) stmts.push({Effect:'Allow',Action:['s3:GetObject','s3:PutObject'],\r\n      Resource:'arn:aws:s3:::'+opts.s3+'/*'});\r\n    if(opts.dynamo) stmts.push({Effect:'Allow',\r\n      Action:['dynamodb:GetItem','dynamodb:PutItem','dynamodb:Query'],\r\n      Resource:'arn:aws:dynamodb:*:*:table/'+opts.dynamo});\r\n    var trust={Version:'2012-10-17',\r\n      Statement:[{Effect:'Allow',Principal:{Service:'lambda.amazonaws.com'},Action:'sts:AssumeRole'}]};\r\n    return {value:{trust:trust, policy:{Version:'2012-10-17', Statement:stmts}}, error:''};\r\n  }\r\n  function samSnippet(cfg){\r\n    cfg=cfg||{};\r\n    var s='  '+(cfg.name||'MyFunction')+':\\n'+\r\n         '    Type: AWS::Serverless::Function\\n'+\r\n         '    Properties:\\n'+\r\n         '      Runtime: '+(cfg.runtime||'nodejs22.x')+'\\n'+\r\n         '      Handler: '+(cfg.handler||'index.handler')+'\\n'+\r\n         '      MemorySize: '+(cfg.mem||512)+'\\n'+\r\n         '      Timeout: '+(cfg.timeout||30)+'\\n'+\r\n         '      Architectures: ['+(cfg.arch==='arm'?'arm64':'x86_64')+']\\n';\r\n    if(cfg.s3) s+='      # 需要访问的 S3 桶: '+cfg.s3+'\\n';\r\n    return s;\r\n  }\r\n  var API={PRICE:PRICE, LIMITS:LIMITS, vcpu:vcpu, validate:validate, cost:cost,\r\n           compareCost:compareCost, recommend:recommend, iamRole:iamRole, samSnippet:samSnippet};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__LambdaForge__=API;\r\n})();\r\n\r\n"
+}

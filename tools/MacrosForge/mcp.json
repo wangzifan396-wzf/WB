@@ -1,0 +1,61 @@
+{
+  "id": "MacrosForge",
+  "name": "macros_forge",
+  "title": "MacrosForge",
+  "description": "按每日热量目标拆分蛋白/碳水/脂肪克数（4/4/9 kcal/g），并按体重给出蛋白区间。",
+  "entry": "computeMacros",
+  "entries": {
+    "computeMacros": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "totalKcal",
+        "pPct",
+        "cPct",
+        "fPct"
+      ],
+      "fields": []
+    },
+    "proteinRange": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "weightKg",
+        "lo",
+        "hi"
+      ],
+      "fields": []
+    },
+    "macrosFromWeight": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "weightKg",
+        "goal"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "totalKcal": {
+        "type": "string",
+        "description": "第 1 个参数（totalKcal）"
+      },
+      "pPct": {
+        "type": "string",
+        "description": "第 2 个参数（pPct）"
+      },
+      "cPct": {
+        "type": "string",
+        "description": "第 3 个参数（cPct）"
+      },
+      "fPct": {
+        "type": "string",
+        "description": "第 4 个参数（fPct）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar KCAL={ protein:4, carb:4, fat:9, alcohol:7 };\r\nfunction computeMacros(totalKcal, pPct, cPct, fPct){\r\n  return { proteinG: totalKcal*pPct/100/KCAL.protein,\r\n           carbG:    totalKcal*cPct/100/KCAL.carb,\r\n           fatG:     totalKcal*fPct/100/KCAL.fat };\r\n}\r\nfunction proteinRange(weightKg, lo, hi){ lo=(lo==null)?1.6:lo; hi=(hi==null)?2.2:hi; return {min:weightKg*lo, max:weightKg*hi}; }\r\nfunction macrosFromWeight(weightKg, goal){ // goal: cut/bulk/maintain\r\n  var perKg = (goal==='cut')?2.0 : (goal==='bulk')?2.2 : 1.8;\r\n  var protein=weightKg*perKg;\r\n  return { proteinG:protein, kcalFromProtein:protein*KCAL.protein };\r\n}\r\nvar EXPORTS={ KCAL:KCAL, computeMacros:computeMacros, proteinRange:proteinRange, macrosFromWeight:macrosFromWeight };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MacrosForgePure = EXPORTS; }\r\n\r\n"
+}

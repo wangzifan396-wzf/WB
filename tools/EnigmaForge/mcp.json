@@ -1,0 +1,49 @@
+{
+  "id": "EnigmaForge",
+  "name": "enigma_forge",
+  "title": "EnigmaForge",
+  "description": "恩尼格玛机模拟：转子 + 反射器 + 插线板的可配置古典密码机仿真。",
+  "entry": "enigmaEncrypt",
+  "entries": {
+    "enigmaEncrypt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "rotorsSpec",
+        "ring",
+        "pos",
+        "plugboard"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "rotorsSpec": {
+        "type": "string",
+        "description": "第 2 个参数（rotorsSpec）"
+      },
+      "ring": {
+        "type": "string",
+        "description": "第 3 个参数（ring）"
+      },
+      "pos": {
+        "type": "string",
+        "description": "第 4 个参数（pos）"
+      },
+      "plugboard": {
+        "type": "string",
+        "description": "第 5 个参数（plugboard）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar E_WIRING={I:'EKMFLGDQVZNTOWYHXUSPAIBRCJ',II:'AJDKSIRUXBLHWTMCQGZNPYFVOE',III:'BDFHJLCPRTXVZNYEIWGAKMUSQO',IV:'VZBRGITYUPSDNHLXAWMJQOFECK',V:'ZHYWGCQFJPLTDOVRSUIKXENYMB'};\r\nvar E_NOTCH={I:16,II:4,III:21,IV:9,V:25};\r\nvar E_REFLECTOR_B='YRUHQSLDPXNGOKMIEBFZCWVJAT';\r\nfunction enigmaEncrypt(text,rotorsSpec,ring,pos,plugboard){\r\n  var rot=rotorsSpec.map(function(n){return E_WIRING[n].split('').map(function(ch){return ch.charCodeAt(0)-65;});});\r\n  var inv=rot.map(function(r){var a=new Array(26);for(var i=0;i<26;i++)a[r[i]]=i;return a;});\r\n  var ref=E_REFLECTOR_B.split('').map(function(ch){return ch.charCodeAt(0)-65;});\r\n  var notch=rotorsSpec.map(function(n){return E_NOTCH[n];});\r\n  var plug={}; if(plugboard){for(var k in plugboard){plug[k.charCodeAt(0)-65]=plugboard[k].charCodeAt(0)-65;plug[plugboard[k].charCodeAt(0)-65]=k.charCodeAt(0)-65;}}\r\n  var p=pos.slice();\r\n  function stepPos(){\r\n    var s=[false,false,false];\r\n    s[2]=true;\r\n    if(p[2]===notch[2]||p[1]===notch[1]) s[1]=true;\r\n    if(p[1]===notch[1]) s[0]=true;\r\n    if(s[0])p[0]=(p[0]+1)%26;\r\n    if(s[1])p[1]=(p[1]+1)%26;\r\n    if(s[2])p[2]=(p[2]+1)%26;\r\n  }\r\n  function pb(c){return plug[c]!==undefined?plug[c]:c;}\r\n  var out='';\r\n  for(var idx=0;idx<text.length;idx++){\r\n    var ch=text[idx].toUpperCase(); if(ch<'A'||ch>'Z'){out+=ch;continue;}\r\n    stepPos();\r\n    var c=pb(ch.charCodeAt(0)-65);\r\n    for(var i=2;i>=0;i--){var e=((c+p[i]-ring[i])%26+26)%26;var x=rot[i][e];c=((x-p[i]+ring[i])%26+26)%26;}\r\n    c=ref[c];\r\n    for(i=0;i<3;i++){var e2=((c+p[i]-ring[i])%26+26)%26;var x2=inv[i][e2];c=((x2-p[i]+ring[i])%26+26)%26;}\r\n    c=pb(c);\r\n    out+=String.fromCharCode(c+65);\r\n  }\r\n  return out;\r\n}\r\nvar EXPORTS = { enigmaEncrypt:enigmaEncrypt };\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EnigmaForgePure = EXPORTS; }\r\n\r\n"
+}

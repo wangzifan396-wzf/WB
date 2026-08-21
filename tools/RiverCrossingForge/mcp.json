@@ -1,0 +1,62 @@
+{
+  "id": "RiverCrossingForge",
+  "name": "river_crossing_forge",
+  "title": "RiverCrossingForge",
+  "description": "过河问题（狼羊菜）：农夫带狼、羊、菜过河，任何岸边都不能让狼与羊或羊与菜单独相处，点“查看解法”得最少步骤。",
+  "entry": "rcStart",
+  "entries": {
+    "rcStart": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "rcMoves": {
+      "paramStyle": "object",
+      "paramNames": [
+        "st"
+      ],
+      "fields": [
+        "boat",
+        "left",
+        "right"
+      ]
+    },
+    "rcApply": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "st",
+        "mv"
+      ],
+      "fields": []
+    },
+    "rcGoal": {
+      "paramStyle": "object",
+      "paramNames": [
+        "st"
+      ],
+      "fields": [
+        "right"
+      ]
+    },
+    "rcSolve": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "rcSafe": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "left",
+        "right"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\nvar RC_ITEMS=['wolf','goat','cabbage'];\r\nfunction rcSafe(left, right){ function bad(bank){ var has={}; bank.forEach(function(it){has[it]=1;}); if(has.wolf&&has.goat&&!has.farmer) return true; if(has.goat&&has.cabbage&&!has.farmer) return true; return false; } return !bad(left) && !bad(right); }\r\nfunction rcStart(){ return {left:['farmer','wolf','goat','cabbage'], right:[], boat:'left'}; }\r\nfunction rcMoves(st){ var here = st.boat==='left'? st.left : st.right; var res=[{take:null}]; var others=here.filter(function(x){return x!=='farmer';}); others.forEach(function(it){ res.push({take:it}); }); return res; }\r\nfunction rcApply(st, mv){ var from = st.boat==='left'? 'left':'right'; var to = st.boat==='left'? 'right':'left'; var ns={left:st.left.slice(), right:st.right.slice(), boat:to}; function move(arr, item){ var i=arr.indexOf(item); if(i>=0) arr.splice(i,1); } move(ns[from],'farmer'); if(mv.take) move(ns[from], mv.take); ns[to].push('farmer'); if(mv.take) ns[to].push(mv.take); return ns; }\r\nfunction rcGoal(st){ return st.right.length===4; }\r\nfunction rcKey(st){ return st.left.slice().sort().join(',')+'|'+st.right.slice().sort().join(',')+'|'+st.boat; }\r\nfunction rcSolve(){ var start=rcStart(); if(rcGoal(start)) return [start]; var q=[{st:start, path:[start]}]; var seen={}; seen[rcKey(start)]=1; while(q.length){ var cur=q.shift(); var moves=rcMoves(cur.st); for(var i=0;i<moves.length;i++){ var ns=rcApply(cur.st, moves[i]); if(!rcSafe(ns.left,ns.right)) continue; var key=rcKey(ns); if(seen[key]) continue; seen[key]=1; var np=cur.path.slice(); np.push(ns); if(rcGoal(ns)) return np; q.push({st:ns, path:np}); } } return null; }\r\nvar EXPORTS={rcStart:rcStart,rcMoves:rcMoves,rcApply:rcApply,rcGoal:rcGoal,rcSolve:rcSolve,rcSafe:rcSafe};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RiverCrossingForgePure = EXPORTS; }\r\n\r\n"
+}

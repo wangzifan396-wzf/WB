@@ -1,0 +1,43 @@
+{
+  "id": "IcoForge",
+  "name": "ico_forge",
+  "title": "IcoForge",
+  "description": "PNG 转 ICO：校验 PNG 签名、读取尺寸并打包为 Windows .ico 容器供下载，纯前端离线生成。",
+  "entry": "buildIco",
+  "entries": {
+    "isPngBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "buildIco": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pngList"
+      ],
+      "fields": []
+    },
+    "pngToIco": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pngBytes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pngList": {
+        "type": "string",
+        "description": "输入（pngList）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction isPngBytes(bytes){\r\n  var sig=[137,80,78,71,13,10,26,10];\r\n  if(!bytes||bytes.length<8) return false;\r\n  for(var i=0;i<8;i++) if(bytes[i]!==sig[i]) return false;\r\n  return true;\r\n}\r\nfunction buildIco(pngList){\r\n  var out=[];\r\n  function u16(v){ out.push(v&255,(v>>8)&255); }\r\n  function u32(v){ out.push(v&255,(v>>8)&255,(v>>16)&255,(v>>24)&255); }\r\n  u16(0); u16(1); u16(pngList.length);\r\n  var entries=[], dataStart=6+16*pngList.length;\r\n  for(var i=0;i<pngList.length;i++){ var p=pngList[i];\r\n    var w=(p[16]<<24)|(p[17]<<16)|(p[18]<<8)|p[19];\r\n    var h=(p[20]<<24)|(p[21]<<16)|(p[22]<<8)|p[23];\r\n    entries.push({w:w>>>0, h:h>>>0, size:p.length, offset:dataStart}); dataStart+=p.length;\r\n  }\r\n  for(var j=0;j<entries.length;j++){ var e=entries[j];\r\n    out.push(e.w>=256?0:e.w, e.h>=256?0:e.h, 0, 0); u16(1); u16(32); u32(e.size); u32(e.offset);\r\n  }\r\n  for(var k=0;k<pngList.length;k++){ for(var b=0;b<pngList[k].length;b++) out.push(pngList[k][b]&255); }\r\n  return Uint8Array.from(out);\r\n}\r\nfunction pngToIco(pngBytes){\r\n  if(!isPngBytes(pngBytes)) return null;\r\n  return buildIco([pngBytes]);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { isPngBytes:isPngBytes, buildIco:buildIco, pngToIco:pngToIco }; }\r\nif (typeof window !== 'undefined') { window.IcoForgePure = { isPngBytes:isPngBytes, buildIco:buildIco, pngToIco:pngToIco }; }\r\n\r\n"
+}

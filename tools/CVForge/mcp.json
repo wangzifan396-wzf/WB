@@ -1,0 +1,95 @@
+{
+  "id": "CVForge",
+  "name": "cv_forge",
+  "title": "CVForge",
+  "description": "离线简历 / CV 工作台：结构化表单 + 实时预览，三种模板，一键打印导出 PDF，JSON 导入导出，数据留本地。",
+  "entry": "escapeHTML",
+  "entries": {
+    "escapeHTML": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "escapeAttr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "slugify": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "defaultData": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "completeness": {
+      "paramStyle": "object",
+      "paramNames": [
+        "d"
+      ],
+      "fields": [
+        "name",
+        "title",
+        "summary",
+        "contacts",
+        "experience",
+        "education",
+        "skills",
+        "projects"
+      ]
+    },
+    "renderCV": {
+      "paramStyle": "object",
+      "paramNames": [
+        "d"
+      ],
+      "fields": [
+        "name",
+        "title",
+        "contacts",
+        "summary",
+        "experience",
+        "education",
+        "skills",
+        "projects",
+        "links"
+      ]
+    },
+    "toJSON": {
+      "paramStyle": "single",
+      "paramNames": [
+        "d"
+      ],
+      "fields": []
+    },
+    "fromJSON": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ===== 纯函数区（首个无属性 script）：可被 Node _test.js 提取并断言 ===== */\r\n  function escapeHTML(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\n  function escapeAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/\"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\n  function slugify(s){ return String(s==null?'':s).toLowerCase().trim().replace(/[^\\w\\u4e00-\\u9fa5]+/g,'-').replace(/^-+|-+$/g,'')||'resume'; }\r\n  function defaultData(){\r\n    return { name:'', title:'', summary:'', contacts:[], experience:[], education:[], skills:[], projects:[], links:[] };\r\n  }\r\n  function completeness(d){\r\n    var total=8, got=0;\r\n    function chk(c){ if(c) got++; }\r\n    chk(d.name && d.name.trim());\r\n    chk(d.title && d.title.trim());\r\n    chk(d.summary && d.summary.trim());\r\n    chk(d.contacts && d.contacts.length>0);\r\n    chk(d.experience && d.experience.length>0);\r\n    chk(d.education && d.education.length>0);\r\n    chk(d.skills && d.skills.length>0);\r\n    chk(d.projects && d.projects.length>0);\r\n    return Math.round(got/total*100);\r\n  }\r\n  function renderCV(d){\r\n    var h='';\r\n    h += '<header class=\"cv-head\">';\r\n    h += '<h1>'+escapeHTML(d.name||'你的名字')+'</h1>';\r\n    if(d.title) h += '<div class=\"cv-title\">'+escapeHTML(d.title)+'</div>';\r\n    if(d.contacts && d.contacts.length){ h += '<div class=\"cv-contacts\">'+ d.contacts.map(function(c){ return '<span>'+escapeHTML(c.label||'')+(c.value?'：'+escapeHTML(c.value):'')+'</span>'; }).join('')+'</div>'; }\r\n    h += '</header>';\r\n    if(d.summary) h += '<section><h2>简介</h2><p>'+escapeHTML(d.summary)+'</p></section>';\r\n    if(d.experience && d.experience.length){ h += '<section><h2>工作经历</h2>'; d.experience.forEach(function(e){ h += '<div class=\"cv-item\"><div class=\"cv-item-h\"><span class=\"cv-role\">'+escapeHTML(e.role||'')+'</span>'+(e.org?'<span class=\"cv-org\">'+escapeHTML(e.org)+'</span>':'')+'<span class=\"cv-date\">'+[e.start,e.end].filter(Boolean).join(' – ')+'</span></div>'; if(e.points&&e.points.length){ h += '<ul>'+e.points.map(function(p){return '<li>'+escapeHTML(p)+'</li>';}).join('')+'</ul>'; } h += '</div>'; }); h += '</section>'; }\r\n    if(d.education && d.education.length){ h += '<section><h2>教育背景</h2>'; d.education.forEach(function(e){ h += '<div class=\"cv-item\"><div class=\"cv-item-h\"><span class=\"cv-role\">'+escapeHTML(e.school||'')+'</span>'+(e.degree?'<span class=\"cv-org\">'+escapeHTML(e.degree)+'</span>':'')+'<span class=\"cv-date\">'+[e.start,e.end].filter(Boolean).join(' – ')+'</span></div></div>'; }); h += '</section>'; }\r\n    if(d.skills && d.skills.length){ h += '<section><h2>技能</h2><div class=\"cv-skills\">'+ d.skills.map(function(s){return '<span class=\"cv-skill\">'+escapeHTML(s)+'</span>';}).join('')+'</div></section>'; }\r\n    if(d.projects && d.projects.length){ h += '<section><h2>项目</h2>'; d.projects.forEach(function(p){ h += '<div class=\"cv-item\"><div class=\"cv-item-h\"><span class=\"cv-role\">'+escapeHTML(p.name||'')+'</span>'+(p.link?'<a class=\"cv-link\" href=\"'+escapeAttr(p.link)+'\">'+escapeHTML(p.link)+'</a>':'')+'</div>'+(p.desc?'<p>'+escapeHTML(p.desc)+'</p>':''); }); h += '</section>'; }\r\n    if(d.links && d.links.length){ h += '<section><h2>链接</h2><ul>'+ d.links.map(function(l){ return '<li><a href=\"'+escapeAttr(l.url||'#')+'\">'+escapeHTML(l.label||l.url)+'</a></li>'; }).join('')+'</ul></section>'; }\r\n    return h;\r\n  }\r\n  function toJSON(d){ return JSON.stringify(d, null, 2); }\r\n  function fromJSON(str){ var o = JSON.parse(str); if(!o || typeof o!=='object') throw new Error('bad'); var d = defaultData();\r\n    ['name','title','summary'].forEach(function(k){ if(typeof o[k]==='string') d[k]=o[k]; });\r\n    ['contacts','experience','education','skills','projects','links'].forEach(function(k){ if(Array.isArray(o[k])) d[k]=o[k]; });\r\n    return d;\r\n  }\r\n  if (typeof module !== 'undefined' && module.exports) {\r\n    module.exports = {\r\n      escapeHTML:escapeHTML, escapeAttr:escapeAttr, slugify:slugify,\r\n      defaultData:defaultData, completeness:completeness, renderCV:renderCV,\r\n      toJSON:toJSON, fromJSON:fromJSON\r\n    };\r\n  }\r\n  if (typeof window !== 'undefined') {\r\n    window.CVForgePure = {\r\n      escapeHTML:escapeHTML, escapeAttr:escapeAttr, slugify:slugify,\r\n      defaultData:defaultData, completeness:completeness, renderCV:renderCV,\r\n      toJSON:toJSON, fromJSON:fromJSON\r\n    };\r\n  }\r\n"
+}

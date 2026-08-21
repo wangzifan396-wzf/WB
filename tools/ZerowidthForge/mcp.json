@@ -1,0 +1,51 @@
+{
+  "id": "ZerowidthForge",
+  "name": "zerowidth_forge",
+  "title": "ZerowidthForge",
+  "description": "零宽字符隐写（Zero-width steganography）：把任意文本编码进 U+200B / U+200C / U+200D 等零宽字符，肉眼完全看不见地藏进一段普通文字里，可用于水印或低调传递信息。编码解码全在本地，零依赖。",
+  "entry": "zwEncode",
+  "entries": {
+    "zwEncode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "msg"
+      ],
+      "fields": []
+    },
+    "zwDecode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "zwHide": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "carrier",
+        "msg"
+      ],
+      "fields": []
+    },
+    "zwReveal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "msg": {
+        "type": "string",
+        "description": "输入（msg）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar ZW_START='\\uFEFF', ZW_0='\\u200B', ZW_1='\\u200C', ZW_SEP='\\u200D', ZW_END='\\u2060';\r\nfunction zwEncode(msg){ var out=ZW_START; for(var i=0;i<msg.length;i++){ var cp=msg.charCodeAt(i); var bits=[]; for(var b=0;b<16;b++) bits.push((cp>>b)&1); bits.forEach(function(bit){ out += bit? ZW_1: ZW_0; }); out += ZW_SEP; } out += ZW_END; return out; }\r\nfunction zwDecode(str){ var s=str.indexOf(ZW_START); if(s<0) return ''; var e=str.indexOf(ZW_END, s); if(e<0) e=str.length; var seg=str.slice(s+1, e); var chars=seg.split(ZW_SEP); var out=''; for(var i=0;i<chars.length-1;i++){ var bits=chars[i]; if(bits.length<16) continue; var cp=0; for(var b=0;b<16;b++){ if(bits[b]===ZW_1) cp |= (1<<b); } out += String.fromCharCode(cp); } return out; }\r\nfunction zwHide(carrier, msg){ return carrier + zwEncode(msg); }\r\nfunction zwReveal(text){ return zwDecode(text); }\r\nvar EXPORTS={zwEncode:zwEncode, zwDecode:zwDecode, zwHide:zwHide, zwReveal:zwReveal};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ZerowidthForgePure = EXPORTS; }\r\n\r\n"
+}

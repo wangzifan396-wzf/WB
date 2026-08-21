@@ -1,0 +1,61 @@
+{
+  "id": "HashRingForge",
+  "name": "hash_ring_forge",
+  "title": "HashRingForge",
+  "description": "一致性哈希环：虚拟节点、增删节点迁移推演，分布式分片可视化。",
+  "entry": "hashStr",
+  "entries": {
+    "hashStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "ringCreate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "nodes",
+        "replicas"
+      ],
+      "fields": []
+    },
+    "ringAddNode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ring",
+        "node"
+      ],
+      "fields": []
+    },
+    "ringRemoveNode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ring",
+        "node"
+      ],
+      "fields": []
+    },
+    "ringGet": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ring",
+        "key"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction hashStr(str){\r\n  var h=0x811c9dc5;\r\n  for(var i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193)>>>0; }\r\n  return h>>>0;\r\n}\r\nfunction ringCreate(nodes, replicas){\r\n  replicas=replicas||100;\r\n  var ring={ replicas:replicas, keys:[], map:{} };\r\n  for(var n=0;n<nodes.length;n++) ringAddNode(ring, nodes[n]);\r\n  return ring;\r\n}\r\nfunction ringAddNode(ring, node){\r\n  for(var i=0;i<ring.replicas;i++){\r\n    var vh=hashStr(node + '#' + i);\r\n    ring.map[vh]=node;\r\n    ring.keys.push(vh);\r\n  }\r\n  ring.keys.sort(function(a,b){return a-b;});\r\n  return ring;\r\n}\r\nfunction ringRemoveNode(ring, node){\r\n  var keep=[];\r\n  for(var i=0;i<ring.keys.length;i++){\r\n    var key=ring.keys[i];\r\n    if(ring.map[key]!==node) keep.push(key);\r\n    else delete ring.map[key];\r\n  }\r\n  ring.keys=keep;\r\n  return ring;\r\n}\r\nfunction ringGet(ring, key){\r\n  var h=hashStr(key);\r\n  var keys=ring.keys;\r\n  var lo=0, hi=keys.length;\r\n  while(lo<hi){ var mid=(lo+hi)>>1; if(keys[mid]<h) lo=mid+1; else hi=mid; }\r\n  var idx = lo<keys.length ? lo : 0;\r\n  return ring.map[keys[idx]];\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { hashStr:hashStr, ringCreate:ringCreate, ringAddNode:ringAddNode, ringRemoveNode:ringRemoveNode, ringGet:ringGet };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.HashRingForgePure = { hashStr:hashStr, ringCreate:ringCreate, ringAddNode:ringAddNode, ringRemoveNode:ringRemoveNode, ringGet:ringGet };\r\n}\r\n"
+}

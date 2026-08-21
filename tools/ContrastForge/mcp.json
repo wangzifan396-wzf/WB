@@ -1,0 +1,60 @@
+{
+  "id": "ContrastForge",
+  "name": "contrast_forge",
+  "title": "ContrastForge",
+  "description": "检查前景/背景对比度是否达 WCAG AA/AAA，并模拟三类色盲效果。",
+  "entry": "parseColor",
+  "entries": {
+    "parseColor": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "relLum": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rgb"
+      ],
+      "fields": []
+    },
+    "contrast": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "wcag": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fg",
+        "bg"
+      ],
+      "fields": []
+    },
+    "simulate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rgb",
+        "type"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseColor(s){\r\n  s=(s||'').trim().toLowerCase();\r\n  if(s[0]==='#'){\r\n    var h=s.slice(1);\r\n    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];\r\n    if(h.length!==6) return null;\r\n    return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];\r\n  }\r\n  var m=s.match(/^rgba?\\(([^)]+)\\)$/);\r\n  if(m){ var p=m[1].split(',').map(function(x){return parseFloat(x);}); if(p.length>=3) return [p[0],p[1],p[2]]; }\r\n  return null;\r\n}\r\nfunction _lin(c){ c/=255; return c<=0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); }\r\nfunction relLum(rgb){ return 0.2126*_lin(rgb[0])+0.7152*_lin(rgb[1])+0.0722*_lin(rgb[2]); }\r\nfunction contrast(a,b){ var la=relLum(a), lb=relLum(b); var hi=Math.max(la,lb), lo=Math.min(la,lb); return (hi+0.05)/(lo+0.05); }\r\nfunction wcag(fg,bg){\r\n  var r=contrast(fg,bg);\r\n  return {ratio:r, aaNormal:r>=4.5, aaaNormal:r>=7, aaLarge:r>=3, aaaLarge:r>=4.5};\r\n}\r\nvar CB={protanopia:[0.567,0.433,0, 0.558,0.442,0, 0,0.242,0.758],\r\n        deuteranopia:[0.625,0.375,0, 0.70,0.30,0, 0,0.30,0.70],\r\n        tritanopia:[0.95,0.05,0, 0,0.433,0.567, 0,0.475,0.525]};\r\nfunction simulate(rgb, type){\r\n  var M=CB[type]; if(!M) return rgb.slice();\r\n  return [Math.min(255,Math.max(0,rgb[0]*M[0]+rgb[1]*M[1]+rgb[2]*M[2])),\r\n          Math.min(255,Math.max(0,rgb[0]*M[3]+rgb[1]*M[4]+rgb[2]*M[5])),\r\n          Math.min(255,Math.max(0,rgb[0]*M[6]+rgb[1]*M[7]+rgb[2]*M[8]))];\r\n}\r\nvar EXPORTS={parseColor:parseColor,relLum:relLum,contrast:contrast,wcag:wcag,simulate:simulate,CB:CB};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ContrastForgePure = EXPORTS; }\r\n\r\n"
+}

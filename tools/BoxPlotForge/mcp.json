@@ -1,0 +1,36 @@
+{
+  "id": "BoxPlotForge",
+  "name": "box_plot_forge",
+  "title": "BoxPlotForge",
+  "description": "计算四分位/须/离群点并绘制箱线图",
+  "entry": "boxStats",
+  "entries": {
+    "boxStats": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "median": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "arr": {
+        "type": "string",
+        "description": "输入（arr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction median(arr){ var a=arr.slice().sort(function(x,y){return x-y;}); var n=a.length;\r\n  if(!n) return NaN; var m=Math.floor(n/2); return n%2? a[m] : (a[m-1]+a[m])/2; }\r\nfunction boxStats(arr){\r\n  if(!arr||arr.length<1) return {error:'数据为空'};\r\n  var a=arr.slice().sort(function(x,y){return x-y;}); var n=a.length;\r\n  var med=median(a), q1, q3;\r\n  if(n%2){ var lo=a.slice(0,Math.floor(n/2)), hi=a.slice(Math.floor(n/2)+1); q1=median(lo); q3=median(hi); }\r\n  else { var mid=n/2; q1=median(a.slice(0,mid)); q3=median(a.slice(mid)); }\r\n  var iqr=q3-q1, lf=q1-1.5*iqr, uf=q3+1.5*iqr;\r\n  var outs=[], wl=Infinity, wh=-Infinity;\r\n  for(var i=0;i<n;i++){ if(a[i]<lf||a[i]>uf) outs.push(a[i]); else { if(a[i]<wl) wl=a[i]; if(a[i]>wh) wh=a[i]; } }\r\n  if(wl===Infinity){ wl=a[0]; wh=a[n-1]; }\r\n  return {min:a[0], max:a[n-1], median:med, q1:q1, q3:q3, iqr:iqr, whiskerLow:wl, whiskerHigh:wh, outliers:outs};\r\n}\r\nvar EXPORTS={boxStats:boxStats, median:median};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BoxPlotForgePure = EXPORTS; }\r\n\r\n"
+}

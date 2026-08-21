@@ -1,0 +1,50 @@
+{
+  "id": "UuencodeForge",
+  "name": "uuencode_forge",
+  "title": "UuencodeForge",
+  "description": "uuencode 编码 / 解码：把二进制数据转成可打印 ASCII 文本的经典 Unix 方案，曾广泛用于 Usenet 与邮件附件。支持编码与解码，纯本地、零依赖。",
+  "entry": "uuEnc",
+  "entries": {
+    "uuEnc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "uuDec": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "uuEncStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "uuDecStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction uuEncStr(s){ var bytes=[]; for(var i=0;i<s.length;i++){ var c=s.charCodeAt(i); if(c>255) c=255; bytes.push(c); } return uuEnc(bytes); }\r\nfunction uuEnc(bytes){ var lines=[]; for(var i=0;i<bytes.length;i+=45){ var chunk=bytes.slice(i,i+45); var len=chunk.length; var line=String.fromCharCode((len&0x3f)+0x20); for(var j=0;j<chunk.length;j+=3){ var a=chunk[j], b=(j+1<chunk.length)?chunk[j+1]:0, c=(j+2<chunk.length)?chunk[j+2]:0; var n0=(a>>2)&0x3f, n1=((a<<4)|(b>>4))&0x3f, n2=((b<<2)|(c>>6))&0x3f, n3=c&0x3f; line+=String.fromCharCode(n0+0x20,n1+0x20,n2+0x20,n3+0x20); } lines.push(line); } lines.push('`end`'); return 'begin 644 data\\n'+lines.join('\\n')+'\\n'; }\r\nfunction uuDecStr(s){ return uuDec(s).map(function(x){return String.fromCharCode(x);}).join(''); }\r\nfunction uuDec(s){ var bytes=[]; var lines=s.split('\\n'); for(var li=0;li<lines.length;li++){ var line=lines[li]; if(line.indexOf('begin ')===0) continue; if(line==='`end`'||line==='end') break; if(!line.length) continue; var len=(line.charCodeAt(0)-0x20)&0x3f; line=line.slice(1); for(var j=0;j<line.length && bytes.length<len;j+=4){ var n0=line.charCodeAt(j)-0x20, n1=line.charCodeAt(j+1)-0x20, n2=line.charCodeAt(j+2)-0x20, n3=line.charCodeAt(j+3)-0x20; bytes.push(((n0<<2)|(n1>>4))&0xff); if(bytes.length<len) bytes.push(((n1<<4)|(n2>>2))&0xff); if(bytes.length<len) bytes.push(((n2<<6)|n3)&0xff); } } return bytes; }\r\nvar EXPORTS={uuEnc:uuEnc, uuDec:uuDec, uuEncStr:uuEncStr, uuDecStr:uuDecStr};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.UuencodeForgePure = EXPORTS; }\r\n\r\n"
+}

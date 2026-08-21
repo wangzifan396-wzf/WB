@@ -1,0 +1,29 @@
+{
+  "id": "HexdumpForge",
+  "name": "hexdump_forge",
+  "title": "HexdumpForge",
+  "description": "十六进制转储：把文本或字节渲染成带偏移量、十六进制与可打印 ASCII 的经典 hexdump 布局，便于查看二进制结构。",
+  "entry": "dump",
+  "entries": {
+    "dump": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function dump(text){\r\n    text=String(text==null?'':text);\r\n    var bytes=[]; for(var i=0;i<text.length;i++){ var c=text.charCodeAt(i);\r\n      if(c<0x80)bytes.push(c); else if(c<0x800){bytes.push(0xC0|(c>>6),0x80|(c&0x3F));}\r\n      else if(c>=0xD800&&c<=0xDBFF){var c2=text.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);bytes.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}\r\n      else {bytes.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));} }\r\n    var lines=[];\r\n    for(var o=0;o<bytes.length;o+=16){\r\n      var slice=bytes.slice(o,o+16);\r\n      var hex=slice.map(function(b){return ('0'+b.toString(16)).slice(-2);}).join(' ');\r\n      while(hex.length<47) hex+=' ';\r\n      var asc=slice.map(function(b){return (b>=0x20&&b<0x7F)? String.fromCharCode(b):'.';}).join('');\r\n      lines.push(('00000000'+o.toString(16)).slice(-8)+'  '+hex+'  |'+asc+'|');\r\n    }\r\n    if(bytes.length===0) lines.push('00000000');\r\n    return {value:lines.join('\\n')};\r\n  }\r\n  var API={dump:dump};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__HexdumpForge__=API;\r\n})();\r\n"
+}

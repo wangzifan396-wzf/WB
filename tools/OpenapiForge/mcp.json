@@ -1,0 +1,120 @@
+{
+  "id": "OpenapiForge",
+  "name": "openapi_forge",
+  "title": "OpenapiForge",
+  "description": "OpenAPI 规范体检：内置 YAML/JSON 解析、operationId 重复与路径参数未声明检测、响应覆盖率 A–F 评分与 curl 生成，离线可用。",
+  "entry": "parseYaml",
+  "entries": {
+    "parseYaml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "parseSpec": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "specInfo": {
+      "paramStyle": "object",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": [
+        "info",
+        "servers",
+        "paths",
+        "components",
+        "openapi",
+        "swagger"
+      ]
+    },
+    "listOperations": {
+      "paramStyle": "object",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": [
+        "paths",
+        "security"
+      ]
+    },
+    "lintSpec": {
+      "paramStyle": "object",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": [
+        "swagger",
+        "security"
+      ]
+    },
+    "coverage": {
+      "paramStyle": "single",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": []
+    },
+    "curlFor": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "op",
+        "baseUrl"
+      ],
+      "fields": []
+    },
+    "tagSummary": {
+      "paramStyle": "single",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": []
+    },
+    "pathParams": {
+      "paramStyle": "single",
+      "paramNames": [
+        "p"
+      ],
+      "fields": []
+    },
+    "splitKV": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "ymlScalar": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "gradeOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction ymlLines(text){\r\n  var raw = String(text == null ? '' : text).split(/\\r?\\n/), out = [];\r\n  for (var i = 0; i < raw.length; i++){\r\n    var l = raw[i];\r\n    if (!l.trim()) continue;\r\n    var inS = false, inD = false, cut = -1;\r\n    for (var j = 0; j < l.length; j++){\r\n      var ch = l.charAt(j);\r\n      if (ch === \"'\" && !inD) inS = !inS;\r\n      else if (ch === '\"' && !inS) inD = !inD;\r\n      else if (ch === '#' && !inS && !inD && (j === 0 || /\\s/.test(l.charAt(j - 1)))){ cut = j; break; }\r\n    }\r\n    if (cut >= 0) l = l.slice(0, cut);\r\n    if (!l.trim()) continue;\r\n    if (/^\\s*---\\s*$/.test(l)) continue;\r\n    out.push({ indent: l.length - l.replace(/^\\s+/, '').length, text: l.trim(), line: i + 1 });\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction ymlUnquote(s){\r\n  var t = String(s).trim();\r\n  if (/^'([\\s\\S]*)'$/.test(t)) return t.slice(1, -1).replace(/''/g, \"'\");\r\n  if (/^\"([\\s\\S]*)\"$/.test(t)) return t.slice(1, -1).replace(/\\\\\"/g, '\"').replace(/\\\\n/g, '\\n');\r\n  return t;\r\n}\r\n\r\nfunction ymlScalar(s){\r\n  var t = String(s).trim();\r\n  if (t === '' || t === 'null' || t === '~') return null;\r\n  if (t === 'true') return true;\r\n  if (t === 'false') return false;\r\n  if (/^-?\\d+$/.test(t)) return parseInt(t, 10);\r\n  if (/^-?\\d*\\.\\d+$/.test(t)) return parseFloat(t);\r\n  if (/^\\[[\\s\\S]*\\]$/.test(t)){\r\n    var inner = t.slice(1, -1).trim();\r\n    if (!inner) return [];\r\n    return inner.split(',').map(function(x){ return ymlScalar(x); });\r\n  }\r\n  if (/^\\{[\\s\\S]*\\}$/.test(t)){\r\n    var body = t.slice(1, -1).trim();\r\n    if (!body) return {};\r\n    var o = {};\r\n    body.split(',').forEach(function(pair){\r\n      var k = splitKV(pair.trim());\r\n      if (k) o[k.key] = ymlScalar(k.val);\r\n    });\r\n    return o;\r\n  }\r\n  return ymlUnquote(t);\r\n}\r\n\r\nfunction splitKV(s){\r\n  var inS = false, inD = false;\r\n  for (var j = 0; j < s.length; j++){\r\n    var ch = s.charAt(j);\r\n    if (ch === \"'\" && !inD) inS = !inS;\r\n    else if (ch === '\"' && !inS) inD = !inD;\r\n    else if (ch === ':' && !inS && !inD){\r\n      if (j === s.length - 1) return { key: ymlUnquote(s.slice(0, j)), val: '' };\r\n      if (s.charAt(j + 1) === ' ') return { key: ymlUnquote(s.slice(0, j)), val: s.slice(j + 1).trim() };\r\n    }\r\n  }\r\n  return null;\r\n}\r\n\r\nfunction isDash(t){ return t.charAt(0) === '-' && (t.length === 1 || t.charAt(1) === ' '); }\r\n\r\nfunction ymlBlock(lines, i, indent){\r\n  if (i < lines.length && lines[i].indent === indent && isDash(lines[i].text)){\r\n    var arr = [];\r\n    while (i < lines.length && lines[i].indent === indent && isDash(lines[i].text)){\r\n      var rest = lines[i].text.slice(1).trim(), childIndent = indent + 2;\r\n      if (rest === ''){\r\n        if (i + 1 < lines.length && lines[i + 1].indent > indent){ var r = ymlBlock(lines, i + 1, lines[i + 1].indent); arr.push(r.value); i = r.next; }\r\n        else { arr.push(null); i++; }\r\n        continue;\r\n      }\r\n      var kv = splitKV(rest);\r\n      if (!kv){ arr.push(ymlScalar(rest)); i++; continue; }\r\n      var map = {};\r\n      childIndent = lines[i].indent + 2;\r\n      i = absorbPair(lines, i, kv, map, childIndent, true);\r\n      while (i < lines.length && lines[i].indent === childIndent && !isDash(lines[i].text)){\r\n        var kv2 = splitKV(lines[i].text);\r\n        if (!kv2) break;\r\n        i = absorbPair(lines, i, kv2, map, childIndent, false);\r\n      }\r\n      arr.push(map);\r\n    }\r\n    return { value: arr, next: i };\r\n  }\r\n  var obj = {};\r\n  while (i < lines.length && lines[i].indent === indent && !isDash(lines[i].text)){\r\n    var k = splitKV(lines[i].text);\r\n    if (!k){ i++; continue; }\r\n    i = absorbPair(lines, i, k, obj, indent, false);\r\n  }\r\n  return { value: obj, next: i };\r\n}\r\n\r\nfunction absorbPair(lines, i, kv, target, indent, fromDash){\r\n  if (kv.val !== ''){ target[kv.key] = ymlScalar(kv.val); return i + 1; }\r\n  i++;\r\n  if (i < lines.length){\r\n    if (lines[i].indent > indent){ var r = ymlBlock(lines, i, lines[i].indent); target[kv.key] = r.value; return r.next; }\r\n    if (lines[i].indent === indent && isDash(lines[i].text)){ var r2 = ymlBlock(lines, i, indent); target[kv.key] = r2.value; return r2.next; }\r\n  }\r\n  target[kv.key] = {};\r\n  return i;\r\n}\r\n\r\nfunction parseYaml(text){\r\n  var lines = ymlLines(text);\r\n  if (!lines.length) return { value: null, error: 'YAML 为空' };\r\n  try {\r\n    var r = ymlBlock(lines, 0, lines[0].indent);\r\n    return { value: r.value, error: null };\r\n  } catch (e){ return { value: null, error: 'YAML 解析失败：' + e.message }; }\r\n}\r\n\r\nfunction parseSpec(text){\r\n  var t = String(text == null ? '' : text).trim();\r\n  if (!t) return { spec: null, format: '', error: '输入为空' };\r\n  if (t.charAt(0) === '{'){\r\n    try { return { spec: JSON.parse(t), format: 'json', error: null }; }\r\n    catch (e){ return { spec: null, format: 'json', error: 'JSON 解析失败：' + e.message }; }\r\n  }\r\n  var y = parseYaml(t);\r\n  if (y.error) return { spec: null, format: 'yaml', error: y.error };\r\n  if (!y.value || typeof y.value !== 'object') return { spec: null, format: 'yaml', error: 'YAML 顶层不是映射' };\r\n  return { spec: y.value, format: 'yaml', error: null };\r\n}\r\n\r\nvar OA_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace'];\r\n\r\nfunction specInfo(spec){\r\n  spec = spec || {};\r\n  var info = spec.info || {};\r\n  var servers = spec.servers || [];\r\n  var paths = spec.paths || {};\r\n  var pathCount = 0;\r\n  for (var k in paths) if (Object.prototype.hasOwnProperty.call(paths, k)) pathCount++;\r\n  var comps = (spec.components && spec.components.schemas) || {};\r\n  var schemaCount = 0;\r\n  for (var s in comps) if (Object.prototype.hasOwnProperty.call(comps, s)) schemaCount++;\r\n  return {\r\n    version: spec.openapi || spec.swagger || '',\r\n    title: info.title || '',\r\n    apiVersion: info.version || '',\r\n    description: info.description || '',\r\n    servers: Array.isArray(servers) ? servers.length : 0,\r\n    baseUrl: (Array.isArray(servers) && servers[0] && servers[0].url) ? servers[0].url : '',\r\n    paths: pathCount,\r\n    schemas: schemaCount\r\n  };\r\n}\r\n\r\nfunction pathParams(p){\r\n  var out = [], re = /\\{([^}]+)\\}/g, m;\r\n  while ((m = re.exec(String(p))) !== null) out.push(m[1]);\r\n  return out;\r\n}\r\n\r\nfunction listOperations(spec){\r\n  var out = [], paths = (spec && spec.paths) || {};\r\n  for (var p in paths){\r\n    if (!Object.prototype.hasOwnProperty.call(paths, p)) continue;\r\n    var item = paths[p] || {};\r\n    var shared = Array.isArray(item.parameters) ? item.parameters : [];\r\n    for (var i = 0; i < OA_METHODS.length; i++){\r\n      var m = OA_METHODS[i];\r\n      if (!item[m]) continue;\r\n      var op = item[m] || {};\r\n      var params = shared.concat(Array.isArray(op.parameters) ? op.parameters : []);\r\n      var codes = [];\r\n      var rs = op.responses || {};\r\n      for (var c in rs) if (Object.prototype.hasOwnProperty.call(rs, c)) codes.push(String(c));\r\n      codes.sort();\r\n      out.push({\r\n        method: m.toUpperCase(), path: p,\r\n        operationId: op.operationId || '',\r\n        summary: op.summary || op.description || '',\r\n        tags: Array.isArray(op.tags) ? op.tags : [],\r\n        deprecated: op.deprecated === true,\r\n        params: params,\r\n        pathParams: pathParams(p),\r\n        declaredPath: params.filter(function(x){ return x && x['in'] === 'path'; }).map(function(x){ return x.name; }),\r\n        hasBody: !!op.requestBody,\r\n        security: op.security !== undefined ? op.security : (spec.security || null),\r\n        codes: codes\r\n      });\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction lintSpec(spec){\r\n  var issues = [];\r\n  function add(level, where, msg){ issues.push({ level: level, where: where, msg: msg }); }\r\n  var info = specInfo(spec);\r\n  if (!info.version) add('bad', 'root', '缺少 openapi 版本字段，多数工具链会直接拒绝');\r\n  else if (/^2\\./.test(info.version) || spec.swagger) add('warn', 'root', 'Swagger 2.0 规范，建议升级到 OpenAPI 3.x');\r\n  if (!info.title) add('bad', 'info', '缺少 info.title');\r\n  if (!info.apiVersion) add('warn', 'info', '缺少 info.version，客户端无法判断兼容性');\r\n  if (!info.servers) add('warn', 'servers', '未声明 servers，生成的客户端没有默认地址');\r\n  var ops = listOperations(spec);\r\n  if (!ops.length) add('bad', 'paths', '没有解析到任何操作，检查 paths 结构');\r\n  var ids = {};\r\n  for (var i = 0; i < ops.length; i++){\r\n    var o = ops[i], at = o.method + ' ' + o.path;\r\n    if (!o.operationId) add('warn', at, '缺少 operationId，代码生成器会造出难看的方法名');\r\n    else if (ids[o.operationId]) add('bad', at, 'operationId 重复：' + o.operationId);\r\n    else ids[o.operationId] = 1;\r\n    if (!o.summary) add('warn', at, '既无 summary 也无 description');\r\n    if (!o.tags.length) add('warn', at, '未打 tag，文档分组会散落');\r\n    for (var j = 0; j < o.pathParams.length; j++){\r\n      if (o.declaredPath.indexOf(o.pathParams[j]) < 0) add('bad', at, '路径参数 {' + o.pathParams[j] + '} 未在 parameters 中声明');\r\n    }\r\n    var has2xx = o.codes.some(function(c){ return /^2/.test(c); });\r\n    var hasErr = o.codes.some(function(c){ return /^[45]/.test(c) || c === 'default'; });\r\n    if (!has2xx) add('bad', at, '没有任何 2xx 响应定义');\r\n    if (!hasErr) add('warn', at, '没有 4xx/5xx/default 错误响应，调用方无从处理失败');\r\n    if ((o.method === 'POST' || o.method === 'PUT' || o.method === 'PATCH') && !o.hasBody) add('warn', at, o.method + ' 未定义 requestBody');\r\n    if (o.method === 'GET' && o.hasBody) add('warn', at, 'GET 定义了 requestBody，多数网关会丢弃');\r\n    if (/\\/(get|create|update|delete|list|fetch)[A-Za-z]*(\\/|$)/i.test(o.path)) add('warn', at, '路径里出现动词，REST 风格建议用名词 + HTTP 方法表达动作');\r\n    if (o.path.length > 1 && o.path.charAt(o.path.length - 1) === '/') add('warn', at, '路径以斜杠结尾，容易和无斜杠版本产生双份路由');\r\n    if (o.deprecated) add('warn', at, '已标记 deprecated，确认是否还有调用方');\r\n    if (!o.security && !spec.security) add('warn', at, '既无全局 security 也无操作级 security');\r\n  }\r\n  var bad = issues.filter(function(x){ return x.level === 'bad'; }).length;\r\n  var warn = issues.length - bad;\r\n  var score = Math.max(0, 100 - bad * 12 - warn * 3);\r\n  return { issues: issues, bad: bad, warn: warn, score: score, grade: gradeOf(score) };\r\n}\r\n\r\nfunction gradeOf(s){ return s >= 90 ? 'A' : s >= 78 ? 'B' : s >= 62 ? 'C' : s >= 45 ? 'D' : 'F'; }\r\n\r\nfunction coverage(spec){\r\n  var ops = listOperations(spec);\r\n  if (!ops.length) return { total: 0, opId: 0, summary: 0, errors: 0, tagged: 0 };\r\n  function pct(n){ return Math.round(n / ops.length * 1000) / 10; }\r\n  return {\r\n    total: ops.length,\r\n    opId: pct(ops.filter(function(o){ return !!o.operationId; }).length),\r\n    summary: pct(ops.filter(function(o){ return !!o.summary; }).length),\r\n    errors: pct(ops.filter(function(o){ return o.codes.some(function(c){ return /^[45]/.test(c) || c === 'default'; }); }).length),\r\n    tagged: pct(ops.filter(function(o){ return o.tags.length > 0; }).length)\r\n  };\r\n}\r\n\r\nfunction curlFor(op, baseUrl){\r\n  if (!op) return '';\r\n  var url = String(baseUrl || '') + op.path;\r\n  var query = [];\r\n  for (var i = 0; i < op.params.length; i++){\r\n    var p = op.params[i];\r\n    if (!p) continue;\r\n    if (p['in'] === 'path') url = url.replace('{' + p.name + '}', '<' + p.name + '>');\r\n    else if (p['in'] === 'query' && p.required) query.push(p.name + '=<' + p.name + '>');\r\n  }\r\n  if (query.length) url += '?' + query.join('&');\r\n  var lines = [\"curl -sS -X \" + op.method + \" '\" + url + \"' \\\\\"];\r\n  for (var j = 0; j < op.params.length; j++){\r\n    var h = op.params[j];\r\n    if (h && h['in'] === 'header') lines.push(\"  -H '\" + h.name + \": <\" + h.name + \">' \\\\\");\r\n  }\r\n  if (op.hasBody){\r\n    lines.push(\"  -H 'Content-Type: application/json' \\\\\");\r\n    lines.push(\"  --data-raw '{}'\");\r\n  } else {\r\n    lines[lines.length - 1] = lines[lines.length - 1].replace(/ \\\\$/, '');\r\n  }\r\n  return lines.join('\\n');\r\n}\r\n\r\nfunction tagSummary(spec){\r\n  var ops = listOperations(spec), map = {};\r\n  for (var i = 0; i < ops.length; i++){\r\n    var ts = ops[i].tags.length ? ops[i].tags : ['(未分组)'];\r\n    for (var j = 0; j < ts.length; j++) map[ts[j]] = (map[ts[j]] || 0) + 1;\r\n  }\r\n  var out = [];\r\n  for (var k in map) if (Object.prototype.hasOwnProperty.call(map, k)) out.push({ tag: k, count: map[k] });\r\n  out.sort(function(a, b){ return b.count - a.count || (a.tag < b.tag ? -1 : 1); });\r\n  return out;\r\n}\r\n\r\nvar OpenapiForgePure = {\r\n  parseYaml: parseYaml, parseSpec: parseSpec, specInfo: specInfo, listOperations: listOperations,\r\n  lintSpec: lintSpec, coverage: coverage, curlFor: curlFor, tagSummary: tagSummary,\r\n  pathParams: pathParams, splitKV: splitKV, ymlScalar: ymlScalar, gradeOf: gradeOf, METHODS: OA_METHODS\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = OpenapiForgePure;\r\nif (typeof window !== 'undefined') window.OpenapiForgePure = OpenapiForgePure;\r\n\r\n"
+}

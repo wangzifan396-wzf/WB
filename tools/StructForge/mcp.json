@@ -1,0 +1,60 @@
+{
+  "id": "StructForge",
+  "name": "struct_forge",
+  "title": "StructForge",
+  "description": "离线结构生成：粘贴 JSON 一键转 TypeScript interface / Go struct / Python dataclass / JSON Schema，嵌套自动拆分。",
+  "entry": "pascal",
+  "entries": {
+    "pascal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "toTypeScript": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "obj",
+        "root"
+      ],
+      "fields": []
+    },
+    "toGoStruct": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "obj",
+        "root"
+      ],
+      "fields": []
+    },
+    "toPython": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "obj",
+        "root"
+      ],
+      "fields": []
+    },
+    "toJsonSchema": {
+      "paramStyle": "single",
+      "paramNames": [
+        "obj"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction pascal(s){\r\n  return String(s).replace(/[_\\-\\s]+(.)?/g,function(_,c){return c?c.toUpperCase():'';})\r\n                  .replace(/^(.)/,function(_,c){return c.toUpperCase();});\r\n}\r\nfunction inferTs(val,key,ints){\r\n  if(val===null) return 'any';\r\n  if(Array.isArray(val)){ if(!val.length) return 'any[]'; return inferTs(val[0],key,ints)+'[]'; }\r\n  var t=typeof val;\r\n  if(t==='number') return 'number';\r\n  if(t==='boolean') return 'boolean';\r\n  if(t==='string') return 'string';\r\n  if(t==='object'){ var name=pascal(key); buildTs(val,name,ints); return name; }\r\n  return 'any';\r\n}\r\nfunction buildTs(obj,name,ints){\r\n  var lines=['export interface '+name+' {'];\r\n  for(var k in obj){ if(!Object.prototype.hasOwnProperty.call(obj,k)) continue;\r\n    lines.push('  '+k+': '+inferTs(obj[k],k,ints)+';'); }\r\n  lines.push('}'); ints.push(lines.join('\\n'));\r\n}\r\nfunction toTypeScript(obj,root){ var ints=[]; buildTs(obj,pascal(root||'Root'),ints); return ints.join('\\n\\n'); }\r\nfunction goType(val,key,structs){\r\n  if(val===null) return 'interface{}';\r\n  if(Array.isArray(val)){ if(!val.length) return '[]interface{}'; return '[]'+goType(val[0],key,structs); }\r\n  var t=typeof val;\r\n  if(t==='number') return Number.isInteger(val)?'int':'float64';\r\n  if(t==='boolean') return 'bool';\r\n  if(t==='string') return 'string';\r\n  if(t==='object'){ var name=pascal(key); buildGo(val,name,structs); return name; }\r\n  return 'interface{}';\r\n}\r\nfunction buildGo(obj,name,structs){\r\n  var lines=['type '+name+' struct {'];\r\n  for(var k in obj){ if(!Object.prototype.hasOwnProperty.call(obj,k)) continue;\r\n    lines.push('\\t'+pascal(k)+' '+goType(obj[k],k,structs)+' `json:\"'+k+'\"`'); }\r\n  lines.push('}'); structs.push(lines.join('\\n'));\r\n}\r\nfunction toGoStruct(obj,root){ var s=[]; buildGo(obj,pascal(root||'Root'),s); return s.join('\\n\\n'); }\r\nfunction pyType(val,key,classes){\r\n  if(val===null) return 'Optional[Any]';\r\n  if(Array.isArray(val)){ if(!val.length) return 'List[Any]'; return 'List['+pyType(val[0],key,classes)+']'; }\r\n  var t=typeof val;\r\n  if(t==='number') return Number.isInteger(val)?'int':'float';\r\n  if(t==='boolean') return 'bool';\r\n  if(t==='string') return 'str';\r\n  if(t==='object'){ var name=pascal(key); buildPy(val,name,classes); return name; }\r\n  return 'Any';\r\n}\r\nfunction buildPy(obj,name,classes){\r\n  var lines=['@dataclass','class '+name+':'];\r\n  var keys=[]; for(var k in obj){ if(Object.prototype.hasOwnProperty.call(obj,k)) keys.push(k); }\r\n  if(!keys.length) lines.push('    pass');\r\n  for(var i=0;i<keys.length;i++){ lines.push('    '+keys[i]+': '+pyType(obj[keys[i]],keys[i],classes)); }\r\n  classes.push(lines.join('\\n'));\r\n}\r\nfunction toPython(obj,root){ var c=[]; buildPy(obj,pascal(root||'Root'),c); return c.join('\\n\\n'); }\r\nfunction schemaOf(val){\r\n  if(val===null) return {type:'null'};\r\n  if(Array.isArray(val)) return {type:'array', items: val.length?schemaOf(val[0]):{}};\r\n  var t=typeof val;\r\n  if(t==='number') return {type: Number.isInteger(val)?'integer':'number'};\r\n  if(t==='boolean') return {type:'boolean'};\r\n  if(t==='string') return {type:'string'};\r\n  if(t==='object'){\r\n    var props={}, req=[];\r\n    for(var k in val){ if(!Object.prototype.hasOwnProperty.call(val,k)) continue; props[k]=schemaOf(val[k]); req.push(k); }\r\n    var o={type:'object', properties:props}; if(req.length) o.required=req; return o;\r\n  }\r\n  return {};\r\n}\r\nfunction toJsonSchema(obj){ var s=schemaOf(obj); s['$schema']='http://json-schema.org/draft-07/schema#'; return s; }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { pascal:pascal, toTypeScript:toTypeScript, toGoStruct:toGoStruct, toPython:toPython, toJsonSchema:toJsonSchema };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.StructForgePure = { pascal:pascal, toTypeScript:toTypeScript, toGoStruct:toGoStruct, toPython:toPython, toJsonSchema:toJsonSchema };\r\n}\r\n"
+}

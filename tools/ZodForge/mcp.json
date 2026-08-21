@@ -1,0 +1,79 @@
+{
+  "id": "ZodForge",
+  "name": "zod_forge",
+  "title": "ZodForge",
+  "description": "把 JSON 示例数据转成 Zod 校验 Schema：自动识别邮箱、URL、UUID 与 ISO 时间等格式，数组元素合并后标记 optional 与 nullable，并附带 z.infer 类型导出。",
+  "entry": "toZod",
+  "entries": {
+    "toZod": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opt"
+      ],
+      "fields": []
+    },
+    "shape": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "opt"
+      ],
+      "fields": []
+    },
+    "merge": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "mergeAll": {
+      "paramStyle": "single",
+      "paramNames": [
+        "items"
+      ],
+      "fields": []
+    },
+    "pascal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "keyOf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "k"
+      ],
+      "fields": []
+    },
+    "detectString": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "opt"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "opt": {
+        "type": "object",
+        "description": "第 2 个参数（opt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n'use strict';\r\nvar RESERVED=/^[A-Za-z_$][A-Za-z0-9_$]*$/;\r\nfunction keyOf(k){ return RESERVED.test(k)?k:JSON.stringify(k); }\r\nfunction pascal(s){\r\n  var p=String(s).replace(/[^A-Za-z0-9]+/g,' ').trim().split(/\\s+/);\r\n  if(!p.length||!p[0]) return 'Item';\r\n  var o='',i;\r\n  for(i=0;i<p.length;i++) o+=p[i].charAt(0).toUpperCase()+p[i].slice(1);\r\n  if(/^[0-9]/.test(o)) o='N'+o.replace(/^([0-9]+)([a-z])/,function(_,d,c){return d+c.toUpperCase();});\r\n  return o;\r\n}\r\nfunction detectString(v,opt){\r\n  if(!opt||!opt.smart) return 'z.string()';\r\n  if(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(v)) return 'z.string().email()';\r\n  if(/^https?:\\/\\/\\S+$/.test(v)) return 'z.string().url()';\r\n  if(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v)) return 'z.string().uuid()';\r\n  if(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$/.test(v)) return 'z.string().datetime()';\r\n  if(/^\\d{4}-\\d{2}-\\d{2}$/.test(v)) return 'z.string().date()';\r\n  if(/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(v)) return 'z.string().regex(/^#[0-9a-fA-F]{6}$/)';\r\n  return 'z.string()';\r\n}\r\nfunction shape(v,opt){\r\n  if(v===null) return {k:'null'};\r\n  if(Array.isArray(v)) return {k:'array',items:v.map(function(x){return shape(x,opt);})};\r\n  var t=typeof v;\r\n  if(t==='object'){\r\n    var f={},key;\r\n    for(key in v) if(Object.prototype.hasOwnProperty.call(v,key)) f[key]=shape(v[key],opt);\r\n    return {k:'object',fields:f};\r\n  }\r\n  if(t==='number') return {k:'number',int:Number.isInteger(v)};\r\n  if(t==='boolean') return {k:'boolean'};\r\n  if(t==='string') return {k:'string',v:v};\r\n  return {k:'unknown'};\r\n}\r\nfunction merge(a,b){\r\n  if(!a) return b;\r\n  if(!b) return a;\r\n  if(a.k==='null'&&b.k!=='null'){ var r1=merge(null,b); r1.nullable=true; return r1; }\r\n  if(b.k==='null'&&a.k!=='null'){ var r2=merge(a,null); r2.nullable=true; return r2; }\r\n  if(a.k!==b.k) return {k:'union',of:[a,b],nullable:a.nullable||b.nullable};\r\n  if(a.k==='object'){\r\n    var f={},seen={},key;\r\n    for(key in a.fields) seen[key]=1;\r\n    for(key in b.fields) seen[key]=1;\r\n    for(key in seen){\r\n      var x=a.fields[key],y=b.fields[key];\r\n      if(x&&y){ f[key]=merge(x,y); }\r\n      else { var only=x||y; f[key]=cloneOpt(only); }\r\n    }\r\n    return {k:'object',fields:f,nullable:a.nullable||b.nullable};\r\n  }\r\n  if(a.k==='array'){\r\n    return {k:'array',items:(a.items||[]).concat(b.items||[]),nullable:a.nullable||b.nullable};\r\n  }\r\n  if(a.k==='number') return {k:'number',int:a.int&&b.int,nullable:a.nullable||b.nullable};\r\n  if(a.k==='string') return {k:'string',v:a.v,alt:b.v,nullable:a.nullable||b.nullable};\r\n  return {k:a.k,nullable:a.nullable||b.nullable};\r\n}\r\nfunction cloneOpt(s){\r\n  var o={},k;\r\n  for(k in s) o[k]=s[k];\r\n  o.optional=true;\r\n  return o;\r\n}\r\nfunction mergeAll(items){\r\n  if(!items||!items.length) return null;\r\n  var acc=items[0],i;\r\n  for(i=1;i<items.length;i++) acc=merge(acc,items[i]);\r\n  return acc;\r\n}\r\nfunction emit(s,opt,ind,name,defs){\r\n  var pad=new Array(ind+1).join('  '),pad2=new Array(ind+2).join('  '),out;\r\n  if(!s) return 'z.unknown()';\r\n  switch(s.k){\r\n    case 'null': out='z.null()'; break;\r\n    case 'boolean': out='z.boolean()'; break;\r\n    case 'number': out=(opt.intAsInt&&s.int)?'z.number().int()':'z.number()'; break;\r\n    case 'string': out=detectString(s.v===undefined?'':s.v,opt); break;\r\n    case 'unknown': out='z.unknown()'; break;\r\n    case 'union':\r\n      out='z.union(['+s.of.map(function(x){return emit(x,opt,ind,name,defs);}).join(', ')+'])';\r\n      break;\r\n    case 'array':\r\n      var inner=mergeAll(s.items);\r\n      out='z.array('+(inner?emit(inner,opt,ind,name?(name+'Item'):'Item',defs):'z.unknown()')+')';\r\n      break;\r\n    case 'object':\r\n      var keys=[],k;\r\n      for(k in s.fields) keys.push(k);\r\n      if(!keys.length){ out='z.object({})'; break; }\r\n      var lines=keys.map(function(key){\r\n        var f=s.fields[key],body=emit(f,opt,ind+1,name?(name+pascal(key)):pascal(key),defs);\r\n        if(f.nullable) body+='.nullable()';\r\n        if(f.optional) body+='.optional()';\r\n        return pad2+keyOf(key)+': '+body+',';\r\n      });\r\n      out='z.object({\\n'+lines.join('\\n')+'\\n'+pad+'})';\r\n      if(opt.strict) out+='.strict()';\r\n      break;\r\n    default: out='z.unknown()';\r\n  }\r\n  return out;\r\n}\r\nfunction toZod(text,opt){\r\n  opt=opt||{};\r\n  if(typeof text!=='string'||!text.trim()) return {value:null,error:'请输入 JSON 内容'};\r\n  var data;\r\n  try{ data=JSON.parse(text); }catch(e){ return {value:null,error:'JSON 解析失败：'+e.message}; }\r\n  if(data===null||typeof data!=='object') return {value:null,error:'顶层需要是对象或数组，标量无法推导出有意义的 Schema'};\r\n  var name=pascal(opt.name||'Root'),varName=name.charAt(0).toLowerCase()+name.slice(1)+'Schema';\r\n  var s=shape(data,opt);\r\n  if(s.k==='array'){\r\n    var inner=mergeAll(s.items);\r\n    s={k:'array',items:inner?[inner]:[]};\r\n  }\r\n  var body=emit(s,opt,0,name,{});\r\n  var L=[];\r\n  if(opt.importLine!==false) L.push(\"import { z } from 'zod';\");\r\n  L.push('');\r\n  L.push('export const '+varName+' = '+body+';');\r\n  if(opt.inferType!==false){\r\n    L.push('');\r\n    L.push('export type '+name+' = z.infer<typeof '+varName+'>;');\r\n  }\r\n  return {value:{code:L.join('\\n'),name:name,varName:varName,\r\n                 stats:{fields:countFields(s),depth:depthOf(s)}},error:null};\r\n}\r\nfunction countFields(s){\r\n  if(!s) return 0;\r\n  if(s.k==='object'){ var n=0,k; for(k in s.fields){ n+=1+countFields(s.fields[k]); } return n; }\r\n  if(s.k==='array') return countFields(mergeAll(s.items));\r\n  return 0;\r\n}\r\nfunction depthOf(s){\r\n  if(!s) return 0;\r\n  if(s.k==='object'){ var m=0,k; for(k in s.fields){ var d=depthOf(s.fields[k]); if(d>m)m=d; } return m+1; }\r\n  if(s.k==='array') return depthOf(mergeAll(s.items))+1;\r\n  return 0;\r\n}\r\nvar API={toZod:toZod,shape:shape,merge:merge,mergeAll:mergeAll,pascal:pascal,keyOf:keyOf,detectString:detectString};\r\nif(typeof module!=='undefined'&&module.exports) module.exports=API;\r\nif(typeof window!=='undefined') window.__ZodForge__=API;\r\n})();\r\n\r\n"
+}

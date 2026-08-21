@@ -1,0 +1,38 @@
+{
+  "id": "MancalaForge",
+  "name": "mancala_forge",
+  "title": "MancalaForge",
+  "description": "曼卡拉（Mancala）：轮流把某一坑的棋子顺时针逐一播撒，落回自家大本营，最后大本营棋子多者胜。",
+  "entry": "mcNew",
+  "entries": {
+    "mcNew": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "mcSow": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "pit",
+        "player"
+      ],
+      "fields": []
+    },
+    "mcSideEmpty": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "player"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\nvar MC_PITS=6;\r\nfunction mcNew(){ var b=new Array(14).fill(0); for(var i=0;i<6;i++){ b[i]=4; b[i+7]=4; } return b; }\r\nfunction mcSideEmpty(b, player){ var s=player===0?[0,1,2,3,4,5]:[7,8,9,10,11,12]; return s.every(function(p){return b[p]===0;}); }\r\nfunction mcSow(b, pit, player){ var nb=b.slice(); var seeds=nb[pit]; if(seeds===0) return {board:b,again:false,winner:null}; nb[pit]=0; var cur=pit; while(seeds>0){ cur++; if(cur>13) cur=0; if((player===0 && cur===13) || (player===1 && cur===6)){ continue; } nb[cur]++; seeds--; } var again=false, winner=null; var ownStore=player===0?6:13; if(cur===ownStore){ again=true; } else { var ownPits=player===0?[0,1,2,3,4,5]:[7,8,9,10,11,12]; if(ownPits.indexOf(cur)>=0 && nb[cur]===1){ var oppIdx=player===0?(12-cur):(19-cur); if(nb[oppIdx]>0){ nb[ownStore]+= nb[cur]+nb[oppIdx]; nb[cur]=0; nb[oppIdx]=0; } } } if(mcSideEmpty(nb,0)||mcSideEmpty(nb,1)){ for(var i=0;i<6;i++){ nb[6]+=nb[i]; nb[i]=0; } for(var j=7;j<13;j++){ nb[13]+=nb[j]; nb[j]=0; } winner=nb[6]>nb[13]?0:(nb[13]>nb[6]?1:null); } return {board:nb, again:again, winner:winner}; }\r\nvar EXPORTS={mcNew:mcNew,mcSow:mcSow,mcSideEmpty:mcSideEmpty,MC_PITS:MC_PITS};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MancalaForgePure = EXPORTS; }\r\n\r\n"
+}

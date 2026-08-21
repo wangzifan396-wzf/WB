@@ -1,0 +1,48 @@
+{
+  "id": "PivotForge",
+  "name": "pivot_forge",
+  "title": "PivotForge",
+  "description": "交叉表透视器：CSV 明细转行列交叉表，sum/count/avg/min/max + 总计。",
+  "entry": "parseCsv",
+  "entries": {
+    "parseCsv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "aggregate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "values",
+        "agg"
+      ],
+      "fields": []
+    },
+    "pivot": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rows",
+        "rowKey",
+        "colKey",
+        "valKey",
+        "agg"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction parseCsv(text){\r\n  var lines=String(text||'').split(/\\r?\\n/).filter(function(l){return l.trim();});\r\n  if(lines.length<2) return { rows:null, error:'\\u81f3\\u5c11\\u9700\\u8981\\u8868\\u5934 + 1 \\u884c\\u6570\\u636e' };\r\n  var head=lines[0].split(',').map(function(h){return h.trim();});\r\n  var rows=[];\r\n  for(var i=1;i<lines.length;i++){\r\n    var cells=lines[i].split(',').map(function(c){return c.trim();});\r\n    if(cells.length!==head.length) return { rows:null, error:'\\u7b2c '+(i+1)+' \\u884c\\u5217\\u6570\\u4e0d\\u5339\\u914d' };\r\n    var o={};\r\n    for(var j=0;j<head.length;j++) o[head[j]]=cells[j];\r\n    rows.push(o);\r\n  }\r\n  return { rows:rows, error:null };\r\n}\r\nfunction aggregate(values, agg){\r\n  if(!values.length) return null;\r\n  if(agg==='count') return values.length;\r\n  var nums=values.map(Number);\r\n  if(agg==='sum') return nums.reduce(function(a,b){return a+b;},0);\r\n  if(agg==='avg') return nums.reduce(function(a,b){return a+b;},0)/nums.length;\r\n  if(agg==='min') return Math.min.apply(null,nums);\r\n  if(agg==='max') return Math.max.apply(null,nums);\r\n  throw new Error('UNKNOWN_AGG');\r\n}\r\nfunction pivot(rows, rowKey, colKey, valKey, agg){\r\n  agg=agg||'sum';\r\n  var rset={}, cset={}, cells={};\r\n  rows.forEach(function(r){\r\n    if(!(rowKey in r)||!(colKey in r)) throw new Error('KEY_NOT_FOUND');\r\n    var rk=r[rowKey], ck=r[colKey];\r\n    rset[rk]=1; cset[ck]=1;\r\n    var key=rk+'\\u0000'+ck;\r\n    (cells[key]=cells[key]||[]).push(r[valKey]);\r\n  });\r\n  var rkeys=Object.keys(rset).sort(), ckeys=Object.keys(cset).sort();\r\n  var matrix=rkeys.map(function(rk){\r\n    return ckeys.map(function(ck){\r\n      var v=cells[rk+'\\u0000'+ck];\r\n      return v ? aggregate(v, agg) : null;\r\n    });\r\n  });\r\n  var rowTotals=matrix.map(function(row){\r\n    var vs=row.filter(function(v){return v!==null;});\r\n    return vs.length ? (agg==='count'?vs.reduce(function(a,b){return a+b;},0):aggregate(vs,agg==='avg'?'avg':agg)) : null;\r\n  });\r\n  var colTotals=ckeys.map(function(_,j){\r\n    var vs=matrix.map(function(row){return row[j];}).filter(function(v){return v!==null;});\r\n    return vs.length ? (agg==='count'?vs.reduce(function(a,b){return a+b;},0):aggregate(vs,agg==='avg'?'avg':agg)) : null;\r\n  });\r\n  var all=[];\r\n  matrix.forEach(function(row){ row.forEach(function(v){ if(v!==null) all.push(v); }); });\r\n  var grand=all.length ? (agg==='count'?all.reduce(function(a,b){return a+b;},0):aggregate(all,agg==='avg'?'avg':agg)) : null;\r\n  return { rows:rkeys, cols:ckeys, matrix:matrix, rowTotals:rowTotals, colTotals:colTotals, grand:grand };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parseCsv:parseCsv, aggregate:aggregate, pivot:pivot };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.PivotForgePure = { parseCsv:parseCsv, aggregate:aggregate, pivot:pivot };\r\n}\r\n"
+}

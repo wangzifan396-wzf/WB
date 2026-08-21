@@ -1,0 +1,54 @@
+{
+  "id": "InterestForge",
+  "name": "interest_forge",
+  "title": "InterestForge",
+  "description": "复利终值与等额本息贷款摊销表计算。",
+  "entry": "compound",
+  "entries": {
+    "compound": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "rate",
+        "years",
+        "opts"
+      ],
+      "fields": []
+    },
+    "amortize": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "annualRate",
+        "years",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "principal": {
+        "type": "number",
+        "description": "第 1 个参数（principal）（数值）"
+      },
+      "rate": {
+        "type": "number",
+        "description": "第 2 个参数（rate）（数值）"
+      },
+      "years": {
+        "type": "number",
+        "description": "第 3 个参数（years）（数值）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction round2(x){ return Math.round((x+Number.EPSILON)*100)/100; }\r\nfunction compound(principal, rate, years, opts){\r\n  opts=opts||{};\r\n  var n=opts.frequency||1;\r\n  principal=Number(principal); rate=Number(rate); years=Number(years);\r\n  if(isNaN(principal) || !(principal>=0)) return {error:'principal invalid'};\r\n  if(isNaN(rate) || isNaN(years) || years<=0) return {error:'rate/years invalid'};\r\n  var fv = principal*Math.pow(1+rate/n, n*years);\r\n  return {futureValue:fv, principal:principal, interest:fv-principal, rate:rate, years:years, frequency:n, error:null};\r\n}\r\nfunction amortize(principal, annualRate, years, opts){\r\n  opts=opts||{};\r\n  principal=Number(principal); annualRate=Number(annualRate); years=Number(years);\r\n  if(isNaN(principal) || !(principal>0)) return {error:'principal must be > 0'};\r\n  if(isNaN(years) || years<=0) return {error:'years must be > 0'};\r\n  var n=Math.round(years*12);\r\n  var r=annualRate/12;\r\n  var payment;\r\n  if(r===0){ payment=principal/n; }\r\n  else { payment=principal*r/(1-Math.pow(1+r,-n)); }\r\n  var balance=principal, schedule=[], totalInterest=0;\r\n  for(var m=1;m<=n;m++){\r\n    var interestPaid = balance*r;\r\n    var principalPaid = payment - interestPaid;\r\n    balance -= principalPaid;\r\n    if(m===n){ principalPaid += balance; balance=0; }\r\n    totalInterest += interestPaid;\r\n    schedule.push({month:m, payment:round2(payment), principalPaid:round2(principalPaid), interestPaid:round2(interestPaid), balance:round2(Math.max(balance,0))});\r\n  }\r\n  return {monthlyPayment:round2(payment), totalPayment:round2(payment*n), totalInterest:round2(totalInterest), schedule:schedule, error:null};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { compound:compound, amortize:amortize };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.InterestForgePure = { compound:compound, amortize:amortize };\r\n}\r\n"
+}

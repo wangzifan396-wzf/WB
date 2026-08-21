@@ -1,0 +1,53 @@
+{
+  "id": "SkyscraperForge",
+  "name": "skyscraper_forge",
+  "title": "SkyscraperForge",
+  "description": "摩天楼（Skyscrapers）谜题：在 N×N 网格里填 1..N，每行每列不重复；边缘数字表示从该方向能看到的“楼”的数量（更高的楼会挡住后面的）。内置题目生成与求解，纯本地、零依赖。",
+  "entry": "skyGen",
+  "entries": {
+    "skyGen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "n",
+        "seed"
+      ],
+      "fields": []
+    },
+    "skySolve": {
+      "paramStyle": "object",
+      "paramNames": [
+        "clues"
+      ],
+      "fields": [
+        "top",
+        "bottom",
+        "left",
+        "right"
+      ]
+    },
+    "skyVis": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "第 1 个参数（n）"
+      },
+      "seed": {
+        "type": "string",
+        "description": "第 2 个参数（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction skyVis(arr){ var m=0,c=0; for(var i=0;i<arr.length;i++){ if(arr[i]>m){ m=arr[i]; c++; } } return c; }\r\nfunction skyLatin(n, seed){ var s=seed||1; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;}\r\n  var g=[]; for(var i=0;i<n;i++) g.push([]);\r\n  function ok(r,c,v){ for(var j=0;j<c;j++) if(g[r][j]===v) return false; for(var i=0;i<r;i++) if(g[i][c]===v) return false; return true; }\r\n  function fill(r,c){ if(r===n) return true; if(c===n) return fill(r+1,0); var order=[]; for(var v=1;v<=n;v++) order.push(v); for(var k=order.length-1;k>0;k--){ var j=Math.floor(rnd()*(k+1)); var t=order[k];order[k]=order[j];order[j]=t; } for(var q=0;q<n;q++){ var v=order[q]; if(ok(r,c,v)){ g[r][c]=v; if(fill(r,c+1)) return true; g[r][c]=0; } } return false; }\r\n  fill(0,0); return g; }\r\nfunction skyGen(n, seed){ var g=skyLatin(n, seed); function col(c){var a=[];for(var i=0;i<n;i++)a.push(g[i][c]);return a;} var top=[],bottom=[],left=[],right=[]; for(var i=0;i<n;i++){ top.push(skyVis(g[i])); bottom.push(skyVis(g[i].slice().reverse())); left.push(skyVis(col(i))); right.push(skyVis(col(i).slice().reverse())); } return {clues:{top:top,bottom:bottom,left:left,right:right}, solution:g}; }\r\nfunction skySolve(clues){ var n=clues.top.length; var g=[]; for(var i=0;i<n;i++) g.push([]); function ok(r,c,v){ for(var j=0;j<c;j++) if(g[r][j]===v) return false; for(var i=0;i<r;i++) if(g[i][c]===v) return false; return true; } function vis(a){var m=0,c=0;for(var i=0;i<a.length;i++){if(a[i]>m){m=a[i];c++;}}return c;} function col(c){var a=[];for(var i=0;i<n;i++)a.push(g[i][c]);return a;} function check(){ for(var r=0;r<n;r++){ if(g[r].indexOf(undefined)>=0) return false; if(vis(g[r])!==clues.top[r]) return false; if(vis(g[r].slice().reverse())!==clues.bottom[r]) return false; } for(var c=0;c<n;c++){ var cc=col(c); if(vis(cc)!==clues.left[c]) return false; if(vis(cc.slice().reverse())!==clues.right[c]) return false; } return true; } function fill(r,c){ if(r===n) return check(); if(c===n) return fill(r+1,0); for(var v=1;v<=n;v++){ if(ok(r,c,v)){ g[r][c]=v; if(fill(r,c+1)) return g.slice(); g[r][c]=undefined; } } return false; } return fill(0,0); }\r\nvar EXPORTS={skyGen:skyGen, skySolve:skySolve, skyVis:skyVis};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SkyscraperForgePure = EXPORTS; }\r\n\r\n"
+}

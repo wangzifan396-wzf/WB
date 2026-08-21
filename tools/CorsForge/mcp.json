@@ -1,0 +1,36 @@
+{
+  "id": "CorsForge",
+  "name": "cors_forge",
+  "title": "CorsForge",
+  "description": "CORS 配置校验：通配符/多来源/凭证组合风险检测、合规评级，离线可用。",
+  "entry": "coAnalyze",
+  "entries": {
+    "coAnalyze": {
+      "paramStyle": "object",
+      "paramNames": [
+        "cfg"
+      ],
+      "fields": [
+        "origin",
+        "credentials"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "origin": {
+        "type": "string",
+        "description": "参数 origin"
+      },
+      "credentials": {
+        "type": "string",
+        "description": "参数 credentials"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction coAnalyze(cfg){\r\n  cfg=cfg||{};\r\n  var origin=String(cfg.origin||'').trim();\r\n  var cred=!!cfg.credentials;\r\n  var problems=[], score=100;\r\n  function warn(msg, penalty){ problems.push(msg); score-=penalty; }\r\n  var wild=(origin==='*');\r\n  var multi=origin.split(/\\s+/).filter(Boolean).length>1;\r\n  if(wild && cred) warn('Allow-Origin 为 * 时不允许携带凭证（浏览器将拒绝）', 40);\r\n  if(multi) warn('Allow-Origin 出现多个空格分隔的值，标准仅允许单一来源或 *', 30);\r\n  if(!origin) warn('未设置 Access-Control-Allow-Origin', 20);\r\n  if(cred && !origin) warn('携带凭证但未指定具体来源', 15);\r\n  if(!wild && !multi && origin) { /* specific origin is fine */ }\r\n  score=Math.max(0, score);\r\n  var grade = score>=90?'A':score>=70?'B':score>=50?'C':'D';\r\n  return { wildcard:wild, multiple:multi, credentials:cred, score:score, problems:problems, level:(wild&&cred)?'危险':'正常', grade:grade };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { coAnalyze:coAnalyze };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.CorsForgePure = { coAnalyze:coAnalyze };\r\n}\r\n\r\n"
+}

@@ -1,0 +1,54 @@
+{
+  "id": "SofiForge",
+  "name": "sofi_forge",
+  "title": "SofiForge",
+  "description": "信号加噪并测算信噪比 SNR",
+  "entry": "rms",
+  "entries": {
+    "rms": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "snrDb": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "signalPower",
+        "noisePower"
+      ],
+      "fields": []
+    },
+    "addNoise": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "snrDbTarget",
+        "rng"
+      ],
+      "fields": []
+    },
+    "snrFromSamples": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "signal",
+        "noisy"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "arr": {
+        "type": "string",
+        "description": "输入（arr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rms(arr){ if(!arr||!arr.length) return 0; var s=0; for(var i=0;i<arr.length;i++) s+=arr[i]*arr[i]; return Math.sqrt(s/arr.length); }\r\nfunction snrDb(signalPower, noisePower){ if(noisePower<=0) return Infinity; return 10*Math.log10(signalPower/noisePower); }\r\nfunction addNoise(samples, snrDbTarget, rng){ rng=rng||Math.random; var srms=rms(samples);\r\n  if(srms===0) return samples.slice();\r\n  var targetNoiseRms = srms / Math.pow(10, snrDbTarget/20);\r\n  var out=new Array(samples.length);\r\n  for(var i=0;i<out.length;i++){ var g=(rng()*2-1 + (rng()*2-1))/Math.SQRT2; out[i]=samples[i]+targetNoiseRms*g; }\r\n  return out;\r\n}\r\nfunction snrFromSamples(signal, noisy){ var N=signal.length; if(!N) return 0;\r\n  var sp=0, np=0; for(var i=0;i<N;i++){ sp+=signal[i]*signal[i]; var d=noisy[i]-signal[i]; np+=d*d; } return snrDb(sp/N, np/N); }\r\nvar EXPORTS={rms:rms, snrDb:snrDb, addNoise:addNoise, snrFromSamples:snrFromSamples};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SofiForgePure = EXPORTS; }\r\n\r\n"
+}

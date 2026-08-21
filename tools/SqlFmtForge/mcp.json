@@ -1,0 +1,29 @@
+{
+  "id": "SqlFmtForge",
+  "name": "sql_fmt_forge",
+  "title": "SqlFmtForge",
+  "description": "SQL 格式化：关键字大写、主要子句换行、保留字符串字面量，离线可用。",
+  "entry": "fmt",
+  "entries": {
+    "fmt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sql"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "sql": {
+        "type": "string",
+        "description": "输入（sql）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  var KW='select from where group by order by having limit offset join left join right join inner join outer join on and or union union all insert into values update set delete from create table alter table drop table as distinct count sum avg min max case when then else end in not null is like between desc asc by intersect except';\r\n  function fmt(sql){\r\n    sql=String(sql==null?'':sql);\r\n    var holes=[];\r\n    sql=sql.replace(/'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|--[^\\n]*|\\/\\*[\\s\\S]*?\\*\\//g,function(m){holes.push(m);return '\\u0000'+(holes.length-1)+'\\u0000';});\r\n    sql=sql.replace(/\\b(select|from|where|group by|order by|having|limit|offset|join|left join|right join|inner join|outer join|on|and|or|union|union all|insert into|values|update|set|delete from|create table|alter table|drop table|as|distinct|count|sum|avg|min|max|case|when|then|else|end|in|not|null|is|like|between|desc|asc|by)\\b/gi,function(m){return m.toUpperCase();});\r\n    sql=sql.replace(/\\s*(SELECT|FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|OFFSET|LEFT JOIN|RIGHT JOIN|INNER JOIN|OUTER JOIN|JOIN|UNION ALL|UNION|INSERT INTO|VALUES|UPDATE|SET|DELETE FROM|CREATE TABLE|ALTER TABLE|DROP TABLE)\\b/g,function(m){return '\\n'+m.trim();});\r\n    sql=sql.replace(/\\u0000(\\d+)\\u0000/g,function(m,i){return holes[+i];});\r\n    return {value:sql.replace(/^\\n+/,'').replace(/\\n\\s*\\n/g,'\\n').trim()};\r\n  }\r\n  var API={fmt:fmt};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__SqlFmtForge__=API;\r\n})();\r\n"
+}

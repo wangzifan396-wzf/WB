@@ -1,0 +1,62 @@
+{
+  "id": "PokerForge",
+  "name": "poker_forge",
+  "title": "PokerForge",
+  "description": "扑克一手牌评估：给定 5 张或 7 张牌，判定同花顺 / 四条 / 葫芦等牌型并给出名称，支持解析与最佳 5 张组合。",
+  "entry": "pScore5",
+  "entries": {
+    "pScore5": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cards"
+      ],
+      "fields": []
+    },
+    "pEval7": {
+      "paramStyle": "single",
+      "paramNames": [
+        "cards"
+      ],
+      "fields": []
+    },
+    "pName": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sc"
+      ],
+      "fields": []
+    },
+    "pDeck": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "pDeal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "pParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "c"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "cards": {
+        "type": "string",
+        "description": "输入（cards）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar PVAL={A:14,K:13,Q:12,J:11,T:10,'9':9,'8':8,'7':7,'6':6,'5':5,'4':4,'3':3,'2':2};\r\nfunction pParse(c){ return {v:PVAL[c[0]], s:c[1]}; }\r\nfunction pScore5(cards){ var p=cards.map(pParse); var vals=p.map(function(x){return x.v;}).sort(function(a,b){return b-a;}); var suits=p.map(function(x){return x.s;}); var flush=suits.every(function(s){return s===suits[0];}); var cnt={}; vals.forEach(function(v){cnt[v]=(cnt[v]||0)+1;}); var groups=Object.keys(cnt).map(function(k){return [cnt[k],+k];}).sort(function(a,b){return b[0]-a[0]||b[1]-a[1];}); var uniq=vals.filter(function(v,i){return vals.lastIndexOf(v)===i;}); var isStraight=false, hi=0; if(uniq.length===5){ if(uniq[0]-uniq[4]===4){isStraight=true;hi=uniq[0];} else if(uniq[0]===14&&uniq[1]===5&&uniq[2]===4&&uniq[3]===3&&uniq[4]===2){isStraight=true;hi=5;} } if(isStraight&&flush) return [8,hi]; if(groups[0][0]===4) return [7,groups[0][1],groups[1][1]]; if(groups[0][0]===3&&groups[1][0]===2) return [6,groups[0][1],groups[1][1]]; if(flush) return [5].concat(vals); if(isStraight) return [4,hi]; if(groups[0][0]===3) return [3,groups[0][1]].concat(groups.slice(1).map(function(g){return g[1];})); if(groups[0][0]===2&&groups[1][0]===2) return [2,Math.max(groups[0][1],groups[1][1]),Math.min(groups[0][1],groups[1][1]),groups[2][1]]; if(groups[0][0]===2) return [1,groups[0][1]].concat(groups.slice(1).map(function(g){return g[1];})); return [0].concat(vals); }\r\nfunction pCmp(a,b){ var n=Math.max(a.length,b.length); for(var i=0;i<n;i++){ if((a[i]||0)!==(b[i]||0)) return (a[i]||0)>(b[i]||0)?1:-1; } return 0; }\r\nfunction pEval7(cards){ var best=null; for(var i=0;i<7;i++) for(var j=i+1;j<7;j++){ var rest=[]; for(var k=0;k<7;k++) if(k!==i&&k!==j) rest.push(cards[k]); var sc=pScore5(rest); if(!best||pCmp(sc,best)>0) best=sc; } return best; }\r\nfunction pName(sc){ var names=['高牌','一对','两对','三条','顺子','同花','葫芦','四条','同花顺']; return names[sc[0]]; }\r\nfunction pDeck(){ var suits=['s','h','d','c'], ranks=['A','K','Q','J','T','9','8','7','6','5','4','3','2']; var d=[]; suits.forEach(function(s){ranks.forEach(function(r){d.push(r+s);});}); return d; }\r\nfunction pShuffle(d, seed){ var a=d.slice(),s=seed||1; function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;} for(var i=a.length-1;i>0;i--){var j=Math.floor(rnd()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nfunction pDeal(seed){ var d=pShuffle(pDeck(),seed); return {hole:d.slice(0,2), community:d.slice(2,7)}; }\r\nvar EXPORTS={pScore5:pScore5,pEval7:pEval7,pName:pName,pDeck:pDeck,pDeal:pDeal,pParse:pParse};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PokerForgePure = EXPORTS; }\r\n\r\n"
+}

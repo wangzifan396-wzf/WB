@@ -1,0 +1,66 @@
+{
+  "id": "SlidingPuzzleForge",
+  "name": "sliding_puzzle_forge",
+  "title": "SlidingPuzzleForge",
+  "description": "数字华容道（15-Puzzle）滑块拼图：点击与空格相邻的数字方块滑动，把 1–15 按顺序复原，空格回到右下角。保证可解，纯本地、零依赖。",
+  "entry": "spSolved",
+  "entries": {
+    "spSolved": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "spSolvedChk": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "spBlank": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "spMove": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "i"
+      ],
+      "fields": []
+    },
+    "spShuffle": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rnd",
+        "n"
+      ],
+      "fields": []
+    },
+    "_rng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "输入（n）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _mkDeck(){ var suits=['S','H','D','C']; var ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A']; var d=[]; for(var s=0;s<4;s++) for(var r=0;r<13;r++) d.push({s:suits[s], r:ranks[r]}); return d; }\r\nfunction _rankVal(r){ return ['2','3','4','5','6','7','8','9','10','J','Q','K','A'].indexOf(r)+2; }\r\nfunction _rng(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction _shuffle(a, rnd){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t;} return a; }\r\nfunction _suitSym(s){ return {'S':'♠','H':'♥','D':'♦','C':'♣'}[s]; }\r\n\r\nfunction spSolved(n){ var a=[]; for(var i=0;i<n*n-1;i++) a.push(i+1); a.push(0); return a; }\r\nfunction spSolvedChk(b){ for(var i=0;i<b.length-1;i++) if(b[i]!==i+1) return false; return b[b.length-1]===0; }\r\nfunction spBlank(b){ return b.indexOf(0); }\r\nfunction spMove(b,i){ var n=Math.round(Math.sqrt(b.length)); var blank=spBlank(b); var bi=blank%n, bj=(blank/n)|0, ii=i%n, ij=(i/n)|0; if(Math.abs(bi-ii)+Math.abs(bj-ij)!==1) return null; var nb=b.slice(); nb[blank]=b[i]; nb[i]=0; return nb; }\r\nfunction spShuffle(rnd,n){ var b=spSolved(n); var blank=spBlank(b); var steps=n*n*40; for(var s=0;s<steps;s++){ var bi=blank%n, bj=(blank/n)|0; var opts=[]; if(bj>0)opts.push(blank-n); if(bj<n-1)opts.push(blank+n); if(bi>0)opts.push(blank-1); if(bi<n-1)opts.push(blank+1); var pick=opts[Math.floor(rnd()*opts.length)]; b[blank]=b[pick]; b[pick]=0; blank=pick; } if(spSolvedChk(b)){ for(var k=0;k<4;k++){ var bj2=(blank/n)|0, bi2=blank%n, o2=[]; if(bj2>0)o2.push(blank-n); if(bj2<n-1)o2.push(blank+n); if(bi2>0)o2.push(blank-1); if(bi2<n-1)o2.push(blank+1); var p2=o2[Math.floor(rnd()*o2.length)]; b[blank]=b[p2]; b[p2]=0; blank=p2; } } return b; }\r\nvar EXPORTS={spSolved:spSolved, spSolvedChk:spSolvedChk, spBlank:spBlank, spMove:spMove, spShuffle:spShuffle, _rng:_rng};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SlidingPuzzleForgePure = EXPORTS; }\r\n\r\n"
+}

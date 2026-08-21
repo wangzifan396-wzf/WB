@@ -1,0 +1,70 @@
+{
+  "id": "McpForge",
+  "name": "mcp_forge",
+  "title": "McpForge",
+  "description": "MCP 服务器配置生成与体检：stdio/sse/http 传输识别、参数与环境变量解析、硬编码密钥审计，离线可用。",
+  "entry": "buildConfig",
+  "entries": {
+    "validateServer": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "name",
+        "cfg"
+      ],
+      "fields": []
+    },
+    "detectTransport": {
+      "paramStyle": "object",
+      "paramNames": [
+        "cfg"
+      ],
+      "fields": [
+        "command",
+        "url"
+      ]
+    },
+    "buildConfig": {
+      "paramStyle": "single",
+      "paramNames": [
+        "servers"
+      ],
+      "fields": []
+    },
+    "parseArgs": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "parseEnv": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "auditConfig": {
+      "paramStyle": "object",
+      "paramNames": [
+        "obj"
+      ],
+      "fields": [
+        "mcpServers"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "servers": {
+        "type": "string",
+        "description": "输入（servers）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar TRANSPORTS = ['stdio','sse','http'];\r\nfunction validateServer(name, cfg){\r\n  var errs=[], warns=[];\r\n  if(!name || !/^[A-Za-z0-9_-]+$/.test(name)) errs.push('服务器名只能包含字母、数字、连字符和下划线');\r\n  if(!cfg || typeof cfg!=='object'){ errs.push('配置必须是对象'); return {valid:false, errors:errs, warnings:warns}; }\r\n  var hasCmd = typeof cfg.command === 'string' && cfg.command.length>0;\r\n  var hasUrl = typeof cfg.url === 'string' && cfg.url.length>0;\r\n  if(!hasCmd && !hasUrl) errs.push('必须提供 command（stdio）或 url（sse/http）');\r\n  if(hasCmd && hasUrl) warns.push('同时提供 command 与 url，客户端行为未定义');\r\n  if(cfg.args !== undefined && !Array.isArray(cfg.args)) errs.push('args 必须是数组');\r\n  if(cfg.env !== undefined && (typeof cfg.env!=='object' || Array.isArray(cfg.env))) errs.push('env 必须是对象');\r\n  if(hasUrl && !/^https?:\\/\\//.test(cfg.url)) errs.push('url 必须以 http:// 或 https:// 开头');\r\n  if(hasUrl && /^http:\\/\\//.test(cfg.url) && !/^http:\\/\\/(localhost|127\\.0\\.0\\.1)/.test(cfg.url))\r\n    warns.push('非本地地址建议使用 https，避免凭据明文传输');\r\n  if(cfg.env){\r\n    for(var k in cfg.env){\r\n      if(!cfg.env.hasOwnProperty(k)) continue;\r\n      var v=String(cfg.env[k]);\r\n      if(/^(gh[pousr]_|sk-|xox[baprs]-|AKIA)/.test(v)) warns.push('env.'+k+' 疑似硬编码真实密钥，建议改用 ${ENV_VAR} 占位');\r\n    }\r\n  }\r\n  return {valid: errs.length===0, errors:errs, warnings:warns};\r\n}\r\nfunction detectTransport(cfg){\r\n  if(!cfg || typeof cfg!=='object') return 'unknown';\r\n  if(typeof cfg.command === 'string' && cfg.command) return 'stdio';\r\n  if(typeof cfg.url === 'string' && /\\/sse\\b/.test(cfg.url)) return 'sse';\r\n  if(typeof cfg.url === 'string' && cfg.url) return 'http';\r\n  return 'unknown';\r\n}\r\nfunction buildConfig(servers){\r\n  var out={mcpServers:{}};\r\n  for(var i=0;i<servers.length;i++){\r\n    var s=servers[i];\r\n    if(!s || !s.name) continue;\r\n    var c={};\r\n    if(s.command){ c.command=s.command; if(s.args && s.args.length) c.args=s.args; }\r\n    else if(s.url){ c.url=s.url; }\r\n    if(s.env && Object.keys(s.env).length) c.env=s.env;\r\n    out.mcpServers[s.name]=c;\r\n  }\r\n  return out;\r\n}\r\nfunction parseArgs(str){\r\n  if(!str) return [];\r\n  var out=[], cur='', q=null;\r\n  for(var i=0;i<str.length;i++){\r\n    var ch=str.charAt(i);\r\n    if(q){ if(ch===q){ q=null; } else { cur+=ch; } }\r\n    else if(ch==='\"' || ch===\"'\"){ q=ch; }\r\n    else if(ch===' '){ if(cur){ out.push(cur); cur=''; } }\r\n    else { cur+=ch; }\r\n  }\r\n  if(cur) out.push(cur);\r\n  return out;\r\n}\r\nfunction parseEnv(str){\r\n  var out={};\r\n  if(!str) return out;\r\n  var lines=String(str).split(/\\r?\\n/);\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i].trim();\r\n    if(!ln || ln.charAt(0)==='#') continue;\r\n    var eq=ln.indexOf('=');\r\n    if(eq<1) continue;\r\n    out[ln.slice(0,eq).trim()]=ln.slice(eq+1).trim();\r\n  }\r\n  return out;\r\n}\r\nfunction auditConfig(obj){\r\n  var res={servers:[], totalErrors:0, totalWarnings:0};\r\n  if(!obj || typeof obj!=='object' || !obj.mcpServers){\r\n    return {servers:[], totalErrors:1, totalWarnings:0, fatal:'缺少顶层 mcpServers 字段'};\r\n  }\r\n  for(var name in obj.mcpServers){\r\n    if(!obj.mcpServers.hasOwnProperty(name)) continue;\r\n    var cfg=obj.mcpServers[name];\r\n    var v=validateServer(name, cfg);\r\n    res.servers.push({name:name, transport:detectTransport(cfg), valid:v.valid, errors:v.errors, warnings:v.warnings});\r\n    res.totalErrors += v.errors.length;\r\n    res.totalWarnings += v.warnings.length;\r\n  }\r\n  return res;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { validateServer:validateServer, detectTransport:detectTransport, buildConfig:buildConfig, parseArgs:parseArgs, parseEnv:parseEnv, auditConfig:auditConfig, TRANSPORTS:TRANSPORTS }; }\r\nif (typeof window !== 'undefined') { window.McpForgePure = { validateServer:validateServer, detectTransport:detectTransport, buildConfig:buildConfig, parseArgs:parseArgs, parseEnv:parseEnv, auditConfig:auditConfig, TRANSPORTS:TRANSPORTS }; }\r\n\r\n"
+}

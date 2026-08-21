@@ -1,0 +1,56 @@
+{
+  "id": "OutlierForge",
+  "name": "outlier_forge",
+  "title": "OutlierForge",
+  "description": "离群值检测：IQR 法（Q1−k·IQR, Q3+k·IQR）与 z-score 法（|z|>阈值），离线标注异常点。",
+  "entry": "detectIQR",
+  "entries": {
+    "detectIQR": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "arr",
+        "k"
+      ],
+      "fields": []
+    },
+    "detectZ": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "arr",
+        "zth"
+      ],
+      "fields": []
+    },
+    "mean": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "stdev": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "arr": {
+        "type": "string",
+        "description": "第 1 个参数（arr）"
+      },
+      "k": {
+        "type": "string",
+        "description": "第 2 个参数（k）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction mean(a){ return a.reduce(function(s,x){return s+x;},0)/a.length; }\r\nfunction stdev(a){ var m=mean(a); return Math.sqrt(a.reduce(function(s,x){return s+(x-m)*(x-m);},0)/(a.length-1)); }\r\nfunction quantileSorted(arr, q){ var n=arr.length; if(n===0) return NaN; var pos=(n-1)*q; var lo=Math.floor(pos), hi=Math.ceil(pos); if(lo===hi) return arr[lo]; return arr[lo]+(arr[hi]-arr[lo])*(pos-lo); }\r\nfunction detectIQR(arr, k){ k=(k==null)?1.5:k; var a=arr.slice().sort(function(x,y){return x-y;}); var q1=quantileSorted(a,0.25), q3=quantileSorted(a,0.75); var iqr=q3-q1; var lo=q1-k*iqr, hi=q3+k*iqr; return a.filter(function(v){return v<lo||v>hi;}); }\r\nfunction detectZ(arr, zth){ zth=(zth==null)?3:zth; var m=mean(arr), s=stdev(arr); if(s===0) return []; return arr.filter(function(v){return Math.abs((v-m)/s)>zth;}); }\r\nvar EXPORTS = { detectIQR:detectIQR, detectZ:detectZ, mean:mean, stdev:stdev };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.OutlierForgePure = EXPORTS; }\r\n\r\n"
+}

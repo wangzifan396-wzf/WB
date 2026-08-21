@@ -1,0 +1,29 @@
+{
+  "id": "TimeBlockForge",
+  "name": "time_block_forge",
+  "title": "时间块",
+  "description": "解析每日时间块并汇总时长，离线。",
+  "entry": "parseBlocks",
+  "entries": {
+    "parseBlocks": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseBlocks(text){\r\n  text=String(text||'');\r\n  var lines=text.split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});\r\n  var blocks=[], errors=[], total=0;\r\n  for(var i=0;i<lines.length;i++){\r\n    var m=lines[i].match(/^(\\d{1,2}:\\d{2})\\s*[-–]\\s*(\\d{1,2}:\\d{2})\\s*(.*)$/);\r\n    if(!m){ errors.push('第 '+(i+1)+' 行格式应为 09:00-10:00 标签'); continue; }\r\n    var h1=+m[1].split(':')[0], mi1=+m[1].split(':')[1], h2=+m[2].split(':')[0], mi2=+m[2].split(':')[1];\r\n    if(h2*60+mi2 <= h1*60+mi1){ errors.push('第 '+(i+1)+' 行结束须晚于开始'); continue; }\r\n    var min=(h2*60+mi2)-(h1*60+mi1);\r\n    blocks.push({start:m[1], end:m[2], label:m[3]||('块'+(blocks.length+1)), minutes:min});\r\n    total+=min;\r\n  }\r\n  return {blocks:blocks, errors:errors, totalMinutes:total, totalHours:Math.round(total/6)/10};\r\n}\r\nvar EXPORTS={parseBlocks:parseBlocks};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TimeBlockForgePure = EXPORTS; }\r\n\r\n"
+}

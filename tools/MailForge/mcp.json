@@ -1,0 +1,43 @@
+{
+  "id": "MailForge",
+  "name": "mail_forge",
+  "title": "MailForge",
+  "description": "邮箱语法校验、解析与角色识别。",
+  "entry": "validate",
+  "entries": {
+    "validate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "email"
+      ],
+      "fields": []
+    },
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "email"
+      ],
+      "fields": []
+    },
+    "role": {
+      "paramStyle": "single",
+      "paramNames": [
+        "email"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "email": {
+        "type": "string",
+        "description": "输入（email）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar MAIL_ROLE=['admin','administrator','info','support','sales','billing','noreply','no-reply','hello','contact','help','postmaster','abuse','root','webmaster','office','team','mail','newsletter','marketing'];\r\nfunction mailValidate(email){\r\n  if(typeof email!=='string') return {valid:false, error:'not string'};\r\n  email=email.trim();\r\n  if(email.length===0) return {valid:false, error:'empty'};\r\n  if(email.length>254) return {valid:false, error:'too long'};\r\n  var at=email.lastIndexOf('@');\r\n  if(at<1 || at===email.length-1) return {valid:false, error:'missing @'};\r\n  var local=email.slice(0,at), domain=email.slice(at+1);\r\n  if(local.length>64) return {valid:false, error:'local too long'};\r\n  if(!/^[A-Za-z0-9.!#$%&'*+\\/=?^_`{|}~-]+$/.test(local)) return {valid:false, error:'local invalid chars'};\r\n  if(!/^[A-Za-z0-9.-]+$/.test(domain)) return {valid:false, error:'domain invalid chars'};\r\n  if(domain.indexOf('..')>=0) return {valid:false, error:'domain has ..'};\r\n  if(domain.indexOf('.')<0) return {valid:false, error:'domain missing dot'};\r\n  var tld=domain.split('.').pop();\r\n  if(tld.length<2) return {valid:false, error:'tld too short'};\r\n  return {valid:true, local:local, domain:domain, tld:tld, error:null};\r\n}\r\nfunction mailParse(email){\r\n  var r=mailValidate(email);\r\n  if(!r.valid) return {valid:false, error:r.error};\r\n  var plus=r.local.indexOf('+');\r\n  var tag = plus>=0 ? r.local.slice(plus+1) : null;\r\n  var baseLocal = plus>=0 ? r.local.slice(0,plus) : r.local;\r\n  return {valid:true, local:r.local, baseLocal:baseLocal, tag:tag, domain:r.domain, tld:r.tld, isTagged: tag!==null, error:null};\r\n}\r\nfunction mailRole(email){\r\n  var r=mailValidate(email);\r\n  if(!r.valid) return {valid:false, error:r.error, role:null, type:null};\r\n  var local=r.local.toLowerCase();\r\n  if(MAIL_ROLE.indexOf(local)>=0) return {valid:true, role:true, type:'role', local:local};\r\n  if(local.indexOf('no')===0 && /reply/.test(local)) return {valid:true, role:true, type:'role', local:local};\r\n  return {valid:true, role:false, type:'personal', local:local};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { validate:mailValidate, parse:mailParse, role:mailRole };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MailForgePure = { validate:mailValidate, parse:mailParse, role:mailRole };\r\n}\r\n"
+}

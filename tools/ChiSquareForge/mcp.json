@@ -1,0 +1,44 @@
+{
+  "id": "ChiSquareForge",
+  "name": "chi_square_forge",
+  "title": "ChiSquareForge",
+  "description": "卡方独立性检验：由列联表计算 χ² 统计量、自由度与 p 值（正则不完全 Gamma 函数），离线精确。",
+  "entry": "logGamma",
+  "entries": {
+    "logGamma": {
+      "paramStyle": "single",
+      "paramNames": [
+        "z"
+      ],
+      "fields": []
+    },
+    "chiP": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "df",
+        "x"
+      ],
+      "fields": []
+    },
+    "chiStat": {
+      "paramStyle": "single",
+      "paramNames": [
+        "table"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "z": {
+        "type": "string",
+        "description": "输入（z）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction logGamma(z){\r\n  var g=7; var c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];\r\n  if(z<0.5){ return Math.log(Math.PI/Math.sin(Math.PI*z)) - logGamma(1-z); }\r\n  z-=1; var x=0.99999999999980993;\r\n  for(var i=0;i<g;i++) x+=c[i+1]/(z+i+1);\r\n  var t=z+g+0.5;\r\n  return 0.5*Math.log(2*Math.PI)+(z+0.5)*Math.log(t)-t+Math.log(x);\r\n}\r\nfunction gser(a,x){ var ITMAX=200,EPS=1e-10; var gln=logGamma(a); if(x<=0)return 0;\r\n  var ap=a,sum=1/a,del=sum; for(var n=0;n<ITMAX;n++){ ap++; del*=x/ap; sum+=del; if(Math.abs(del)<Math.abs(sum)*EPS)break; }\r\n  return sum*Math.exp(-x+a*Math.log(x)-gln); }\r\nfunction gcf(a,x){ var ITMAX=200,EPS=1e-10,FPMIN=1e-300; var gln=logGamma(a);\r\n  var b=x+1-a,c=1/FPMIN,d=1/b,h=d; for(var i=1;i<=ITMAX;i++){ var an=-i*(i-a); b+=2; d=an*d+b; if(Math.abs(d)<FPMIN)d=FPMIN; c=b+an/c; if(Math.abs(c)<FPMIN)c=FPMIN; d=1/d; var del=d*c; h*=del; if(Math.abs(del-1)<EPS)break; }\r\n  return Math.exp(-x+a*Math.log(x)-gln)*h; }\r\nfunction gammq(a,x){ if(x<0||a<=0)return NaN; if(x<a+1) return 1-gser(a,x); return gcf(a,x); }\r\nfunction chiP(df,x){ return gammq(df/2,x/2); }\r\nfunction chiStat(table){\r\n  var r=table.length,c=table[0].length,row=[],col=[],tot=0;\r\n  for(var i=0;i<r;i++){row[i]=0;for(var j=0;j<c;j++){row[i]+=table[i][j];tot+=table[i][j];}}\r\n  for(var j=0;j<c;j++){col[j]=0;for(var i=0;i<r;i++)col[j]+=table[i][j];}\r\n  var chi=0;\r\n  for(var i=0;i<r;i++)for(var j=0;j<c;j++){var E=row[i]*col[j]/tot; if(E>0)chi+=(table[i][j]-E)*(table[i][j]-E)/E;}\r\n  var df=(r-1)*(c-1);\r\n  return {stat:chi,df:df,p:chiP(df,chi)};\r\n}\r\nvar EXPORTS={logGamma:logGamma,chiP:chiP,chiStat:chiStat};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ChiSquareForgePure = EXPORTS; }\r\n\r\n"
+}

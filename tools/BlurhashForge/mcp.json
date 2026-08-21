@@ -1,0 +1,161 @@
+{
+  "id": "BlurhashForge",
+  "name": "blurhash_forge",
+  "title": "BlurhashForge",
+  "description": "BlurHash 编解码：base83 与 DCT 分量还原、Canvas 实时预览、渐变编码生成与 CSS 占位图导出，离线可用。",
+  "entry": "decode83",
+  "entries": {
+    "decode83": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "encode83": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "value",
+        "length"
+      ],
+      "fields": []
+    },
+    "srgbToLinear": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "linearToSrgb": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "signPow": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "val",
+        "exp"
+      ],
+      "fields": []
+    },
+    "parseHash": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hash"
+      ],
+      "fields": []
+    },
+    "decodeDC": {
+      "paramStyle": "single",
+      "paramNames": [
+        "value"
+      ],
+      "fields": []
+    },
+    "decodeAC": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "value",
+        "maximumValue"
+      ],
+      "fields": []
+    },
+    "encodeDC": {
+      "paramStyle": "single",
+      "paramNames": [
+        "v"
+      ],
+      "fields": []
+    },
+    "encodeAC": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "maximumValue"
+      ],
+      "fields": []
+    },
+    "averageColor": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hash"
+      ],
+      "fields": []
+    },
+    "decodeBlurhash": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "hash",
+        "width",
+        "height",
+        "punch"
+      ],
+      "fields": []
+    },
+    "multiplyBasis": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pixels",
+        "width",
+        "height",
+        "i",
+        "j"
+      ],
+      "fields": []
+    },
+    "encodeBlurhash": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pixels",
+        "width",
+        "height",
+        "compX",
+        "compY"
+      ],
+      "fields": []
+    },
+    "solidPixels": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "width",
+        "height",
+        "r",
+        "g",
+        "b"
+      ],
+      "fields": []
+    },
+    "toCssGradient": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "hash",
+        "grid"
+      ],
+      "fields": []
+    },
+    "hashCost": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hash"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar BASE83 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~';\r\nfunction decode83(str){\r\n  var v=0, s=String(str);\r\n  for(var i=0;i<s.length;i++){\r\n    var d=BASE83.indexOf(s.charAt(i));\r\n    if(d<0) return -1;\r\n    v = v*83 + d;\r\n  }\r\n  return v;\r\n}\r\nfunction encode83(value, length){\r\n  var out='', v=Math.floor(value);\r\n  for(var i=1;i<=length;i++){\r\n    var digit = Math.floor(v / Math.pow(83, length-i)) % 83;\r\n    out += BASE83.charAt(digit);\r\n  }\r\n  return out;\r\n}\r\nfunction srgbToLinear(v){\r\n  var x = v/255;\r\n  return x<=0.04045 ? x/12.92 : Math.pow((x+0.055)/1.055, 2.4);\r\n}\r\nfunction linearToSrgb(v){\r\n  var x = Math.max(0, Math.min(1, v));\r\n  return x<=0.0031308 ? Math.trunc(x*12.92*255+0.5) : Math.trunc((1.055*Math.pow(x, 1/2.4)-0.055)*255+0.5);\r\n}\r\nfunction signPow(val, exp){ return (val<0?-1:1) * Math.pow(Math.abs(val), exp); }\r\nfunction parseHash(hash){\r\n  var h = String(hash||'').trim();\r\n  if(h.length < 6) return {valid:false, error:'BlurHash 至少 6 个字符', length:h.length};\r\n  for(var i=0;i<h.length;i++){\r\n    if(BASE83.indexOf(h.charAt(i))<0) return {valid:false, error:'含非 base83 字符: '+h.charAt(i), length:h.length};\r\n  }\r\n  var sizeFlag = decode83(h.charAt(0));\r\n  var numY = Math.floor(sizeFlag/9)+1;\r\n  var numX = (sizeFlag%9)+1;\r\n  var expected = 4 + 2*numX*numY;\r\n  if(h.length !== expected) return {valid:false, error:'长度应为 '+expected+'，实际 '+h.length, componentX:numX, componentY:numY, length:h.length};\r\n  return {valid:true, error:null, componentX:numX, componentY:numY, length:h.length, sizeFlag:sizeFlag, hash:h};\r\n}\r\nfunction decodeDC(value){\r\n  var r = value>>16, g = (value>>8)&255, b = value&255;\r\n  return [srgbToLinear(r), srgbToLinear(g), srgbToLinear(b)];\r\n}\r\nfunction decodeAC(value, maximumValue){\r\n  var quantR = Math.floor(value/(19*19));\r\n  var quantG = Math.floor(value/19)%19;\r\n  var quantB = value%19;\r\n  return [\r\n    signPow((quantR-9)/9, 2)*maximumValue,\r\n    signPow((quantG-9)/9, 2)*maximumValue,\r\n    signPow((quantB-9)/9, 2)*maximumValue\r\n  ];\r\n}\r\nfunction encodeDC(v){\r\n  return (linearToSrgb(v[0])<<16) + (linearToSrgb(v[1])<<8) + linearToSrgb(v[2]);\r\n}\r\nfunction encodeAC(v, maximumValue){\r\n  function q(x){ return Math.max(0, Math.min(18, Math.floor(signPow(x/maximumValue, 0.5)*9+9.5))); }\r\n  return q(v[0])*19*19 + q(v[1])*19 + q(v[2]);\r\n}\r\nfunction averageColor(hash){\r\n  var p=parseHash(hash);\r\n  if(!p.valid) return {error:p.error, hex:null};\r\n  var value = decode83(p.hash.substring(2,6));\r\n  var r = value>>16, g=(value>>8)&255, b=value&255;\r\n  function hx(n){ return ('0'+n.toString(16)).slice(-2); }\r\n  return {r:r, g:g, b:b, hex:'#'+hx(r)+hx(g)+hx(b), error:null};\r\n}\r\nfunction decodeBlurhash(hash, width, height, punch){\r\n  var p=parseHash(hash);\r\n  if(!p.valid) return {error:p.error, pixels:null};\r\n  var w = Math.max(1, Math.floor(width||32)), hgt = Math.max(1, Math.floor(height||32));\r\n  var pu = punch===undefined ? 1 : punch;\r\n  var numX=p.componentX, numY=p.componentY, h=p.hash;\r\n  var quantMax = decode83(h.charAt(1));\r\n  var maximumValue = (quantMax+1)/166;\r\n  var colors = new Array(numX*numY);\r\n  colors[0] = decodeDC(decode83(h.substring(2,6)));\r\n  for(var i=1;i<numX*numY;i++){\r\n    colors[i] = decodeAC(decode83(h.substring(4+i*2, 6+i*2)), maximumValue*pu);\r\n  }\r\n  var bpr = w*4, pixels = new Array(bpr*hgt);\r\n  for(var y=0;y<hgt;y++){\r\n    for(var x=0;x<w;x++){\r\n      var r=0,g=0,b=0;\r\n      for(var j=0;j<numY;j++){\r\n        for(var ii=0;ii<numX;ii++){\r\n          var basis = Math.cos(Math.PI*x*ii/w) * Math.cos(Math.PI*y*j/hgt);\r\n          var c = colors[ii + j*numX];\r\n          r += c[0]*basis; g += c[1]*basis; b += c[2]*basis;\r\n        }\r\n      }\r\n      var idx = 4*x + y*bpr;\r\n      pixels[idx]=linearToSrgb(r); pixels[idx+1]=linearToSrgb(g); pixels[idx+2]=linearToSrgb(b); pixels[idx+3]=255;\r\n    }\r\n  }\r\n  return {pixels:pixels, width:w, height:hgt, componentX:numX, componentY:numY, error:null};\r\n}\r\nfunction multiplyBasis(pixels, width, height, i, j){\r\n  var r=0,g=0,b=0, norm = (i===0 && j===0) ? 1 : 2, bpr = width*4;\r\n  for(var x=0;x<width;x++){\r\n    for(var y=0;y<height;y++){\r\n      var basis = norm * Math.cos(Math.PI*i*x/width) * Math.cos(Math.PI*j*y/height);\r\n      var idx = 4*x + y*bpr;\r\n      r += basis * srgbToLinear(pixels[idx]);\r\n      g += basis * srgbToLinear(pixels[idx+1]);\r\n      b += basis * srgbToLinear(pixels[idx+2]);\r\n    }\r\n  }\r\n  var scale = 1/(width*height);\r\n  return [r*scale, g*scale, b*scale];\r\n}\r\nfunction encodeBlurhash(pixels, width, height, compX, compY){\r\n  var cx = Math.max(1, Math.min(9, Math.floor(compX||4)));\r\n  var cy = Math.max(1, Math.min(9, Math.floor(compY||3)));\r\n  if(!pixels || pixels.length !== width*height*4) return {hash:null, error:'像素数组长度应为 width*height*4'};\r\n  var factors=[];\r\n  for(var j=0;j<cy;j++){\r\n    for(var i=0;i<cx;i++){\r\n      factors.push(multiplyBasis(pixels, width, height, i, j));\r\n    }\r\n  }\r\n  var dc = factors[0], ac = factors.slice(1);\r\n  var hash = encode83((cx-1)+(cy-1)*9, 1);\r\n  var maximumValue, quantMax;\r\n  if(ac.length){\r\n    var actualMax = 0;\r\n    for(var k=0;k<ac.length;k++){\r\n      for(var c=0;c<3;c++) actualMax = Math.max(Math.abs(ac[k][c]), actualMax);\r\n    }\r\n    quantMax = Math.max(0, Math.min(82, Math.floor(actualMax*166-0.5)));\r\n    maximumValue = (quantMax+1)/166;\r\n  } else { quantMax = 0; maximumValue = 1; }\r\n  hash += encode83(quantMax, 1);\r\n  hash += encode83(encodeDC(dc), 4);\r\n  for(var m=0;m<ac.length;m++) hash += encode83(encodeAC(ac[m], maximumValue), 2);\r\n  return {hash:hash, error:null, componentX:cx, componentY:cy};\r\n}\r\nfunction solidPixels(width, height, r, g, b){\r\n  var out=new Array(width*height*4);\r\n  for(var i=0;i<width*height;i++){\r\n    out[i*4]=r; out[i*4+1]=g; out[i*4+2]=b; out[i*4+3]=255;\r\n  }\r\n  return out;\r\n}\r\nfunction toCssGradient(hash, grid){\r\n  var n = Math.max(2, Math.min(6, Math.floor(grid||3)));\r\n  var d = decodeBlurhash(hash, n, n, 1);\r\n  if(d.error) return {css:null, error:d.error};\r\n  var parts=[];\r\n  for(var y=0;y<n;y++){\r\n    for(var x=0;x<n;x++){\r\n      var i=4*x + y*n*4;\r\n      var px = Math.round(x/(n-1)*100), py = Math.round(y/(n-1)*100);\r\n      parts.push('radial-gradient(at '+px+'% '+py+'%, rgba('+d.pixels[i]+','+d.pixels[i+1]+','+d.pixels[i+2]+',1) 0px, transparent 55%)');\r\n    }\r\n  }\r\n  var avg = averageColor(hash);\r\n  return {css:'background-color: '+avg.hex+';\\nbackground-image: '+parts.join(',\\n  ')+';', error:null, layers:parts.length};\r\n}\r\nfunction hashCost(hash){\r\n  var p=parseHash(hash);\r\n  if(!p.valid) return {bytes:0, error:p.error};\r\n  var bytes = p.length;\r\n  return {\r\n    bytes: bytes,\r\n    components: p.componentX*p.componentY,\r\n    vsBase64Jpeg: Math.round(2400/bytes),\r\n    note: bytes+' 字节即可内联进 HTML/JSON，约为最小 base64 JPEG 占位图的 1/'+Math.round(2400/bytes)\r\n  };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { BASE83:BASE83, decode83:decode83, encode83:encode83, srgbToLinear:srgbToLinear, linearToSrgb:linearToSrgb, signPow:signPow, parseHash:parseHash, decodeDC:decodeDC, decodeAC:decodeAC, encodeDC:encodeDC, encodeAC:encodeAC, averageColor:averageColor, decodeBlurhash:decodeBlurhash, multiplyBasis:multiplyBasis, encodeBlurhash:encodeBlurhash, solidPixels:solidPixels, toCssGradient:toCssGradient, hashCost:hashCost }; }\r\nif (typeof window !== 'undefined') { window.BlurhashForgePure = { BASE83:BASE83, decode83:decode83, encode83:encode83, srgbToLinear:srgbToLinear, linearToSrgb:linearToSrgb, signPow:signPow, parseHash:parseHash, decodeDC:decodeDC, decodeAC:decodeAC, encodeDC:encodeDC, encodeAC:encodeAC, averageColor:averageColor, decodeBlurhash:decodeBlurhash, multiplyBasis:multiplyBasis, encodeBlurhash:encodeBlurhash, solidPixels:solidPixels, toCssGradient:toCssGradient, hashCost:hashCost }; }\r\n\r\n"
+}

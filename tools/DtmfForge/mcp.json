@@ -1,0 +1,66 @@
+{
+  "id": "DtmfForge",
+  "name": "dtmf_forge",
+  "title": "DtmfForge",
+  "description": "DTMF 双音多频工作台：把按键编码成低频+高频双音，反向按频率识别按下的键，含 4×4 键盘可视化与带容差的频率检测。理解电话拨号音、调试音频拨号识别，零依赖、离线可用。",
+  "entry": "encode",
+  "entries": {
+    "encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "encodeChar": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ch"
+      ],
+      "fields": []
+    },
+    "decode": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "low",
+        "high"
+      ],
+      "fields": []
+    },
+    "detect": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "lowHz",
+        "highHz",
+        "tolPct"
+      ],
+      "fields": []
+    },
+    "keypad": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "nearest": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "set",
+        "f"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  var LOW=[697,770,852,941];\r\n  var HIGH=[1209,1336,1477,1633];\r\n  var KEYS=[\r\n    ['1','2','3','A'],\r\n    ['4','5','6','B'],\r\n    ['7','8','9','C'],\r\n    ['*','0','#','D']\r\n  ];\r\n  function encodeChar(ch){\r\n    ch=String(ch).toUpperCase();\r\n    for(var r=0;r<4;r++) for(var c=0;c<4;c++) if(KEYS[r][c]===ch)\r\n      return {key:ch, low:LOW[r], high:HIGH[c]};\r\n    return null;\r\n  }\r\n  function encode(str){\r\n    if(str==null) return {value:null,error:'输入为空'};\r\n    str=String(str);\r\n    var arr=[];\r\n    for(var i=0;i<str.length;i++){\r\n      var e=encodeChar(str[i]);\r\n      if(!e) return {value:null,error:'非法字符：'+str[i]+'（仅支持 0-9 * # A-D）'};\r\n      arr.push(e);\r\n    }\r\n    return {value:arr, error:''};\r\n  }\r\n  function decode(low,high){\r\n    var r=LOW.indexOf(low), c=HIGH.indexOf(high);\r\n    if(r<0||c<0) return {value:null,error:'频率不在 DTMF 标准集内'};\r\n    return {value:{key:KEYS[r][c], low:low, high:high}, error:''};\r\n  }\r\n  function nearest(set,f){\r\n    var bi=-1, bd=1e9;\r\n    for(var i=0;i<set.length;i++){ var d=Math.abs(set[i]-f); if(d<bd){bd=d;bi=i;} }\r\n    return {idx:bi, dist:bd};\r\n  }\r\n  function detect(lowHz, highHz, tolPct){\r\n    tolPct=(tolPct==null)?1.5:tolPct;\r\n    var ln=nearest(LOW, lowHz), hn=nearest(HIGH, highHz);\r\n    if(ln.idx<0||hn.idx<0) return {value:null,error:'频率超出范围'};\r\n    if(ln.dist > LOW[ln.idx]*tolPct/100) return {value:null,error:'低频 '+lowHz+' Hz 偏离 '+LOW[ln.idx]+' 超出容差'};\r\n    if(hn.dist > HIGH[hn.idx]*tolPct/100) return {value:null,error:'高频 '+highHz+' Hz 偏离 '+HIGH[hn.idx]+' 超出容差'};\r\n    return {value:{key:KEYS[ln.idx][hn.idx], low:LOW[ln.idx], high:HIGH[hn.idx]}, error:''};\r\n  }\r\n  function keypad(){\r\n    var rows=[];\r\n    for(var r=0;r<4;r++){\r\n      var row=[];\r\n      for(var c=0;c<4;c++) row.push({key:KEYS[r][c], low:LOW[r], high:HIGH[c]});\r\n      rows.push(row);\r\n    }\r\n    return {low:LOW, high:HIGH, rows:rows};\r\n  }\r\n  var API={LOW:LOW,HIGH:HIGH,KEYS:KEYS,encode:encode,encodeChar:encodeChar,\r\n           decode:decode,detect:detect,keypad:keypad,nearest:nearest};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__DtmfForge__=API;\r\n})();\r\n\r\n"
+}

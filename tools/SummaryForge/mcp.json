@@ -1,0 +1,34 @@
+{
+  "id": "SummaryForge",
+  "name": "summary_forge",
+  "title": "文本摘要",
+  "description": "按词频评分抽取最重要句子生成摘要，离线。",
+  "entry": "summarize",
+  "entries": {
+    "summarize": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "ratio"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "ratio": {
+        "type": "string",
+        "description": "第 2 个参数（ratio）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction summarize(text, ratio){\r\n  text=String(text||'').trim();\r\n  if(!text) return {error:'请输入文本'};\r\n  ratio=(+ratio); if(isNaN(ratio)||ratio<=0)ratio=0.3; if(ratio>1)ratio=1;\r\n  var sents=text.split(/[。．！？!?.；;\\n]+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});\r\n  if(sents.length<=1) return {summary:text, count:sents.length, ratio:ratio};\r\n  var freq={};\r\n  text.replace(/[a-zA-Z]+/g,function(w){w=w.toLowerCase();freq[w]=(freq[w]||0)+1;return w;});\r\n  for(var i=0;i<text.length;i++){var ch=text[i]; if(/[一-鿿]/.test(ch)){freq[ch]=(freq[ch]||0)+1;}}\r\n  function score(s){var sc=0; s.replace(/[a-zA-Z]+/g,function(w){sc+=(freq[w.toLowerCase()]||0);return w;}); for(var i=0;i<s.length;i++){var ch=s[i]; if(/[一-鿿]/.test(ch))sc+=(freq[ch]||0);} return sc;}\r\n  var ranked=sents.map(function(s,i){return {s:s,sc:score(s),i:i};});\r\n  ranked.sort(function(a,b){return b.sc-a.sc;});\r\n  var k=Math.max(1,Math.round(sents.length*ratio));\r\n  var top=ranked.slice(0,k).sort(function(a,b){return a.i-b.i;});\r\n  return {summary:top.map(function(t){return t.s;}).join(' '), count:k, ratio:ratio, total:sents.length};\r\n}\r\nvar EXPORTS={summarize:summarize};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SummaryForgePure = EXPORTS; }\r\n\r\n"
+}

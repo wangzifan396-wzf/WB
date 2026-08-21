@@ -1,0 +1,43 @@
+{
+  "id": "EntropyForge",
+  "name": "entropy_forge",
+  "title": "EntropyForge",
+  "description": "按字符池与长度估算密码熵（bits）并给出强度评级。",
+  "entry": "charset",
+  "entries": {
+    "charset": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pw"
+      ],
+      "fields": []
+    },
+    "poolSize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pw"
+      ],
+      "fields": []
+    },
+    "estimate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pw"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pw": {
+        "type": "string",
+        "description": "输入（pw）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar SYM=\"!@#$%^&*()_+-=[]{}|;:,.<>?/`~\\\"'\\\\\";\r\nfunction charset(pw){\r\n  var set=0;\r\n  if(/[a-z]/.test(pw)) set++;\r\n  if(/[A-Z]/.test(pw)) set++;\r\n  if(/[0-9]/.test(pw)) set++;\r\n  if(/[^A-Za-z0-9]/.test(pw)) set++;\r\n  return set;\r\n}\r\nfunction poolSize(pw){ var n=0; if(/[a-z]/.test(pw))n+=26; if(/[A-Z]/.test(pw))n+=26; if(/[0-9]/.test(pw))n+=10; if(/[^A-Za-z0-9]/.test(pw))n+=SYM.length; return n; }\r\nfunction estimate(pw){\r\n  if(!pw) return {length:0,pool:0,entropy:0,rating:'—'};\r\n  var n=poolSize(pw), L=pw.length;\r\n  var bits=Math.round(L*Math.log2(n)*10)/10;\r\n  var rating = bits<28?'极弱':bits<40?'弱':bits<60?'中等':bits<80?'强':'极强';\r\n  return {length:L,pool:n,entropy:bits,rating:rating};\r\n}\r\nvar EXPORTS={charset:charset,poolSize:poolSize,estimate:estimate,SYM:SYM};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EntropyForgePure = EXPORTS; }\r\n\r\n"
+}

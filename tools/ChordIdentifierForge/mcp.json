@@ -1,0 +1,36 @@
+{
+  "id": "ChordIdentifierForge",
+  "name": "chord_identifier_forge",
+  "title": "ChordIdentifierForge",
+  "description": "输入一组音名识别根音与和弦性质（大/小/属七/大七/挂留/增减等），支持转位。",
+  "entry": "toPC",
+  "entries": {
+    "toPC": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "identify": {
+      "paramStyle": "single",
+      "paramNames": [
+        "notes"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "输入（n）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};\r\nvar NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];\r\nvar CHORDS = [\r\n  {q:'major',      i:[0,4,7]},\r\n  {q:'minor',      i:[0,3,7]},\r\n  {q:'diminished', i:[0,3,6]},\r\n  {q:'augmented',  i:[0,4,8]},\r\n  {q:'sus2',       i:[0,2,7]},\r\n  {q:'sus4',       i:[0,5,7]},\r\n  {q:'maj7',       i:[0,4,7,11]},\r\n  {q:'7',          i:[0,4,7,10]},\r\n  {q:'min7',       i:[0,3,7,10]},\r\n  {q:'maj6',       i:[0,4,7,9]},\r\n  {q:'min6',       i:[0,3,7,9]},\r\n  {q:'dim7',       i:[0,3,6,9]},\r\n  {q:'m7b5',       i:[0,3,6,10]},\r\n  {q:'add9',       i:[0,4,7,2]}\r\n];\r\nfunction toPC(n){ return PC[String(n).charAt(0).toUpperCase()+String(n).slice(1)]; }\r\nfunction identify(notes){\r\n  var pcs=notes.map(toPC).filter(function(x){return x!==undefined;});\r\n  if(pcs.length<2) return {root:null, quality:null, name:null};\r\n  var set=Array.from(new Set(pcs)).sort(function(a,b){return a-b;});\r\n  for(var r=0;r<12;r++){\r\n    var tr=set.map(function(p){ return ((p-r)%12+12)%12; }).sort(function(a,b){return a-b;});\r\n    for(var c=0;c<CHORDS.length;c++){\r\n      var ci=CHORDS[c].i;\r\n      if(tr.length===ci.length && tr.every(function(v,k){return v===ci[k];})){\r\n        return {root:NAMES[r], quality:CHORDS[c].q, name:NAMES[r]+CHORDS[c].q};\r\n      }\r\n    }\r\n  }\r\n  return {root:null, quality:null, name:null};\r\n}\r\nvar EXPORTS={ PC:PC, CHORDS:CHORDS, toPC:toPC, identify:identify };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ChordIdentifierForgePure = EXPORTS; }\r\n\r\n"
+}

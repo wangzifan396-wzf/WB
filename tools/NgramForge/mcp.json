@@ -1,0 +1,49 @@
+{
+  "id": "NgramForge",
+  "name": "ngram_forge",
+  "title": "NgramForge",
+  "description": "从文本训练 n-gram 并预测下一个词，离线。",
+  "entry": "build",
+  "entries": {
+    "tokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "build": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "n"
+      ],
+      "fields": []
+    },
+    "predict": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "model",
+        "prefix"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "n": {
+        "type": "number",
+        "description": "第 2 个参数（n）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction tokenize(s){ return String(s).toLowerCase().match(/[a-z0-9]+/g)||[]; }\r\nfunction build(text, n){ n=n||2; var toks=tokenize(text); var counts={};\r\n  if(toks.length<n) return {n:n,counts:counts,order:[]};\r\n  for(var i=0;i+n<=toks.length;i++){ var pre=toks.slice(i,i+n-1).join(' '); var nx=toks[i+n-1];\r\n    if(!counts[pre]) counts[pre]={total:0,next:{}}; counts[pre].total++; counts[pre].next[nx]=(counts[pre].next[nx]||0)+1; }\r\n  return {n:n,counts:counts};\r\n}\r\nfunction predict(model, prefix){ var e=model.counts[prefix]; if(!e) return []; var out=[];\r\n  for(var k in e.next){ out.push({word:k, p:e.next[k]/e.total}); } out.sort(function(a,b){return b.p-a.p;}); return out; }\r\nvar EXPORTS={tokenize:tokenize,build:build,predict:predict};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.NgramForgePure = EXPORTS; }\r\n\r\n"
+}

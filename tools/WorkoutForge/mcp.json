@@ -1,0 +1,75 @@
+{
+  "id": "WorkoutForge",
+  "name": "workout_forge",
+  "title": "训练计划生成",
+  "description": "按目标 / 天数 / 经验 / 器械生成一周分化训练计划，离线。",
+  "entry": "buildPlan",
+  "entries": {
+    "splitLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "t"
+      ],
+      "fields": []
+    },
+    "buildPlan": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "goal",
+        "days",
+        "level",
+        "equip"
+      ]
+    },
+    "splitOf": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "days",
+        "level"
+      ],
+      "fields": []
+    },
+    "repScheme": {
+      "paramStyle": "single",
+      "paramNames": [
+        "goal"
+      ],
+      "fields": []
+    },
+    "normalizeEquip": {
+      "paramStyle": "single",
+      "paramNames": [
+        "e"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "goal": {
+        "type": "string",
+        "description": "参数 goal"
+      },
+      "days": {
+        "type": "string",
+        "description": "参数 days"
+      },
+      "level": {
+        "type": "string",
+        "description": "参数 level"
+      },
+      "equip": {
+        "type": "string",
+        "description": "参数 equip"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitLines(t){ return String(t||'').split(/\\n+/).map(function(s){return s.trim();}).filter(function(s){return s.length;}); }\r\nvar LIB = {\r\n  '全身': { '徒手':['徒手深蹲','俯卧撑','平板支撑','波比跳'], '哑铃':['哑铃高脚杯深蹲','哑铃推举','哑铃划船','哑铃箭步蹲'], '健身房':['杠铃深蹲','杠铃推举','器械划船','动感单车'] },\r\n  '推':   { '徒手':['俯卧撑','钻石俯卧撑','派克俯卧撑'], '哑铃':['哑铃卧推','哑铃肩上推举','哑铃飞鸟'], '健身房':['杠铃卧推','坐姿推肩','绳索下压'] },\r\n  '拉':   { '徒手':['引体向上','反向划船','毛巾划船'], '哑铃':['哑铃划船','哑铃弯举','哑铃耸肩'], '健身房':['高位下拉','杠铃划船','硬拉'] },\r\n  '腿':   { '徒手':['徒手深蹲','弓步蹲','保加利亚分腿蹲'], '哑铃':['哑铃深蹲','哑铃箭步蹲','哑铃罗马尼亚硬拉'], '健身房':['杠铃深蹲','腿举','腿弯举'] },\r\n  '核心': { '徒手':['平板支撑','卷腹','俄罗斯转体'], '哑铃':['哑铃侧平举','哑铃农夫行走','哑铃卷腹'], '健身房':['绳索卷腹','悬垂举腿','龙门架转体'] },\r\n  '胸':   { '徒手':['俯卧撑','宽距俯卧撑'], '哑铃':['哑铃卧推','哑铃上斜推'], '健身房':['杠铃卧推','上斜推胸'] },\r\n  '背':   { '徒手':['引体向上','反向划船'], '哑铃':['哑铃划船','哑铃硬拉'], '健身房':['杠铃划船','高位下拉'] },\r\n  '肩':   { '徒手':['派克俯卧撑','靠墙倒立'], '哑铃':['哑铃肩上推举','哑铃侧平举'], '健身房':['坐姿推肩','绳索面拉'] }\r\n};\r\nfunction normalizeEquip(e){ e=String(e||'徒手'); if(e.indexOf('健身')>=0) return '健身房'; if(e.indexOf('哑铃')>=0) return '哑铃'; return '徒手'; }\r\nfunction splitOf(days, level){\r\n  days=parseInt(days,10)||3; level=String(level||'');\r\n  if(days<=3){ if(level.indexOf('初')>=0) return ['全身','全身','全身']; return ['推','拉','腿']; }\r\n  if(days===4) return ['推','拉','腿','核心'];\r\n  if(days===5) return ['胸','背','腿','肩','核心'];\r\n  return ['推','拉','腿','推','拉','腿'];\r\n}\r\nfunction repScheme(goal){\r\n  goal=String(goal||'维持');\r\n  if(goal.indexOf('增肌')>=0) return '3-4 组 × 8-12 次';\r\n  if(goal.indexOf('减脂')>=0) return '3 组 × 12-15 次（组间短时休息，配合有氧）';\r\n  return '3 组 × 10-12 次';\r\n}\r\nfunction buildPlan(o){\r\n  o=o||{};\r\n  var goal=String(o.goal||'维持').trim()||'维持';\r\n  var days=parseInt(o.days,10)||3; if(days<3)days=3; if(days>6)days=6;\r\n  var level=String(o.level||'初级').trim()||'初级';\r\n  var equip=normalizeEquip(o.equip);\r\n  var reps=repScheme(goal);\r\n  var focuses=splitOf(days, level);\r\n  var daysOut=[];\r\n  for(var i=0;i<focuses.length;i++){\r\n    var f=focuses[i];\r\n    var pool=LIB[f] ? (LIB[f][equip]||LIB[f]['徒手']) : LIB['全身'][equip];\r\n    var exs=pool.map(function(ex){ return ex+'：'+reps; });\r\n    daysOut.push({focus:f, exercises:exs});\r\n  }\r\n  var lines=[];\r\n  lines.push('# 训练计划：'+goal+'（每周 '+days+' 天 · '+level+' · '+equip+'）');\r\n  lines.push('');\r\n  for(var d=0; d<daysOut.length; d++){\r\n    lines.push('## 第'+(d+1)+'天 · '+daysOut[d].focus);\r\n    daysOut[d].exercises.forEach(function(e){ lines.push('- '+e); });\r\n    lines.push('');\r\n  }\r\n  lines.push('> 提示：每次训练前热身 5-10 分钟，动作以标准姿势优先；本计划为通用模板，请按自身情况调整。');\r\n  return {title:goal+'训练计划', dayCount:daysOut.length, markdown:lines.join('\\n')};\r\n}\r\nvar EXPORTS={splitLines:splitLines, buildPlan:buildPlan, splitOf:splitOf, repScheme:repScheme, normalizeEquip:normalizeEquip};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.WorkoutForgePure = EXPORTS; }\r\n\r\n"
+}

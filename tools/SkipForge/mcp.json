@@ -1,0 +1,88 @@
+{
+  "id": "SkipForge",
+  "name": "skip_forge",
+  "title": "SkipForge",
+  "description": "跳表：种子化分层可复现，O(log n) 查找/插入/区间（Redis zset 内核）。",
+  "entry": "slCreate",
+  "entries": {
+    "slCreate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "slInsert": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sl",
+        "key",
+        "val"
+      ],
+      "fields": []
+    },
+    "slSearch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sl",
+        "key"
+      ],
+      "fields": []
+    },
+    "slDelete": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sl",
+        "key"
+      ],
+      "fields": []
+    },
+    "slRange": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sl",
+        "lo",
+        "hi"
+      ],
+      "fields": []
+    },
+    "slToArray": {
+      "paramStyle": "object",
+      "paramNames": [
+        "sl"
+      ],
+      "fields": [
+        "head"
+      ]
+    },
+    "slRandLevel": {
+      "paramStyle": "object",
+      "paramNames": [
+        "sl"
+      ],
+      "fields": [
+        "rng"
+      ]
+    },
+    "slRng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "state"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seed": {
+        "type": "string",
+        "description": "输入（seed）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar SL_MAX_LEVEL=16, SL_P=0.5;\r\nfunction slRng(state){\r\n  var x=state>>>0;\r\n  x^=x<<13; x>>>=0;\r\n  x^=x>>>17;\r\n  x^=x<<5; x>>>=0;\r\n  return x>>>0;\r\n}\r\nfunction slCreate(seed){\r\n  return { head:{ key:null, val:null, next:new Array(SL_MAX_LEVEL).fill(null) },\r\n    level:1, size:0, rng:(seed===undefined?88675123:seed)>>>0 };\r\n}\r\nfunction slRandLevel(sl){\r\n  var lvl=1;\r\n  for(;;){\r\n    sl.rng=slRng(sl.rng);\r\n    if((sl.rng%1000)/1000<SL_P && lvl<SL_MAX_LEVEL) lvl++;\r\n    else break;\r\n  }\r\n  return lvl;\r\n}\r\nfunction slInsert(sl, key, val){\r\n  if(typeof key!=='number'||isNaN(key)) return { ok:false, error:'键必须是数字' };\r\n  var update=new Array(SL_MAX_LEVEL), node=sl.head, i;\r\n  for(i=sl.level-1;i>=0;i--){\r\n    while(node.next[i]&&node.next[i].key<key) node=node.next[i];\r\n    update[i]=node;\r\n  }\r\n  var cand=node.next[0];\r\n  if(cand&&cand.key===key){ cand.val=val===undefined?null:val; return { ok:true, updated:true }; }\r\n  var lvl=slRandLevel(sl);\r\n  if(lvl>sl.level){\r\n    for(i=sl.level;i<lvl;i++) update[i]=sl.head;\r\n    sl.level=lvl;\r\n  }\r\n  var nn={ key:key, val:val===undefined?null:val, next:new Array(lvl).fill(null) };\r\n  for(i=0;i<lvl;i++){\r\n    nn.next[i]=update[i].next[i];\r\n    update[i].next[i]=nn;\r\n  }\r\n  sl.size++;\r\n  return { ok:true, updated:false };\r\n}\r\nfunction slSearch(sl, key){\r\n  var node=sl.head, i;\r\n  for(i=sl.level-1;i>=0;i--){\r\n    while(node.next[i]&&node.next[i].key<key) node=node.next[i];\r\n  }\r\n  node=node.next[0];\r\n  if(node&&node.key===key) return { found:true, key:node.key, val:node.val };\r\n  return { found:false };\r\n}\r\nfunction slDelete(sl, key){\r\n  var update=new Array(SL_MAX_LEVEL), node=sl.head, i;\r\n  for(i=sl.level-1;i>=0;i--){\r\n    while(node.next[i]&&node.next[i].key<key) node=node.next[i];\r\n    update[i]=node;\r\n  }\r\n  node=node.next[0];\r\n  if(!node||node.key!==key) return false;\r\n  for(i=0;i<sl.level;i++){\r\n    if(update[i].next[i]===node) update[i].next[i]=node.next[i];\r\n  }\r\n  while(sl.level>1&&!sl.head.next[sl.level-1]) sl.level--;\r\n  sl.size--;\r\n  return true;\r\n}\r\nfunction slRange(sl, lo, hi){\r\n  var out=[], node=sl.head, i;\r\n  for(i=sl.level-1;i>=0;i--){\r\n    while(node.next[i]&&node.next[i].key<lo) node=node.next[i];\r\n  }\r\n  node=node.next[0];\r\n  while(node&&node.key<=hi){ out.push(node.key); node=node.next[0]; }\r\n  return out;\r\n}\r\nfunction slToArray(sl){\r\n  var out=[], node=sl.head.next[0];\r\n  while(node){ out.push(node.key); node=node.next[0]; }\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { slCreate:slCreate, slInsert:slInsert, slSearch:slSearch,\r\n    slDelete:slDelete, slRange:slRange, slToArray:slToArray, slRandLevel:slRandLevel, slRng:slRng };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SkipForgePure = { slCreate:slCreate, slInsert:slInsert, slSearch:slSearch,\r\n    slDelete:slDelete, slRange:slRange, slToArray:slToArray, slRandLevel:slRandLevel, slRng:slRng };\r\n}\r\n"
+}

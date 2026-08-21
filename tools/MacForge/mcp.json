@@ -1,0 +1,66 @@
+{
+  "id": "MacForge",
+  "name": "mac_forge",
+  "title": "MacForge",
+  "description": "MAC 地址工具：随机生成 / 校验 / 规范化、单播多播与本地判定、OUI 厂商查询，离线可用。",
+  "entry": "macValid",
+  "entries": {
+    "macValid": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "macFormat": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "sep"
+      ],
+      "fields": []
+    },
+    "macRandom": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "sep",
+        "rnd"
+      ],
+      "fields": []
+    },
+    "macIsMulticast": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "macIsLocal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "macOui": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction macNorm(s){ return String(s).toUpperCase().replace(/[^0-9A-F]/g,''); }\r\nfunction macValid(s){ return /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(String(s).trim()); }\r\nfunction macFormat(s, sep){\r\n  sep=sep||':';\r\n  var h=macNorm(s);\r\n  if(h.length!==12) return { error:'MAC 应为 12 个十六进制字符' };\r\n  var out=[];\r\n  for(var i=0;i<12;i+=2) out.push(h.slice(i,i+2));\r\n  return { error:null, mac:out.join(sep) };\r\n}\r\nfunction macRandom(sep, rnd){\r\n  sep=sep||':';\r\n  var hex='0123456789ABCDEF', s='';\r\n  for(var i=0;i<6;i++){ var b=Math.floor(rnd()*256); s+=hex[(b>>4)&15]+hex[b&15]; }\r\n  return s.match(/.{2}/g).join(sep);\r\n}\r\nfunction macIsMulticast(s){ var h=macNorm(s); if(h.length!==12) return false; return (parseInt(h[1],16)&1)===1; }\r\nfunction macIsLocal(s){ var h=macNorm(s); if(h.length!==12) return false; return (parseInt(h[1],16)&2)===2; }\r\nvar MAC_OUI={ '001B44':'Juniper', 'FCFBFB':'Cisco', '001A2B':'Google', '001634':'Apple', 'D850E6':'Amazon', '001D0F':'Dell' };\r\nfunction macOui(s){ var h=macNorm(s); if(h.length!==12) return { error:'invalid' }; var oui=h.slice(0,6); return { oui:oui, vendor: MAC_OUI[oui]||'未知厂商' }; }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { macValid:macValid, macFormat:macFormat, macRandom:macRandom, macIsMulticast:macIsMulticast, macIsLocal:macIsLocal, macOui:macOui };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.MacForgePure = { macValid:macValid, macFormat:macFormat, macRandom:macRandom, macIsMulticast:macIsMulticast, macIsLocal:macIsLocal, macOui:macOui };\r\n}\r\n\r\n"
+}

@@ -1,0 +1,59 @@
+{
+  "id": "PcrForge",
+  "name": "pcr_forge",
+  "title": "PcrForge",
+  "description": "PCR 退火温度计算：Wallace 经验式与基础 Tm 公式，并附溶液稀释换算。",
+  "entry": "gcContent",
+  "entries": {
+    "gcContent": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seq"
+      ],
+      "fields": []
+    },
+    "tmWallace": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seq"
+      ],
+      "fields": []
+    },
+    "tmBasic": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seq"
+      ],
+      "fields": []
+    },
+    "annealingTemp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seq"
+      ],
+      "fields": []
+    },
+    "dilute": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "c1",
+        "v1",
+        "c2"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "seq": {
+        "type": "string",
+        "description": "输入（seq）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction gcContent(seq){ seq=String(seq).toUpperCase().replace(/U/g,'T').replace(/[^ACGT]/g,''); if(!seq.length) return 0; var gc=0; for(var i=0;i<seq.length;i++){ var c=seq[i]; if(c==='G'||c==='C') gc++; } return gc/seq.length; }\r\nfunction tmWallace(seq){ seq=String(seq).toUpperCase().replace(/U/g,'T').replace(/[^ACGT]/g,''); var a=0,t=0,g=0,c=0; for(var i=0;i<seq.length;i++){ var x=seq[i]; if(x==='A')a++; else if(x==='T')t++; else if(x==='G')g++; else if(x==='C')c++; } return 2*(a+t)+4*(g+c); }\r\nfunction tmBasic(seq){ seq=String(seq).toUpperCase().replace(/U/g,'T').replace(/[^ACGT]/g,''); var n=seq.length; if(n===0) return NaN; var gc=gcContent(seq); return 81.5 + 0.41*(gc*100) - 675/n; }\r\nfunction annealingTemp(seq){ return tmBasic(seq) - 5; }\r\nfunction dilute(c1, v1, c2){ if(!c2) return NaN; return c1*v1/c2; }\r\nvar EXPORTS={ gcContent:gcContent, tmWallace:tmWallace, tmBasic:tmBasic, annealingTemp:annealingTemp, dilute:dilute };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PcrForgePure = EXPORTS; }\r\n\r\n"
+}

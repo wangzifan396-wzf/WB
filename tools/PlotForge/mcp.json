@@ -1,0 +1,48 @@
+{
+  "id": "PlotForge",
+  "name": "plot_forge",
+  "title": "PlotForge",
+  "description": "函数绘图器：输入 sin(x)*x 等表达式即渲染 SVG 曲线，递归下降解析器支持 + - * / ^ 与常用函数，多曲线叠加，离线可用。",
+  "entry": "plotParse",
+  "entries": {
+    "plotParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "plotSample": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fn",
+        "xmin",
+        "xmax",
+        "count"
+      ],
+      "fields": []
+    },
+    "plotSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fnResult",
+        "xmin",
+        "xmax"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "src": {
+        "type": "string",
+        "description": "输入（src）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction plotParse(src){\r\n  var s=String(src||'').replace(/\\s+/g,''), pos=0;\r\n  var FUNCS={ sin:Math.sin, cos:Math.cos, tan:Math.tan, sqrt:Math.sqrt, abs:Math.abs, log:Math.log, exp:Math.exp, floor:Math.floor, atan:Math.atan };\r\n  var CONSTS={ pi:Math.PI, e:Math.E };\r\n  function peek(){ return s.charAt(pos); }\r\n  function fail(msg){ throw new Error(msg+'（位置 '+pos+'）'); }\r\n  function parseExpr(){\r\n    var node=parseTerm();\r\n    while(peek()==='+'||peek()==='-'){\r\n      var op=s.charAt(pos++); var rhs=parseTerm();\r\n      node=(function(l,r,o){ return function(x){ return o==='+' ? l(x)+r(x) : l(x)-r(x); }; })(node,rhs,op);\r\n    }\r\n    return node;\r\n  }\r\n  function parseTerm(){\r\n    var node=parseUnary();\r\n    while(peek()==='*'||peek()==='/'){\r\n      var op=s.charAt(pos++); var rhs=parseUnary();\r\n      node=(function(l,r,o){ return function(x){ return o==='*' ? l(x)*r(x) : l(x)/r(x); }; })(node,rhs,op);\r\n    }\r\n    return node;\r\n  }\r\n  function parseUnary(){\r\n    if(peek()==='-'){ pos++; var inner=parseUnary(); return function(x){ return -inner(x); }; }\r\n    return parsePow();\r\n  }\r\n  function parsePow(){\r\n    var base=parseAtom();\r\n    if(peek()==='^'){ pos++; var ex=parseUnary(); return function(x){ return Math.pow(base(x), ex(x)); }; }\r\n    return base;\r\n  }\r\n  function parseAtom(){\r\n    var c=peek();\r\n    if(c==='('){ pos++; var inner=parseExpr(); if(peek()!==')') fail('缺少右括号'); pos++; return inner; }\r\n    var mnum=/^\\d+(\\.\\d+)?/.exec(s.slice(pos));\r\n    if(mnum){ pos+=mnum[0].length; var v=Number(mnum[0]); return function(){ return v; }; }\r\n    var mid=/^[a-z]+/.exec(s.slice(pos));\r\n    if(mid){\r\n      var id=mid[0]; pos+=id.length;\r\n      if(id==='x') return function(x){ return x; };\r\n      if(id in CONSTS){ var cv=CONSTS[id]; return function(){ return cv; }; }\r\n      if(id in FUNCS){\r\n        if(peek()!=='(') fail('函数 '+id+' 缺少参数');\r\n        pos++; var arg=parseExpr();\r\n        if(peek()!==')') fail('缺少右括号'); pos++;\r\n        var fn=FUNCS[id]; return function(x){ return fn(arg(x)); };\r\n      }\r\n      fail('未知标识符 '+id);\r\n    }\r\n    fail('意外字符 \"'+c+'\"');\r\n  }\r\n  try{\r\n    if(!s) return { error:'表达式为空', fn:null };\r\n    var fn=parseExpr();\r\n    if(pos<s.length) return { error:'解析在位置 '+pos+' 处中断', fn:null };\r\n    fn(0); fn(1);\r\n    return { error:null, fn:fn };\r\n  }catch(e){ return { error:e.message, fn:null }; }\r\n}\r\nfunction plotSample(fn, xmin, xmax, count){\r\n  count=count||200;\r\n  var pts=[];\r\n  for(var i=0;i<count;i++){\r\n    var x=xmin+(xmax-xmin)*i/(count-1), y=fn(x);\r\n    pts.push([x, isFinite(y)?y:null]);\r\n  }\r\n  return pts;\r\n}\r\nfunction plotSvg(fnResult, xmin, xmax){\r\n  if(fnResult.error) return '';\r\n  if(!(xmax>xmin)) return '';\r\n  var W=640, H=360, PAD=34;\r\n  var pts=plotSample(fnResult.fn, xmin, xmax, 240);\r\n  var ys=pts.map(function(p){ return p[1]; }).filter(function(y){ return y!==null; });\r\n  if(!ys.length) return '';\r\n  var ymin=Math.min.apply(null,ys), ymax=Math.max.apply(null,ys);\r\n  if(ymin===ymax){ ymin-=1; ymax+=1; }\r\n  var span=ymax-ymin; ymin-=span*0.08; ymax+=span*0.08;\r\n  function sx(x){ return PAD+(W-2*PAD)*(x-xmin)/(xmax-xmin); }\r\n  function sy(y){ return H-PAD-(H-2*PAD)*(y-ymin)/(ymax-ymin); }\r\n  var s='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"'+W+'\" height=\"'+H+'\" viewBox=\"0 0 '+W+' '+H+'\">';\r\n  s+='<rect width=\"'+W+'\" height=\"'+H+'\" fill=\"#0A0A0B\"/>';\r\n  if(0>=ymin&&0<=ymax) s+='<line x1=\"'+PAD+'\" y1=\"'+sy(0)+'\" x2=\"'+(W-PAD)+'\" y2=\"'+sy(0)+'\" stroke=\"rgba(255,255,255,.2)\"/>';\r\n  if(0>=xmin&&0<=xmax) s+='<line x1=\"'+sx(0)+'\" y1=\"'+PAD+'\" x2=\"'+sx(0)+'\" y2=\"'+(H-PAD)+'\" stroke=\"rgba(255,255,255,.2)\"/>';\r\n  s+='<text x=\"'+PAD+'\" y=\"'+(H-8)+'\" font-family=\"system-ui,sans-serif\" font-size=\"11\" fill=\"#71717A\">'+xmin+'</text>';\r\n  s+='<text x=\"'+(W-PAD)+'\" y=\"'+(H-8)+'\" font-family=\"system-ui,sans-serif\" font-size=\"11\" fill=\"#71717A\" text-anchor=\"end\">'+xmax+'</text>';\r\n  var d='', pen=false;\r\n  for(var i=0;i<pts.length;i++){\r\n    if(pts[i][1]===null){ pen=false; continue; }\r\n    var X=sx(pts[i][0]), Y=sy(pts[i][1]);\r\n    d+=(pen?'L':'M')+X.toFixed(1)+','+Y.toFixed(1); pen=true;\r\n  }\r\n  s+='<path d=\"'+d+'\" fill=\"none\" stroke=\"#5E6AD2\" stroke-width=\"2\"/>';\r\n  return s+'</svg>';\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { plotParse:plotParse, plotSample:plotSample, plotSvg:plotSvg };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.PlotForgePure = { plotParse:plotParse, plotSample:plotSample, plotSvg:plotSvg };\r\n}\r\n"
+}

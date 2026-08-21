@@ -1,0 +1,49 @@
+{
+  "id": "SmithWatermanForge",
+  "name": "smith_waterman_forge",
+  "title": "SmithWatermanForge",
+  "description": "局部序列比对（Smith-Waterman）：非负得分矩阵取最优局部对齐，离线可用。",
+  "entry": "smithWaterman",
+  "entries": {
+    "smithWaterman": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s1",
+        "s2",
+        "match",
+        "mismatch",
+        "gap"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s1": {
+        "type": "string",
+        "description": "第 1 个参数（s1）"
+      },
+      "s2": {
+        "type": "string",
+        "description": "第 2 个参数（s2）"
+      },
+      "match": {
+        "type": "string",
+        "description": "第 3 个参数（match）"
+      },
+      "mismatch": {
+        "type": "string",
+        "description": "第 4 个参数（mismatch）"
+      },
+      "gap": {
+        "type": "string",
+        "description": "第 5 个参数（gap）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction smithWaterman(s1, s2, match, mismatch, gap){\r\n  match=(match===undefined)?3:match; mismatch=(mismatch===undefined)?(-3):(-3); gap=(gap===undefined)?(-2):(-2);\r\n  var n=s1.length, m=s2.length; var dp=[]; for(var i=0;i<=n;i++){ var row=[]; for(var j=0;j<=m;j++) row.push(0); dp.push(row); }\r\n  var max=0, mi=0, mj=0;\r\n  for(var i=1;i<=n;i++) for(var j=1;j<=m;j++){\r\n    var diag=dp[i-1][j-1]+(s1[i-1]===s2[j-1]?match:mismatch);\r\n    var up=dp[i-1][j]+gap, left=dp[i][j-1]+gap;\r\n    dp[i][j]=Math.max(0,diag,up,left);\r\n    if(dp[i][j]>max){ max=dp[i][j]; mi=i; mj=j; }\r\n  }\r\n  var a1='',a2=''; var i=mi, j=mj;\r\n  while(i>0&&j>0&&dp[i][j]>0){ var diag=dp[i-1][j-1]+(s1[i-1]===s2[j-1]?match:mismatch);\r\n    if(dp[i][j]===diag){ a1=s1[i-1]+a1; a2=s2[j-1]+a2; i--; j--; }\r\n    else if(dp[i][j]===dp[i-1][j]+gap){ a1=s1[i-1]+a1; a2='-'+a2; i--; }\r\n    else { a1='-'+a1; a2=s2[j-1]+a2; j--; } }\r\n  return {score:max, a1:a1, a2:a2};\r\n}\r\nvar EXPORTS={smithWaterman:smithWaterman};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SmithWatermanForgePure = EXPORTS; }\r\n\r\n"
+}

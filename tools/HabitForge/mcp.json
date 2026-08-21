@@ -1,0 +1,197 @@
+{
+  "id": "HabitForge",
+  "name": "habit_forge",
+  "title": "HabitForge",
+  "description": "离线习惯追踪器：每日打卡、当前 / 最长连击、近 30 天完成率、半年热力图，数据只存本地，支持 JSON 导入导出。",
+  "entry": "pad2",
+  "entries": {
+    "pad2": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "dim": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "y",
+        "m"
+      ],
+      "fields": []
+    },
+    "toSerial": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "y",
+        "m",
+        "d"
+      ],
+      "fields": []
+    },
+    "fromSerial": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "keyOf": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "y",
+        "m",
+        "d"
+      ]
+    },
+    "parseKey": {
+      "paramStyle": "single",
+      "paramNames": [
+        "k"
+      ],
+      "fields": []
+    },
+    "serialOfKey": {
+      "paramStyle": "single",
+      "paramNames": [
+        "k"
+      ],
+      "fields": []
+    },
+    "keyOfSerial": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "makeState": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "addHabit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "state",
+        "name"
+      ],
+      "fields": []
+    },
+    "removeHabit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "state",
+        "id"
+      ],
+      "fields": []
+    },
+    "findHabit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "state",
+        "id"
+      ],
+      "fields": []
+    },
+    "toggle": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "state",
+        "id",
+        "key"
+      ],
+      "fields": []
+    },
+    "isDone": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "h",
+        "key"
+      ],
+      "fields": []
+    },
+    "currentStreak": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "h",
+        "refKey"
+      ],
+      "fields": []
+    },
+    "longestStreak": {
+      "paramStyle": "object",
+      "paramNames": [
+        "h"
+      ],
+      "fields": [
+        "days"
+      ]
+    },
+    "totalDone": {
+      "paramStyle": "object",
+      "paramNames": [
+        "h"
+      ],
+      "fields": [
+        "days"
+      ]
+    },
+    "rate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "h",
+        "refKey",
+        "n"
+      ],
+      "fields": []
+    },
+    "heatCells": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "h",
+        "refKey",
+        "weeks"
+      ],
+      "fields": []
+    },
+    "exportJSON": {
+      "paramStyle": "object",
+      "paramNames": [
+        "state"
+      ],
+      "fields": [
+        "habits",
+        "nextId"
+      ]
+    },
+    "importJSON": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "todayKey": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "输入（n）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* HabitForge 纯函数内核：习惯数据模型 + 连击/完成率/热力图（无 DOM 依赖） */\r\nvar HF = (function(){\r\n  'use strict';\r\n  function pad2(n){ return (n<10?'0':'')+n; }\r\n  function isLeap(y){ return (y%4===0 && y%100!==0) || y%400===0; }\r\n  var DIM = [31,28,31,30,31,30,31,31,30,31,30,31];\r\n  function dim(y,m){ return m===2 && isLeap(y) ? 29 : DIM[m-1]; }\r\n  function toSerial(y,m,d){\r\n    var yy = y - (m<=2?1:0), era = Math.floor(yy/400), yoe = yy - era*400;\r\n    var doy = Math.floor((153*(m+(m>2?-3:9))+2)/5)+d-1;\r\n    var doe = yoe*365 + Math.floor(yoe/4) - Math.floor(yoe/100) + doy;\r\n    return era*146097 + doe - 719468;\r\n  }\r\n  function fromSerial(n){\r\n    var z = n+719468, era = Math.floor(z/146097), doe = z-era*146097;\r\n    var yoe = Math.floor((doe - Math.floor(doe/1460) + Math.floor(doe/36524) - Math.floor(doe/146096))/365);\r\n    var y = yoe + era*400, doy = doe - (365*yoe + Math.floor(yoe/4) - Math.floor(yoe/100));\r\n    var mp = Math.floor((5*doy+2)/153), d = doy - Math.floor((153*mp+2)/5) + 1, m = mp + (mp<10?3:-9);\r\n    return { y: y + (m<=2?1:0), m:m, d:d };\r\n  }\r\n  function keyOf(o){ return o.y+'-'+pad2(o.m)+'-'+pad2(o.d); }\r\n  function parseKey(k){\r\n    var m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(k||'');\r\n    if(!m) return null;\r\n    var o = { y:+m[1], m:+m[2], d:+m[3] };\r\n    if(o.m<1||o.m>12||o.d<1||o.d>dim(o.y,o.m)) return null;\r\n    return o;\r\n  }\r\n  function serialOfKey(k){ var o = parseKey(k); return o ? toSerial(o.y,o.m,o.d) : null; }\r\n  function keyOfSerial(n){ return keyOf(fromSerial(n)); }\r\n\r\n  /* ---- 数据模型 ---- */\r\n  function makeState(){ return { habits: [], nextId: 1 }; }\r\n  function addHabit(state, name){\r\n    name = String(name||'').trim();\r\n    if(!name) return null;\r\n    var h = { id: state.nextId++, name: name, days: {} };  /* days: {\"2026-07-27\": 1} */\r\n    state.habits.push(h);\r\n    return h;\r\n  }\r\n  function removeHabit(state, id){\r\n    var i = state.habits.findIndex(function(h){ return h.id === id; });\r\n    if(i < 0) return false;\r\n    state.habits.splice(i,1);\r\n    return true;\r\n  }\r\n  function findHabit(state, id){\r\n    for(var i=0;i<state.habits.length;i++) if(state.habits[i].id===id) return state.habits[i];\r\n    return null;\r\n  }\r\n  function toggle(state, id, key){\r\n    var h = findHabit(state, id);\r\n    if(!h || serialOfKey(key)===null) return null;\r\n    if(h.days[key]) delete h.days[key];\r\n    else h.days[key] = 1;\r\n    return !!h.days[key];\r\n  }\r\n  function isDone(h, key){ return !!(h && h.days && h.days[key]); }\r\n\r\n  /* ---- 统计 ---- */\r\n  /* 当前连击：从 refKey 往前数连续天；refKey 当天未打卡则看昨天起算 */\r\n  function currentStreak(h, refKey){\r\n    var s = serialOfKey(refKey);\r\n    if(s===null || !h) return 0;\r\n    if(!h.days[keyOfSerial(s)]) s -= 1;   /* 今天还没打卡不清零，从昨天算 */\r\n    var n = 0;\r\n    while(h.days[keyOfSerial(s)]){ n++; s--; }\r\n    return n;\r\n  }\r\n  function longestStreak(h){\r\n    if(!h) return 0;\r\n    var ks = Object.keys(h.days).map(serialOfKey).filter(function(x){ return x!==null; }).sort(function(a,b){ return a-b; });\r\n    var best = 0, cur = 0, prev = null;\r\n    for(var i=0;i<ks.length;i++){\r\n      if(prev!==null && ks[i]===prev+1) cur++;\r\n      else cur = 1;\r\n      if(cur>best) best = cur;\r\n      prev = ks[i];\r\n    }\r\n    return best;\r\n  }\r\n  function totalDone(h){ return h ? Object.keys(h.days).length : 0; }\r\n  /* 完成率：最近 n 天（含 refKey 当天） */\r\n  function rate(h, refKey, n){\r\n    var s = serialOfKey(refKey);\r\n    if(s===null || !h || n<=0) return 0;\r\n    var cnt = 0;\r\n    for(var i=0;i<n;i++) if(h.days[keyOfSerial(s-i)]) cnt++;\r\n    return Math.round(cnt/n*1000)/10;\r\n  }\r\n  /* 热力图数据：过去 weeks 周（对齐到 refKey 所在周的周日结尾），返回列数组 [{key,level,inRange}] */\r\n  function heatCells(h, refKey, weeks){\r\n    var s = serialOfKey(refKey);\r\n    if(s===null) return [];\r\n    weeks = weeks || 26;\r\n    var dow = ((s+3)%7+7)%7;          /* 0=周一…6=周日 */\r\n    var end = s + (6-dow);            /* 本周周日 */\r\n    var start = end - weeks*7 + 1;\r\n    var cells = [];\r\n    for(var n=start;n<=end;n++){\r\n      cells.push({ key: keyOfSerial(n), done: !!(h && h.days[keyOfSerial(n)]), future: n>s });\r\n    }\r\n    return cells;                     /* 长度 = weeks*7，按列（周）切片 */\r\n  }\r\n  /* ---- 序列化 ---- */\r\n  function exportJSON(state){\r\n    return JSON.stringify({ app:'HabitForge', version:1, habits: state.habits, nextId: state.nextId });\r\n  }\r\n  function importJSON(str){\r\n    var o;\r\n    try { o = JSON.parse(str); } catch(e){ return null; }\r\n    if(!o || o.app!=='HabitForge' || !Array.isArray(o.habits)) return null;\r\n    var st = makeState();\r\n    var maxId = 0;\r\n    for(var i=0;i<o.habits.length;i++){\r\n      var h = o.habits[i];\r\n      if(!h || typeof h.name!=='string' || !h.name.trim()) continue;\r\n      var days = {};\r\n      if(h.days && typeof h.days==='object'){\r\n        for(var k in h.days){ if(serialOfKey(k)!==null && h.days[k]) days[k] = 1; }\r\n      }\r\n      var id = (typeof h.id==='number' && h.id>0) ? Math.floor(h.id) : (maxId+1);\r\n      st.habits.push({ id:id, name:h.name.trim(), days:days });\r\n      if(id>maxId) maxId = id;\r\n    }\r\n    st.nextId = Math.max(maxId+1, (typeof o.nextId==='number' && o.nextId>maxId) ? Math.floor(o.nextId) : maxId+1);\r\n    return st;\r\n  }\r\n  function todayKey(){\r\n    var d = new Date();\r\n    return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());\r\n  }\r\n  return {\r\n    pad2:pad2, dim:dim, toSerial:toSerial, fromSerial:fromSerial,\r\n    keyOf:keyOf, parseKey:parseKey, serialOfKey:serialOfKey, keyOfSerial:keyOfSerial,\r\n    makeState:makeState, addHabit:addHabit, removeHabit:removeHabit, findHabit:findHabit,\r\n    toggle:toggle, isDone:isDone,\r\n    currentStreak:currentStreak, longestStreak:longestStreak, totalDone:totalDone, rate:rate,\r\n    heatCells:heatCells, exportJSON:exportJSON, importJSON:importJSON, todayKey:todayKey\r\n  };\r\n})();\r\nif(typeof module!=='undefined' && module.exports){ module.exports = HF; }\r\nif(typeof window!=='undefined'){ window.__HABITFORGE__ = HF; }\r\n"
+}

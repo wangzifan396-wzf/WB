@@ -1,0 +1,49 @@
+{
+  "id": "SegmentForge",
+  "name": "segment_forge",
+  "title": "SegmentForge",
+  "description": "线段树区间和/最值查询 + 懒标记区间加，O(log n)。",
+  "entry": "stBuild",
+  "entries": {
+    "stBuild": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "stUpdate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "t",
+        "ql",
+        "qr",
+        "delta"
+      ],
+      "fields": []
+    },
+    "stQuery": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "t",
+        "ql",
+        "qr",
+        "kind"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "arr": {
+        "type": "string",
+        "description": "输入（arr）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction stBuild(arr){\r\n  if(!Array.isArray(arr)||!arr.length) return { value:null, error:'数组为空' };\r\n  for(var i=0;i<arr.length;i++){\r\n    if(typeof arr[i]!=='number'||!isFinite(arr[i])) return { value:null, error:'第 '+(i+1)+' 项不是有限数' };\r\n  }\r\n  var n=arr.length;\r\n  var t={ n:n, sum:new Array(4*n).fill(0), min:new Array(4*n).fill(0),\r\n          max:new Array(4*n).fill(0), lazy:new Array(4*n).fill(0) };\r\n  (function build(node,l,r){\r\n    if(l===r){ t.sum[node]=arr[l]; t.min[node]=arr[l]; t.max[node]=arr[l]; return; }\r\n    var mid=(l+r)>>1;\r\n    build(2*node,l,mid); build(2*node+1,mid+1,r);\r\n    t.sum[node]=t.sum[2*node]+t.sum[2*node+1];\r\n    t.min[node]=Math.min(t.min[2*node],t.min[2*node+1]);\r\n    t.max[node]=Math.max(t.max[2*node],t.max[2*node+1]);\r\n  })(1,0,n-1);\r\n  return { value:t, error:null };\r\n}\r\nfunction stPush(t,node,l,r){\r\n  if(t.lazy[node]===0) return;\r\n  var mid=(l+r)>>1, d=t.lazy[node];\r\n  var kids=[[2*node,l,mid],[2*node+1,mid+1,r]];\r\n  for(var i=0;i<2;i++){\r\n    var k=kids[i][0], kl=kids[i][1], kr=kids[i][2];\r\n    t.sum[k]+=d*(kr-kl+1); t.min[k]+=d; t.max[k]+=d; t.lazy[k]+=d;\r\n  }\r\n  t.lazy[node]=0;\r\n}\r\nfunction stUpdate(t,ql,qr,delta){\r\n  if(ql<0||qr>=t.n||ql>qr) return { value:null, error:'区间 ['+ql+','+qr+'] 越界（0..'+(t.n-1)+'）' };\r\n  (function upd(node,l,r){\r\n    if(qr<l||r<ql) return;\r\n    if(ql<=l&&r<=qr){\r\n      t.sum[node]+=delta*(r-l+1); t.min[node]+=delta; t.max[node]+=delta; t.lazy[node]+=delta;\r\n      return;\r\n    }\r\n    stPush(t,node,l,r);\r\n    var mid=(l+r)>>1;\r\n    upd(2*node,l,mid); upd(2*node+1,mid+1,r);\r\n    t.sum[node]=t.sum[2*node]+t.sum[2*node+1];\r\n    t.min[node]=Math.min(t.min[2*node],t.min[2*node+1]);\r\n    t.max[node]=Math.max(t.max[2*node],t.max[2*node+1]);\r\n  })(1,0,t.n-1);\r\n  return { value:true, error:null };\r\n}\r\nfunction stQuery(t,ql,qr,kind){\r\n  if(ql<0||qr>=t.n||ql>qr) return { value:null, error:'区间 ['+ql+','+qr+'] 越界（0..'+(t.n-1)+'）' };\r\n  var k=kind||'sum';\r\n  if(k!=='sum'&&k!=='min'&&k!=='max') return { value:null, error:'kind 必须是 sum/min/max' };\r\n  var res=(function q(node,l,r){\r\n    if(qr<l||r<ql) return null;\r\n    if(ql<=l&&r<=qr) return t[k][node];\r\n    stPush(t,node,l,r);\r\n    var mid=(l+r)>>1;\r\n    var a=q(2*node,l,mid), b=q(2*node+1,mid+1,r);\r\n    if(a===null) return b; if(b===null) return a;\r\n    if(k==='sum') return a+b;\r\n    if(k==='min') return Math.min(a,b);\r\n    return Math.max(a,b);\r\n  })(1,0,t.n-1);\r\n  return { value:res, error:null };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { stBuild:stBuild, stUpdate:stUpdate, stQuery:stQuery };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SegmentForgePure = { stBuild:stBuild, stUpdate:stUpdate, stQuery:stQuery };\r\n}\r\n"
+}

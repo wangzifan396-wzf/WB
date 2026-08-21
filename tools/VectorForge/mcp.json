@@ -1,0 +1,78 @@
+{
+  "id": "VectorForge",
+  "name": "vector_forge",
+  "title": "VectorForge",
+  "description": "向量相似度计算器：余弦/欧氏/曼哈顿/点积 + Top-K 检索，RAG 向量度量。",
+  "entry": "parseVec",
+  "entries": {
+    "parseVec": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "dot": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "norm": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "cosineSim": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "euclidean": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "manhattan": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "topK": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "query",
+        "docs",
+        "k",
+        "metric"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction parseVec(s){\r\n  if(!s || !String(s).trim()) return { value:null, error:'向量为空' };\r\n  var parts=String(s).trim().split(/[,\\s]+/).filter(function(x){return x.length;});\r\n  var out=[];\r\n  for(var i=0;i<parts.length;i++){\r\n    var n=Number(parts[i]);\r\n    if(!isFinite(n)) return { value:null, error:'非法数字: '+parts[i] };\r\n    out.push(n);\r\n  }\r\n  return { value:out, error:null };\r\n}\r\nfunction dot(a,b){ var s=0; for(var i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }\r\nfunction norm(a){ return Math.sqrt(dot(a,a)); }\r\nfunction cosineSim(a,b){\r\n  if(a.length!==b.length) throw new Error('DIM_MISMATCH');\r\n  var na=norm(a), nb=norm(b);\r\n  if(na===0||nb===0) throw new Error('ZERO_VECTOR');\r\n  return dot(a,b)/(na*nb);\r\n}\r\nfunction euclidean(a,b){\r\n  if(a.length!==b.length) throw new Error('DIM_MISMATCH');\r\n  var s=0; for(var i=0;i<a.length;i++){ var d=a[i]-b[i]; s+=d*d; }\r\n  return Math.sqrt(s);\r\n}\r\nfunction manhattan(a,b){\r\n  if(a.length!==b.length) throw new Error('DIM_MISMATCH');\r\n  var s=0; for(var i=0;i<a.length;i++) s+=Math.abs(a[i]-b[i]);\r\n  return s;\r\n}\r\nfunction topK(query, docs, k, metric){\r\n  metric = metric || 'cosine';\r\n  var scored = docs.map(function(d, idx){\r\n    var s;\r\n    if(metric==='cosine') s=cosineSim(query, d.vec);\r\n    else if(metric==='dot') s=dot(query, d.vec);\r\n    else if(metric==='manhattan') s=-manhattan(query, d.vec);\r\n    else s=-euclidean(query, d.vec);\r\n    return { id:(d.id!==undefined?d.id:idx), score:s };\r\n  });\r\n  scored.sort(function(x,y){ return y.score-x.score; });\r\n  return scored.slice(0, k||scored.length);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { parseVec:parseVec, dot:dot, norm:norm, cosineSim:cosineSim,\r\n    euclidean:euclidean, manhattan:manhattan, topK:topK };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.VectorForgePure = { parseVec:parseVec, dot:dot, norm:norm, cosineSim:cosineSim,\r\n    euclidean:euclidean, manhattan:manhattan, topK:topK };\r\n}\r\n"
+}

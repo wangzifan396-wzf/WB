@@ -1,0 +1,44 @@
+{
+  "id": "TTestForge",
+  "name": "t_test_forge",
+  "title": "TTestForge",
+  "description": "Welch 独立样本 t 检验：不等方差下计算 t 统计量、自由度与双尾 p 值（正则不完全 Beta 函数），离线精确。",
+  "entry": "mean",
+  "entries": {
+    "mean": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "variance": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "welchT": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "x",
+        "y"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "string",
+        "description": "输入（a）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction logGamma(z){\r\n  var g=7; var c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];\r\n  if(z<0.5){ return Math.log(Math.PI/Math.sin(Math.PI*z)) - logGamma(1-z); }\r\n  z-=1; var x=0.99999999999980993;\r\n  for(var i=0;i<g;i++) x+=c[i+1]/(z+i+1);\r\n  var t=z+g+0.5;\r\n  return 0.5*Math.log(2*Math.PI)+(z+0.5)*Math.log(t)-t+Math.log(x);\r\n}\r\nfunction betacf(a,b,x){ var ITMAX=300,EPS=1e-12,FPMIN=1e-300; var qab=a+b,qap=a+1,qam=a-1;\r\n  var c=1,d=1-qab*x/qap; if(Math.abs(d)<FPMIN)d=FPMIN; d=1/d; var h=d;\r\n  for(var m=1;m<=ITMAX;m++){ var m2=2*m; var aa=m*(b-m)*x/((qam+m2)*(a+m2)); d=1+aa*d; if(Math.abs(d)<FPMIN)d=FPMIN; c=1+aa/c; if(Math.abs(c)<FPMIN)c=FPMIN; d=1/d; h*=d*c;\r\n    aa=-(a+m)*(qab+m)*x/((a+m2)*(qap+m2)); d=1+aa*d; if(Math.abs(d)<FPMIN)d=FPMIN; c=1+aa/c; if(Math.abs(c)<FPMIN)c=FPMIN; d=1/d; var del=d*c; h*=del; if(Math.abs(del-1)<EPS)break; }\r\n  return h; }\r\nfunction betai(a,b,x){ if(x<=0)return 0; if(x>=1)return 1;\r\n  var bt=Math.exp(logGamma(a+b)-logGamma(a)-logGamma(b)+a*Math.log(x)+b*Math.log(1-x));\r\n  if(x<(a+1)/(a+b+2)) return bt*betacf(a,b,x)/a;\r\n  return 1-bt*betacf(b,a,1-x)/b; }\r\nfunction mean(a){var s=0;for(var i=0;i<a.length;i++)s+=a[i];return s/a.length;}\r\nfunction variance(a){var m=mean(a),s=0;for(var i=0;i<a.length;i++){var d=a[i]-m;s+=d*d;}return s/(a.length-1);}\r\nfunction welchT(x,y){\r\n  var mx=mean(x),my=mean(y),vx=variance(x),vy=variance(y),nx=x.length,ny=y.length;\r\n  var se=Math.sqrt(vx/nx+vy/ny); var t=(mx-my)/se;\r\n  var df=Math.pow(vx/nx+vy/ny,2)/((vx/nx)*(vx/nx)/(nx-1)+(vy/ny)*(vy/ny)/(ny-1));\r\n  var xv=df/(df+t*t); var p=betai(df/2,0.5,xv);\r\n  return {t:t,df:df,p:p};\r\n}\r\nvar EXPORTS={mean:mean,variance:variance,welchT:welchT};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TTestForgePure = EXPORTS; }\r\n\r\n"
+}

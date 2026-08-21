@@ -1,0 +1,44 @@
+{
+  "id": "PitchShiftForge",
+  "name": "pitch_shift_forge",
+  "title": "PitchShiftForge",
+  "description": "音高平移（半音→频率比率 + 线性重采样），纯 DSP 数组运算，离线可用。",
+  "entry": "semitonesToFactor",
+  "entries": {
+    "semitonesToFactor": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "shift": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "factor"
+      ],
+      "fields": []
+    },
+    "rng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nfunction semitonesToFactor(s){ return Math.pow(2, s/12); }\r\nfunction shift(samples, factor){\r\n  factor=factor||1; if(factor<=0) return samples.slice();\r\n  var n=samples.length, outLen=Math.max(1, Math.round(n/factor)); var out=[];\r\n  for(var i=0;i<outLen;i++){ var x=i*factor; var i0=Math.floor(x); var fr=x-i0;\r\n    var a=samples[Math.min(i0,n-1)]; var b=samples[Math.min(i0+1,n-1)]; out.push(a+(b-a)*fr); }\r\n  return out;\r\n}\r\nvar EXPORTS={semitonesToFactor:semitonesToFactor, shift:shift, rng:rngFactory};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PitchShiftForgePure = EXPORTS; }\r\n\r\n"
+}

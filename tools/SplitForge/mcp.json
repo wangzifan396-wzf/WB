@@ -1,0 +1,37 @@
+{
+  "id": "SplitForge",
+  "name": "split_forge",
+  "title": "SplitForge",
+  "description": "聚餐 AA 分摊：逐条录入账单，自动加计小费/税费/折扣，按人数均摊出每人应付，离线可用。",
+  "entry": "splitParseItems",
+  "entries": {
+    "splitParseItems": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "splitCompute": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction splitParseItems(text){\r\n  var items=[], lines=String(text||'').split('\\n');\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i].trim(); if(!ln) continue;\r\n    var m=ln.match(/^(.*?)\\s*([0-9]+(?:\\.[0-9]+)?)\\s*$/);\r\n    var amount, label;\r\n    if(m){ label=m[1].trim()||('项'+(items.length+1)); amount=Number(m[2]); }\r\n    else { label=ln; amount=NaN; }\r\n    if(!isFinite(amount) || amount<0) return { error:'第 '+(i+1)+' 行金额非法' };\r\n    items.push({ label:label, amount:amount });\r\n  }\r\n  if(!items.length) return { error:'请至少录入一条账单' };\r\n  return { error:null, items:items };\r\n}\r\nfunction splitCompute(items, opts){\r\n  var people=Number(opts.people);\r\n  if(!(people>=1 && people%1===0)) return { error:'人数须为正整数' };\r\n  var subtotal=0; for(var i=0;i<items.length;i++) subtotal+=items[i].amount;\r\n  var disc=subtotal*(Number(opts.discountPct)||0)/100;\r\n  var after=subtotal-disc;\r\n  var tax=after*(Number(opts.taxPct)||0)/100;\r\n  var tip=after*(Number(opts.tipPct)||0)/100;\r\n  var grand=after+tax+tip;\r\n  return { error:null, subtotal:Math.round(subtotal*100)/100, discount:Math.round(disc*100)/100,\r\n    tax:Math.round(tax*100)/100, tip:Math.round(tip*100)/100, grand:Math.round(grand*100)/100,\r\n    perPerson:Math.round(grand/people*100)/100, count:items.length };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { splitParseItems:splitParseItems, splitCompute:splitCompute };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SplitForgePure = { splitParseItems:splitParseItems, splitCompute:splitCompute };\r\n}\r\n"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "HtmlFormatForge",
+  "name": "html_format_forge",
+  "title": "HtmlFormatForge",
+  "description": "HTML 美化（缩进换行）与压缩（去注释/空白），保留 pre/style/script。",
+  "entry": "beautify",
+  "entries": {
+    "beautify": {
+      "paramStyle": "single",
+      "paramNames": [
+        "html"
+      ],
+      "fields": []
+    },
+    "minify": {
+      "paramStyle": "single",
+      "paramNames": [
+        "html"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "html": {
+        "type": "string",
+        "description": "输入（html）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar VOID={'area':1,'base':1,'br':1,'col':1,'embed':1,'hr':1,'img':1,'input':1,'link':1,'meta':1,'param':1,'source':1,'track':1,'wbr':1};\r\nvar RAW={'pre':1,'textarea':1,'script':1,'style':1};\r\nfunction beautify(html){\r\n  var out='', indent=0, i=0, L=html.length, rawTag=null;\r\n  function pad(){ var s=''; for(var k=0;k<indent;k++)s+='  '; return s; }\r\n  while(i<L){\r\n    if(rawTag){\r\n      var end=html.indexOf('</'+rawTag+'>', i); if(end<0){ out+=html.slice(i); break; }\r\n      out+=html.slice(i,end+rawTag.length+3); i=end+rawTag.length+3; rawTag=null; continue;\r\n    }\r\n    if(html[i]==='<'){\r\n      var m=/^<\\/?([a-zA-Z0-9]+)/.exec(html.slice(i));\r\n      var tag=m?m[1].toLowerCase():'';\r\n      var endTag=html.indexOf('>', i); if(endTag<0){ out+=html.slice(i); break; }\r\n      var tagStr=html.slice(i,endTag+1);\r\n      var closing=html[i+1]==='/';\r\n      if(RAW[tag] && !closing){ out+=tagStr; rawTag=tag; i=endTag+1; continue; }\r\n      if(closing){ indent=Math.max(0,indent-1); }\r\n      out+='\\n'+pad()+tagStr;\r\n      if(!closing && !VOID[tag] && tag!==''){ indent++; }\r\n      i=endTag+1;\r\n    } else {\r\n      var j=html.indexOf('<', i); if(j<0)j=L;\r\n      var txt=html.slice(i,j).trim(); if(txt)out+='\\n'+pad()+txt; i=j;\r\n    }\r\n  }\r\n  return out.replace(/^\\n/,'')+'\\n';\r\n}\r\nfunction minify(html){\r\n  html=html.replace(/<!--[\\s\\S]*?-->/g,'');\r\n  var out='', i=0, L=html.length, rawTag=null;\r\n  while(i<L){\r\n    if(rawTag){ var end=html.indexOf('</'+rawTag+'>', i); if(end<0){ out+=html.slice(i); break; } out+=html.slice(i,end+rawTag.length+3); i=end+rawTag.length+3; rawTag=null; continue; }\r\n    if(html[i]==='<'){ var m=/^<\\/?([a-zA-Z0-9]+)/.exec(html.slice(i)); var tag=m?m[1].toLowerCase():''; var e=html.indexOf('>',i); if(e<0){out+=html.slice(i);break;} var ts=html.slice(i,e+1);\r\n      if(RAW[tag]){ out+=ts; rawTag=tag; i=e+1; continue; }\r\n      out+=ts; i=e+1;\r\n    } else { var j=html.indexOf('<',i); if(j<0)j=L; var t=html.slice(i,j).replace(/\\s+/g,' '); if(t.trim())out+=t; i=j; }\r\n  }\r\n  return out.trim();\r\n}\r\nvar EXPORTS={beautify:beautify,minify:minify};\r\n\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HtmlFormatForgePure = EXPORTS; }\r\n\r\n"
+}

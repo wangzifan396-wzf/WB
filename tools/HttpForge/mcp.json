@@ -1,0 +1,57 @@
+{
+  "id": "HttpForge",
+  "name": "http_forge",
+  "title": "HttpForge",
+  "description": "离线 HTTP 速查：状态码（1xx-5xx 可搜索）/ 请求方法特性 / 常见 MIME 类型。",
+  "entry": "statusCategory",
+  "entries": {
+    "statusCategory": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "lookupStatus": {
+      "paramStyle": "single",
+      "paramNames": [
+        "code"
+      ],
+      "fields": []
+    },
+    "searchStatus": {
+      "paramStyle": "single",
+      "paramNames": [
+        "query"
+      ],
+      "fields": []
+    },
+    "lookupMime": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ext"
+      ],
+      "fields": []
+    },
+    "searchMime": {
+      "paramStyle": "single",
+      "paramNames": [
+        "query"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "输入（code）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar STATUS = {\r\n  100:'Continue',101:'Switching Protocols',102:'Processing',103:'Early Hints',\r\n  200:'OK',201:'Created',202:'Accepted',203:'Non-Authoritative Information',204:'No Content',205:'Reset Content',206:'Partial Content',\r\n  300:'Multiple Choices',301:'Moved Permanently',302:'Found',303:'See Other',304:'Not Modified',307:'Temporary Redirect',308:'Permanent Redirect',\r\n  400:'Bad Request',401:'Unauthorized',402:'Payment Required',403:'Forbidden',404:'Not Found',405:'Method Not Allowed',406:'Not Acceptable',407:'Proxy Authentication Required',408:'Request Timeout',409:'Conflict',410:'Gone',411:'Length Required',412:'Precondition Failed',413:'Payload Too Large',414:'URI Too Long',415:'Unsupported Media Type',416:'Range Not Satisfiable',417:'Expectation Failed',418:\"I'm a teapot\",422:'Unprocessable Entity',425:'Too Early',426:'Upgrade Required',428:'Precondition Required',429:'Too Many Requests',431:'Request Header Fields Too Large',451:'Unavailable For Legal Reasons',\r\n  500:'Internal Server Error',501:'Not Implemented',502:'Bad Gateway',503:'Service Unavailable',504:'Gateway Timeout',505:'HTTP Version Not Supported',507:'Insufficient Storage',508:'Loop Detected',511:'Network Authentication Required'\r\n};\r\nvar CAT = {'1':'1xx 信息','2':'2xx 成功','3':'3xx 重定向','4':'4xx 客户端错误','5':'5xx 服务端错误'};\r\nfunction statusCategory(code){ code=parseInt(code,10); if(!code) return ''; return CAT[String(code)[0]]||''; }\r\nfunction lookupStatus(code){\r\n  code=parseInt(code,10); var text=STATUS[code];\r\n  if(!text) return null;\r\n  return { code:code, text:text, category:statusCategory(code) };\r\n}\r\nfunction searchStatus(query){\r\n  query=String(query||'').trim().toLowerCase();\r\n  var out=[];\r\n  for(var k in STATUS){\r\n    if(!STATUS.hasOwnProperty(k)) continue;\r\n    var code=parseInt(k,10), text=STATUS[k];\r\n    if(!query || String(code).indexOf(query)>=0 || text.toLowerCase().indexOf(query)>=0){\r\n      out.push({ code:code, text:text, category:statusCategory(code) });\r\n    }\r\n  }\r\n  out.sort(function(a,b){ return a.code-b.code; });\r\n  return out;\r\n}\r\nvar METHODS = [\r\n  {name:'GET',safe:true,idempotent:true,body:false,desc:'获取资源，不应产生副作用'},\r\n  {name:'HEAD',safe:true,idempotent:true,body:false,desc:'同 GET 但只返回响应头'},\r\n  {name:'POST',safe:false,idempotent:false,body:true,desc:'提交数据 / 创建资源'},\r\n  {name:'PUT',safe:false,idempotent:true,body:true,desc:'整体替换资源'},\r\n  {name:'PATCH',safe:false,idempotent:false,body:true,desc:'局部更新资源'},\r\n  {name:'DELETE',safe:false,idempotent:true,body:false,desc:'删除资源'},\r\n  {name:'OPTIONS',safe:true,idempotent:true,body:false,desc:'查询支持的方法 / CORS 预检'},\r\n  {name:'CONNECT',safe:false,idempotent:false,body:false,desc:'建立隧道（代理）'},\r\n  {name:'TRACE',safe:true,idempotent:true,body:false,desc:'回显请求用于诊断'}\r\n];\r\nvar MIME = {\r\n  'json':'application/json','xml':'application/xml','html':'text/html','htm':'text/html','css':'text/css',\r\n  'js':'text/javascript','mjs':'text/javascript','txt':'text/plain','csv':'text/csv','md':'text/markdown',\r\n  'png':'image/png','jpg':'image/jpeg','jpeg':'image/jpeg','gif':'image/gif','webp':'image/webp','svg':'image/svg+xml','ico':'image/x-icon',\r\n  'pdf':'application/pdf','zip':'application/zip','gz':'application/gzip','tar':'application/x-tar',\r\n  'mp3':'audio/mpeg','wav':'audio/wav','mp4':'video/mp4','webm':'video/webm','woff':'font/woff','woff2':'font/woff2','ttf':'font/ttf',\r\n  'wasm':'application/wasm','yaml':'application/yaml','yml':'application/yaml'\r\n};\r\nfunction lookupMime(ext){ ext=String(ext||'').trim().toLowerCase().replace(/^\\./,''); return MIME[ext]||null; }\r\nfunction searchMime(query){\r\n  query=String(query||'').trim().toLowerCase();\r\n  var out=[];\r\n  for(var k in MIME){ if(!MIME.hasOwnProperty(k)) continue;\r\n    if(!query || k.indexOf(query)>=0 || MIME[k].toLowerCase().indexOf(query)>=0) out.push({ext:k,mime:MIME[k]});\r\n  }\r\n  out.sort(function(a,b){ return a.ext<b.ext?-1:1; });\r\n  return out;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { STATUS:STATUS, statusCategory:statusCategory, lookupStatus:lookupStatus, searchStatus:searchStatus, METHODS:METHODS, MIME:MIME, lookupMime:lookupMime, searchMime:searchMime };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.HttpForgePure = { STATUS:STATUS, statusCategory:statusCategory, lookupStatus:lookupStatus, searchStatus:searchStatus, METHODS:METHODS, MIME:MIME, lookupMime:lookupMime, searchMime:searchMime };\r\n}\r\n"
+}

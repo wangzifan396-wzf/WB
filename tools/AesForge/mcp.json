@@ -1,0 +1,72 @@
+{
+  "id": "AesForge",
+  "name": "aes_forge",
+  "title": "AesForge",
+  "description": "本地 AES 对称加密与解密：支持 GCM/CBC/CTR 与原始十六进制密钥，或用口令经 PBKDF2 派生密钥；全部运算在浏览器内完成，数据不出本机。",
+  "entry": "hexToBytes",
+  "entries": {
+    "hexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    },
+    "bytesToHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "encrypt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "plain",
+        "keyHex",
+        "mode"
+      ],
+      "fields": []
+    },
+    "decrypt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pkg",
+        "keyHex",
+        "mode"
+      ],
+      "fields": []
+    },
+    "encryptPass": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "plain",
+        "pass",
+        "mode"
+      ],
+      "fields": []
+    },
+    "decryptPass": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pkg",
+        "pass",
+        "mode"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "h": {
+        "type": "string",
+        "description": "输入（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\nvar B64C='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\nfunction b64e(b){var s='',i;for(i=0;i+2<b.length;i+=3){var n=(b[i]<<16)|(b[i+1]<<8)|b[i+2];s+=B64C[n>>18&63]+B64C[n>>12&63]+B64C[n>>6&63]+B64C[n&63];}var r=b.length-i;if(r===1){var n1=b[i]<<16;s+=B64C[n1>>18&63]+B64C[n1>>12&63]+'==';}else if(r===2){var n2=(b[i]<<16)|(b[i+1]<<8);s+=B64C[n2>>18&63]+B64C[n2>>12&63]+B64C[n2>>6&63]+'=';}return s;}\r\nfunction b64d(s){s=String(s).replace(/\\s+/g,'').replace(/=+$/,'');var o=[],i;for(i=0;i+3<s.length;i+=4){var n=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6)|B64C.indexOf(s[i+3]);o.push(n>>16&255,n>>8&255,n&255);}var r=s.length-i;if(r===2){var n3=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12);o.push(n3>>16&255);}else if(r===3){var n4=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6);o.push(n4>>16&255,n4>>8&255);}return Uint8Array.from(o);}\r\n  function hexToBytes(h){h=String(h).replace(/[^0-9a-fA-F]/g,'');if(h.length%2)return null;var o=[];for(var i=0;i<h.length;i+=2)o.push(parseInt(h.substr(i,2),16));return Uint8Array.from(o);}\r\n  function bytesToHex(b){var s='';for(var i=0;i<b.length;i++)s+=('0'+(b[i]&255).toString(16)).slice(-2);return s;}\r\n  function rand(n){var b=new Uint8Array(n);if(globalThis.crypto&&globalThis.crypto.getRandomValues)globalThis.crypto.getRandomValues(b);else for(var i=0;i<n;i++)b[i]=Math.floor(Math.random()*256);return b;}\r\n  function algParams(mode,iv){var nm='AES-'+mode;if(mode==='CTR')return {name:nm,counter:iv,length:128};return {name:nm,iv:iv};}\r\n  function enc(plain,keyHex,mode){\r\n    return new Promise(function(res){\r\n      try{\r\n        var key=hexToBytes(keyHex);\r\n        if(!key||[16,24,32].indexOf(key.length)<0){res({error:'密钥须为 16/24/32 字节（32/48/64 位十六进制）'});return;}\r\n        if(!globalThis.crypto||!globalThis.crypto.subtle){res({error:'当前环境不支持 Web Crypto'});return;}\r\n        var ivLen=(mode==='GCM')?12:16;var iv=rand(ivLen);\r\n        globalThis.crypto.subtle.importKey('raw',key,{name:'AES-'+mode},false,['encrypt']).then(function(k){\r\n          return globalThis.crypto.subtle.encrypt(algParams(mode,iv),k,new TextEncoder().encode(plain));\r\n        }).then(function(ct){res({value:mode+':'+b64e(iv)+'.'+b64e(new Uint8Array(ct))});})\r\n        .catch(function(e){res({error:String(e&&e.message||e)});});\r\n      }catch(e){res({error:String(e&&e.message||e)});}\r\n    });\r\n  }\r\n  function dec(pkg,keyHex,mode){\r\n    return new Promise(function(res){\r\n      try{\r\n        var key=hexToBytes(keyHex);\r\n        if(!key||[16,24,32].indexOf(key.length)<0){res({error:'密钥须为 16/24/32 字节'});return;}\r\n        var parts=String(pkg).split(':');var body=parts.length===2?parts[1]:parts[0];\r\n        var seg=body.split('.');if(seg.length!==2){res({error:'密文格式应为 mode:iv.ct'});return;}\r\n        var iv=b64d(seg[0]),ct=b64d(seg[1]);\r\n        globalThis.crypto.subtle.importKey('raw',key,{name:'AES-'+mode},false,['decrypt']).then(function(k){\r\n          return globalThis.crypto.subtle.decrypt(algParams(mode,iv),k,ct);\r\n        }).then(function(pt){res({value:new TextDecoder().decode(pt)});})\r\n        .catch(function(e){res({error:String(e&&e.message||e)});});\r\n      }catch(e){res({error:String(e&&e.message||e)});}\r\n    });\r\n  }\r\n  function deriveKey(pass,salt){return globalThis.crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']).then(function(k){return globalThis.crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:100000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);});}\r\n  function encP(plain,pass,mode){var salt=rand(16),iv=rand(12);return deriveKey(pass,salt).then(function(k){return globalThis.crypto.subtle.encrypt({name:'AES-GCM',iv:iv},k,new TextEncoder().encode(plain)).then(function(ct){return {value:'p:'+mode+':'+b64e(salt)+'.'+b64e(iv)+'.'+b64e(new Uint8Array(ct))};});});}\r\n  function decP(pkg,pass,mode){var parts=String(pkg).split(':');if(parts[0]!=='p'||parts.length!==3)return Promise.resolve({error:'口令密文格式应为 p:mode:salt.iv.ct'});var seg=parts[2].split('.');if(seg.length!==3)return Promise.resolve({error:'密文分段错误'});var salt=b64d(seg[0]),iv=b64d(seg[1]),ct=b64d(seg[2]);return deriveKey(pass,salt).then(function(k){return globalThis.crypto.subtle.decrypt({name:'AES-GCM',iv:iv},k,ct).then(function(pt){return {value:new TextDecoder().decode(pt)};});}).catch(function(e){return {error:'解密失败：'+String(e&&e.message||e)};});}\r\n  var API={hexToBytes:hexToBytes,bytesToHex:bytesToHex,encrypt:enc,decrypt:dec,encryptPass:encP,decryptPass:decP};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__AesForge__=API;\r\n})();\r\n\r\n"
+}

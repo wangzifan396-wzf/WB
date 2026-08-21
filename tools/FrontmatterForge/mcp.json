@@ -1,0 +1,67 @@
+{
+  "id": "FrontmatterForge",
+  "name": "frontmatter_forge",
+  "title": "FrontmatterForge",
+  "description": "Markdown Front-matter 体检：YAML 子集解析、必填字段校验、重复键与 SEO 长度提醒、规范化回写，离线可用。",
+  "entry": "fmScalar",
+  "entries": {
+    "fmScalar": {
+      "paramStyle": "single",
+      "paramNames": [
+        "raw"
+      ],
+      "fields": []
+    },
+    "fmSplit": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fmParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "fmDump": {
+      "paramStyle": "single",
+      "paramNames": [
+        "value"
+      ],
+      "fields": []
+    },
+    "fmStringify": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "order",
+        "body"
+      ],
+      "fields": []
+    },
+    "fmLint": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "parsed",
+        "required"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "raw": {
+        "type": "string",
+        "description": "输入（raw）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction fmScalar(raw){\r\n  var v=String(raw).trim();\r\n  if(v==='') return '';\r\n  if((v[0]==='\"' && v.slice(-1)==='\"') || (v[0]===\"'\" && v.slice(-1)===\"'\")) return v.slice(1,-1);\r\n  if(v==='true') return true;\r\n  if(v==='false') return false;\r\n  if(v==='null' || v==='~') return null;\r\n  if(/^-?\\d+$/.test(v)) return parseInt(v,10);\r\n  if(/^-?\\d*\\.\\d+$/.test(v)) return parseFloat(v);\r\n  if(v[0]==='[' && v.slice(-1)===']'){\r\n    var inner=v.slice(1,-1).trim();\r\n    if(!inner) return [];\r\n    return inner.split(',').map(function(x){ return fmScalar(x); });\r\n  }\r\n  return v;\r\n}\r\nfunction fmSplit(text){\r\n  var s=String(text==null?'':text).replace(/^\\uFEFF/,'').replace(/\\r\\n?/g,'\\n');\r\n  var m=s.match(/^---\\n([\\s\\S]*?)\\n---\\n?([\\s\\S]*)$/);\r\n  if(!m) return { has:false, raw:'', body:s };\r\n  return { has:true, raw:m[1], body:m[2] };\r\n}\r\nfunction fmParse(text){\r\n  var sp=fmSplit(text);\r\n  if(!sp.has) return { error:null, has:false, data:{}, body:sp.body, order:[] };\r\n  var lines=sp.raw.split('\\n'), data={}, order=[], curKey=null, dup=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var ln=lines[i];\r\n    if(!ln.trim() || /^\\s*#/.test(ln)) continue;\r\n    var li=ln.match(/^\\s*-\\s+(.*)$/);\r\n    if(li && curKey){\r\n      if(!Array.isArray(data[curKey])) data[curKey]=[];\r\n      data[curKey].push(fmScalar(li[1]));\r\n      continue;\r\n    }\r\n    var kv=ln.match(/^([A-Za-z0-9_.\\-]+)\\s*:\\s*(.*)$/);\r\n    if(!kv) return { error:'第 '+(i+1)+' 行无法解析：'+ln.trim() };\r\n    var k=kv[1];\r\n    if(Object.prototype.hasOwnProperty.call(data,k)) dup.push(k);\r\n    else order.push(k);\r\n    curKey=k;\r\n    data[k] = kv[2].trim()==='' ? [] : fmScalar(kv[2]);\r\n  }\r\n  return { error:null, has:true, data:data, body:sp.body, order:order, dup:dup };\r\n}\r\nfunction fmDump(value){\r\n  if(Array.isArray(value)) return '['+value.map(function(v){ return fmDump(v); }).join(', ')+']';\r\n  if(value===null) return 'null';\r\n  if(typeof value==='boolean' || typeof value==='number') return String(value);\r\n  var s=String(value);\r\n  return /[:#\\[\\]{}]|^\\s|\\s$/.test(s) ? '\"'+s.replace(/\"/g,'\\\\\"')+'\"' : s;\r\n}\r\nfunction fmStringify(data, order, body){\r\n  var keys=(order&&order.length? order : Object.keys(data)), out='---\\n';\r\n  for(var i=0;i<keys.length;i++){\r\n    var k=keys[i], v=data[k];\r\n    if(Array.isArray(v) && v.length && v.some(function(x){ return typeof x==='string' && x.length>18; })){\r\n      out += k+':\\n';\r\n      for(var j=0;j<v.length;j++) out += '  - '+fmDump(v[j])+'\\n';\r\n    } else out += k+': '+fmDump(v)+'\\n';\r\n  }\r\n  return out+'---\\n'+(body||'');\r\n}\r\nfunction fmLint(parsed, required){\r\n  var issues=[];\r\n  if(!parsed.has){ issues.push({ level:'error', msg:'\\u7f3a\\u5c11 front-matter \\u5757' }); return issues; }\r\n  var req=required||[];\r\n  for(var i=0;i<req.length;i++)\r\n    if(!Object.prototype.hasOwnProperty.call(parsed.data, req[i]))\r\n      issues.push({ level:'error', msg:'\\u7f3a\\u5c11\\u5fc5\\u586b\\u5b57\\u6bb5\\uff1a'+req[i] });\r\n  for(var d=0; d<(parsed.dup||[]).length; d++)\r\n    issues.push({ level:'warn', msg:'\\u91cd\\u590d\\u5b57\\u6bb5\\uff1a'+parsed.dup[d] });\r\n  if(parsed.data.title && String(parsed.data.title).length>60)\r\n    issues.push({ level:'warn', msg:'title \\u8d85\\u8fc7 60 \\u5b57\\u7b26\\uff0c\\u4e0d\\u5229\\u4e8e SEO' });\r\n  if(parsed.data.description && String(parsed.data.description).length>160)\r\n    issues.push({ level:'warn', msg:'description \\u8d85\\u8fc7 160 \\u5b57\\u7b26' });\r\n  return issues;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { fmScalar:fmScalar, fmSplit:fmSplit, fmParse:fmParse, fmDump:fmDump, fmStringify:fmStringify, fmLint:fmLint };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.FrontmatterForgePure = { fmScalar:fmScalar, fmSplit:fmSplit, fmParse:fmParse, fmDump:fmDump, fmStringify:fmStringify, fmLint:fmLint };\r\n}\r\n\r\n"
+}

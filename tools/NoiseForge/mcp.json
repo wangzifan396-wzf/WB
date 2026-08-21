@@ -1,0 +1,63 @@
+{
+  "id": "NoiseForge",
+  "name": "noise_forge",
+  "title": "NoiseForge",
+  "description": "Perlin 噪声：生成 2D 噪声场，灰度或地形色带渲染，可调缩放与种子，离线可用。",
+  "entry": "mulberry32",
+  "entries": {
+    "mulberry32": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "nzPerm": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "nzPerlin2D": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "x",
+        "y",
+        "perm"
+      ],
+      "fields": []
+    },
+    "nzField": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h",
+        "scale",
+        "seed"
+      ],
+      "fields": []
+    },
+    "nzRamp": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "kind"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "string",
+        "description": "输入（a）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }\r\nfunction nzFade(t){ return t*t*t*(t*(t*6-15)+10); }\r\nfunction nzLerp(a,b,t){ return a+(b-a)*t; }\r\nfunction nzGrad(h,x,y){ var u=(h&1)?-x:x, v=(h&2)?-y:y; return u+v; }\r\nfunction nzPerm(seed){\r\n  var rnd=mulberry32(seed||1), p=[]; for(var i=0;i<256;i++) p[i]=i;\r\n  for(var i=255;i>0;i--){ var j=Math.floor(rnd()*(i+1)); var t=p[i]; p[i]=p[j]; p[j]=t; }\r\n  var perm=[]; for(var i=0;i<512;i++) perm[i]=p[i&255]; return perm;\r\n}\r\nfunction nzPerlin2D(x,y,perm){\r\n  var X=Math.floor(x)&255, Y=Math.floor(y)&255, xf=x-Math.floor(x), yf=y-Math.floor(y);\r\n  var u=nzFade(xf), v=nzFade(yf);\r\n  var aa=perm[perm[X]+Y], ab=perm[perm[X]+Y+1], ba=perm[perm[X+1]+Y], bb=perm[perm[X+1]+Y+1];\r\n  var x1=nzLerp(nzGrad(aa,xf,yf), nzGrad(ba,xf-1,yf), u);\r\n  var x2=nzLerp(nzGrad(ab,xf,yf-1), nzGrad(bb,xf-1,yf-1), u);\r\n  return (nzLerp(x1,x2,v)+1)/2;\r\n}\r\nfunction nzField(w,h,scale,seed){\r\n  var perm=nzPerm(seed), f=[];\r\n  for(var y=0;y<h;y++){ var row=[]; for(var x=0;x<w;x++){ row.push(nzPerlin2D(x*scale, y*scale, perm)); } f.push(row); }\r\n  return f;\r\n}\r\nfunction nzRamp(v, kind){\r\n  if(kind==='terrain'){\r\n    // water -> grass -> rock -> snow\r\n    if(v<0.35) return [30,70,140];\r\n    if(v<0.5) return [60,120,200];\r\n    if(v<0.65) return [70,150,70];\r\n    if(v<0.8) return [120,140,80];\r\n    return [220,220,230];\r\n  }\r\n  var c=Math.floor(v*255); return [c,c,c];\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { mulberry32:mulberry32, nzPerm:nzPerm, nzPerlin2D:nzPerlin2D, nzField:nzField, nzRamp:nzRamp };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.NoiseForgePure = { mulberry32:mulberry32, nzPerm:nzPerm, nzPerlin2D:nzPerlin2D, nzField:nzField, nzRamp:nzRamp };\r\n}\r\n"
+}

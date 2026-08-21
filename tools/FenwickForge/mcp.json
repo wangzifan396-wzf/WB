@@ -1,0 +1,87 @@
+{
+  "id": "FenwickForge",
+  "name": "fenwick_forge",
+  "title": "FenwickForge",
+  "description": "树状数组：前缀和 / 区间和 / 单点更新 / 树上二分，O(log n)。",
+  "entry": "fwCreate",
+  "entries": {
+    "fwCreate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "fwBuild": {
+      "paramStyle": "single",
+      "paramNames": [
+        "arr"
+      ],
+      "fields": []
+    },
+    "fwUpdate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fw",
+        "i",
+        "delta"
+      ],
+      "fields": []
+    },
+    "fwPrefix": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fw",
+        "i"
+      ],
+      "fields": []
+    },
+    "fwRange": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fw",
+        "l",
+        "r"
+      ],
+      "fields": []
+    },
+    "fwGet": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fw",
+        "i"
+      ],
+      "fields": []
+    },
+    "fwToArray": {
+      "paramStyle": "object",
+      "paramNames": [
+        "fw"
+      ],
+      "fields": [
+        "n"
+      ]
+    },
+    "fwLowerBound": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "fw",
+        "target"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "string",
+        "description": "输入（n）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction fwCreate(n){\r\n  return { n:n, tree:new Array(n+1).fill(0) };\r\n}\r\nfunction fwBuild(arr){\r\n  var fw=fwCreate(arr.length);\r\n  for(var i=0;i<arr.length;i++) fwUpdate(fw, i, arr[i]);\r\n  return fw;\r\n}\r\nfunction fwUpdate(fw, i, delta){\r\n  if(i<0||i>=fw.n) throw new Error('index out of range: '+i);\r\n  for(var x=i+1;x<=fw.n;x+=x&(-x)) fw.tree[x]+=delta;\r\n  return fw;\r\n}\r\nfunction fwPrefix(fw, i){\r\n  if(i<0) return 0;\r\n  if(i>=fw.n) i=fw.n-1;\r\n  var s=0;\r\n  for(var x=i+1;x>0;x-=x&(-x)) s+=fw.tree[x];\r\n  return s;\r\n}\r\nfunction fwRange(fw, l, r){\r\n  if(l>r) return 0;\r\n  return fwPrefix(fw, r)-fwPrefix(fw, l-1);\r\n}\r\nfunction fwGet(fw, i){\r\n  return fwRange(fw, i, i);\r\n}\r\nfunction fwToArray(fw){\r\n  var out=[];\r\n  for(var i=0;i<fw.n;i++) out.push(fwGet(fw,i));\r\n  return out;\r\n}\r\nfunction fwLowerBound(fw, target){\r\n  var pos=0, rem=target, log=1;\r\n  while((log<<1)<=fw.n) log<<=1;\r\n  for(var step=log;step>0;step>>=1){\r\n    if(pos+step<=fw.n && fw.tree[pos+step]<rem){\r\n      pos+=step; rem-=fw.tree[pos];\r\n    }\r\n  }\r\n  return pos<fw.n?pos:-1;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { fwCreate:fwCreate, fwBuild:fwBuild, fwUpdate:fwUpdate, fwPrefix:fwPrefix,\r\n    fwRange:fwRange, fwGet:fwGet, fwToArray:fwToArray, fwLowerBound:fwLowerBound };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.FenwickForgePure = { fwCreate:fwCreate, fwBuild:fwBuild, fwUpdate:fwUpdate, fwPrefix:fwPrefix,\r\n    fwRange:fwRange, fwGet:fwGet, fwToArray:fwToArray, fwLowerBound:fwLowerBound };\r\n}\r\n"
+}

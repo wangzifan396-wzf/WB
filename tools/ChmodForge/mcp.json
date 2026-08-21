@@ -1,0 +1,50 @@
+{
+  "id": "ChmodForge",
+  "name": "chmod_forge",
+  "title": "ChmodForge",
+  "description": "离线 UNIX 权限计算器：八进制 ↔ rwx 符号互转，支持 setuid/setgid/sticky。",
+  "entry": "octalToSymbolic",
+  "entries": {
+    "octalToSymbolic": {
+      "paramStyle": "single",
+      "paramNames": [
+        "octal"
+      ],
+      "fields": []
+    },
+    "symbolicToOctal": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sym"
+      ],
+      "fields": []
+    },
+    "parsePerms": {
+      "paramStyle": "single",
+      "paramNames": [
+        "octal"
+      ],
+      "fields": []
+    },
+    "describe": {
+      "paramStyle": "single",
+      "paramNames": [
+        "octal"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "octal": {
+        "type": "string",
+        "description": "输入（octal）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction setBit(str,idx,ch){ return str.slice(0,idx)+ch+str.slice(idx+1); }\r\nfunction octalToSymbolic(octal){\r\n  octal=String(octal).trim();\r\n  if(!/^[0-7]{3,4}$/.test(octal)) throw new Error('无效八进制权限（需 3-4 位 0-7）');\r\n  var special=0, perms=octal;\r\n  if(octal.length===4){ special=parseInt(octal[0],10); perms=octal.slice(1); }\r\n  var map=['---','--x','-w-','-wx','r--','r-x','rw-','rwx'];\r\n  var parts=[map[+perms[0]],map[+perms[1]],map[+perms[2]]];\r\n  if(special&4) parts[0]=setBit(parts[0],2,(parts[0][2]==='x')?'s':'S');\r\n  if(special&2) parts[1]=setBit(parts[1],2,(parts[1][2]==='x')?'s':'S');\r\n  if(special&1) parts[2]=setBit(parts[2],2,(parts[2][2]==='x')?'t':'T');\r\n  return parts.join('');\r\n}\r\nfunction symbolicToOctal(sym){\r\n  sym=String(sym).trim();\r\n  if(sym.length===10) sym=sym.slice(1);\r\n  if(!/^[rwxsStT-]{9}$/.test(sym)) throw new Error('无效符号权限（需 9 位 rwx，可含 s/t）');\r\n  function execVal(ch){ return (ch==='x'||ch==='s'||ch==='t')?1:0; }\r\n  var o=(sym[0]==='r'?4:0)+(sym[1]==='w'?2:0)+execVal(sym[2]);\r\n  var g=(sym[3]==='r'?4:0)+(sym[4]==='w'?2:0)+execVal(sym[5]);\r\n  var t=(sym[6]==='r'?4:0)+(sym[7]==='w'?2:0)+execVal(sym[8]);\r\n  var special=0;\r\n  if(sym[2]==='s'||sym[2]==='S') special+=4;\r\n  if(sym[5]==='s'||sym[5]==='S') special+=2;\r\n  if(sym[8]==='t'||sym[8]==='T') special+=1;\r\n  return (special?String(special):'')+''+o+g+t;\r\n}\r\nfunction parsePerms(octal){\r\n  octal=String(octal).trim();\r\n  if(!/^[0-7]{3,4}$/.test(octal)) throw new Error('无效八进制');\r\n  var special=0, perms=octal;\r\n  if(octal.length===4){ special=parseInt(octal[0],10); perms=octal.slice(1); }\r\n  function trip(d){ d=+d; return { r:!!(d&4), w:!!(d&2), x:!!(d&1) }; }\r\n  return { owner:trip(perms[0]), group:trip(perms[1]), other:trip(perms[2]),\r\n           setuid:!!(special&4), setgid:!!(special&2), sticky:!!(special&1) };\r\n}\r\nfunction describe(octal){\r\n  var p=parsePerms(octal);\r\n  function line(who,t){ return who+': '+(t.r?'读':'-')+' '+(t.w?'写':'-')+' '+(t.x?'执行':'-'); }\r\n  var out=[line('所有者',p.owner),line('用户组',p.group),line('其他人',p.other)];\r\n  var sp=[]; if(p.setuid) sp.push('setuid'); if(p.setgid) sp.push('setgid'); if(p.sticky) sp.push('sticky');\r\n  if(sp.length) out.push('特殊位: '+sp.join(', '));\r\n  return out.join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { octalToSymbolic:octalToSymbolic, symbolicToOctal:symbolicToOctal, parsePerms:parsePerms, describe:describe };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ChmodForgePure = { octalToSymbolic:octalToSymbolic, symbolicToOctal:symbolicToOctal, parsePerms:parsePerms, describe:describe };\r\n}\r\n"
+}

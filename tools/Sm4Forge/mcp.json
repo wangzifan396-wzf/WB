@@ -1,0 +1,100 @@
+{
+  "id": "Sm4Forge",
+  "name": "sm4_forge",
+  "title": "Sm4Forge",
+  "description": "SM4 国密分组密码：128 位分组、128 位密钥的对称加密（ECB/CBC，可关填充）。",
+  "entry": "sm4EncBlock",
+  "entries": {
+    "sm4EncBlock": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "X",
+        "rk"
+      ],
+      "fields": []
+    },
+    "sm4DecBlock": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "X",
+        "rk"
+      ],
+      "fields": []
+    },
+    "sm4EncBytes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "key"
+      ],
+      "fields": []
+    },
+    "sm4DecBytes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "key"
+      ],
+      "fields": []
+    },
+    "sm4KeyExp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "mk"
+      ],
+      "fields": []
+    },
+    "bytesToWords": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "wordsToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "w"
+      ],
+      "fields": []
+    },
+    "wordsToHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "w"
+      ],
+      "fields": []
+    },
+    "hexToWords": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    },
+    "utf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "X": {
+        "type": "string",
+        "description": "第 1 个参数（X）"
+      },
+      "rk": {
+        "type": "string",
+        "description": "第 2 个参数（rk）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8(str){var out=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<0x80)out.push(c);else if(c<0x800){out.push(0xC0|(c>>6),0x80|(c&0x3F));}else if(c>=0xD800&&c<=0xDBFF){var c2=str.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}else{out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));}}return out;}\r\n\r\nfunction rotl(x,n){n=((n%32)+32)%32;return ((x<<n)|(x>>>(32-n)))>>>0;}\r\nvar SM4_SBOX=[0xd6,0x90,0xe9,0xfe,0xcc,0xe1,0x3d,0xb7,0x16,0xb6,0x14,0xc2,0x28,0xfb,0x2c,0x05,0x2b,0x67,0x9a,0x76,0x2a,0xbe,0x04,0xc3,0xaa,0x44,0x13,0x26,0x49,0x86,0x06,0x99,0x9c,0x42,0x50,0xf4,0x91,0xef,0x98,0x7a,0x33,0x54,0x0b,0x43,0xed,0xcf,0xac,0x62,0xe4,0xb3,0x1c,0xa9,0xc9,0x08,0xe8,0x95,0x80,0xdf,0x94,0xfa,0x75,0x8f,0x3f,0xa6,0x47,0x07,0xa7,0xfc,0xf3,0x73,0x17,0xba,0x83,0x59,0x3c,0x19,0xe6,0x85,0x4f,0xa8,0x68,0x6b,0x81,0xb2,0x71,0x64,0xda,0x8b,0xf8,0xeb,0x0f,0x4b,0x70,0x56,0x9d,0x35,0x1e,0x24,0x0e,0x5e,0x63,0x58,0xd1,0xa2,0x25,0x22,0x7c,0x3b,0x01,0x21,0x78,0x87,0xd4,0x00,0x46,0x57,0x9f,0xd3,0x27,0x52,0x4c,0x36,0x02,0xe7,0xa0,0xc4,0xc8,0x9e,0xea,0xbf,0x8a,0xd2,0x40,0xc7,0x38,0xb5,0xa3,0xf7,0xf2,0xce,0xf9,0x61,0x15,0xa1,0xe0,0xae,0x5d,0xa4,0x9b,0x34,0x1a,0x55,0xad,0x93,0x32,0x30,0xf5,0x8c,0xb1,0xe3,0x1d,0xf6,0xe2,0x2e,0x82,0x66,0xca,0x60,0xc0,0x29,0x23,0xab,0x0d,0x53,0x4e,0x6f,0xd5,0xdb,0x37,0x45,0xde,0xfd,0x8e,0x2f,0x03,0xff,0x6a,0x72,0x6d,0x6c,0x5b,0x51,0x8d,0x1b,0xaf,0x92,0xbb,0xdd,0xbc,0x7f,0x11,0xd9,0x5c,0x41,0x1f,0x10,0x5a,0xd8,0x0a,0xc1,0x31,0x88,0xa5,0xcd,0x7b,0xbd,0x2d,0x74,0xd0,0x12,0xb8,0xe5,0xb4,0xb0,0x89,0x69,0x97,0x4a,0x0c,0x96,0x77,0x7e,0x65,0xb9,0xf1,0x09,0xc5,0x6e,0xc6,0x84,0x18,0xf0,0x7d,0xec,0x3a,0xdc,0x4d,0x20,0x79,0xee,0x5f,0x3e,0xd7,0xcb,0x39,0x48];\r\nvar SM4_CK=[0x00070e15,0x1c232a31,0x383f464d,0x545b6269,0x70777e85,0x8c939aa1,0xa8afb6bd,0xc4cbd2d9,0xe0e7eef5,0xfc030a11,0x181f262d,0x343b4249,0x50575e65,0x6c737a81,0x888f969d,0xa4abb2b9,0xc0c7ced5,0xdce3eaf1,0xf8ff060d,0x141b2229,0x30373e45,0x4c535a61,0x686f767d,0x848b9299,0xa0a7aeb5,0xbcc3cad1,0xd8dfe6ed,0xf4fb0209,0x10171e25,0x2c333a41,0x484f565d,0x646b7279];\r\nvar SM4_FK=[0xa3b1bac6,0x56aa3350,0x677d9197,0xb27022dc];\r\nfunction sm4Sbox(w){return (SM4_SBOX[(w>>>24)&0xff]<<24)|(SM4_SBOX[(w>>>16)&0xff]<<16)|(SM4_SBOX[(w>>>8)&0xff]<<8)|SM4_SBOX[w&0xff];}\r\nfunction sm4T(w,forKey){var b=sm4Sbox(w)>>>0;if(forKey)return (b^rotl(b,13)^rotl(b,23))>>>0;return (b^rotl(b,2)^rotl(b,10)^rotl(b,18)^rotl(b,24))>>>0;}\r\nfunction sm4EncBlock(X,rk){var x=[X[0]>>>0,X[1]>>>0,X[2]>>>0,X[3]>>>0];for(var i=0;i<32;i++){var t=(x[i+1]^x[i+2]^x[i+3]^rk[i])>>>0;t=sm4T(t,false)>>>0;x[i+4]=(x[i]^t)>>>0;}return [x[35],x[34],x[33],x[32]];}\r\nfunction sm4KeyExp(mk){var K=[(mk[0]^SM4_FK[0])>>>0,(mk[1]^SM4_FK[1])>>>0,(mk[2]^SM4_FK[2])>>>0,(mk[3]^SM4_FK[3])>>>0];var rk=[];for(var i=0;i<32;i++){var t=(K[i+1]^K[i+2]^K[i+3]^SM4_CK[i])>>>0;t=sm4T(t,true)>>>0;K[i+4]=(K[i]^t)>>>0;rk[i]=K[i+4];}return rk;}\r\nfunction hexToWords(h){var w=[];for(var i=0;i<4;i++)w.push(parseInt(h.substr(i*8,8),16)>>>0);return w;}\r\nfunction wordsToHex(w){return w.map(function(x){return ('00000000'+x.toString(16)).slice(-8);}).join('');}\r\nfunction bytesToWords(b){var w=[];for(var i=0;i<4;i++)w.push(((b[i*4]<<24)|(b[i*4+1]<<16)|(b[i*4+2]<<8)|b[i*4+3])>>>0);return w;}\r\nfunction wordsToBytes(w){var b=[];for(var i=0;i<4;i++){b.push((w[i]>>>24)&0xff,(w[i]>>>16)&0xff,(w[i]>>>8)&0xff,w[i]&0xff);}return b;}\r\nfunction pkcs7Pad(b,block){var n=block-(b.length%block);if(n===0)n=block;for(var i=0;i<n;i++)b.push(n);return b;}\r\nfunction pkcs7Unpad(b){var n=b[b.length-1];if(n>0&&n<=16){for(var i=0;i<n;i++)if(b[b.length-1-i]!==n)return b;return b.slice(0,b.length-n);}return b;}\r\nfunction sm4DecBlock(X,rk){return sm4EncBlock(X, rk.slice().reverse());}\r\nfunction sm4EncBytes(data,key){var k=bytesToWords(key);var rk=sm4KeyExp(k);var d=pkcs7Pad(data.slice(),16);var out=[];for(var i=0;i<d.length;i+=16){var blk=bytesToWords(d.slice(i,i+16));out=out.concat(wordsToBytes(sm4EncBlock(blk,rk)));}return out;}\r\nfunction sm4DecBytes(data,key){var k=bytesToWords(key);var rk=sm4KeyExp(k);var out=[];for(var i=0;i<data.length;i+=16){var blk=bytesToWords(data.slice(i,i+16));out=out.concat(wordsToBytes(sm4DecBlock(blk,rk)));}return pkcs7Unpad(out);}\r\nvar EXPORTS = { sm4EncBlock:sm4EncBlock, sm4DecBlock:sm4DecBlock, sm4EncBytes:sm4EncBytes, sm4DecBytes:sm4DecBytes, sm4KeyExp:sm4KeyExp, bytesToWords:bytesToWords, wordsToBytes:wordsToBytes, wordsToHex:wordsToHex, hexToWords:hexToWords, utf8:utf8 };\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.Sm4ForgePure = EXPORTS; }\r\n\r\n"
+}

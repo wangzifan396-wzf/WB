@@ -1,0 +1,43 @@
+{
+  "id": "SqlToErForge",
+  "name": "sql_to_er_forge",
+  "title": "SQL转ER图",
+  "description": "解析 CREATE TABLE 生成表关系（外键连线）的 Mermaid ER 图代码，离线。",
+  "entry": "splitCols",
+  "entries": {
+    "splitCols": {
+      "paramStyle": "single",
+      "paramNames": [
+        "body"
+      ],
+      "fields": []
+    },
+    "parseTables": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sql"
+      ],
+      "fields": []
+    },
+    "toMermaid": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sql"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "body": {
+        "type": "string",
+        "description": "输入（body）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction splitCols(body){\r\n  var res=[], depth=0, cur='';\r\n  for(var i=0;i<body.length;i++){\r\n    var ch=body[i];\r\n    if(ch==='(') depth++;\r\n    else if(ch===')') depth--;\r\n    if(ch===',' && depth===0){ res.push(cur); cur=''; }\r\n    else cur+=ch;\r\n  }\r\n  if(cur.trim()) res.push(cur);\r\n  return res;\r\n}\r\nfunction parseTables(sql){\r\n  var tables=[], re=/create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?[`\"]?([A-Za-z0-9_]+)[`\"]?\\s*\\(/gi, m;\r\n  while((m=re.exec(sql))){\r\n    var name=m[1];\r\n    var start=m.index + m[0].length - 1; // position of the opening '('\r\n    var depth=1, i=start+1, body='';\r\n    for(; i<sql.length; i++){\r\n      var ch=sql[i];\r\n      if(ch==='(') depth++;\r\n      else if(ch===')'){ depth--; if(depth===0) break; }\r\n      body+=ch;\r\n    }\r\n    var fields=[], fks=[];\r\n    splitCols(body).forEach(function(c){\r\n      var cm=c.trim().match(/^([A-Za-z0-9_]+)\\s+([A-Za-z0-9_\\(\\)]+)/i);\r\n      if(cm) fields.push({name:cm[1], type:cm[2]});\r\n    });\r\n    body.replace(/foreign\\s+key\\s*\\(([^)]+)\\)\\s*references\\s+[`\"]?([A-Za-z0-9_]+)[`\"]?\\s*\\(([^)]+)\\)/gi,\r\n      function(_,a,b,c){ fks.push({from:a.trim(), to:b, toCol:c.trim()}); return ''; });\r\n    tables.push({name:name, fields:fields, fks:fks});\r\n  }\r\n  return tables;\r\n}\r\nfunction toMermaid(sql){\r\n  var tables=parseTables(sql), lines=['erDiagram'];\r\n  tables.forEach(function(t){\r\n    lines.push('  '+t.name+' {');\r\n    t.fields.forEach(function(f){ lines.push('    '+f.type+' '+f.name); });\r\n    lines.push('  }');\r\n  });\r\n  tables.forEach(function(t){\r\n    t.fks.forEach(function(fk){ lines.push('  '+t.name+' ||--o{ '+fk.to+' : \"'+fk.from+'\"'); });\r\n  });\r\n  return {code:lines.join('\\n'), tableCount:tables.length};\r\n}\r\nvar EXPORTS={splitCols:splitCols, parseTables:parseTables, toMermaid:toMermaid};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SqlToErForgePure = EXPORTS; }\r\n\r\n"
+}

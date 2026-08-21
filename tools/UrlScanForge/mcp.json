@@ -1,0 +1,29 @@
+{
+  "id": "UrlScanForge",
+  "name": "url_scan_forge",
+  "title": "UrlScanForge",
+  "description": "URL 安全启发式扫描（协议/@/IP/敏感词/免费域名），离线可用。",
+  "entry": "scan",
+  "entries": {
+    "scan": {
+      "paramStyle": "single",
+      "paramNames": [
+        "url"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "输入（url）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction scan(url){\r\n  url=(url||'').trim(); var flags=[]; var score=0;\r\n  if(!/^https?:\\/\\//i.test(url)){ flags.push('缺少 http(s) 协议'); score+=1; }\r\n  else if(/^http:\\/\\//i.test(url)){ flags.push('使用明文 http 而非 https'); score+=1; }\r\n  if(url.indexOf('@')>=0){ flags.push('URL 含 @（易混淆主机）'); score+=2; }\r\n  var host=url.replace(/^https?:\\/\\//i,'').split('/')[0];\r\n  if(/^\\d{1,3}(\\.\\d{1,3}){3}$/.test(host)){ flags.push('使用 IP 地址而非域名'); score+=2; }\r\n  var dots=(host.match(/\\./g)||[]).length; if(dots>=4){ flags.push('子域过多('+dots+'个.)'); score+=1; }\r\n  var susp=/login|signin|verify|bank|paypal|account|password|secure|update|ebay/i;\r\n  if(susp.test(url)){ flags.push('含敏感词('+(url.match(susp)||[])[0]+')'); score+=1; }\r\n  if(/\\.tk$|\\.ml$|\\.ga$|\\.cf$|\\.gq$/i.test(host)){ flags.push('免费短命域名后缀'); score+=1; }\r\n  var valid = /^https?:\\/\\/[^\\s/$.?#].[^\\s]*$/i.test(url);\r\n  return {url:url, valid:valid, flags:flags, score:score, risk: score>=3?'高':(score>=1?'中':'低')};\r\n}\r\nvar EXPORTS={scan:scan};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.UrlScanForgePure = EXPORTS; }\r\n\r\n"
+}

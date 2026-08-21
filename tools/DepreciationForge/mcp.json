@@ -1,0 +1,58 @@
+{
+  "id": "DepreciationForge",
+  "name": "depreciation_forge",
+  "title": "资产折旧",
+  "description": "用直线法/年数总和法/双倍余额递减法计算资产折旧，离线。",
+  "entry": "straightLine",
+  "entries": {
+    "straightLine": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cost",
+        "salvage",
+        "life"
+      ],
+      "fields": []
+    },
+    "declining": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cost",
+        "life",
+        "rate",
+        "years"
+      ],
+      "fields": []
+    },
+    "sumOfYears": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cost",
+        "salvage",
+        "life"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "cost": {
+        "type": "string",
+        "description": "第 1 个参数（cost）"
+      },
+      "salvage": {
+        "type": "string",
+        "description": "第 2 个参数（salvage）"
+      },
+      "life": {
+        "type": "string",
+        "description": "第 3 个参数（life）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction straightLine(cost, salvage, life){ cost=+cost; salvage=+salvage; life=+life; if(!(life>0)) return {error:'年限须为正'};\r\n  var a=(cost-salvage)/life; return {annual:Math.round(a*100)/100, bookEnd:salvage}; }\r\nfunction declining(cost, life, rate, years){ cost=+cost; life=+life; rate=rate==null?2/life:rate; years=years||life;\r\n  var sched=[]; var b=cost; for(var y=1;y<=years;y++){ var d=b*rate; if(y>life) d=0; sched.push(Math.round(d*100)/100); b-=d; } return sched; }\r\nfunction sumOfYears(cost, salvage, life){ cost=+cost; salvage=+salvage; life=+life; if(!(life>0)) return {error:'年限须为正'};\r\n  var sum=life*(life+1)/2; var sched=[]; for(var y=1;y<=life;y++){ var d=(cost-salvage)*(life-y+1)/sum; sched.push(Math.round(d*100)/100); } return sched; }\r\nvar EXPORTS={straightLine:straightLine, declining:declining, sumOfYears:sumOfYears};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DepreciationForgePure = EXPORTS; }\r\n\r\n"
+}

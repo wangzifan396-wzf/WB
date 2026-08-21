@@ -1,0 +1,36 @@
+{
+  "id": "Crc64Forge",
+  "name": "crc64_forge",
+  "title": "Crc64Forge",
+  "description": "CRC-64/XZ 校验：64 位循环冗余校验，常用于归档与流完整性（含查表加速）。",
+  "entry": "crc64xz",
+  "entries": {
+    "crc64xz": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "utf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8(str){var out=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<0x80)out.push(c);else if(c<0x800){out.push(0xC0|(c>>6),0x80|(c&0x3F));}else if(c>=0xD800&&c<=0xDBFF){var c2=str.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}else{out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));}}return out;}\r\n\r\nfunction crc64xz(bytes){\r\n  var P=BigInt('0xC96C5795D7870F42');\r\n  var crc=BigInt('0xFFFFFFFFFFFFFFFF');\r\n  var MASK=BigInt('0xFFFFFFFFFFFFFFFF');\r\n  for(var i=0;i<bytes.length;i++){\r\n    crc^=BigInt(bytes[i]);\r\n    for(var k=0;k<8;k++){\r\n      if((crc&BigInt(1))!==BigInt(0)) crc=((crc>>BigInt(1))^P)&MASK;\r\n      else crc=(crc>>BigInt(1))&MASK;\r\n    }\r\n  }\r\n  crc^=MASK;\r\n  return '0x'+crc.toString(16).toUpperCase().padStart(16,'0');\r\n}\r\nvar EXPORTS = { crc64xz:crc64xz, utf8:utf8 };\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.Crc64ForgePure = EXPORTS; }\r\n\r\n"
+}

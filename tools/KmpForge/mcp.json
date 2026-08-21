@@ -1,0 +1,61 @@
+{
+  "id": "KmpForge",
+  "name": "kmp_forge",
+  "title": "KmpForge",
+  "description": "KMP 字符串匹配：失配表可视化，线性时间多次命中与高亮。",
+  "entry": "kmpFailure",
+  "entries": {
+    "kmpFailure": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pattern"
+      ],
+      "fields": []
+    },
+    "kmpSearch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "pattern"
+      ],
+      "fields": []
+    },
+    "kmpCount": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "pattern"
+      ],
+      "fields": []
+    },
+    "kmpFirst": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "pattern"
+      ],
+      "fields": []
+    },
+    "kmpHighlight": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "pattern"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pattern": {
+        "type": "string",
+        "description": "输入（pattern）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction kmpFailure(pattern){\r\n  var n=pattern.length, fail=new Array(n).fill(0);\r\n  var k=0;\r\n  for(var i=1;i<n;i++){\r\n    while(k>0 && pattern[i]!==pattern[k]) k=fail[k-1];\r\n    if(pattern[i]===pattern[k]) k++;\r\n    fail[i]=k;\r\n  }\r\n  return fail;\r\n}\r\nfunction kmpSearch(text, pattern){\r\n  if(pattern.length===0) return [];\r\n  var fail=kmpFailure(pattern), out=[], k=0;\r\n  for(var i=0;i<text.length;i++){\r\n    while(k>0 && text[i]!==pattern[k]) k=fail[k-1];\r\n    if(text[i]===pattern[k]) k++;\r\n    if(k===pattern.length){ out.push(i-k+1); k=fail[k-1]; }\r\n  }\r\n  return out;\r\n}\r\nfunction kmpCount(text, pattern){ return kmpSearch(text, pattern).length; }\r\nfunction kmpFirst(text, pattern){\r\n  var r=kmpSearch(text, pattern);\r\n  return r.length?r[0]:-1;\r\n}\r\nfunction kmpHighlight(text, pattern){\r\n  var hits=kmpSearch(text, pattern);\r\n  if(!hits.length) return text;\r\n  var out='', last=0;\r\n  for(var i=0;i<hits.length;i++){\r\n    var p=hits[i];\r\n    if(p<last) continue;\r\n    out+=text.slice(last,p)+'\\u3010'+text.slice(p,p+pattern.length)+'\\u3011';\r\n    last=p+pattern.length;\r\n  }\r\n  return out+text.slice(last);\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { kmpFailure:kmpFailure, kmpSearch:kmpSearch, kmpCount:kmpCount, kmpFirst:kmpFirst, kmpHighlight:kmpHighlight };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.KmpForgePure = { kmpFailure:kmpFailure, kmpSearch:kmpSearch, kmpCount:kmpCount, kmpFirst:kmpFirst, kmpHighlight:kmpHighlight };\r\n}\r\n"
+}

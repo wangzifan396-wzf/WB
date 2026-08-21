@@ -1,0 +1,81 @@
+{
+  "id": "PomodoroForge",
+  "name": "pomodoro_forge",
+  "title": "PomodoroForge",
+  "description": "番茄钟：纯函数状态机驱动（工作/短休/长休自动轮转，每 4 个番茄进长休），完成统计与进度环，离线可用。",
+  "entry": "pomoConfig",
+  "entries": {
+    "pomoConfig": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "pomoInit": {
+      "paramStyle": "object",
+      "paramNames": [
+        "cfg"
+      ],
+      "fields": [
+        "work"
+      ]
+    },
+    "pomoNextPhase": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "st",
+        "cfg"
+      ],
+      "fields": []
+    },
+    "pomoTick": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "st",
+        "cfg"
+      ],
+      "fields": []
+    },
+    "pomoToggle": {
+      "paramStyle": "object",
+      "paramNames": [
+        "st"
+      ],
+      "fields": [
+        "phase",
+        "left",
+        "running",
+        "done",
+        "cycles"
+      ]
+    },
+    "pomoFmt": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sec"
+      ],
+      "fields": []
+    },
+    "pomoProgress": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "st",
+        "cfg"
+      ],
+      "fields": []
+    },
+    "pomoLabel": {
+      "paramStyle": "single",
+      "paramNames": [
+        "phase"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\nfunction pomoConfig(){ return { work:25*60, short:5*60, long:15*60, longEvery:4 }; }\r\nfunction pomoInit(cfg){\r\n  cfg=cfg||pomoConfig();\r\n  return { phase:'work', left:cfg.work, running:false, done:0, cycles:0 };\r\n}\r\nfunction pomoNextPhase(st, cfg){\r\n  cfg=cfg||pomoConfig();\r\n  if(st.phase==='work'){\r\n    var done=st.done+1;\r\n    var isLong=(done % cfg.longEvery)===0;\r\n    return { phase:isLong?'long':'short', left:isLong?cfg.long:cfg.short, running:st.running, done:done, cycles:st.cycles };\r\n  }\r\n  return { phase:'work', left:cfg.work, running:st.running, done:st.done, cycles:st.cycles+(st.phase==='long'?1:0) };\r\n}\r\nfunction pomoTick(st, cfg){\r\n  cfg=cfg||pomoConfig();\r\n  if(!st.running) return st;\r\n  if(st.left>1) return { phase:st.phase, left:st.left-1, running:true, done:st.done, cycles:st.cycles };\r\n  return pomoNextPhase({ phase:st.phase, left:0, running:true, done:st.done, cycles:st.cycles }, cfg);\r\n}\r\nfunction pomoToggle(st){ return { phase:st.phase, left:st.left, running:!st.running, done:st.done, cycles:st.cycles }; }\r\nfunction pomoFmt(sec){\r\n  var m=Math.floor(sec/60), s=sec%60;\r\n  return (m<10?'0':'')+m+':'+(s<10?'0':'')+s;\r\n}\r\nfunction pomoProgress(st, cfg){\r\n  cfg=cfg||pomoConfig();\r\n  var total = st.phase==='work'?cfg.work : st.phase==='short'?cfg.short : cfg.long;\r\n  return Math.round((1-st.left/total)*1000)/10;\r\n}\r\nfunction pomoLabel(phase){ return phase==='work'?'专注工作':phase==='short'?'短休息':'长休息'; }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { pomoConfig:pomoConfig, pomoInit:pomoInit, pomoNextPhase:pomoNextPhase, pomoTick:pomoTick, pomoToggle:pomoToggle, pomoFmt:pomoFmt, pomoProgress:pomoProgress, pomoLabel:pomoLabel };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.PomodoroForgePure = { pomoConfig:pomoConfig, pomoInit:pomoInit, pomoNextPhase:pomoNextPhase, pomoTick:pomoTick, pomoToggle:pomoToggle, pomoFmt:pomoFmt, pomoProgress:pomoProgress, pomoLabel:pomoLabel };\r\n}\r\n"
+}

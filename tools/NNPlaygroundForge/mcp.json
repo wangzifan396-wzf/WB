@@ -1,0 +1,69 @@
+{
+  "id": "NNPlaygroundForge",
+  "name": "nn_playground_forge",
+  "title": "NNPlaygroundForge",
+  "description": "神经网络 playground：用反向传播训练 2 层网络拟合 XOR 异或，实时观察决策边界与预测变化。",
+  "entry": "nnSigmoid",
+  "entries": {
+    "nnSigmoid": {
+      "paramStyle": "single",
+      "paramNames": [
+        "x"
+      ],
+      "fields": []
+    },
+    "nnDsig": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "nnInit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "H",
+        "rnd"
+      ],
+      "fields": []
+    },
+    "nnForward": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "net",
+        "x"
+      ],
+      "fields": []
+    },
+    "nnTrainStep": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "net",
+        "x",
+        "y",
+        "lr"
+      ],
+      "fields": []
+    },
+    "_rng": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "string",
+        "description": "输入（x）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction _rng(seed){ var s=seed>>>0||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\nfunction nnSigmoid(x){ return 1/(1+Math.exp(-x)); }\r\nfunction nnDsig(a){ return a*(1-a); }\r\nfunction nnRand(rnd){ return rnd()*2-1; }\r\nfunction nnInit(H, rnd){ var W1=[],b1=[],W2=[],b2=[0];\r\n  for(var j=0;j<H;j++){ var r=[]; for(var i=0;i<2;i++) r.push(nnRand(rnd)); W1.push(r); b1.push(0); }\r\n  for(var j=0;j<H;j++) W2.push(nnRand(rnd));\r\n  return {H:H,W1:W1,b1:b1,W2:W2,b2:b2}; }\r\nfunction nnForward(net,x){ var H=net.H, hid=[], s;\r\n  for(var j=0;j<H;j++){ s=net.b1[j]; for(var i=0;i<2;i++) s+=net.W1[j][i]*x[i]; hid.push(nnSigmoid(s)); }\r\n  s=net.b2[0]; for(var j=0;j<H;j++) s+=net.W2[j]*hid[j];\r\n  return {hid:hid, out:nnSigmoid(s)}; }\r\nfunction nnTrainStep(net,x,y,lr){ var H=net.H, f=nnForward(net,x), out=f.out, hid=f.hid;\r\n  var dout=(out-y)*nnDsig(out), j;\r\n  var dW2=[], db2=dout; for(j=0;j<H;j++) dW2.push(dout*hid[j]);\r\n  var dW1=[], db1=[]; for(j=0;j<H;j++){ var dh=dout*net.W2[j]*nnDsig(hid[j]); db1.push(dh); var row=[]; for(var i=0;i<2;i++) row.push(dh*x[i]); dW1.push(row); }\r\n  for(j=0;j<H;j++){ net.W2[j]-=lr*dW2[j]; net.b2[0]-=lr*db2; for(var i=0;i<2;i++){ net.W1[j][i]-=lr*dW1[j][i]; } net.b1[j]-=lr*db1[j]; }\r\n  return (out-y)*(out-y); }\r\nvar EXPORTS={nnSigmoid:nnSigmoid, nnDsig:nnDsig, nnInit:nnInit, nnForward:nnForward, nnTrainStep:nnTrainStep, _rng:_rng};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.NNPlaygroundForgePure = EXPORTS; }\r\n\r\n"
+}

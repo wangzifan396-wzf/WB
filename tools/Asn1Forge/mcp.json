@@ -1,0 +1,75 @@
+{
+  "id": "Asn1Forge",
+  "name": "asn1_forge",
+  "title": "Asn1Forge",
+  "description": "ASN.1 / DER 解析器：按 TLV 拆解 DER 字节，递归还原 SEQUENCE/SET/INTEGER/OID/UTF8String 等类型，把 OID 转成点分形式并对照常见节点（如 1.2.840.113549），标注隐式标签与不定长。分析 X.509、SNMP、PKCS 等二进制结构，零依赖、离线可用。",
+  "entry": "parse",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "input"
+      ],
+      "fields": []
+    },
+    "flatten": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "node",
+        "depth",
+        "out"
+      ],
+      "fields": []
+    },
+    "oidList": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "node",
+        "out"
+      ],
+      "fields": []
+    },
+    "decodeOid": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b"
+      ],
+      "fields": []
+    },
+    "hexToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "b64ToBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "toHex": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "b",
+        "sep"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "输入（input）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  'use strict';\r\n  function hexToBytes(s){\r\n    var t=String(s||'').replace(/0x/gi,' ').replace(/[^0-9a-fA-F]/g,'');\r\n    if(t.length%2) t=t.slice(0,-1);\r\n    var o=new Uint8Array(t.length/2);\r\n    for(var i=0;i<o.length;i++) o[i]=parseInt(t.substr(i*2,2),16);\r\n    return o;\r\n  }\r\n  function b64ToBytes(s){\r\n    var t=String(s||'').replace(/-----[^-]+-----/g,'').replace(/[^A-Za-z0-9+/=]/g,'');\r\n    var A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\n    var out=[],buf=0,bits=0;\r\n    for(var i=0;i<t.length;i++){\r\n      if(t[i]==='=') break;\r\n      var v=A.indexOf(t[i]); if(v<0) continue;\r\n      buf=(buf<<6)|v; bits+=6;\r\n      if(bits>=8){ bits-=8; out.push((buf>>bits)&255); }\r\n    }\r\n    return new Uint8Array(out);\r\n  }\r\n  function toHex(b,sep){ var o=[]; for(var i=0;i<b.length;i++){var x=b[i].toString(16); o.push(x.length<2?'0'+x:x);} return o.join(sep||''); }\r\n\r\n  var UNIV={1:'BOOLEAN',2:'INTEGER',3:'BIT STRING',4:'OCTET STRING',5:'NULL',6:'OBJECT IDENTIFIER',\r\n            7:'ObjectDescriptor',10:'ENUMERATED',12:'UTF8String',13:'RELATIVE-OID',16:'SEQUENCE',\r\n            17:'SET',18:'NumericString',19:'PrintableString',20:'T61String',22:'IA5String',\r\n            23:'UTCTime',24:'GeneralizedTime',26:'VisibleString',27:'GeneralString',30:'BMPString'};\r\n  var CLS=['UNIVERSAL','APPLICATION','CONTEXT','PRIVATE'];\r\n  var OIDS={\r\n    '1.2.840.113549.1.1.1':'rsaEncryption','1.2.840.113549.1.1.11':'sha256WithRSAEncryption',\r\n    '1.2.840.113549.1.1.5':'sha1WithRSAEncryption','1.2.840.113549.1.1.12':'sha384WithRSAEncryption',\r\n    '1.2.840.113549.1.1.13':'sha512WithRSAEncryption','1.2.840.10045.2.1':'id-ecPublicKey',\r\n    '1.2.840.10045.4.3.2':'ecdsa-with-SHA256','1.2.840.10045.3.1.7':'prime256v1 (P-256)',\r\n    '1.3.132.0.34':'secp384r1 (P-384)','1.3.132.0.35':'secp521r1 (P-521)',\r\n    '1.3.101.112':'Ed25519','1.3.101.110':'X25519',\r\n    '2.5.4.3':'commonName (CN)','2.5.4.6':'countryName (C)','2.5.4.7':'localityName (L)',\r\n    '2.5.4.8':'stateOrProvinceName (ST)','2.5.4.10':'organizationName (O)',\r\n    '2.5.4.11':'organizationalUnitName (OU)','2.5.29.14':'subjectKeyIdentifier',\r\n    '2.5.29.15':'keyUsage','2.5.29.17':'subjectAltName','2.5.29.19':'basicConstraints',\r\n    '2.5.29.35':'authorityKeyIdentifier','2.5.29.37':'extKeyUsage',\r\n    '2.16.840.1.101.3.4.2.1':'sha-256','2.16.840.1.101.3.4.2.2':'sha-384','2.16.840.1.101.3.4.2.3':'sha-512'\r\n  };\r\n\r\n  function decodeOid(b){\r\n    if(!b.length) return '';\r\n    // 先按 base-128 续位规则切出所有子标识符\r\n    var subs=[], v=0, started=false;\r\n    for(var i=0;i<b.length;i++){\r\n      if(!started && b[i]===128) return null;   // 子标识符前导 0x80，非最短编码\r\n      v = v*128 + (b[i]&127);\r\n      started=true;\r\n      if(!(b[i]&128)){ subs.push(v); v=0; started=false; }\r\n    }\r\n    if(started) return null;   // 未终止的子标识符\r\n    // 首个子标识符编码了 X*40+Y；X>=2 时 Y 无上限\r\n    var first=subs.shift(), parts;\r\n    if(first<40) parts=[0, first];\r\n    else if(first<80) parts=[1, first-40];\r\n    else parts=[2, first-80];\r\n    return parts.concat(subs).join('.');\r\n  }\r\n  function decodeInt(b){\r\n    if(!b.length) return '0';\r\n    if(b.length<=6){\r\n      var n=0, neg=(b[0]&128)!==0;\r\n      for(var i=0;i<b.length;i++) n=n*256+b[i];\r\n      if(neg) n -= Math.pow(2, b.length*8);\r\n      return String(n);\r\n    }\r\n    return '0x'+toHex(b);\r\n  }\r\n  function ascii(b){ var s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return s; }\r\n\r\n  function parse(input){\r\n    var b = (input instanceof Uint8Array) ? input\r\n          : (/^[\\s0-9a-fA-F,x]*$/.test(String(input)) ? hexToBytes(input) : b64ToBytes(input));\r\n    if(!b.length) return {value:null, error:'输入为空'};\r\n    var pos=0, warns=[];\r\n\r\n    function one(depth){\r\n      if(depth>32) throw new Error('嵌套超过 32 层（偏移 '+pos+'）');\r\n      var start=pos;\r\n      if(pos>=b.length) throw new Error('数据在偏移 '+pos+' 处意外结束');\r\n      var id=b[pos++], cls=(id>>6)&3, cons=(id&32)!==0, tag=id&31;\r\n      if(tag===31){\r\n        tag=0;\r\n        do{\r\n          if(pos>=b.length) throw new Error('高位 tag 未终止（偏移 '+pos+'）');\r\n          tag=tag*128+(b[pos]&127);\r\n        } while(b[pos++]&128);\r\n      }\r\n      if(pos>=b.length) throw new Error('缺少长度字节（偏移 '+pos+'）');\r\n      var lb=b[pos++], len;\r\n      if(lb===128){ throw new Error('检测到 BER 不定长（0x80），DER 不允许（偏移 '+(pos-1)+'）'); }\r\n      if(lb&128){\r\n        var nb=lb&127;\r\n        if(nb>4) throw new Error('长度字段过长（'+nb+' 字节，偏移 '+(pos-1)+'）');\r\n        if(pos+nb>b.length) throw new Error('长度字段被截断（偏移 '+pos+'）');\r\n        len=0; for(var i=0;i<nb;i++) len=len*256+b[pos++];\r\n        if(len<128) warns.push('偏移 '+start+'：长度 '+len+' 用了长格式，DER 要求最短编码');\r\n      } else len=lb;\r\n      if(pos+len>b.length) throw new Error('内容长度 '+len+' 超出剩余 '+(b.length-pos)+' 字节（偏移 '+pos+'）');\r\n      var content=b.subarray(pos,pos+len), end=pos+len;\r\n\r\n      var name = cls===0 ? (UNIV[tag]||('[UNIVERSAL '+tag+']')) : ('['+(cls===2?'':CLS[cls]+' ')+tag+']');\r\n      var node={offset:start, header:pos-start, length:len, tag:tag, cls:CLS[cls],\r\n                constructed:cons, name:name, children:[], value:null};\r\n\r\n      if(cons){\r\n        var save=pos;\r\n        while(pos<end) node.children.push(one(depth+1));\r\n        if(pos!==end){ pos=save; throw new Error('子结构长度与父容器不符（偏移 '+start+'）'); }\r\n      } else {\r\n        pos=end;\r\n        if(cls===0){\r\n          if(tag===1) node.value = content[0]===0 ? 'FALSE' : (content[0]===255 ? 'TRUE' : 'TRUE (非 DER: 0x'+toHex(content)+')');\r\n          else if(tag===2 || tag===10) node.value = decodeInt(content);\r\n          else if(tag===5) node.value = len===0 ? 'NULL' : 'NULL (长度应为 0)';\r\n          else if(tag===6){ var o=decodeOid(content); node.value = o===null ? '(非法 OID 编码)' : (o + (OIDS[o]?('  — '+OIDS[o]):'')); node.oid=o; }\r\n          else if(tag===3){\r\n            var unused = content.length ? content[0] : 0;\r\n            node.value = '未用位 '+unused+'，'+(content.length-1)+' 字节: '+toHex(content.subarray(1,Math.min(content.length,17)))+(content.length>17?'…':'');\r\n          }\r\n          else if(tag===12||tag===19||tag===22||tag===26||tag===27||tag===18) node.value = ascii(content);\r\n          else if(tag===23||tag===24) node.value = ascii(content);\r\n          else node.value = toHex(content.subarray(0,Math.min(len,24)))+(len>24?'…':'');\r\n        } else {\r\n          node.value = toHex(content.subarray(0,Math.min(len,24)))+(len>24?'…':'');\r\n        }\r\n      }\r\n      node.total = pos-start;\r\n      return node;\r\n    }\r\n\r\n    try{\r\n      var root=one(0);\r\n      var trailing = b.length-pos;\r\n      return {value:{root:root, consumed:pos, trailing:trailing, warnings:warns}, error:''};\r\n    }catch(e){ return {value:null, error:e.message}; }\r\n  }\r\n\r\n  function flatten(node, depth, out){\r\n    out=out||[]; depth=depth||0;\r\n    out.push({depth:depth, node:node});\r\n    for(var i=0;i<node.children.length;i++) flatten(node.children[i], depth+1, out);\r\n    return out;\r\n  }\r\n  function oidList(node, out){\r\n    out=out||[];\r\n    if(node.oid) out.push(node.oid);\r\n    for(var i=0;i<node.children.length;i++) oidList(node.children[i], out);\r\n    return out;\r\n  }\r\n\r\n  var API={parse:parse, flatten:flatten, oidList:oidList, decodeOid:decodeOid,\r\n           hexToBytes:hexToBytes, b64ToBytes:b64ToBytes, toHex:toHex, OIDS:OIDS};\r\n  if(typeof module!=='undefined' && module.exports) module.exports=API;\r\n  if(typeof window!=='undefined') window.__Asn1Forge__=API;\r\n})();\r\n\r\n"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "ReadabilityForge",
+  "name": "readability_forge",
+  "title": "ReadabilityForge",
+  "description": "文本可读性评分：Flesch 易读性指数与 Flesch-Kincaid 年级水平，支持英文与中英混排，给出易读等级、词数、句数、音节与中文字数。",
+  "entry": "score",
+  "entries": {
+    "score": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "syllables": {
+      "paramStyle": "single",
+      "paramNames": [
+        "w"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function syllables(w){w=w.toLowerCase().replace(/[^a-z]/g,'');if(!w)return 0;if(w.length<=3)return 1;w=w.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/,'').replace(/^y/,'');var m=w.match(/[aeiouy]{1,2}/g);return m?m.length:1;}\r\n  function score(text){\r\n    if(!text||!text.trim())return{error:'请输入文本'};\r\n    var cjk=(text.match(/[一-鿿]/g)||[]).length;\r\n    var words=(text.match(/[A-Za-z]+/g)||[]);\r\n    var sentences=(text.match(/[.!?。！？]+/g)||[]).length;if(sentences<1)sentences=1;\r\n    var wcount=words.length+cjk;if(wcount<1)return{error:'未识别到词'};\r\n    var syl=0;words.forEach(function(w){syl+=syllables(w);});\r\n    var flesch=206.835-1.015*(wcount/sentences)-84.6*(syl/Math.max(1,wcount));\r\n    var fk=0.39*(wcount/sentences)+11.8*(syl/Math.max(1,wcount))-15.59;\r\n    var label=flesch>=90?'极易读':flesch>=80?'易读':flesch>=70?'较易读':flesch>=60?'标准':flesch>=50?'较难读':flesch>=30?'难读':'极难读';\r\n    return {value:{words:wcount,sentences:sentences,syllables:syl,cjkChars:cjk,flesch:Math.round(flesch*10)/10,fkGrade:Math.round(fk*10)/10,label:label}};\r\n  }\r\n  var API={score:score,syllables:syllables};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__ReadabilityForge__=API;\r\n})();\r\n\r\n"
+}

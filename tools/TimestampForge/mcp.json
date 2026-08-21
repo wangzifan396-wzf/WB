@@ -1,0 +1,50 @@
+{
+  "id": "TimestampForge",
+  "name": "timestamp_forge",
+  "title": "TimestampForge",
+  "description": "Unix 时间戳 ↔ 日期转换：秒 / 毫秒互转、UTC 与本地时间、星期计算，离线可用。",
+  "entry": "tsToEpoch",
+  "entries": {
+    "tsToEpoch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "input",
+        "ms"
+      ],
+      "fields": []
+    },
+    "tsFromEpoch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "epoch",
+        "ms"
+      ],
+      "fields": []
+    },
+    "tsFormat": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "epoch",
+        "ms"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "string",
+        "description": "第 1 个参数（input）"
+      },
+      "ms": {
+        "type": "string",
+        "description": "第 2 个参数（ms）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction tsToEpoch(input, ms){\r\n  if(input===null||input===undefined||input==='') return { error:'请输入时间戳或日期' };\r\n  var s=String(input).trim();\r\n  if(/^\\d+$/.test(s)){\r\n    var v=Number(s);\r\n    return { error:null, epoch:v, ms: ms || (s.length>11) };\r\n  }\r\n  var iso=s.replace(' ','T');\r\n  if(!/Z$/.test(iso) && !/[+\\-]\\d{2}:?\\d{2}$/.test(iso)) iso+='Z';\r\n  var d=new Date(iso);\r\n  if(isNaN(d.getTime())) return { error:'无法解析日期：'+s };\r\n  return { error:null, epoch:Math.floor(d.getTime()/1000), ms: ms || false };\r\n}\r\nfunction tsFromEpoch(epoch, ms){\r\n  var d=new Date(ms? Number(epoch): Number(epoch)*1000);\r\n  function p(n){ return (n<10?'0':'')+n; }\r\n  return { iso:d.toISOString(), y:d.getUTCFullYear(), mo:p(d.getUTCMonth()+1), da:p(d.getUTCDate()),\r\n    h:p(d.getUTCHours()), mi:p(d.getUTCMinutes()), se:p(d.getUTCSeconds()), wday:d.getUTCDay() };\r\n}\r\nfunction tsFormat(epoch, ms){\r\n  var f=tsFromEpoch(epoch, ms);\r\n  return f.y+'-'+f.mo+'-'+f.da+' '+f.h+':'+f.mi+':'+f.se;\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { tsToEpoch:tsToEpoch, tsFromEpoch:tsFromEpoch, tsFormat:tsFormat };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TimestampForgePure = { tsToEpoch:tsToEpoch, tsFromEpoch:tsFromEpoch, tsFormat:tsFormat };\r\n}\r\n\r\n"
+}

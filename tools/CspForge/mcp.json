@@ -1,0 +1,100 @@
+{
+  "id": "CspForge",
+  "name": "csp_forge",
+  "title": "CspForge",
+  "description": "内容安全策略生成与评分：strict/basic/lockdown 三档模板、nonce 生成、unsafe-inline 与通配符风险检测，离线可用。",
+  "entry": "buildPolicy",
+  "entries": {
+    "parsePolicy": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "serialize": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "dirs",
+        "order"
+      ],
+      "fields": []
+    },
+    "isSourceValid": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "auditPolicy": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "buildPolicy": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opt"
+      ],
+      "fields": [
+        "mode",
+        "nonce",
+        "extra",
+        "upgradeInsecure",
+        "reportUri",
+        "reportOnly"
+      ]
+    },
+    "makeNonce": {
+      "paramStyle": "single",
+      "paramNames": [
+        "seed"
+      ],
+      "fields": []
+    },
+    "diffPolicy": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "type": "string",
+        "description": "参数 mode"
+      },
+      "nonce": {
+        "type": "string",
+        "description": "参数 nonce"
+      },
+      "extra": {
+        "type": "string",
+        "description": "参数 extra"
+      },
+      "upgradeInsecure": {
+        "type": "string",
+        "description": "参数 upgradeInsecure"
+      },
+      "reportUri": {
+        "type": "string",
+        "description": "参数 reportUri"
+      },
+      "reportOnly": {
+        "type": "string",
+        "description": "参数 reportOnly"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar FETCH_DIRECTIVES = ['default-src','script-src','style-src','img-src','font-src','connect-src','media-src','object-src','frame-src','worker-src','manifest-src','child-src'];\r\nvar OTHER_DIRECTIVES = ['base-uri','form-action','frame-ancestors','report-uri','report-to','upgrade-insecure-requests','block-all-mixed-content','require-trusted-types-for','sandbox'];\r\nvar KEYWORDS = [\"'self'\",\"'none'\",\"'unsafe-inline'\",\"'unsafe-eval'\",\"'strict-dynamic'\",\"'unsafe-hashes'\",\"'wasm-unsafe-eval'\"];\r\nfunction parsePolicy(str){\r\n  var out={directives:{}, order:[], errors:[]};\r\n  var s=String(str||'').replace(/^\\s*content-security-policy(-report-only)?\\s*:\\s*/i,'');\r\n  var segs=s.split(';');\r\n  for(var i=0;i<segs.length;i++){\r\n    var seg=segs[i].trim();\r\n    if(!seg) continue;\r\n    var toks=seg.split(/\\s+/);\r\n    var name=toks.shift().toLowerCase();\r\n    if(out.directives.hasOwnProperty(name)){ out.errors.push('重复指令: '+name+'（浏览器只取第一个）'); continue; }\r\n    out.directives[name]=toks;\r\n    out.order.push(name);\r\n  }\r\n  return out;\r\n}\r\nfunction serialize(dirs, order){\r\n  var keys = order && order.length ? order : Object.keys(dirs);\r\n  var parts=[];\r\n  for(var i=0;i<keys.length;i++){\r\n    var k=keys[i];\r\n    if(!dirs.hasOwnProperty(k)) continue;\r\n    var v=dirs[k];\r\n    parts.push(v && v.length ? (k+' '+v.join(' ')) : k);\r\n  }\r\n  return parts.join('; ');\r\n}\r\nfunction isSourceValid(src){\r\n  var s=String(src||'').trim();\r\n  if(!s) return false;\r\n  if(KEYWORDS.indexOf(s)>-1) return true;\r\n  if(/^'nonce-[A-Za-z0-9+/=_-]{8,}'$/.test(s)) return true;\r\n  if(/^'sha(256|384|512)-[A-Za-z0-9+/=]+'$/.test(s)) return true;\r\n  if(s==='*' ) return true;\r\n  if(/^[a-z][a-z0-9+.-]*:$/i.test(s)) return true;\r\n  if(/^\\*\\.[^\\s*]+$/.test(s)) return true;\r\n  if(/^(https?:\\/\\/)?[^\\s'\";]+$/.test(s)) return true;\r\n  return false;\r\n}\r\nfunction auditPolicy(str){\r\n  var p=parsePolicy(str), issues=[], d=p.directives;\r\n  function add(level,msg){ issues.push({level:level, msg:msg}); }\r\n  for(var i=0;i<p.errors.length;i++) add('error', p.errors[i]);\r\n  var known = FETCH_DIRECTIVES.concat(OTHER_DIRECTIVES);\r\n  for(var k in d){\r\n    if(!d.hasOwnProperty(k)) continue;\r\n    if(known.indexOf(k)===-1) add('info','未识别指令: '+k);\r\n    var vals=d[k];\r\n    for(var j=0;j<vals.length;j++){\r\n      if(!isSourceValid(vals[j])) add('error','非法源表达式: '+k+' '+vals[j]);\r\n    }\r\n  }\r\n  if(!d['default-src'] && !d['script-src']) add('error','缺少 default-src 与 script-src，脚本无任何限制');\r\n  var script = d['script-src'] || d['default-src'] || [];\r\n  if(script.indexOf(\"'unsafe-inline'\")>-1){\r\n    var hasNonce = script.some(function(v){ return /^'nonce-/.test(v) || /^'sha\\d/.test(v); });\r\n    if(hasNonce) add('info',\"script-src 同时含 nonce/hash 与 'unsafe-inline'：CSP3 浏览器会忽略 unsafe-inline，仅作旧浏览器降级\");\r\n    else add('error',\"script-src 允许 'unsafe-inline'，XSS 防护基本失效\");\r\n  }\r\n  if(script.indexOf(\"'unsafe-eval'\")>-1) add('warn',\"script-src 允许 'unsafe-eval'，eval/new Function 可被利用\");\r\n  if(script.indexOf('*')>-1) add('error','script-src 使用通配符 *，等同不设防');\r\n  if(script.indexOf('data:')>-1) add('error','script-src 允许 data:，可被注入任意脚本');\r\n  if(script.indexOf('http:')>-1) add('warn','script-src 允许明文 http:，存在中间人注入风险');\r\n  var style = d['style-src'] || d['default-src'] || [];\r\n  if(style.indexOf(\"'unsafe-inline'\")>-1) add('warn',\"style-src 允许 'unsafe-inline'，存在样式注入与数据泄露风险\");\r\n  if(!d['object-src'] && !(d['default-src']||[]).length) add('warn',\"建议显式设置 object-src 'none' 以封堵 Flash/插件向量\");\r\n  else {\r\n    var obj = d['object-src'] || d['default-src'];\r\n    if(obj.indexOf(\"'none'\")===-1) add('warn',\"object-src 建议设为 'none'\");\r\n  }\r\n  if(!d['base-uri']) add('warn',\"缺少 base-uri，攻击者可注入 <base> 劫持相对路径\");\r\n  if(!d['frame-ancestors']) add('warn',\"缺少 frame-ancestors，无法防御点击劫持\");\r\n  if(!d['form-action']) add('info','建议设置 form-action 限制表单提交目标');\r\n  if(script.indexOf(\"'strict-dynamic'\")>-1 && !script.some(function(v){return /^'nonce-|^'sha\\d/.test(v);}))\r\n    add('error',\"'strict-dynamic' 必须配合 nonce 或 hash 使用\");\r\n  var errors=0, warnings=0, infos=0;\r\n  for(var q=0;q<issues.length;q++){\r\n    if(issues[q].level==='error') errors++;\r\n    else if(issues[q].level==='warn') warnings++;\r\n    else infos++;\r\n  }\r\n  var score = 100 - errors*25 - warnings*8;\r\n  if(score<0) score=0;\r\n  var grade = errors>0 ? (score>=50?'C':score>0?'D':'F') : (warnings===0?'A': warnings<=2?'B':'C');\r\n  return {parsed:p, issues:issues, errors:errors, warnings:warnings, infos:infos, score:score, grade:grade};\r\n}\r\nfunction buildPolicy(opt){\r\n  opt=opt||{};\r\n  var d={}, order=[];\r\n  function set(k,v){ d[k]=v; order.push(k); }\r\n  var mode = opt.mode || 'strict';\r\n  if(mode==='strict'){\r\n    var script=[\"'strict-dynamic'\"];\r\n    if(opt.nonce) script.unshift(\"'nonce-\"+opt.nonce+\"'\");\r\n    script.push('https:',\"'unsafe-inline'\");\r\n    set('default-src',[\"'self'\"]);\r\n    set('script-src', script);\r\n    set('object-src',[\"'none'\"]);\r\n    set('base-uri',[\"'self'\"]);\r\n    set('frame-ancestors',[\"'none'\"]);\r\n    set('form-action',[\"'self'\"]);\r\n  } else if(mode==='basic'){\r\n    set('default-src',[\"'self'\"]);\r\n    set('script-src',[\"'self'\"]);\r\n    set('style-src',[\"'self'\",\"'unsafe-inline'\"]);\r\n    set('img-src',[\"'self'\",'data:','https:']);\r\n    set('object-src',[\"'none'\"]);\r\n    set('base-uri',[\"'self'\"]);\r\n    set('frame-ancestors',[\"'self'\"]);\r\n    set('form-action',[\"'self'\"]);\r\n  } else if(mode==='lockdown'){\r\n    set('default-src',[\"'none'\"]);\r\n    set('script-src',[\"'self'\"]);\r\n    set('style-src',[\"'self'\"]);\r\n    set('img-src',[\"'self'\"]);\r\n    set('connect-src',[\"'self'\"]);\r\n    set('font-src',[\"'self'\"]);\r\n    set('base-uri',[\"'none'\"]);\r\n    set('frame-ancestors',[\"'none'\"]);\r\n    set('form-action',[\"'self'\"]);\r\n  } else {\r\n    set('default-src',[\"'self'\"]);\r\n  }\r\n  if(opt.extra){\r\n    for(var k in opt.extra){\r\n      if(!opt.extra.hasOwnProperty(k)) continue;\r\n      if(d.hasOwnProperty(k)){\r\n        var cur=d[k].slice();\r\n        var add=opt.extra[k];\r\n        for(var i=0;i<add.length;i++) if(cur.indexOf(add[i])===-1) cur.push(add[i]);\r\n        d[k]=cur;\r\n      } else set(k, opt.extra[k]);\r\n    }\r\n  }\r\n  if(opt.upgradeInsecure){ d['upgrade-insecure-requests']=[]; order.push('upgrade-insecure-requests'); }\r\n  if(opt.reportUri){ d['report-uri']=[opt.reportUri]; order.push('report-uri'); }\r\n  var value=serialize(d, order);\r\n  var name = opt.reportOnly ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy';\r\n  return {directives:d, order:order, value:value, header:name+': '+value, reportOnly: !!opt.reportOnly};\r\n}\r\nfunction makeNonce(seed){\r\n  var s=String(seed===undefined? 'nano':seed), h=2166136261;\r\n  var A='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', out='';\r\n  for(var i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = (h*16777619)>>>0; }\r\n  for(var j=0;j<22;j++){ h = (h*1103515245 + 12345)>>>0; out += A.charAt(h % A.length); }\r\n  return out;\r\n}\r\nfunction diffPolicy(a,b){\r\n  var pa=parsePolicy(a).directives, pb=parsePolicy(b).directives;\r\n  var added=[], removed=[], changed=[];\r\n  for(var k in pb){ if(pb.hasOwnProperty(k) && !pa.hasOwnProperty(k)) added.push(k); }\r\n  for(var j in pa){ if(pa.hasOwnProperty(j) && !pb.hasOwnProperty(j)) removed.push(j); }\r\n  for(var m in pa){\r\n    if(!pa.hasOwnProperty(m) || !pb.hasOwnProperty(m)) continue;\r\n    if(pa[m].join(' ')!==pb[m].join(' ')) changed.push({name:m, from:pa[m], to:pb[m]});\r\n  }\r\n  return {added:added, removed:removed, changed:changed, same: !added.length && !removed.length && !changed.length};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { FETCH_DIRECTIVES:FETCH_DIRECTIVES, OTHER_DIRECTIVES:OTHER_DIRECTIVES, KEYWORDS:KEYWORDS, parsePolicy:parsePolicy, serialize:serialize, isSourceValid:isSourceValid, auditPolicy:auditPolicy, buildPolicy:buildPolicy, makeNonce:makeNonce, diffPolicy:diffPolicy }; }\r\nif (typeof window !== 'undefined') { window.CspForgePure = { FETCH_DIRECTIVES:FETCH_DIRECTIVES, OTHER_DIRECTIVES:OTHER_DIRECTIVES, KEYWORDS:KEYWORDS, parsePolicy:parsePolicy, serialize:serialize, isSourceValid:isSourceValid, auditPolicy:auditPolicy, buildPolicy:buildPolicy, makeNonce:makeNonce, diffPolicy:diffPolicy }; }\r\n\r\n"
+}

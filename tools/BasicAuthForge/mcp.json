@@ -1,0 +1,69 @@
+{
+  "id": "BasicAuthForge",
+  "name": "basic_auth_forge",
+  "title": "BasicAuthForge",
+  "description": "HTTP Basic Auth：将 用户名:密码 编码为 Authorization: Basic 请求头，也可反向解析，纯 JS Base64 支持 UTF-8。",
+  "entry": "encBasic",
+  "entries": {
+    "encBasic": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "user",
+        "pass"
+      ],
+      "fields": []
+    },
+    "decBasic": {
+      "paramStyle": "single",
+      "paramNames": [
+        "b64"
+      ],
+      "fields": []
+    },
+    "b64enc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "b64dec": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "bytesToStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "utf8": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "user": {
+        "type": "string",
+        "description": "第 1 个参数（user）"
+      },
+      "pass": {
+        "type": "string",
+        "description": "第 2 个参数（pass）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction utf8(str){var out=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);if(c<0x80)out.push(c);else if(c<0x800){out.push(0xC0|(c>>6),0x80|(c&0x3F));}else if(c>=0xD800&&c<=0xDBFF){var c2=str.charCodeAt(++i);var cp=0x10000+((c&0x3FF)<<10)+(c2&0x3FF);out.push(0xF0|(cp>>18),0x80|((cp>>12)&0x3F),0x80|((cp>>6)&0x3F),0x80|(cp&0x3F));}else{out.push(0xE0|(c>>12),0x80|((c>>6)&0x3F),0x80|(c&0x3F));}}return out;}\r\n\r\nfunction b64enc(bytes){var tab='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';var s='';for(var i=0;i<bytes.length;i+=3){var b0=bytes[i],b1=i+1<bytes.length?bytes[i+1]:0,b2=i+2<bytes.length?bytes[i+2]:0;var n=(b0<<16)|(b1<<8)|b2;s+=tab[(n>>18)&63]+tab[(n>>12)&63]+((i+1<bytes.length)?tab[(n>>6)&63]:'=')+((i+2<bytes.length)?tab[n&63]:'=');}return s;}\r\nfunction b64dec(str){var tab={};'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'.split('').forEach(function(c,i){tab[c]=i;});var out=[];for(var i=0;i<str.length;i++){var c=str[i];if(c==='='||c===' ')continue;out.push(tab[c]!=null?tab[c]:0);}var bits=[];out.forEach(function(v){for(var k=5;k>=0;k--)bits.push((v>>k)&1);});var bytes=[];for(var j=0;j+8<=bits.length;j+=8){var b=0;for(var mm=0;mm<8;mm++)b=(b<<1)|bits[j+mm];bytes.push(b);}return bytes;}\r\nfunction bytesToStr(bytes){var s='';var i=0;while(i<bytes.length){var c=bytes[i++];if(c<0x80)s+=String.fromCharCode(c);else if(c>=0xC0&&c<0xE0){var c2=bytes[i++];s+=String.fromCharCode(((c&0x1F)<<6)|(c2&0x3F));}else if(c>=0xE0){var c2=bytes[i++],c3=bytes[i++];s+=String.fromCharCode(((c&0x0F)<<12)|((c2&0x3F)<<6)|(c3&0x3F));}else if(c>=0xF0){var c2=bytes[i++],c3=bytes[i++],c4=bytes[i++];var cp=((c&0x07)<<18)|((c2&0x3F)<<12)|((c3&0x3F)<<6)|(c4&0x3F);cp-=0x10000;s+=String.fromCharCode(0xD800+((cp>>10)&0x3FF),0xDC00+(cp&0x3FF));}else s+=String.fromCharCode(c);}return s;}\r\nfunction encBasic(user,pass){return b64enc(utf8(user+':'+pass));}\r\nfunction decBasic(b64){return bytesToStr(b64dec(b64));}\r\nvar EXPORTS={encBasic:encBasic,decBasic:decBasic,b64enc:b64enc,b64dec:b64dec,bytesToStr:bytesToStr,utf8:utf8};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BasicAuthForgePure = EXPORTS; }\r\n\r\n"
+}

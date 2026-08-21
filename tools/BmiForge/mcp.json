@@ -1,0 +1,43 @@
+{
+  "id": "BmiForge",
+  "name": "bmi_forge",
+  "title": "BmiForge",
+  "description": "BMI 与健康区间：输入身高体重得 BMI 与中国成人标准分级，并给出健康体重范围与体脂率估算，离线可用。",
+  "entry": "bmiCompute",
+  "entries": {
+    "bmiCompute": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "weightKg",
+        "heightCm"
+      ],
+      "fields": []
+    },
+    "bmiBodyFat": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bmi",
+        "age",
+        "sex"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "weightKg": {
+        "type": "number",
+        "description": "第 1 个参数（weightKg）（数值）"
+      },
+      "heightCm": {
+        "type": "number",
+        "description": "第 2 个参数（heightCm）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction bmiCompute(weightKg, heightCm){\r\n  weightKg=Number(weightKg); heightCm=Number(heightCm);\r\n  if(!(weightKg>0)) return { error:'体重须为正' };\r\n  if(!(heightCm>0)) return { error:'身高须为正' };\r\n  var m=heightCm/100, bmi=weightKg/(m*m);\r\n  var cat = bmi<18.5 ? '偏瘦' : (bmi<24 ? '正常' : (bmi<28 ? '超重' : '肥胖'));\r\n  var low=18.5*m*m, high=23.9*m*m;\r\n  return { error:null, bmi:Math.round(bmi*10)/10, category:cat,\r\n    healthyLow:Math.round(low*10)/10, healthyHigh:Math.round(high*10)/10 };\r\n}\r\nfunction bmiBodyFat(bmi, age, sex){\r\n  if(!(age>0)) return { error:'年龄须为正' };\r\n  var s=(sex===1||sex==='1'||sex==='male')?1:0;\r\n  var bf=1.20*bmi + 0.23*age - 10.8*s - 5.4;\r\n  return { error:null, bodyFat:Math.round(bf*10)/10 };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { bmiCompute:bmiCompute, bmiBodyFat:bmiBodyFat };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.BmiForgePure = { bmiCompute:bmiCompute, bmiBodyFat:bmiBodyFat };\r\n}\r\n"
+}

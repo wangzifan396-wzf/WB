@@ -1,0 +1,50 @@
+{
+  "id": "Base45Forge",
+  "name": "base45_forge",
+  "title": "Base45Forge",
+  "description": "Base45 编码（RFC 9285）：用 45 个字符集把二进制数据编码成文本，比 Base64 更节省空间，常用于二维码（如健康证书）。支持编码与解码，纯本地、零依赖。",
+  "entry": "b45Enc",
+  "entries": {
+    "b45Enc": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "b45Dec": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "b45EncStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "b45DecStr": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "bytes": {
+        "type": "string",
+        "description": "输入（bytes）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar B45_CHARS=\"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:\";\r\nfunction b45Enc(bytes){ var out=\"\"; for(var i=0;i<bytes.length;i+=2){ if(i+1<bytes.length){ var v=bytes[i]*256+bytes[i+1]; var c0=v%45, c1=Math.floor(v/45)%45, c2=Math.floor(v/45/45); out+=B45_CHARS[c0]+B45_CHARS[c1]+B45_CHARS[c2]; } else { var r=bytes[i]%45; out+=B45_CHARS[r]+B45_CHARS[Math.floor(bytes[i]/45)]; } } return out; }\r\nfunction b45Dec(str){ var bytes=[]; for(var i=0;i<str.length;i+=3){ if(i+2<str.length){ var c0=B45_CHARS.indexOf(str[i]), c1=B45_CHARS.indexOf(str[i+1]), c2=B45_CHARS.indexOf(str[i+2]); var v=c0+c1*45+c2*2025; bytes.push(Math.floor(v/256)); bytes.push(v%256); } else if(i+1<str.length){ var d0=B45_CHARS.indexOf(str[i]), d1=B45_CHARS.indexOf(str[i+1]); bytes.push((d0+d1*45)%256); } } return bytes; }\r\nfunction b45EncStr(s){ var b=[]; for(var i=0;i<s.length;i++) b.push(s.charCodeAt(i)&0xff); return b45Enc(b); }\r\nfunction b45DecStr(s){ return b45Dec(s).map(function(x){return String.fromCharCode(x);}).join(''); }\r\nvar EXPORTS={b45Enc:b45Enc, b45Dec:b45Dec, b45EncStr:b45EncStr, b45DecStr:b45DecStr};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.Base45ForgePure = EXPORTS; }\r\n\r\n"
+}

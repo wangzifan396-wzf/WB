@@ -1,0 +1,58 @@
+{
+  "id": "ChordForge",
+  "name": "chord_forge",
+  "title": "ChordForge",
+  "description": "和弦与音阶：和弦识别、音阶构建、音名解析与异名同音归一。",
+  "entry": "cfParseNote",
+  "entries": {
+    "cfParseNote": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "cfParseNotes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "cfDetect": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pcs"
+      ],
+      "fields": []
+    },
+    "cfScale": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rootPc",
+        "type"
+      ],
+      "fields": []
+    },
+    "cfNames": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pcs"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar CF_NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];\r\nvar CF_FLAT = { 'DB':'C#','EB':'D#','GB':'F#','AB':'G#','BB':'A#' };\r\nvar CF_CHORDS = [\r\n  { name: '大三和弦', formula: [0,4,7] },\r\n  { name: '小三和弦', formula: [0,3,7] },\r\n  { name: '减三和弦', formula: [0,3,6] },\r\n  { name: '增三和弦', formula: [0,4,8] },\r\n  { name: '挂四和弦 sus4', formula: [0,5,7] },\r\n  { name: '挂二和弦 sus2', formula: [0,2,7] },\r\n  { name: '大七和弦 maj7', formula: [0,4,7,11] },\r\n  { name: '属七和弦 7', formula: [0,4,7,10] },\r\n  { name: '小七和弦 m7', formula: [0,3,7,10] },\r\n  { name: '半减七和弦 m7b5', formula: [0,3,6,10] },\r\n  { name: '减七和弦 dim7', formula: [0,3,6,9] }\r\n];\r\nvar CF_SCALES = {\r\n  major: [0,2,4,5,7,9,11],\r\n  minor: [0,2,3,5,7,8,10],\r\n  pentMajor: [0,2,4,7,9],\r\n  pentMinor: [0,3,5,7,10],\r\n  blues: [0,3,5,6,7,10]\r\n};\r\nfunction cfParseNote(s){\r\n  var u = String(s||'').trim().toUpperCase();\r\n  if(CF_FLAT[u] !== undefined) u = CF_FLAT[u];\r\n  var i = CF_NOTES.indexOf(u);\r\n  return i < 0 ? null : i;\r\n}\r\nfunction cfParseNotes(text){\r\n  var parts = String(text||'').trim().split(/[\\s,]+/).filter(Boolean);\r\n  var out = [];\r\n  for(var i=0;i<parts.length;i++){\r\n    var p = cfParseNote(parts[i]);\r\n    if(p === null) return { error: '无法识别音符：' + parts[i] };\r\n    if(out.indexOf(p) < 0) out.push(p);\r\n  }\r\n  if(out.length < 2) return { error: '至少输入 2 个不同音符' };\r\n  return { pcs: out };\r\n}\r\nfunction cfDetect(pcs){\r\n  var hits = [];\r\n  for(var r=0;r<pcs.length;r++){\r\n    var root = pcs[r];\r\n    var rel = pcs.map(function(p){ return ((p - root) % 12 + 12) % 12; }).sort(function(a,b){ return a-b; });\r\n    for(var c=0;c<CF_CHORDS.length;c++){\r\n      var f = CF_CHORDS[c].formula.slice().sort(function(a,b){ return a-b; });\r\n      if(rel.length === f.length && rel.every(function(v,i){ return v === f[i]; })){\r\n        hits.push({ root: CF_NOTES[root], name: CF_CHORDS[c].name, inversion: r > 0 });\r\n      }\r\n    }\r\n  }\r\n  return hits;\r\n}\r\nfunction cfScale(rootPc, type){\r\n  var iv = CF_SCALES[type];\r\n  if(!iv) return null;\r\n  return iv.map(function(s){ return (rootPc + s) % 12; });\r\n}\r\nfunction cfNames(pcs){ return pcs.map(function(p){ return CF_NOTES[p]; }); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { CF_NOTES:CF_NOTES, CF_CHORDS:CF_CHORDS, CF_SCALES:CF_SCALES, cfParseNote:cfParseNote, cfParseNotes:cfParseNotes, cfDetect:cfDetect, cfScale:cfScale, cfNames:cfNames };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.ChordForgePure = { CF_NOTES:CF_NOTES, CF_CHORDS:CF_CHORDS, CF_SCALES:CF_SCALES, cfParseNote:cfParseNote, cfParseNotes:cfParseNotes, cfDetect:cfDetect, cfScale:cfScale, cfNames:cfNames };\r\n}\r\n"
+}

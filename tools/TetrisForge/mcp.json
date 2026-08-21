@@ -1,0 +1,125 @@
+{
+  "id": "TetrisForge",
+  "name": "tetris_forge",
+  "title": "TetrisForge",
+  "description": "俄罗斯方块：纯逻辑内核（碰撞/旋转/消行）+ Canvas 游戏，方向键操作。",
+  "entry": "ttRot",
+  "entries": {
+    "ttRot": {
+      "paramStyle": "single",
+      "paramNames": [
+        "off"
+      ],
+      "fields": []
+    },
+    "ttEmpty": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "ttCells": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "type",
+        "rot"
+      ],
+      "fields": []
+    },
+    "ttCollide": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "type",
+        "rot",
+        "x",
+        "y"
+      ],
+      "fields": []
+    },
+    "ttMerge": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "board",
+        "type",
+        "rot",
+        "x",
+        "y"
+      ],
+      "fields": []
+    },
+    "ttClearLines": {
+      "paramStyle": "single",
+      "paramNames": [
+        "board"
+      ],
+      "fields": []
+    },
+    "ttNew": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "ttStep": {
+      "paramStyle": "object",
+      "paramNames": [
+        "s"
+      ],
+      "fields": [
+        "over",
+        "board",
+        "type",
+        "rot",
+        "x",
+        "y"
+      ]
+    },
+    "ttMove": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "s",
+        "dx"
+      ],
+      "fields": []
+    },
+    "ttRotate": {
+      "paramStyle": "object",
+      "paramNames": [
+        "s"
+      ],
+      "fields": [
+        "rot",
+        "board",
+        "type",
+        "x",
+        "y"
+      ]
+    },
+    "ttHardDrop": {
+      "paramStyle": "object",
+      "paramNames": [
+        "s"
+      ],
+      "fields": [
+        "over",
+        "board",
+        "type",
+        "rot",
+        "x",
+        "y"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "off": {
+        "type": "string",
+        "description": "输入（off）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nvar TT_W=10, TT_H=20;\r\nvar TT_SHAPES={\r\n  I:[[0,0],[1,0],[2,0],[3,0]], O:[[0,0],[1,0],[0,1],[1,1]],\r\n  T:[[0,0],[1,0],[2,0],[1,1]], S:[[1,0],[2,0],[0,1],[1,1]],\r\n  Z:[[0,0],[1,0],[1,1],[2,1]], J:[[0,0],[0,1],[1,1],[2,1]], L:[[2,0],[0,1],[1,1],[2,1]]\r\n};\r\nvar TT_TYPES=Object.keys(TT_SHAPES);\r\nfunction ttRot(off){ return off.map(function(p){ return [-p[1], p[0]]; }); }\r\nfunction ttClone(b){ return b.map(function(r){ return r.slice(); }); }\r\nfunction ttEmpty(){ var g=[]; for(var y=0;y<TT_H;y++){ g.push(new Array(TT_W).fill(0)); } return g; }\r\nfunction ttCells(type, rot){ var o=TT_SHAPES[type]; for(var i=0;i<(rot%4+4)%4;i++) o=ttRot(o); return o; }\r\nfunction ttCollide(board, type, rot, x, y){\r\n  var cells=ttCells(type,rot);\r\n  for(var i=0;i<cells.length;i++){ var cx=x+cells[i][0], cy=y+cells[i][1];\r\n    if(cx<0||cx>=TT_W||cy<0||cy>=TT_H) return true;\r\n    if(cy>=0 && board[cy][cx]) return true; }\r\n  return false;\r\n}\r\nfunction ttMerge(board, type, rot, x, y){\r\n  var b=ttClone(board), cells=ttCells(type,rot);\r\n  for(var i=0;i<cells.length;i++){ var cx=x+cells[i][0], cy=y+cells[i][1]; if(cy>=0) b[cy][cx]=type; }\r\n  return b;\r\n}\r\nfunction ttClearLines(board){\r\n  var cleared=0, nb=[];\r\n  for(var y=0;y<TT_H;y++){ if(board[y].every(function(v){ return v; })) cleared++; else nb.push(board[y]); }\r\n  while(nb.length<TT_H) nb.unshift(new Array(TT_W).fill(0));\r\n  return {board:nb, cleared:cleared};\r\n}\r\nfunction ttNew(){\r\n  return { board:ttEmpty(), type:TT_TYPES[Math.floor(Math.random()*7)], rot:0, x:3, y:0,\r\n           next:TT_TYPES[Math.floor(Math.random()*7)], score:0, lines:0, over:false };\r\n}\r\nfunction ttStep(s){\r\n  if(s.over) return s;\r\n  if(ttCollide(s.board, s.type, s.rot, s.x, s.y+1)){ return ttLock(s); }\r\n  s.y++; return s;\r\n}\r\nfunction ttLock(s){\r\n  s.board=ttMerge(s.board, s.type, s.rot, s.x, s.y);\r\n  var r=ttClearLines(s.board); s.board=r.board; s.lines+=r.cleared; s.score+=r.cleared*r.cleared*100;\r\n  s.type=s.next; s.next=TT_TYPES[Math.floor(Math.random()*7)]; s.rot=0; s.x=3; s.y=0;\r\n  if(ttCollide(s.board, s.type, s.rot, s.x, s.y)) s.over=true;\r\n  return s;\r\n}\r\nfunction ttMove(s, dx){ if(!s.over && !ttCollide(s.board, s.type, s.rot, s.x+dx, s.y)) s.x+=dx; return s; }\r\nfunction ttRotate(s){ var nr=(s.rot+1)%4; if(!ttCollide(s.board, s.type, nr, s.x, s.y)) s.rot=nr; return s; }\r\nfunction ttHardDrop(s){ if(s.over) return s; while(!ttCollide(s.board, s.type, s.rot, s.x, s.y+1)) s.y++; return ttLock(s); }\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { TT_W:TT_W, TT_H:TT_H, TT_SHAPES:TT_SHAPES, ttRot:ttRot, ttEmpty:ttEmpty,\r\n    ttCells:ttCells, ttCollide:ttCollide, ttMerge:ttMerge, ttClearLines:ttClearLines, ttNew:ttNew,\r\n    ttStep:ttStep, ttMove:ttMove, ttRotate:ttRotate, ttHardDrop:ttHardDrop };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.TetrisForgePure = { TT_W:TT_W, TT_H:TT_H, TT_SHAPES:TT_SHAPES, ttRot:ttRot, ttEmpty:ttEmpty,\r\n    ttCells:ttCells, ttCollide:ttCollide, ttMerge:ttMerge, ttClearLines:ttClearLines, ttNew:ttNew,\r\n    ttStep:ttStep, ttMove:ttMove, ttRotate:ttRotate, ttHardDrop:ttHardDrop };\r\n}\r\n"
+}

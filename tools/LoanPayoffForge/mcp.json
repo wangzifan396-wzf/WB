@@ -1,0 +1,53 @@
+{
+  "id": "LoanPayoffForge",
+  "name": "loan_payoff_forge",
+  "title": "提前还款",
+  "description": "对比标准月供与每月多还的省息与缩短期数，离线。",
+  "entry": "loanPayoff",
+  "entries": {
+    "loanPayoff": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "principal",
+        "annualRatePct",
+        "months",
+        "extraMonthly"
+      ],
+      "fields": []
+    },
+    "pmt": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "rate",
+        "n",
+        "principal"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "principal": {
+        "type": "string",
+        "description": "第 1 个参数（principal）"
+      },
+      "annualRatePct": {
+        "type": "string",
+        "description": "第 2 个参数（annualRatePct）"
+      },
+      "months": {
+        "type": "string",
+        "description": "第 3 个参数（months）"
+      },
+      "extraMonthly": {
+        "type": "number",
+        "description": "第 4 个参数（extraMonthly）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pmt(rate, n, principal){ if(!(principal>0)) return 0; if(rate<=0) return principal/n;\r\n  var m=rate/12; return principal*m/(1-Math.pow(1+m,-n)); }\r\nfunction loanPayoff(principal, annualRatePct, months, extraMonthly){\r\n  principal=+principal; var r=+annualRatePct/100/12; var N=Math.round(+months); extraMonthly=+extraMonthly||0;\r\n  if(!(principal>0)||!(N>0)) return {error:'本金与期数须为正'};\r\n  var stdM = r<=0 ? principal/N : principal*r/(1-Math.pow(1+r,-N));\r\n  var bal=principal, stdInterest=0, mo=0;\r\n  while(bal>0.005 && mo<N+1){ mo++; var interest=bal*r; stdInterest+=interest; var princ=stdM-interest; if(princ>bal) princ=bal; bal-=princ; }\r\n  var bal2=principal, accInterest=0, mo2=0, pay=stdM+extraMonthly;\r\n  while(bal2>0.005 && mo2<N+1){ mo2++; var interest=bal2*r; accInterest+=interest; var princ=Math.min(pay,bal2+interest)-interest; if(princ>bal2) princ=bal2; bal2-=princ; }\r\n  return {standardMonths:mo, standardInterest:Math.round(stdInterest), acceleratedMonths:mo2,\r\n          acceleratedInterest:Math.round(accInterest), interestSaved:Math.round(stdInterest-accInterest),\r\n          monthsSaved:mo-mo2, monthly:Math.round(stdM), extra:extraMonthly}; }\r\nvar EXPORTS={loanPayoff:loanPayoff, pmt:pmt};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LoanPayoffForgePure = EXPORTS; }\r\n\r\n"
+}

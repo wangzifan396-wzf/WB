@@ -1,0 +1,42 @@
+{
+  "id": "BrailleForge",
+  "name": "braille_forge",
+  "title": "BrailleForge",
+  "description": "盲文点阵生成器：将文字渲染为盲文 Unicode 点阵字符画，支持反相与画布尺寸调节，复古终端风格，离线可用。",
+  "entry": "brFont",
+  "entries": {
+    "brFont": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "brBitmap": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "brInvert": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bm"
+      ],
+      "fields": []
+    },
+    "brToBraille": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bm"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\nfunction brFont(){\r\n  return {\r\n    'A':[14,17,17,31,17,17,17],'B':[30,17,17,30,17,17,30],'C':[14,17,16,16,16,17,14],\r\n    'D':[30,17,17,17,17,17,30],'E':[31,16,16,30,16,16,31],'F':[31,16,16,30,16,16,16],\r\n    'G':[14,17,16,23,17,17,14],'H':[17,17,17,31,17,17,17],'I':[14,4,4,4,4,4,14],\r\n    'J':[7,2,2,2,2,18,12],'K':[17,18,20,24,20,18,17],'L':[16,16,16,16,16,16,31],\r\n    'M':[17,27,21,21,17,17,17],'N':[17,25,21,19,17,17,17],'O':[14,17,17,17,17,17,14],\r\n    'P':[30,17,17,30,16,16,16],'Q':[14,17,17,17,21,18,13],'R':[30,17,17,30,20,18,17],\r\n    'S':[14,17,16,14,1,17,14],'T':[31,4,4,4,4,4,4],'U':[17,17,17,17,17,17,14],\r\n    'V':[17,17,17,17,17,10,4],'W':[17,17,17,21,21,27,17],'X':[17,10,4,4,4,10,17],\r\n    'Y':[17,10,4,4,4,4,4],'Z':[31,1,2,4,8,16,31],\r\n    '0':[14,17,19,21,25,17,14],'1':[4,12,4,4,4,4,14],'2':[14,17,1,6,8,16,31],\r\n    '3':[14,17,1,6,1,17,14],'4':[2,6,10,18,31,2,2],'5':[31,16,30,1,1,17,14],\r\n    '6':[6,8,16,30,17,17,14],'7':[31,1,2,4,8,8,8],'8':[14,17,17,14,17,17,14],\r\n    '9':[14,17,17,15,1,2,12],' ':[0,0,0,0,0,0,0],'-':[0,0,0,31,0,0,0],'.':[0,0,0,0,0,12,12]\r\n  };\r\n}\r\nfunction brBitmap(text){\r\n  var F=brFont(), s=String(text||'').toUpperCase(), rows=[];\r\n  for(var r=0;r<7;r++){\r\n    var row=[];\r\n    for(var c=0;c<s.length;c++){\r\n      var g=F[s[c]]||F[' '];\r\n      for(var b=4;b>=0;b--){ row.push((g[r]>>b)&1); }\r\n      row.push(0);\r\n    }\r\n    rows.push(row);\r\n  }\r\n  return rows;\r\n}\r\nfunction brInvert(bm){ return bm.map(function(row){ return row.map(function(v){ return v?0:1; }); }); }\r\nfunction brToBraille(bm){\r\n  if(!bm || !bm.length) return '';\r\n  var h=bm.length, wd=bm[0].length, out=[];\r\n  var offs=[[0,0,1],[1,0,2],[2,0,4],[0,1,8],[1,1,16],[2,1,32],[3,0,64],[3,1,128]];\r\n  for(var y=0;y<h;y+=4){\r\n    var line='';\r\n    for(var x=0;x<wd;x+=2){\r\n      var code=0;\r\n      for(var k=0;k<offs.length;k++){\r\n        var yy=y+offs[k][0], xx=x+offs[k][1];\r\n        if(yy<h && xx<wd && bm[yy][xx]) code|=offs[k][2];\r\n      }\r\n      line+=String.fromCharCode(0x2800+code);\r\n    }\r\n    out.push(line);\r\n  }\r\n  return out.join('\\n');\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { brFont:brFont, brBitmap:brBitmap, brInvert:brInvert, brToBraille:brToBraille };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.BrailleForgePure = { brFont:brFont, brBitmap:brBitmap, brInvert:brInvert, brToBraille:brToBraille };\r\n}\r\n"
+}

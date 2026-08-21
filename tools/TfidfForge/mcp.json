@@ -1,0 +1,36 @@
+{
+  "id": "TfidfForge",
+  "name": "tfidf_forge",
+  "title": "TF-IDF",
+  "description": "对文档集计算词频逆文档频率，离线。",
+  "entry": "tfidf",
+  "entries": {
+    "tfidf": {
+      "paramStyle": "single",
+      "paramNames": [
+        "docs"
+      ],
+      "fields": []
+    },
+    "tokenize": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "docs": {
+        "type": "array",
+        "description": "输入（docs）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction tokenize(s){ return (String(s||'').toLowerCase().match(/[a-z一-龥]+/g)||[]); }\r\nfunction tfidf(docs){ docs=(docs||[]).filter(function(d){return d && String(d).trim();});\r\n  var N=docs.length; if(N===0) return {error:'请提供文档'};\r\n  var df={}; var tfs=docs.map(function(d){ var toks=tokenize(d); var f={}; for(var i=0;i<toks.length;i++) f[toks[i]]=(f[toks[i]]||0)+1;\r\n    var uniq={}; for(var k in f) uniq[k]=true; for(var k in uniq) df[k]=(df[k]||0)+1;\r\n    var max=0; for(var k in f) if(f[k]>max) max=f[k]; var tf={}; for(var k in f) tf[k]=f[k]/(max||1); return tf; });\r\n  var idf={}; for(var k in df) idf[k]=Math.round((Math.log((N+1)/(df[k]+1))+1)*1000)/1000;\r\n  var out=docs.map(function(_,i){ var r={}; for(var k in tfs[i]) r[k]=Math.round(tfs[i][k]*idf[k]*1000)/1000; return r; });\r\n  return {docCount:N, idf:idf, tfidf:out}; }\r\nvar EXPORTS={tfidf:tfidf, tokenize:tokenize};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TfidfForgePure = EXPORTS; }\r\n\r\n"
+}

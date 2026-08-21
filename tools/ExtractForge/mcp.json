@@ -1,0 +1,39 @@
+{
+  "id": "ExtractForge",
+  "name": "extract_forge",
+  "title": "ExtractForge",
+  "description": "文本抽取：正则预设抽取邮箱、网址、IPv4、电话、数字与十六进制颜色，支持自定义正则。",
+  "entry": "extract",
+  "entries": {
+    "extract": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "kind",
+        "custom"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "kind": {
+        "type": "string",
+        "description": "第 2 个参数（kind）"
+      },
+      "custom": {
+        "type": "string",
+        "description": "第 3 个参数（custom）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar EX_PRESETS={\r\n  email: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g,\r\n  url: /https?:\\/\\/[^\\s<>\"'\\)]+/gi,\r\n  ipv4: /\\b(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b/g,\r\n  phone: /(?:\\+?\\d{1,3}[\\s.-]?)?(?:\\d[\\s.-]?){7,13}\\d/g,\r\n  number: /-?\\d+(?:\\.\\d+)?/g,\r\n  hexcolor: /#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\\b/g\r\n};\r\nfunction extract(text, kind, custom){\r\n  var rg;\r\n  if(kind==='custom'){ if(!custom) return []; rg=new RegExp(custom,'g'); }\r\n  else { var re=EX_PRESETS[kind]; if(!re) return []; rg=new RegExp(re.source, re.flags); }\r\n  var m,out=[]; var guard=0;\r\n  while((m=rg.exec(text))!==null){ out.push(m[0]); if(m.index===rg.lastIndex){ rg.lastIndex++; } if(++guard>100000) break; }\r\n  return out;\r\n}\r\nvar EXPORTS={extract:extract,EX_PRESETS:EX_PRESETS};\r\n\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ExtractForgePure = EXPORTS; }\r\n\r\n"
+}

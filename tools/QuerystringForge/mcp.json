@@ -1,0 +1,43 @@
+{
+  "id": "QuerystringForge",
+  "name": "querystring_forge",
+  "title": "QuerystringForge",
+  "description": "URL 查询串解析与构建：把 a=1&b=2 解析为对象（支持重复键为数组、自动解码），或把对象还原为排序后的查询串。",
+  "entry": "build",
+  "entries": {
+    "parse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "qs"
+      ],
+      "fields": []
+    },
+    "build": {
+      "paramStyle": "single",
+      "paramNames": [
+        "obj"
+      ],
+      "fields": []
+    },
+    "sort": {
+      "paramStyle": "single",
+      "paramNames": [
+        "qs"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "obj": {
+        "type": "string",
+        "description": "输入（obj）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n(function(){\r\n  function parse(qs){\r\n    qs=String(qs==null?'':qs).replace(/^\\?/,'');\r\n    var out={}; if(qs==='') return {value:out};\r\n    qs.split('&').forEach(function(pair){ if(pair==='')return; var i=pair.indexOf('='); var k,v;\r\n      if(i<0){k=pair;v='';} else {k=pair.slice(0,i);v=pair.slice(i+1);}\r\n      k=decodeURIComponent(k.replace(/\\+/g,' ')); v=decodeURIComponent(v.replace(/\\+/g,' '));\r\n      if(out.hasOwnProperty(k)){ if(!Array.isArray(out[k])) out[k]=[out[k]]; out[k].push(v); } else out[k]=v; });\r\n    return {value:out};\r\n  }\r\n  function build(obj){\r\n    if(obj==null||typeof obj!=='object') return {error:'需为对象'};\r\n    var parts=[];\r\n    Object.keys(obj).forEach(function(k){ var v=obj[k];\r\n      if(Array.isArray(v)) v.forEach(function(x){ parts.push(encodeURIComponent(k)+'='+encodeURIComponent(x)); });\r\n      else parts.push(encodeURIComponent(k)+'='+encodeURIComponent(v)); });\r\n    return {value:parts.join('&')};\r\n  }\r\n  function sort(qs){ var o=parse(qs).value; var keys=Object.keys(o).sort(); var parts=[];\r\n    keys.forEach(function(k){ var v=o[k]; if(Array.isArray(v)) v.forEach(function(x){parts.push(encodeURIComponent(k)+'='+encodeURIComponent(x));}); else parts.push(encodeURIComponent(k)+'='+encodeURIComponent(v)); });\r\n    return {value:parts.join('&')}; }\r\n  var API={parse:parse,build:build,sort:sort};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__QuerystringForge__=API;\r\n})();\r\n"
+}

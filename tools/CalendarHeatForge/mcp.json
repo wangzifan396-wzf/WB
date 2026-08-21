@@ -1,0 +1,112 @@
+{
+  "id": "CalendarHeatForge",
+  "name": "calendar_heat_forge",
+  "title": "CalendarHeatForge",
+  "description": "日历热力图：GitHub 风格贡献格，同日累加、五档配色、当前与最长连续天数、活跃覆盖率与星期分布，离线可用。",
+  "entry": "buildGrid",
+  "entries": {
+    "fromISO": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "toISO": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ts"
+      ],
+      "fields": []
+    },
+    "dow": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ts"
+      ],
+      "fields": []
+    },
+    "addDays": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ts",
+        "n"
+      ],
+      "fields": []
+    },
+    "parseEntries": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "rangeOf": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "entries",
+        "opt"
+      ],
+      "fields": []
+    },
+    "levelOf": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "value",
+        "max"
+      ],
+      "fields": []
+    },
+    "buildGrid": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "parsed",
+        "opt"
+      ],
+      "fields": []
+    },
+    "stats": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "parsed",
+        "grid"
+      ],
+      "fields": []
+    },
+    "monthLabels": {
+      "paramStyle": "object",
+      "paramNames": [
+        "grid"
+      ],
+      "fields": [
+        "empty",
+        "weeks"
+      ]
+    },
+    "toSvg": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "grid",
+        "opt"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "parsed": {
+        "type": "string",
+        "description": "第 1 个参数（parsed）"
+      },
+      "opt": {
+        "type": "object",
+        "description": "第 2 个参数（opt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar CH_DAY = 86400000;\r\nvar CH_LEVELS = ['#161B22', '#0E4429', '#006D32', '#26A641', '#39D353'];\r\nvar CH_MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];\r\nvar CH_WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'];\r\n\r\nfunction pad2(n){ return (n < 10 ? '0' : '') + n; }\r\n\r\nfunction fromISO(s){\r\n  var m = /^(\\d{4})-(\\d{1,2})-(\\d{1,2})$/.exec(String(s == null ? '' : s).trim());\r\n  if (!m) return null;\r\n  var y = parseInt(m[1], 10), mo = parseInt(m[2], 10), da = parseInt(m[3], 10);\r\n  if (mo < 1 || mo > 12 || da < 1 || da > 31) return null;\r\n  var ts = Date.UTC(y, mo - 1, da);\r\n  var d = new Date(ts);\r\n  if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo - 1 || d.getUTCDate() !== da) return null;\r\n  return ts;\r\n}\r\n\r\nfunction toISO(ts){\r\n  var d = new Date(ts);\r\n  return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());\r\n}\r\n\r\nfunction dow(ts){ return new Date(ts).getUTCDay(); }\r\n\r\nfunction addDays(ts, n){ return ts + n * CH_DAY; }\r\n\r\nfunction parseEntries(text){\r\n  var lines = String(text == null ? '' : text).split(/\\r?\\n/);\r\n  var map = {}, errors = [], order = [];\r\n  for (var i = 0; i < lines.length; i++){\r\n    var l = lines[i].trim();\r\n    if (!l || l.charAt(0) === '#') continue;\r\n    var m = /^([^\\s,，:：\\t]+)[\\s,，:：\\t]+(-?[\\d.]+)$/.exec(l);\r\n    if (!m){\r\n      var only = fromISO(l);\r\n      if (only !== null){ if (map[l] === undefined){ map[l] = 0; order.push(l); } map[l] += 1; continue; }\r\n      errors.push({ line:i + 1, text:l, why:'格式应为 YYYY-MM-DD 数值' });\r\n      continue;\r\n    }\r\n    var ts = fromISO(m[1]);\r\n    if (ts === null){ errors.push({ line:i + 1, text:l, why:'日期非法：' + m[1] }); continue; }\r\n    var v = parseFloat(m[2]);\r\n    if (!isFinite(v)){ errors.push({ line:i + 1, text:l, why:'数值无法解析' }); continue; }\r\n    var key = toISO(ts);\r\n    if (map[key] === undefined){ map[key] = 0; order.push(key); }\r\n    map[key] += v;\r\n  }\r\n  var entries = order.map(function(k){ return { date:k, ts:fromISO(k), value:map[k] }; });\r\n  entries.sort(function(a, b){ return a.ts - b.ts; });\r\n  return { entries:entries, map:map, errors:errors };\r\n}\r\n\r\nfunction rangeOf(entries, opt){\r\n  opt = opt || {};\r\n  var start = opt.start ? fromISO(opt.start) : null;\r\n  var end = opt.end ? fromISO(opt.end) : null;\r\n  if (!entries.length && (start === null || end === null)) return { start:null, end:null };\r\n  if (start === null) start = entries[0].ts;\r\n  if (end === null) end = entries[entries.length - 1].ts;\r\n  if (end < start){ var t = start; start = end; end = t; }\r\n  return { start:start, end:end };\r\n}\r\n\r\nfunction levelOf(value, max){\r\n  if (!(value > 0)) return 0;\r\n  if (!(max > 0)) return 1;\r\n  var r = value / max;\r\n  if (r <= 0.25) return 1;\r\n  if (r <= 0.5) return 2;\r\n  if (r <= 0.75) return 3;\r\n  return 4;\r\n}\r\n\r\nfunction buildGrid(parsed, opt){\r\n  opt = opt || {};\r\n  var weekStart = opt.weekStart === 0 ? 0 : 1;\r\n  var rg = rangeOf(parsed.entries, opt);\r\n  if (rg.start === null) return { weeks:[], days:0, empty:true, weekStart:weekStart, start:null, end:null, max:0 };\r\n  var lead = (dow(rg.start) - weekStart + 7) % 7;\r\n  var gridStart = addDays(rg.start, -lead);\r\n  var tail = (weekStart + 6 - dow(rg.end) + 7) % 7;\r\n  var gridEnd = addDays(rg.end, tail);\r\n  var max = 0;\r\n  for (var e = 0; e < parsed.entries.length; e++){\r\n    var t = parsed.entries[e].ts;\r\n    if (t >= rg.start && t <= rg.end) max = Math.max(max, parsed.entries[e].value);\r\n  }\r\n  var weeks = [], week = [], count = 0;\r\n  for (var ts = gridStart; ts <= gridEnd; ts = addDays(ts, 1)){\r\n    var iso = toISO(ts);\r\n    var inRange = ts >= rg.start && ts <= rg.end;\r\n    var v = inRange && parsed.map[iso] !== undefined ? parsed.map[iso] : 0;\r\n    week.push({ date:iso, ts:ts, value:inRange ? v : null, inRange:inRange, level:inRange ? levelOf(v, max) : -1, dow:dow(ts) });\r\n    if (inRange) count++;\r\n    if (week.length === 7){ weeks.push(week); week = []; }\r\n  }\r\n  if (week.length) weeks.push(week);\r\n  return { weeks:weeks, days:count, empty:false, weekStart:weekStart, start:rg.start, end:rg.end, max:max };\r\n}\r\n\r\nfunction stats(parsed, grid){\r\n  var total = 0, active = 0, best = null, weekday = [0,0,0,0,0,0,0], weekdayDays = [0,0,0,0,0,0,0];\r\n  if (!grid || grid.empty) return { total:0, active:0, days:0, best:null, average:0, activeAverage:0, currentStreak:0, longestStreak:0, weekday:weekday, coverage:0 };\r\n  var flat = [];\r\n  for (var w = 0; w < grid.weeks.length; w++)\r\n    for (var d = 0; d < grid.weeks[w].length; d++)\r\n      if (grid.weeks[w][d].inRange) flat.push(grid.weeks[w][d]);\r\n  for (var i = 0; i < flat.length; i++){\r\n    var c = flat[i];\r\n    total += c.value;\r\n    weekday[c.dow] += c.value;\r\n    weekdayDays[c.dow]++;\r\n    if (c.value > 0){ active++; if (!best || c.value > best.value) best = { date:c.date, value:c.value }; }\r\n  }\r\n  var cur = 0, longest = 0, run = 0;\r\n  for (var j = 0; j < flat.length; j++){\r\n    if (flat[j].value > 0){ run++; longest = Math.max(longest, run); }\r\n    else run = 0;\r\n  }\r\n  for (var k = flat.length - 1; k >= 0; k--){\r\n    if (flat[k].value > 0) cur++;\r\n    else break;\r\n  }\r\n  var wd = [];\r\n  for (var q = 0; q < 7; q++) wd.push({ name:CH_WEEKDAYS[q], total:round2(weekday[q]), average: weekdayDays[q] ? round2(weekday[q] / weekdayDays[q]) : 0 });\r\n  return {\r\n    total: round2(total), active: active, days: flat.length,\r\n    best: best, average: flat.length ? round2(total / flat.length) : 0,\r\n    activeAverage: active ? round2(total / active) : 0,\r\n    currentStreak: cur, longestStreak: longest,\r\n    coverage: flat.length ? Math.round(active / flat.length * 1000) / 10 : 0,\r\n    weekday: wd\r\n  };\r\n}\r\n\r\nfunction round2(n){ return Math.round(n * 100) / 100; }\r\n\r\nfunction monthLabels(grid){\r\n  if (!grid || grid.empty) return [];\r\n  var out = [], last = -1;\r\n  for (var w = 0; w < grid.weeks.length; w++){\r\n    var col = grid.weeks[w], first = null;\r\n    for (var d = 0; d < col.length; d++){ if (col[d].inRange){ first = col[d]; break; } }\r\n    if (!first) continue;\r\n    var mo = new Date(first.ts).getUTCMonth();\r\n    if (mo !== last){ out.push({ week:w, month:mo, name:CH_MONTHS[mo] }); last = mo; }\r\n  }\r\n  return out;\r\n}\r\n\r\nfunction escXml(s){\r\n  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\r\n}\r\n\r\nfunction toSvg(grid, opt){\r\n  opt = opt || {};\r\n  var cell = opt.cell || 12, gap = opt.gap || 3, padL = 34, padT = 22, padB = 26;\r\n  if (!grid || grid.empty) return '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"80\"></svg>';\r\n  var W = padL + grid.weeks.length * (cell + gap) + 10;\r\n  var H = padT + 7 * (cell + gap) + padB;\r\n  var out = ['<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ' + W + ' ' + H + '\" width=\"100%\" height=\"' + H + '\" role=\"img\" aria-label=\"日历热力图\">'];\r\n  out.push('<rect width=\"' + W + '\" height=\"' + H + '\" fill=\"#0A0A0B\"/>');\r\n  var labels = monthLabels(grid);\r\n  for (var l = 0; l < labels.length; l++){\r\n    out.push('<text x=\"' + (padL + labels[l].week * (cell + gap)) + '\" y=\"' + (padT - 7) + '\" fill=\"#71717A\" font-size=\"10\" font-family=\"system-ui,sans-serif\">' + escXml(labels[l].name) + '</text>');\r\n  }\r\n  for (var r = 0; r < 7; r += 2){\r\n    var dayIdx = (grid.weekStart + r) % 7;\r\n    out.push('<text x=\"' + (padL - 6) + '\" y=\"' + (padT + r * (cell + gap) + cell - 2) + '\" fill=\"#71717A\" font-size=\"9\" text-anchor=\"end\" font-family=\"system-ui,sans-serif\">' + escXml(CH_WEEKDAYS[dayIdx].slice(1)) + '</text>');\r\n  }\r\n  for (var w = 0; w < grid.weeks.length; w++){\r\n    for (var d = 0; d < grid.weeks[w].length; d++){\r\n      var c = grid.weeks[w][d];\r\n      var x = padL + w * (cell + gap), y = padT + d * (cell + gap);\r\n      if (!c.inRange){\r\n        out.push('<rect x=\"' + x + '\" y=\"' + y + '\" width=\"' + cell + '\" height=\"' + cell + '\" rx=\"2\" fill=\"#0F1113\"/>');\r\n        continue;\r\n      }\r\n      out.push('<rect x=\"' + x + '\" y=\"' + y + '\" width=\"' + cell + '\" height=\"' + cell + '\" rx=\"2\" fill=\"' + CH_LEVELS[c.level] + '\"><title>' + escXml(c.date + '：' + c.value) + '</title></rect>');\r\n    }\r\n  }\r\n  var lx = padL, ly = padT + 7 * (cell + gap) + 8;\r\n  out.push('<text x=\"' + lx + '\" y=\"' + (ly + 10) + '\" fill=\"#71717A\" font-size=\"10\" font-family=\"system-ui,sans-serif\">少</text>');\r\n  for (var k = 0; k < CH_LEVELS.length; k++){\r\n    out.push('<rect x=\"' + (lx + 20 + k * (cell + 3)) + '\" y=\"' + ly + '\" width=\"' + cell + '\" height=\"' + cell + '\" rx=\"2\" fill=\"' + CH_LEVELS[k] + '\"/>');\r\n  }\r\n  out.push('<text x=\"' + (lx + 26 + CH_LEVELS.length * (cell + 3)) + '\" y=\"' + (ly + 10) + '\" fill=\"#71717A\" font-size=\"10\" font-family=\"system-ui,sans-serif\">多</text>');\r\n  out.push('</svg>');\r\n  return out.join('');\r\n}\r\n\r\nvar CalendarHeatForgePure = {\r\n  fromISO: fromISO, toISO: toISO, dow: dow, addDays: addDays, parseEntries: parseEntries,\r\n  rangeOf: rangeOf, levelOf: levelOf, buildGrid: buildGrid, stats: stats, monthLabels: monthLabels,\r\n  toSvg: toSvg, LEVELS: CH_LEVELS, WEEKDAYS: CH_WEEKDAYS, DAY: CH_DAY\r\n};\r\nif (typeof module !== 'undefined' && module.exports) module.exports = CalendarHeatForgePure;\r\nif (typeof window !== 'undefined') window.CalendarHeatForgePure = CalendarHeatForgePure;\r\n\r\n"
+}

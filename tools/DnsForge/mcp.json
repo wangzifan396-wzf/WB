@@ -1,0 +1,98 @@
+{
+  "id": "DnsForge",
+  "name": "dns_forge",
+  "title": "DnsForge",
+  "description": "DNS 记录校验与 zone 解析：A/AAAA/CNAME/MX/TXT/NS/SRV/CAA 逐条体检、TTL 换算与 CNAME 冲突检测，离线可用。",
+  "entry": "isIPv4",
+  "entries": {
+    "isIPv4": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "isIPv6": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "isHostname": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "parseTtl": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "formatTtl": {
+      "paramStyle": "single",
+      "paramNames": [
+        "sec"
+      ],
+      "fields": []
+    },
+    "parseRecord": {
+      "paramStyle": "single",
+      "paramNames": [
+        "line"
+      ],
+      "fields": []
+    },
+    "validateRecord": {
+      "paramStyle": "object",
+      "paramNames": [
+        "r"
+      ],
+      "fields": [
+        "error",
+        "value",
+        "ttl",
+        "type",
+        "name"
+      ]
+    },
+    "parseZone": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    },
+    "zoneSummary": {
+      "paramStyle": "single",
+      "paramNames": [
+        "rows"
+      ],
+      "fields": []
+    },
+    "propagationEstimate": {
+      "paramStyle": "single",
+      "paramNames": [
+        "ttlSec"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar RR_TYPES = ['A','AAAA','CNAME','MX','TXT','NS','SRV','CAA','PTR','SOA'];\r\nfunction isIPv4(s){\r\n  if(typeof s!=='string') return false;\r\n  var p=s.split('.');\r\n  if(p.length!==4) return false;\r\n  for(var i=0;i<4;i++){\r\n    if(!/^\\d{1,3}$/.test(p[i])) return false;\r\n    var v=parseInt(p[i],10);\r\n    if(v<0 || v>255) return false;\r\n    if(p[i].length>1 && p[i].charAt(0)==='0') return false;\r\n  }\r\n  return true;\r\n}\r\nfunction isIPv6(s){\r\n  if(typeof s!=='string' || s.indexOf(':')<0) return false;\r\n  if((s.match(/::/g)||[]).length>1) return false;\r\n  var parts=s.split(':');\r\n  if(parts.length>8) return false;\r\n  for(var i=0;i<parts.length;i++){\r\n    if(parts[i]==='') continue;\r\n    if(!/^[0-9a-fA-F]{1,4}$/.test(parts[i])) return false;\r\n  }\r\n  return true;\r\n}\r\nfunction isHostname(s){\r\n  if(typeof s!=='string' || !s.length || s.length>253) return false;\r\n  var t=s.replace(/\\.$/,'');\r\n  if(!t.length) return false;\r\n  var labels=t.split('.');\r\n  for(var i=0;i<labels.length;i++){\r\n    var l=labels[i];\r\n    if(!l.length || l.length>63) return false;\r\n    if(!/^[a-zA-Z0-9_]([a-zA-Z0-9_-]*[a-zA-Z0-9_])?$/.test(l)) return false;\r\n  }\r\n  return true;\r\n}\r\nfunction parseTtl(s){\r\n  if(typeof s==='number') return Math.floor(s);\r\n  var t=String(s||'').trim();\r\n  if(/^\\d+$/.test(t)) return parseInt(t,10);\r\n  var m=t.match(/^(\\d+)([smhdw])$/i);\r\n  if(!m) return null;\r\n  var mult={s:1,m:60,h:3600,d:86400,w:604800}[m[2].toLowerCase()];\r\n  return parseInt(m[1],10)*mult;\r\n}\r\nfunction formatTtl(sec){\r\n  sec=Math.max(0,Math.floor(sec||0));\r\n  if(sec>=604800 && sec%604800===0) return (sec/604800)+'w';\r\n  if(sec>=86400 && sec%86400===0) return (sec/86400)+'d';\r\n  if(sec>=3600 && sec%3600===0) return (sec/3600)+'h';\r\n  if(sec>=60 && sec%60===0) return (sec/60)+'m';\r\n  return sec+'s';\r\n}\r\nfunction parseRecord(line){\r\n  var t=String(line||'').trim();\r\n  if(!t || t.charAt(0)===';' || t.charAt(0)==='#') return null;\r\n  var f=t.split(/\\s+/);\r\n  if(f.length<3) return {raw:t, error:'字段不足，至少需要 name / type / value'};\r\n  var name=f[0], idx=1, ttl=null, cls=null;\r\n  var maybeTtl=parseTtl(f[idx]);\r\n  if(maybeTtl!==null){ ttl=maybeTtl; idx++; }\r\n  if(f[idx] && /^(IN|CH|HS)$/i.test(f[idx])){ cls=f[idx].toUpperCase(); idx++; }\r\n  if(ttl===null && f[idx]){ var t2=parseTtl(f[idx]); if(t2!==null){ ttl=t2; idx++; } }\r\n  var type=(f[idx]||'').toUpperCase(); idx++;\r\n  var value=f.slice(idx).join(' ');\r\n  if(RR_TYPES.indexOf(type)<0) return {raw:t, name:name, type:type, error:'不支持或未知的记录类型：'+type};\r\n  return {raw:t, name:name, ttl:ttl, 'class':cls||'IN', type:type, value:value};\r\n}\r\nfunction validateRecord(r){\r\n  if(!r) return {valid:false, errors:['空记录'], warnings:[]};\r\n  if(r.error) return {valid:false, errors:[r.error], warnings:[]};\r\n  var errs=[], warns=[], v=r.value;\r\n  if(r.ttl===null || r.ttl===undefined) warns.push('未设置 TTL，将继承 $TTL 默认值');\r\n  else {\r\n    if(r.ttl<30) warns.push('TTL 过短（'+r.ttl+'s），解析压力大且部分递归服务器会强制抬高');\r\n    if(r.ttl>604800) warns.push('TTL 超过 7 天，故障切换会非常缓慢');\r\n  }\r\n  if(r.type==='A'){ if(!isIPv4(v)) errs.push('A 记录的值必须是合法 IPv4'); }\r\n  else if(r.type==='AAAA'){ if(!isIPv6(v)) errs.push('AAAA 记录的值必须是合法 IPv6'); }\r\n  else if(r.type==='CNAME'){\r\n    if(!isHostname(v)) errs.push('CNAME 的值必须是合法主机名');\r\n    if(r.name==='@') errs.push('根域（@）不能设置 CNAME，请改用 ALIAS/ANAME');\r\n  }\r\n  else if(r.type==='MX'){\r\n    var mp=v.split(/\\s+/);\r\n    if(mp.length<2) errs.push('MX 记录需要「优先级 主机名」两个字段');\r\n    else {\r\n      if(!/^\\d+$/.test(mp[0])) errs.push('MX 优先级必须是整数');\r\n      else if(parseInt(mp[0],10)>65535) errs.push('MX 优先级不能超过 65535');\r\n      if(!isHostname(mp[1])) errs.push('MX 目标必须是合法主机名');\r\n      if(isIPv4(mp[1])) errs.push('MX 目标不能是 IP 地址，必须是主机名');\r\n    }\r\n  }\r\n  else if(r.type==='TXT'){\r\n    var inner=v.replace(/^\"|\"$/g,'');\r\n    if(inner.length>255) warns.push('单条 TXT 超过 255 字节，需要拆分为多个字符串');\r\n    if(!/^\".*\"$/.test(v) && /\\s/.test(v)) warns.push('含空格的 TXT 建议用双引号包裹');\r\n  }\r\n  else if(r.type==='NS'){ if(!isHostname(v)) errs.push('NS 的值必须是合法主机名'); }\r\n  else if(r.type==='SRV'){\r\n    var sp=v.split(/\\s+/);\r\n    if(sp.length<4) errs.push('SRV 需要「优先级 权重 端口 目标」四个字段');\r\n    else {\r\n      if(!/^\\d+$/.test(sp[2]) || parseInt(sp[2],10)>65535) errs.push('SRV 端口非法');\r\n      if(!isHostname(sp[3]) && sp[3]!=='.') errs.push('SRV 目标必须是主机名或 .');\r\n    }\r\n    if(!/^_/.test(r.name)) warns.push('SRV 名称通常形如 _service._proto.name');\r\n  }\r\n  else if(r.type==='CAA'){\r\n    var cp=v.split(/\\s+/);\r\n    if(cp.length<3) errs.push('CAA 需要「flags tag value」三个字段');\r\n    else if(['issue','issuewild','iodef'].indexOf(cp[1].replace(/\"/g,''))<0)\r\n      warns.push('CAA tag 通常为 issue / issuewild / iodef');\r\n  }\r\n  return {valid: errs.length===0, errors:errs, warnings:warns};\r\n}\r\nfunction parseZone(text){\r\n  var lines=String(text||'').split(/\\r?\\n/), out=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var r=parseRecord(lines[i]);\r\n    if(!r) continue;\r\n    var v=validateRecord(r);\r\n    out.push({line:i+1, record:r, valid:v.valid, errors:v.errors, warnings:v.warnings});\r\n  }\r\n  return out;\r\n}\r\nfunction zoneSummary(rows){\r\n  var byType={}, errors=0, warnings=0, cnameNames={}, conflicts=[];\r\n  for(var i=0;i<rows.length;i++){\r\n    var r=rows[i];\r\n    var t=(r.record && r.record.type) || '?';\r\n    byType[t]=(byType[t]||0)+1;\r\n    errors+=r.errors.length; warnings+=r.warnings.length;\r\n    if(t==='CNAME' && r.record.name) cnameNames[r.record.name]=1;\r\n  }\r\n  for(var j=0;j<rows.length;j++){\r\n    var rr=rows[j];\r\n    if(!rr.record || rr.record.type==='CNAME') continue;\r\n    if(cnameNames[rr.record.name]) conflicts.push(rr.record.name+' 同时存在 CNAME 与 '+rr.record.type+' 记录');\r\n  }\r\n  return {total:rows.length, byType:byType, errors:errors, warnings:warnings, conflicts:conflicts};\r\n}\r\nfunction propagationEstimate(ttlSec){\r\n  var t=Math.max(0, Math.floor(ttlSec||0));\r\n  return {typical:t, worstCase:t*2, humanTypical:formatTtl(t), humanWorst:formatTtl(t*2)};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = { isIPv4:isIPv4, isIPv6:isIPv6, isHostname:isHostname, parseTtl:parseTtl, formatTtl:formatTtl, parseRecord:parseRecord, validateRecord:validateRecord, parseZone:parseZone, zoneSummary:zoneSummary, propagationEstimate:propagationEstimate, RR_TYPES:RR_TYPES }; }\r\nif (typeof window !== 'undefined') { window.DnsForgePure = { isIPv4:isIPv4, isIPv6:isIPv6, isHostname:isHostname, parseTtl:parseTtl, formatTtl:formatTtl, parseRecord:parseRecord, validateRecord:validateRecord, parseZone:parseZone, zoneSummary:zoneSummary, propagationEstimate:propagationEstimate, RR_TYPES:RR_TYPES }; }\r\n\r\n"
+}

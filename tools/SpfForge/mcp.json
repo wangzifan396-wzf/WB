@@ -1,0 +1,50 @@
+{
+  "id": "SpfForge",
+  "name": "spf_forge",
+  "title": "SpfForge",
+  "description": "SPF 记录分析：机制解析、DNS 查询计数、防护评级 A-F、合规建议，离线可用。",
+  "entry": "spParse",
+  "entries": {
+    "spParse": {
+      "paramStyle": "single",
+      "paramNames": [
+        "record"
+      ],
+      "fields": []
+    },
+    "spExplainQual": {
+      "paramStyle": "single",
+      "paramNames": [
+        "q"
+      ],
+      "fields": []
+    },
+    "spDnsLookups": {
+      "paramStyle": "single",
+      "paramNames": [
+        "mechs"
+      ],
+      "fields": []
+    },
+    "spScore": {
+      "paramStyle": "single",
+      "paramNames": [
+        "mechs"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "record": {
+        "type": "string",
+        "description": "输入（record）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction spParse(record){\r\n  record=String(record||'').trim();\r\n  var parts=record.split(/\\s+/).filter(Boolean);\r\n  var mechs=[];\r\n  if(parts[0] && /^v=spf1$/i.test(parts[0])){\r\n    for(var i=1;i<parts.length;i++){\r\n      var tok=parts[i], q='+', body=tok;\r\n      if('+-?~'.indexOf(tok[0])>=0){ q=tok[0]; body=tok.slice(1); }\r\n      var mm=body.match(/^([a-z0-9]+)(:(.*))?$/i);\r\n      mechs.push({ raw:tok, qualifier:q, mechanism: mm?mm[1].toLowerCase():body, value: (mm&&mm[3]!==undefined)?mm[3]:'' });\r\n    }\r\n    return { version:'spf1', mechanisms:mechs, ok:true };\r\n  }\r\n  return { version:'', mechanisms:[], ok:false };\r\n}\r\nfunction spExplainQual(q){\r\n  return {'+':'放行','-':'硬失败（拒绝）','~':'软失败（标记）','?':'中立（放行但不保证）'}[q]||q;\r\n}\r\nfunction spDnsLookups(mechs){\r\n  var n=0;\r\n  for(var i=0;i<mechs.length;i++){ var m=mechs[i].mechanism; if(m==='include'||m==='a'||m==='mx'||m==='exists'||m==='redirect'||m==='ptr') n++; }\r\n  return n;\r\n}\r\nfunction spScore(mechs){\r\n  var lookups=spDnsLookups(mechs), last=null;\r\n  for(var i=0;i<mechs.length;i++) if(mechs[i].mechanism==='all') last=mechs[i];\r\n  var checks=[];\r\n  function add(name,pass,weight){ checks.push({name:name,pass:!!pass,weight:weight}); }\r\n  add('含 v=spf1 版本', true, 10);\r\n  add('以 all 收尾', !!last, 20);\r\n  add('硬失败 -all', last && last.qualifier==='-', 25);\r\n  add('无 +all 开放放行', !(last && last.qualifier==='+'), 20);\r\n  add('DNS 查询 ≤ 10', lookups<=10, 15);\r\n  add('无 ptr 机制', mechs.every(function(m){return m.mechanism!=='ptr';}), 10);\r\n  var got=0,total=0;\r\n  for(var j=0;j<checks.length;j++){ total+=checks[j].weight; if(checks[j].pass) got+=checks[j].weight; }\r\n  var grade='F';\r\n  if(got>=90)grade='A'; else if(got>=75)grade='B'; else if(got>=60)grade='C'; else if(got>=40)grade='D';\r\n  return { score:got, max:total, grade:grade, lookups:lookups, checks:checks };\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { spParse:spParse, spExplainQual:spExplainQual, spDnsLookups:spDnsLookups, spScore:spScore };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.SpfForgePure = { spParse:spParse, spExplainQual:spExplainQual, spDnsLookups:spDnsLookups, spScore:spScore };\r\n}\r\n\r\n"
+}

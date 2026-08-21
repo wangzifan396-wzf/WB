@@ -1,0 +1,41 @@
+{
+  "id": "UlidForge",
+  "name": "ulid_forge",
+  "title": "UlidForge",
+  "description": "ULID 生成 / 解析：生成可排序的 ULID（26 位 Crockford Base32，时间前置），或反向解析出时间戳。",
+  "entry": "ulid",
+  "entries": {
+    "ulid": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "now",
+        "rnd"
+      ],
+      "fields": []
+    },
+    "decodeTime": {
+      "paramStyle": "single",
+      "paramNames": [
+        "id"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "now": {
+        "type": "string",
+        "description": "第 1 个参数（now）"
+      },
+      "rnd": {
+        "type": "string",
+        "description": "第 2 个参数（rnd）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar ULID_CHARS = \"0123456789ABCDEFGHJKMNPQRSTVWXYZ\";\r\nfunction encodeTime(now, len){\r\n  var str = \"\";\r\n  for (var i = len - 1; i >= 0; i--){ var mod = now % 32; str = ULID_CHARS[mod] + str; now = Math.floor(now / 32); }\r\n  return str;\r\n}\r\nfunction ulid(now, rnd){\r\n  if (now == null) now = Date.now();\r\n  if (rnd == null) rnd = Math.random;\r\n  return encodeTime(now, 10) + encodeRandom(16, rnd);\r\n}\r\nfunction encodeRandom(len, rnd){\r\n  var str = \"\";\r\n  for (var i = 0; i < len; i++) str += ULID_CHARS[Math.floor(rnd() * 32)];\r\n  return str;\r\n}\r\nfunction decodeTime(id){\r\n  var t = 0;\r\n  for (var i = 0; i < 10; i++){ var idx = ULID_CHARS.indexOf(id.charAt(i)); if (idx < 0) return NaN; t = t * 32 + idx; }\r\n  return t;\r\n}\r\nvar EXPORTS = { ULID_CHARS: ULID_CHARS, ulid: ulid, decodeTime: decodeTime };\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.UlidForgePure = EXPORTS; }\r\n\r\n"
+}

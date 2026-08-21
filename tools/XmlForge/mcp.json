@@ -1,0 +1,43 @@
+{
+  "id": "XmlForge",
+  "name": "xml_forge",
+  "title": "XmlForge",
+  "description": "离线 XML 工具：格式化缩进 / 结构校验（标签匹配闭合）。",
+  "entry": "formatXml",
+  "entries": {
+    "formatXml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "xml"
+      ],
+      "fields": []
+    },
+    "validateXml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "xml"
+      ],
+      "fields": []
+    },
+    "escapeXml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "xml": {
+        "type": "string",
+        "description": "输入（xml）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\nfunction escapeXml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction nl(d){ var s='\\n'; for(var i=0;i<d;i++) s+='  '; return s; }\r\nfunction tokenize(xml){\r\n  var toks=[]; var i=0;\r\n  while(i<xml.length){\r\n    if(xml[i]==='<'){\r\n      if(xml.substr(i,4)==='<!--'){ var e=xml.indexOf('-->',i); if(e<0){ toks.push({type:'comment',text:xml.slice(i)}); i=xml.length; break; } toks.push({type:'comment',text:xml.slice(i,e+3)}); i=e+3; continue; }\r\n      var e=xml.indexOf('>',i); if(e<0){ toks.push({type:'text',text:xml.slice(i)}); break; }\r\n      var tag=xml.slice(i,e+1);\r\n      if(tag[1]==='/') toks.push({type:'close',text:tag});\r\n      else if(tag[tag.length-2]==='/') toks.push({type:'self',text:tag});\r\n      else toks.push({type:'open',text:tag});\r\n      i=e+1; continue;\r\n    } else {\r\n      var e=xml.indexOf('<',i); if(e<0) e=xml.length;\r\n      var txt=xml.slice(i,e);\r\n      if(txt.trim()!=='') toks.push({type:'text',text:txt});\r\n      i=e; continue;\r\n    }\r\n  }\r\n  return toks;\r\n}\r\nfunction formatXml(xml){\r\n  xml=String(xml); var out=''; var depth=0;\r\n  var toks=tokenize(xml);\r\n  for(var t=0;t<toks.length;t++){\r\n    var tk=toks[t];\r\n    if(tk.type==='comment'){ out+=nl(depth)+tk.text; }\r\n    else if(tk.type==='open'){ out+=nl(depth)+tk.text; depth++; }\r\n    else if(tk.type==='self'){ out+=nl(depth)+tk.text; }\r\n    else if(tk.type==='close'){ depth=Math.max(0,depth-1); out+=nl(depth)+tk.text; }\r\n    else if(tk.type==='text'){ var v=tk.text.replace(/\\s+/g,' ').trim(); if(v) out+=nl(depth)+escapeXml(v); }\r\n  }\r\n  return out.replace(/^\\n+/,'');\r\n}\r\nfunction validateXml(xml){\r\n  var stack=[]; var toks=tokenize(xml);\r\n  for(var t=0;t<toks.length;t++){\r\n    var tk=toks[t];\r\n    if(tk.type==='open'){\r\n      var name=tk.text.match(/^<\\s*([a-zA-Z_][\\w.-]*)/);\r\n      if(!name) return {ok:false,msg:'非法标签: '+tk.text.slice(0,20)};\r\n      stack.push(name[1]);\r\n    } else if(tk.type==='close'){\r\n      var name=tk.text.match(/^\\s*<\\/\\s*([a-zA-Z_][\\w.-]*)/);\r\n      if(!name) return {ok:false,msg:'非法闭合标签'};\r\n      if(!stack.length || stack[stack.length-1]!==name[1]) return {ok:false,msg:'标签不匹配: '+name[1]};\r\n      stack.pop();\r\n    }\r\n  }\r\n  if(stack.length) return {ok:false,msg:'未闭合标签: '+stack.join(',')};\r\n  return {ok:true,msg:''};\r\n}\r\nif (typeof module !== 'undefined' && module.exports) {\r\n  module.exports = { formatXml:formatXml, validateXml:validateXml, escapeXml:escapeXml };\r\n}\r\nif (typeof window !== 'undefined') {\r\n  window.XmlForgePure = { formatXml:formatXml, validateXml:validateXml, escapeXml:escapeXml };\r\n}\r\n"
+}

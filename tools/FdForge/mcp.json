@@ -1,0 +1,39 @@
+{
+  "id": "FdForge",
+  "name": "fd_forge",
+  "title": "FdForge",
+  "description": "按文件名模式快速筛选文件清单：支持正则 / 包含 / 精确匹配，输出命中路径与数量，适合从一长串路径里挑文件。",
+  "entry": "filter",
+  "entries": {
+    "filter": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pathsText",
+        "pattern",
+        "opt"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "pathsText": {
+        "type": "string",
+        "description": "第 1 个参数（pathsText）"
+      },
+      "pattern": {
+        "type": "string",
+        "description": "第 2 个参数（pattern）"
+      },
+      "opt": {
+        "type": "object",
+        "description": "第 3 个参数（opt）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function filter(pathsText, pattern, opt){\r\n    opt=opt||{};\r\n    var paths=String(pathsText||'').split(/\\r?\\n/).map(function(s){return s.replace(/\\r/,'');}).filter(function(s){return s.trim().length;});\r\n    var mode=opt.mode||'regex', re=null;\r\n    if(mode==='regex'){ try{ re=new RegExp(pattern, opt.ic?'i':''); }catch(e){ return {error:'正则错误: '+e.message}; } }\r\n    var out=[];\r\n    for(var i=0;i<paths.length;i++){ var p=paths[i], name=p.replace(/^.*[\\\\\\/]/,''), hit=false;\r\n      if(mode==='regex') hit=re.test(name);\r\n      else if(mode==='substr') hit=name.toLowerCase().indexOf(pattern.toLowerCase())>=0;\r\n      else if(mode==='exact') hit=name.toLowerCase()===pattern.toLowerCase();\r\n      if(hit) out.push(p); }\r\n    return {value:out};\r\n  }\r\n  var API={filter:filter};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__FdForge__=API;\r\n})();\r\n"
+}

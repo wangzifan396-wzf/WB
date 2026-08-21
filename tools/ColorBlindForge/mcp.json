@@ -1,0 +1,94 @@
+{
+  "id": "ColorBlindForge",
+  "name": "color_blind_forge",
+  "title": "ColorBlindForge",
+  "description": "离线色觉障碍模拟器：Machado 三型 + 全色盲模拟，sRGB↔Lab 转换、WCAG 对比度与 ΔE 审计，调色板无障碍检查。",
+  "entry": "parseHex",
+  "entries": {
+    "parseHex": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "toHex": {
+      "paramStyle": "object",
+      "paramNames": [
+        "c"
+      ],
+      "fields": [
+        "r",
+        "g",
+        "b"
+      ]
+    },
+    "simulate": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "hex",
+        "type"
+      ],
+      "fields": []
+    },
+    "luminance": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hex"
+      ],
+      "fields": []
+    },
+    "contrast": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b"
+      ],
+      "fields": []
+    },
+    "wcagLevel": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "ratio",
+        "large"
+      ],
+      "fields": []
+    },
+    "rgbToLab": {
+      "paramStyle": "single",
+      "paramNames": [
+        "hex"
+      ],
+      "fields": []
+    },
+    "deltaE": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "h1",
+        "h2"
+      ],
+      "fields": []
+    },
+    "audit": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "hexes",
+        "threshold"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n/* ColorBlindForge 纯函数内核：Machado(2009) 色觉模拟 + WCAG 对比度 + CIE76 ΔE 审计 */\r\nvar CB = (function(){\r\n  'use strict';\r\n  /* Machado, Oliveira, Fernandes (2009) severity=1.0 线性 RGB 矩阵 */\r\n  var MAT = {\r\n    protanopia: [\r\n      [0.152286, 1.052583, -0.204868],\r\n      [0.114503, 0.786281, 0.099216],\r\n      [-0.003882, -0.048116, 1.051998]\r\n    ],\r\n    deuteranopia: [\r\n      [0.367322, 0.860646, -0.227968],\r\n      [0.280085, 0.672501, 0.047413],\r\n      [-0.011820, 0.042940, 0.968881]\r\n    ],\r\n    tritanopia: [\r\n      [1.255528, -0.076749, -0.178779],\r\n      [-0.078411, 0.930809, 0.147602],\r\n      [0.004733, 0.691367, 0.303900]\r\n    ]\r\n  };\r\n  var TYPES = [\r\n    { id: 'protanopia', label: '红色盲 Protanopia', freq: '男性约 1%' },\r\n    { id: 'deuteranopia', label: '绿色盲 Deuteranopia', freq: '男性约 1-2%' },\r\n    { id: 'tritanopia', label: '蓝色盲 Tritanopia', freq: '约 0.01%' },\r\n    { id: 'achromatopsia', label: '全色盲 Achromatopsia', freq: '约 0.003%' }\r\n  ];\r\n  function parseHex(s){\r\n    if(typeof s !== 'string') return null;\r\n    s = s.trim().replace(/^#/, '');\r\n    if(/^[0-9a-fA-F]{3}$/.test(s)) s = s[0]+s[0]+s[1]+s[1]+s[2]+s[2];\r\n    if(!/^[0-9a-fA-F]{6}$/.test(s)) return null;\r\n    return { r: parseInt(s.slice(0,2),16), g: parseInt(s.slice(2,4),16), b: parseInt(s.slice(4,6),16) };\r\n  }\r\n  function toHex(c){\r\n    function h(x){ x = Math.max(0, Math.min(255, Math.round(x))); return (x < 16 ? '0' : '') + x.toString(16); }\r\n    return '#' + h(c.r) + h(c.g) + h(c.b);\r\n  }\r\n  function s2l(c){ c /= 255; return c <= 0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }\r\n  function l2s(c){ c = Math.max(0, Math.min(1, c)); return 255 * (c <= 0.0031308 ? c*12.92 : 1.055*Math.pow(c, 1/2.4) - 0.055); }\r\n  function simulate(hex, type){\r\n    var c = typeof hex === 'string' ? parseHex(hex) : hex;\r\n    if(!c) return null;\r\n    var lr = s2l(c.r), lg = s2l(c.g), lb = s2l(c.b);\r\n    if(type === 'normal') return toHex(c);\r\n    if(type === 'achromatopsia'){\r\n      var y = 0.2126*lr + 0.7152*lg + 0.0722*lb;\r\n      return toHex({ r: l2s(y), g: l2s(y), b: l2s(y) });\r\n    }\r\n    var m = MAT[type];\r\n    if(!m) throw new Error('未知色觉类型: ' + type);\r\n    return toHex({\r\n      r: l2s(m[0][0]*lr + m[0][1]*lg + m[0][2]*lb),\r\n      g: l2s(m[1][0]*lr + m[1][1]*lg + m[1][2]*lb),\r\n      b: l2s(m[2][0]*lr + m[2][1]*lg + m[2][2]*lb)\r\n    });\r\n  }\r\n  /* WCAG 相对亮度与对比度 */\r\n  function luminance(hex){\r\n    var c = typeof hex === 'string' ? parseHex(hex) : hex;\r\n    if(!c) return null;\r\n    return 0.2126*s2l(c.r) + 0.7152*s2l(c.g) + 0.0722*s2l(c.b);\r\n  }\r\n  function contrast(a, b){\r\n    var la = luminance(a), lb2 = luminance(b);\r\n    if(la === null || lb2 === null) return null;\r\n    var hi = Math.max(la, lb2), lo = Math.min(la, lb2);\r\n    return (hi + 0.05) / (lo + 0.05);\r\n  }\r\n  function wcagLevel(ratio, large){\r\n    if(large) return ratio >= 7 ? 'AAA' : (ratio >= 4.5 ? 'AAA' : (ratio >= 3 ? 'AA' : 'FAIL'));\r\n    return ratio >= 7 ? 'AAA' : (ratio >= 4.5 ? 'AA' : (ratio >= 3 ? 'AA-Large' : 'FAIL'));\r\n  }\r\n  /* sRGB → Lab (D65)，CIE76 ΔE */\r\n  function rgbToLab(hex){\r\n    var c = typeof hex === 'string' ? parseHex(hex) : hex;\r\n    if(!c) return null;\r\n    var r = s2l(c.r), g = s2l(c.g), b = s2l(c.b);\r\n    var x = (0.4124*r + 0.3576*g + 0.1805*b) / 0.95047;\r\n    var y = 0.2126*r + 0.7152*g + 0.0722*b;\r\n    var z = (0.0193*r + 0.1192*g + 0.9505*b) / 1.08883;\r\n    function f(t){ return t > 0.008856 ? Math.pow(t, 1/3) : 7.787*t + 16/116; }\r\n    var fx = f(x), fy = f(y), fz = f(z);\r\n    return { L: 116*fy - 16, a: 500*(fx - fy), b: 200*(fy - fz) };\r\n  }\r\n  function deltaE(h1, h2){\r\n    var a = rgbToLab(h1), b = rgbToLab(h2);\r\n    if(!a || !b) return null;\r\n    return Math.sqrt(Math.pow(a.L-b.L,2) + Math.pow(a.a-b.a,2) + Math.pow(a.b-b.b,2));\r\n  }\r\n  /* 调色板审计：各色觉类型下 ΔE 低于阈值的颜色对 */\r\n  function audit(hexes, threshold){\r\n    threshold = threshold || 12;\r\n    var valid = hexes.map(parseHex).map(function(c, i){ return c ? { i: i, hex: toHex(c) } : null; }).filter(Boolean);\r\n    var out = { threshold: threshold, types: {} };\r\n    var all = [{ id: 'normal' }].concat(TYPES);\r\n    for(var t=0;t<all.length;t++){\r\n      var ty = all[t].id;\r\n      var sims = valid.map(function(v){ return simulate(v.hex, ty); });\r\n      var pairs = [];\r\n      for(var i=0;i<valid.length;i++){\r\n        for(var j=i+1;j<valid.length;j++){\r\n          var de = deltaE(sims[i], sims[j]);\r\n          if(de < threshold) pairs.push({ i: valid[i].i, j: valid[j].i, de: Math.round(de*10)/10 });\r\n        }\r\n      }\r\n      out.types[ty] = { sims: sims, flagged: pairs };\r\n    }\r\n    return out;\r\n  }\r\n  return { types: TYPES, parseHex: parseHex, toHex: toHex, simulate: simulate,\r\n           luminance: luminance, contrast: contrast, wcagLevel: wcagLevel,\r\n           rgbToLab: rgbToLab, deltaE: deltaE, audit: audit };\r\n})();\r\nif(typeof module!=='undefined' && module.exports){ module.exports = CB; }\r\nif(typeof window!=='undefined'){ window.__COLORBLINDFORGE__ = CB; }\r\n"
+}

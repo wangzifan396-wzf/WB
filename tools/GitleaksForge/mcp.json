@@ -1,0 +1,29 @@
+{
+  "id": "GitleaksForge",
+  "name": "gitleaks_forge",
+  "title": "GitleaksForge",
+  "description": "密钥泄露扫描：检测源码/配置里的 AWS Key、私钥、JWT、各类 Token 与密码赋值，列出风险行与类型，粘贴即扫、不出本机。",
+  "entry": "scan",
+  "entries": {
+    "scan": {
+      "paramStyle": "single",
+      "paramNames": [
+        "text"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "输入（text）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n(function(){\r\n  function scan(text){\r\n    var lines=String(text||'').split(/\\r?\\n/), out=[];\r\n    var pats=[\r\n      ['AWS Key', /AKIA[0-9A-Z]{16}/],\r\n      ['Private Key', /-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/],\r\n      ['JWT', /eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+/],\r\n      ['Slack Token', /xox[baprs]-[0-9A-Za-z-]+/],\r\n      ['Google API', /AIza[0-9A-Za-z_-]{35}/],\r\n      ['GitHub Token', /gh[pousr]_[0-9A-Za-z]{36,}/],\r\n      ['Stripe Key', /sk_live_[0-9A-Za-z]{24,}/],\r\n      ['Password Assign', /(?:password|passwd|pwd|secret|api_key|apikey|token|access_key)\\s*[:=]\\s*['\"][^'\"]{3,}['\"]/i],\r\n      ['SSH Public', /ssh-(rsa|dss|ed25519|ecdsa-[a-z0-9]+)\\s+[A-Za-z0-9+/]{20,}={0,2}/]\r\n    ];\r\n    for(var i=0;i<lines.length;i++){ for(var j=0;j<pats.length;j++){ if(pats[j][1].test(lines[i])){ out.push({n:i+1, type:pats[j][0], text:lines[i].trim()}); break; } } }\r\n    return {value:out};\r\n  }\r\n  var API={scan:scan};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__GitleaksForge__=API;\r\n})();\r\n"
+}

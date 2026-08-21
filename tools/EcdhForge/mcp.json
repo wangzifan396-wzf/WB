@@ -1,0 +1,29 @@
+{
+  "id": "EcdhForge",
+  "name": "ecdh_forge",
+  "title": "EcdhForge",
+  "description": "本地 ECDH（P-256）密钥协商演示：Alice 与 Bob 各自生成密钥对，用对方公钥派生出一致的共享密钥，可用于进一步派生对称加密密钥。",
+  "entry": "generate",
+  "entries": {
+    "generate": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "derive": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "privJwk",
+        "pubJwk"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "core": "\r\n\r\n(function(){\r\nvar B64C='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\r\nfunction b64e(b){var s='',i;for(i=0;i+2<b.length;i+=3){var n=(b[i]<<16)|(b[i+1]<<8)|b[i+2];s+=B64C[n>>18&63]+B64C[n>>12&63]+B64C[n>>6&63]+B64C[n&63];}var r=b.length-i;if(r===1){var n1=b[i]<<16;s+=B64C[n1>>18&63]+B64C[n1>>12&63]+'==';}else if(r===2){var n2=(b[i]<<16)|(b[i+1]<<8);s+=B64C[n2>>18&63]+B64C[n2>>12&63]+B64C[n2>>6&63]+'=';}return s;}\r\nfunction b64d(s){s=String(s).replace(/\\s+/g,'').replace(/=+$/,'');var o=[],i;for(i=0;i+3<s.length;i+=4){var n=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6)|B64C.indexOf(s[i+3]);o.push(n>>16&255,n>>8&255,n&255);}var r=s.length-i;if(r===2){var n3=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12);o.push(n3>>16&255);}else if(r===3){var n4=(B64C.indexOf(s[i])<<18)|(B64C.indexOf(s[i+1])<<12)|(B64C.indexOf(s[i+2])<<6);o.push(n4>>16&255,n4>>8&255);}return Uint8Array.from(o);}\r\n  function gen(){return globalThis.crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},true,['deriveBits']).then(function(kp){return Promise.all([globalThis.crypto.subtle.exportKey('jwk',kp.publicKey),globalThis.crypto.subtle.exportKey('jwk',kp.privateKey)]);}).then(function(j){return {value:{publicKey:JSON.stringify(j[0]),privateKey:JSON.stringify(j[1])}};}).catch(function(e){return {error:String(e&&e.message||e)};});}\r\n  function derive(privJwk,pubJwk){return Promise.all([globalThis.crypto.subtle.importKey('jwk',JSON.parse(privJwk),{name:'ECDH',namedCurve:'P-256'},false,['deriveBits']),globalThis.crypto.subtle.importKey('jwk',JSON.parse(pubJwk),{name:'ECDH',namedCurve:'P-256'},false,[])]).then(function(ks){return globalThis.crypto.subtle.deriveBits({name:'ECDH',public:ks[1]},ks[0],256);}).then(function(bits){return {value:b64e(new Uint8Array(bits))};}).catch(function(e){return {error:String(e&&e.message||e)};});}\r\n  var API={generate:gen,derive:derive};\r\n  if(typeof module!=='undefined'&&module.exports)module.exports=API;\r\n  if(typeof window!=='undefined')window.__EcdhForge__=API;\r\n})();\r\n\r\n"
+}
