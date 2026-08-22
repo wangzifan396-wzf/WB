@@ -1,0 +1,63 @@
+{
+  "id": "StegoForge",
+  "name": "stego_forge",
+  "title": "LSB 图像隐写",
+  "description": "把文本按最低有效位（LSB）隐藏进 PNG 像素或从中提取，带魔数头与容量计算，无损往返。",
+  "entry": "capacityBytes",
+  "entries": {
+    "capacityBytes": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "w",
+        "h"
+      ],
+      "fields": []
+    },
+    "utf8Encode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "utf8Decode": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bytes"
+      ],
+      "fields": []
+    },
+    "encodeLsb": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "text"
+      ],
+      "fields": []
+    },
+    "decodeLsb": {
+      "paramStyle": "single",
+      "paramNames": [
+        "data"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "w": {
+        "type": "string",
+        "description": "第 1 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 2 个参数（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction capacityBytes(w,h){\r\n  if(!isFinite(w)||!isFinite(h)||w<=0||h<=0) return 0;\r\n  return Math.floor(w*h*3/8);\r\n}\r\nfunction utf8Encode(str){ return unescape(encodeURIComponent(String(str==null?'':str))); }\r\nfunction utf8Decode(bytes){\r\n  try{ return decodeURIComponent(escape(bytes)); }\r\n  catch(e){ return bytes; }\r\n}\r\nfunction encodeLsb(data, text){\r\n  if(!data||!data.length) return {error:'缺少像素数据'};\r\n  var bytes=utf8Encode(text);\r\n  var needed=6+bytes.length;\r\n  var cap=Math.floor(data.length/4*3/8);\r\n  if(needed>cap) return {error:'容量不足：需要 '+needed+' 字节，仅可容纳 '+cap+' 字节（请缩短文本或换更大图片）', needed:needed, capacity:cap};\r\n  var bits=[];\r\n  bits.push(0x57,0x42);\r\n  var len=bytes.length;\r\n  bits.push((len>>>24)&255,(len>>>16)&255,(len>>>8)&255,len&255);\r\n  for(var i=0;i<bytes.length;i++) bits.push(bytes.charCodeAt(i));\r\n  var out=new Uint8Array(data.length);\r\n  for(var j=0;j<data.length;j++) out[j]=data[j];\r\n  var bitIdx=0;\r\n  for(var k=0;k<bits.length;k++){\r\n    for(var b=7;b>=0;b--){\r\n      var bit=(bits[k]>>b)&1;\r\n      var pix=Math.floor(bitIdx/3), ch=bitIdx%3;\r\n      var idx=pix*4+ch;\r\n      out[idx]=(out[idx]&0xFE)|bit;\r\n      bitIdx++;\r\n    }\r\n  }\r\n  var changed=0;\r\n  for(var n=0;n<data.length;n++) if(out[n]!==data[n]) changed++;\r\n  return {data:out, bytesUsed:bits.length, capacity:cap, changedBytes:changed, pixelsUsed:Math.ceil(bits.length*8/3)};\r\n}\r\nfunction decodeLsb(data){\r\n  if(!data||!data.length) return {error:'缺少像素数据'};\r\n  var totalBits=Math.floor(data.length/4*3);\r\n  if(totalBits<48) return {ok:false, error:'图像过小，无法容纳隐写头部'};\r\n  function readBit(i){ var pix=Math.floor(i/3), ch=i%3; return data[pix*4+ch]&1; }\r\n  var m0=0, m1=0;\r\n  for(var a=0;a<8;a++){ m0=(m0<<1)|readBit(a); m1=(m1<<1)|readBit(8+a); }\r\n  if(m0!==0x57||m1!==0x42) return {ok:false, error:'未检测到隐写数据（magic 不匹配）'};\r\n  var len=0;\r\n  for(var a2=16;a2<48;a2++){ len=(len<<1)|readBit(a2); }\r\n  var cap=Math.floor(data.length/4*3/8);\r\n  if(len<0||len>cap-6) return {ok:false, error:'长度头部异常：'+len+'（图片可能被缩放或有损压缩损坏）'};\r\n  var bytes='';\r\n  for(var k=0;k<len;k++){\r\n    var v=0;\r\n    for(var b2=0;b2<8;b2++){ v=(v<<1)|readBit(48+k*8+b2); }\r\n    bytes+=String.fromCharCode(v);\r\n  }\r\n  return {ok:true, text:utf8Decode(bytes), bytesUsed:6+len, capacity:cap};\r\n}\r\nvar EXPORTS={capacityBytes:capacityBytes, utf8Encode:utf8Encode, utf8Decode:utf8Decode, encodeLsb:encodeLsb, decodeLsb:decodeLsb};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.StegoForgePure = EXPORTS; }\r\n\r\n"
+}

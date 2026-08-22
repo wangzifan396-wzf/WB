@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>LoudnessForge — 音频响度分析</title>
+<meta property="og:title" content="响度分析">
+<meta property="og:description" content="分析音频峰值/RMS/积分响度（近似 EBU R128 分块门控），检测削波并给出归一化到目标 LUFS 的增益建议，离线。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="分析音频峰值/RMS/积分响度（近似 EBU R128 分块门控），检测削波并给出归一化到目标 LUFS 的增益建议，离线。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
+  --hair:inset 0 1px 0 rgba(255,255,255,.05);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
+  --glow:0 10px 40px -20px rgba(94,106,210,.55);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+button:active{transform:translateY(1px) scale(.988)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>响度分析</h1>
+      <p class="sub" data-i18n="sub">LUFS 响度与归一化增益分析器 · 离线</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+<div class="sec">音频响度分析（近似 EBU R128：400ms 分块门控 RMS，未做完整 K 加权）</div>
+<div class="row">
+  <input id="fi" type="file" accept="audio/*" aria-label="音频文件"/>
+  <button id="demo" class="ghost" type="button">用演示信号</button>
+  <label style="margin:0">目标响度</label>
+  <select id="target" aria-label="目标响度">
+    <option value="-14">-14 LUFS（流媒体）</option>
+    <option value="-16">-16 LUFS（播客）</option>
+    <option value="-23">-23 LUFS（广播 EBU）</option>
+  </select>
+</div>
+<button id="go" type="button">分析文件</button>
+<pre class="out" id="out">选择音频文件，或点「用演示信号」生成本地正弦波演示（静音 + 大声段 + 静音 + 小声段）。</pre>
+<p class="hint">分析仅用第一个声道，全部本地计算。</p>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部工具 &rarr;</a></footer>
+</div>
+<script>
+
+function dbToAmp(db){ return Math.pow(10, db/20); }
+function ampToDb(a){ return a>0? 20*Math.log10(a) : -Infinity; }
+function r1(x){
+  if(x===-Infinity) return -Infinity;
+  if(x==null||!isFinite(x)) return null;
+  return Math.round(x*100)/100;
+}
+function analyzeLoudness(samples, sr, opts){
+  opts=opts||{};
+  var n=samples? samples.length:0;
+  if(!n||!sr||sr<=0) return {error:'缺少采样数据'};
+  var peak=0, sum=0, dc=0;
+  for(var i=0;i<n;i++){
+    var s=samples[i], ab=Math.abs(s);
+    if(ab>peak)peak=ab;
+    sum+=s*s; dc+=s;
+  }
+  dc/=n;
+  var rms=Math.sqrt(sum/n);
+  var clipped=0;
+  for(var i2=0;i2<n;i2++){ if(Math.abs(samples[i2])>=0.99999) clipped++; }
+  var blockLen=Math.max(1, Math.floor(sr*0.4));
+  var hop=Math.max(1, Math.floor(sr*0.1));
+  var blocks=[];
+  for(var st=0; st+blockLen<=n; st+=hop){
+    var bs=0;
+    for(var j=st;j<st+blockLen;j++){ bs+=samples[j]*samples[j]; }
+    blocks.push({ms:bs/blockLen});
+  }
+  function loudOf(ms){ return -0.691+10*Math.log10(ms>0?ms:1e-12); }
+  blocks.forEach(function(b){ b.lufs=loudOf(b.ms); });
+  var kept=blocks.filter(function(b){ return b.lufs>-70; });
+  function integrate(list){
+    if(!list.length) return null;
+    var s=0;
+    list.forEach(function(b){ s+=b.ms; });
+    return loudOf(s/list.length);
+  }
+  var firstPass=integrate(kept);
+  var kept2=kept;
+  if(firstPass!=null){
+    var gate=firstPass-10;
+    kept2=kept.filter(function(b){ return b.lufs>gate; });
+  }
+  var integrated=integrate(kept2);
+  var target=(typeof opts.targetLufs==='number')?opts.targetLufs:-14;
+  var gain=(integrated==null)?null:Math.round((target-integrated)*100)/100;
+  var maxGain=(peak>0)?ampToDb(1/peak):null;
+  return {
+    peak:Math.round(peak*1e6)/1e6, peakDb:r1(ampToDb(peak)),
+    rms:Math.round(rms*1e6)/1e6, rmsDb:r1(ampToDb(rms)),
+    lufsApprox:r1(integrated), dcOffset:Math.round(dc*1e6)/1e6,
+    clipped:clipped, blocks:blocks.length, blocksKept:kept2.length,
+    targetLufs:target, suggestedGainDb:gain,
+    maxGainBeforeClipDb:r1(maxGain),
+    gainClipped:(gain!=null&&maxGain!=null&&gain>maxGain),
+    silent:integrated==null,
+    warning:clipped>0? ('检测到 '+clipped+' 个采样达到或超过满幅（0 dBFS），可能已削波'):null
+  };
+}
+var EXPORTS={dbToAmp:dbToAmp, ampToDb:ampToDb, analyzeLoudness:analyzeLoudness};
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
+if (typeof window !== 'undefined') { window.LoudnessForgePure = EXPORTS; }
+
+</script>
+<script>
+
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var A=window.LoudnessForgePure;
+  function setOut(t){ $('out').textContent=t; }
+  function fmtDb(x){ return (x==null)?'-∞':String(x); }
+  function analyze(samples, sr){
+    var t=parseFloat($('target').value);
+    var r=A.analyzeLoudness(samples, sr, {targetLufs:isFinite(t)?t:-14});
+    if(r.error){ setOut('× '+r.error); return; }
+    var L=['峰值：'+r.peak+'（'+fmtDb(r.peakDb)+' dBFS）',
+           'RMS：'+r.rms+'（'+fmtDb(r.rmsDb)+' dB）',
+           '积分响度（近似）：'+(r.silent?'（静音，无有效块）':r.lufsApprox+' LUFS'),
+           '直流偏移：'+r.dcOffset,
+           '分块：'+r.blocksKept+' / '+r.blocks+' 个通过门控',
+           '归一化到 '+r.targetLufs+' LUFS：建议增益 '+(r.suggestedGainDb==null?'—':((r.suggestedGainDb>0?'+':'')+r.suggestedGainDb+' dB'))+'（满幅前余量 '+fmtDb(r.maxGainBeforeClipDb)+' dB）'];
+    if(r.warning){ L.push(''); L.push('⚠ '+r.warning); }
+    if(r.gainClipped){ L.push('⚠ 建议增益超过满幅上限，需配合限幅器使用。'); }
+    setOut(L.join('\n'));
+  }
+  function makeDemo(){
+    var sr=8000, parts=[];
+    function silence(sec){ for(var i=0;i<sr*sec;i++) parts.push(0); }
+    function sine(sec, amp){ for(var i=0;i<sr*sec;i++) parts.push(amp*Math.sin(2*Math.PI*440*i/sr)); }
+    silence(0.2); sine(1.0,0.4); silence(0.3); sine(0.5,0.05);
+    analyze(parts, sr);
+  }
+  function run(){
+    var f=$('fi').files[0];
+    if(!f){ setOut('请选择音频文件，或点「用演示信号」。'); return; }
+    var AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC){ setOut('× 当前环境不支持 Web Audio'); return; }
+    var fr=new FileReader();
+    fr.onload=function(){
+      var ac=new AC();
+      ac.decodeAudioData(fr.result).then(function(buf){
+        analyze(buf.getChannelData(0), buf.sampleRate);
+        if(ac.close) ac.close();
+      }).catch(function(){ setOut('× 音频解码失败'); });
+    };
+    fr.readAsArrayBuffer(f);
+  }
+  $('go').addEventListener('click',run);
+  $('demo').addEventListener('click',makeDemo);
+})();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "LUFS 响度与归一化增益分析器 · 离线", "title": "LoudnessForge — 音频响度分析"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

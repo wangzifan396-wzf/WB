@@ -1,0 +1,64 @@
+{
+  "id": "BdpForge",
+  "name": "bdp_forge",
+  "title": "带宽时延积",
+  "description": "按带宽与 RTT 计算带宽时延积（BDP），判断 TCP 窗口是否充足并估算窗口受限吞吐与传输时间，离线。",
+  "entry": "parseBandwidth",
+  "entries": {
+    "parseBandwidth": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "fmtBytes": {
+      "paramStyle": "single",
+      "paramNames": [
+        "n"
+      ],
+      "fields": []
+    },
+    "fmtBits": {
+      "paramStyle": "single",
+      "paramNames": [
+        "bps"
+      ],
+      "fields": []
+    },
+    "calcBdp": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "bandwidthBps",
+        "bandwidth",
+        "rttMs",
+        "windowBytes",
+        "payloadBytes"
+      ]
+    },
+    "bdpTable": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "bandwidthBps",
+        "rttList"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "str": {
+        "type": "string",
+        "description": "输入（str）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseBandwidth(str){\r\n  var s=String(str||'').toLowerCase().replace(/\\s+/g,'');\r\n  var m=s.match(/^([\\d.]+)([kmg]?)b/);\r\n  if(!m) return null;\r\n  var n=parseFloat(m[1]);\r\n  if(!isFinite(n)||n<=0) return null;\r\n  var mult={k:1e3,m:1e6,g:1e9}[m[2]]||1;\r\n  return n*mult;\r\n}\r\nfunction fmtBytes(n){\r\n  if(!isFinite(n)) return '-';\r\n  var units=['B','KiB','MiB','GiB','TiB'], i=0;\r\n  while(n>=1024&&i<units.length-1){n/=1024;i++;}\r\n  return (n>=100? Math.round(n): Math.round(n*100)/100)+' '+units[i];\r\n}\r\nfunction fmtBits(bps){\r\n  if(!isFinite(bps)) return '-';\r\n  var units=['bps','Kbps','Mbps','Gbps'], i=0;\r\n  while(bps>=1000&&i<units.length-1){bps/=1000;i++;}\r\n  return (bps>=100? Math.round(bps): Math.round(bps*100)/100)+' '+units[i];\r\n}\r\nfunction calcBdp(o){\r\n  o=o||{};\r\n  var bw=(typeof o.bandwidthBps==='number')? o.bandwidthBps : parseBandwidth(o.bandwidth);\r\n  if(!bw||bw<=0) return {error:'带宽无法解析（示例：1Gbps、100Mbps、500Kbps）'};\r\n  var rtt=parseFloat(o.rttMs);\r\n  if(!isFinite(rtt)||rtt<=0) return {error:'RTT 须为正数（毫秒）'};\r\n  var rttSec=rtt/1000;\r\n  var bdpBytes=bw*rttSec/8;\r\n  var win=parseFloat(o.windowBytes);\r\n  var hasWin=isFinite(win)&&win>0;\r\n  var payload=parseFloat(o.payloadBytes);\r\n  var hasPayload=isFinite(payload)&&payload>0;\r\n  var res={\r\n    bandwidthBps:bw, bandwidthHuman:fmtBits(bw), rttMs:rtt,\r\n    bdpBytes:bdpBytes, bdpHuman:fmtBytes(bdpBytes),\r\n    windowBytes:hasWin?win:null, windowHuman:hasWin?fmtBytes(win):null,\r\n    windowSufficient:hasWin? win>=bdpBytes : null,\r\n    utilizationPct:hasWin? Math.round(win/bdpBytes*10000)/100 : null,\r\n    windowLimitedBps:hasWin? win*8/rttSec : null,\r\n    windowLimitedHuman:hasWin? fmtBits(win*8/rttSec) : null,\r\n    idealTransferSec:hasPayload? payload*8/bw : null,\r\n    transferRttCount:(hasPayload&&hasWin)? Math.ceil(payload/win) : null,\r\n    effectiveTransferSec:(hasPayload&&hasWin)? Math.ceil(payload/win)*rttSec : null\r\n  };\r\n  if(!hasWin){\r\n    res.verdict='未填窗口：BDP 即跑满带宽所需的最低在途字节数（TCP 收发缓冲合计应不小于它）';\r\n  } else if(win>=bdpBytes){\r\n    res.verdict='✓ 窗口充足（'+fmtBytes(win)+' ≥ BDP '+fmtBytes(bdpBytes)+'），可充分利用带宽';\r\n  } else {\r\n    res.verdict='× 窗口不足：吞吐被限制在约 '+fmtBits(win*8/rttSec)+'（带宽利用率仅 '+res.utilizationPct+'%）';\r\n  }\r\n  return res;\r\n}\r\nfunction bdpTable(bandwidthBps, rttList){\r\n  var bw=bandwidthBps;\r\n  if(!bw||bw<=0) return [];\r\n  return (rttList||[10,50,100,200]).map(function(rtt){\r\n    var b=bw*(rtt/1000)/8;\r\n    return {rttMs:rtt, bdpBytes:b, bdpHuman:fmtBytes(b)};\r\n  });\r\n}\r\nvar EXPORTS={parseBandwidth:parseBandwidth, fmtBytes:fmtBytes, fmtBits:fmtBits, calcBdp:calcBdp, bdpTable:bdpTable};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BdpForgePure = EXPORTS; }\r\n\r\n"
+}

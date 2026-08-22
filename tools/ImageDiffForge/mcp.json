@@ -1,0 +1,59 @@
+{
+  "id": "ImageDiffForge",
+  "name": "image_diff_forge",
+  "title": "图像差异对比",
+  "description": "逐像素对比两张同尺寸图片：差异像素数/比例、最大色差、差异包围盒与热力图，全部本地计算。",
+  "entry": "diffPixels",
+  "entries": {
+    "diffPixels": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "a",
+        "b",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    },
+    "classifyDiff": {
+      "paramStyle": "object",
+      "paramNames": [
+        "r"
+      ],
+      "fields": [
+        "identical",
+        "ratioPct"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "a": {
+        "type": "string",
+        "description": "第 1 个参数（a）"
+      },
+      "b": {
+        "type": "string",
+        "description": "第 2 个参数（b）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 3 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 4 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 5 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction diffPixels(a,b,w,h,opts){\r\n  opts=opts||{};\r\n  var th=(typeof opts.threshold==='number')?opts.threshold:0;\r\n  if(!a||!b) return {error:'缺少像素数据'};\r\n  if(a.length!==b.length) return {error:'像素数据长度不一致（宽度或高度不同）'};\r\n  if(!(w>0&&h>0&&w*h*4<=a.length)) return {error:'宽高与像素数据不匹配'};\r\n  var total=w*h, diffCount=0, maxDelta=0, sumDelta=0;\r\n  var minX=1e9,minY=1e9,maxX=-1,maxY=-1;\r\n  var rowCounts=new Array(h); for(var y=0;y<h;y++) rowCounts[y]=0;\r\n  var mask=new Array(total);\r\n  for(var i=0;i<total;i++){\r\n    var o=i*4, d=0;\r\n    for(var c=0;c<3;c++){\r\n      var dd=Math.abs((a[o+c]||0)-(b[o+c]||0));\r\n      if(dd>d)d=dd;\r\n    }\r\n    if(d>th){\r\n      diffCount++; sumDelta+=d;\r\n      if(d>maxDelta)maxDelta=d;\r\n      var x=i%w, y2=(i-x)/w;\r\n      if(x<minX)minX=x; if(x>maxX)maxX=x;\r\n      if(y2<minY)minY=y2; if(y2>maxY)maxY=y2;\r\n      rowCounts[y2]++; mask[i]=1;\r\n    } else { mask[i]=0; }\r\n  }\r\n  var ratio= total? diffCount/total : 0;\r\n  return {total:total, diffCount:diffCount, ratio:ratio, ratioPct:Math.round(ratio*10000)/100,\r\n          maxDelta:maxDelta, avgDelta:diffCount? Math.round(sumDelta/diffCount*100)/100:0,\r\n          bbox:diffCount?{minX:minX,minY:minY,maxX:maxX,maxY:maxY}:null,\r\n          rowCounts:rowCounts, mask:mask, identical:diffCount===0};\r\n}\r\nfunction classifyDiff(r){\r\n  if(!r||r.identical) return {level:'identical', label:'完全一致'};\r\n  if(r.ratioPct<1) return {level:'minor', label:'微小差异'};\r\n  if(r.ratioPct<10) return {level:'visible', label:'可见差异'};\r\n  return {level:'major', label:'显著差异'};\r\n}\r\nvar EXPORTS={diffPixels:diffPixels, classifyDiff:classifyDiff};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ImageDiffForgePure = EXPORTS; }\r\n\r\n"
+}

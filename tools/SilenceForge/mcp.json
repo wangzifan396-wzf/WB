@@ -1,0 +1,39 @@
+{
+  "id": "SilenceForge",
+  "name": "silence_forge",
+  "title": "静音检测",
+  "description": "按 dBFS 阈值检测音频静音区间，输出有效内容分段与首尾裁剪建议（含保留边距），离线。",
+  "entry": "detectSilence",
+  "entries": {
+    "detectSilence": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "sr": {
+        "type": "string",
+        "description": "第 2 个参数（sr）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 3 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction r2(x){ return Math.round(x*100)/100; }\r\nfunction detectSilence(samples, sr, opts){\r\n  opts=opts||{};\r\n  var thDb=(typeof opts.thresholdDb==='number')?opts.thresholdDb:-50;\r\n  var minSil=(typeof opts.minSilenceSec==='number')?opts.minSilenceSec:0.3;\r\n  var pad=(typeof opts.padSec==='number')?opts.padSec:0.05;\r\n  var n=samples? samples.length:0;\r\n  if(!n||!sr||sr<=0) return {error:'缺少采样数据'};\r\n  var th=Math.pow(10, thDb/20);\r\n  var silent=new Array(n);\r\n  for(var i=0;i<n;i++) silent[i]=Math.abs(samples[i])<th;\r\n  var runs=[], s=-1;\r\n  for(var k=0;k<=n;k++){\r\n    var isS=(k<n)&&silent[k];\r\n    if(isS&&s<0)s=k;\r\n    if(!isS&&s>=0){ runs.push({start:s, end:k}); s=-1; }\r\n  }\r\n  var kept=runs.filter(function(r){ return (r.end-r.start)/sr>=minSil; });\r\n  var totalSil=0;\r\n  kept.forEach(function(r){ totalSil+=(r.end-r.start)/sr; });\r\n  var dur=n/sr;\r\n  var segments=[], cur=0;\r\n  kept.forEach(function(r){\r\n    if(r.start>cur) segments.push({start:cur, end:r.start});\r\n    cur=Math.max(cur, r.end);\r\n  });\r\n  if(cur<n) segments.push({start:cur, end:n});\r\n  var firstNon=0; while(firstNon<n&&silent[firstNon])firstNon++;\r\n  var lastNon=n-1; while(lastNon>=0&&silent[lastNon])lastNon--;\r\n  var trim=null;\r\n  if(firstNon<n){\r\n    var ts=Math.max(0, Math.round((firstNon/sr-pad)*1000));\r\n    var te=Math.min(Math.round(dur*1000), Math.round(((lastNon+1)/sr+pad)*1000));\r\n    trim={startMs:ts, endMs:te, savesMs:Math.round(dur*1000-(te-ts))};\r\n  }\r\n  return {\r\n    durationSec:r2(dur), thresholdDb:thDb, minSilenceSec:minSil,\r\n    runs:kept.map(function(r){\r\n      return {startMs:Math.round(r.start/sr*1000), endMs:Math.round(r.end/sr*1000), durSec:r2((r.end-r.start)/sr)};\r\n    }),\r\n    silenceTotalSec:r2(totalSil), silenceRatio:r2(totalSil/dur),\r\n    segments:segments.map(function(g){\r\n      return {startMs:Math.round(g.start/sr*1000), endMs:Math.round(g.end/sr*1000), durSec:r2((g.end-g.start)/sr)};\r\n    }),\r\n    trim:trim, allSilent:firstNon>=n\r\n  };\r\n}\r\nvar EXPORTS={detectSilence:detectSilence};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SilenceForgePure = EXPORTS; }\r\n\r\n"
+}

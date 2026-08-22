@@ -1,0 +1,116 @@
+{
+  "id": "CookieForge",
+  "name": "cookie_forge",
+  "title": "Cookie 解析",
+  "description": "解析/校验/构造 RFC 6265 Set-Cookie，并按域名、路径、Secure、过期规则判定是否随请求发送，离线。",
+  "entry": "buildSetCookie",
+  "entries": {
+    "parseCookiePairs": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "parseSetCookie": {
+      "paramStyle": "single",
+      "paramNames": [
+        "str"
+      ],
+      "fields": []
+    },
+    "buildSetCookie": {
+      "paramStyle": "object",
+      "paramNames": [
+        "o"
+      ],
+      "fields": [
+        "name",
+        "value",
+        "days",
+        "maxAgeSec",
+        "domain",
+        "path",
+        "httpOnly",
+        "secure",
+        "sameSite",
+        "partitioned"
+      ]
+    },
+    "domainMatch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "host",
+        "domain"
+      ],
+      "fields": []
+    },
+    "pathMatch": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "reqPath",
+        "cookiePath"
+      ],
+      "fields": []
+    },
+    "cookieReport": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "cookieStr",
+        "host",
+        "reqPath",
+        "isSecure"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "参数 name"
+      },
+      "value": {
+        "type": "string",
+        "description": "参数 value"
+      },
+      "days": {
+        "type": "string",
+        "description": "参数 days"
+      },
+      "maxAgeSec": {
+        "type": "string",
+        "description": "参数 maxAgeSec"
+      },
+      "domain": {
+        "type": "string",
+        "description": "参数 domain"
+      },
+      "path": {
+        "type": "string",
+        "description": "参数 path"
+      },
+      "httpOnly": {
+        "type": "string",
+        "description": "参数 httpOnly"
+      },
+      "secure": {
+        "type": "string",
+        "description": "参数 secure"
+      },
+      "sameSite": {
+        "type": "string",
+        "description": "参数 sameSite"
+      },
+      "partitioned": {
+        "type": "string",
+        "description": "参数 partitioned"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseCookiePairs(str){\r\n  return String(str||'').split(';').map(function(p){\r\n    p=p.trim(); if(!p) return null;\r\n    var i=p.indexOf('=');\r\n    if(i<0) return {name:p, value:''};\r\n    return {name:p.slice(0,i).trim(), value:p.slice(i+1).trim()};\r\n  }).filter(Boolean);\r\n}\r\nfunction parseSetCookie(str){\r\n  var parts=String(str||'').split(';');\r\n  var first=parts[0]||'';\r\n  var eq=first.indexOf('=');\r\n  var name= eq<0? '' : first.slice(0,eq).trim();\r\n  var value= eq<0? first.trim() : first.slice(eq+1).trim();\r\n  var attrs={}, issues=[], warnings=[];\r\n  for(var i=1;i<parts.length;i++){\r\n    var p=parts[i].trim(); if(!p) continue;\r\n    var j=p.indexOf('=');\r\n    var k=(j<0?p:p.slice(0,j)).trim();\r\n    var v=j<0?'':p.slice(j+1).trim();\r\n    var kl=k.toLowerCase();\r\n    if(kl==='expires'){\r\n      attrs.expires=v;\r\n      var t=Date.parse(v);\r\n      if(isNaN(t)){ issues.push('Expires 无法解析为合法日期'); attrs.expiresTs=null; }\r\n      else attrs.expiresTs=t;\r\n    } else if(kl==='max-age'){\r\n      attrs.maxAge=v;\r\n      if(!/^-?\\d+$/.test(v)){ issues.push('Max-Age 必须为整数秒'); attrs.maxAgeSec=null; }\r\n      else attrs.maxAgeSec=parseInt(v,10);\r\n    } else if(kl==='domain'){ attrs.domain=v.replace(/^\\./,''); }\r\n    else if(kl==='path'){ attrs.path=v; if(v && v.charAt(0)!=='/') issues.push('Path 应以 / 开头'); }\r\n    else if(kl==='samesite'){\r\n      var sv=v.toLowerCase();\r\n      if(['strict','lax','none'].indexOf(sv)<0){ issues.push('SameSite 取值须为 Strict/Lax/None'); attrs.sameSite=v; }\r\n      else attrs.sameSite=sv.charAt(0).toUpperCase()+sv.slice(1);\r\n    }\r\n    else if(kl==='secure'){ attrs.secure=true; }\r\n    else if(kl==='httponly'){ attrs.httpOnly=true; }\r\n    else if(kl==='partitioned'){ attrs.partitioned=true; }\r\n    else { attrs[k]=v; }\r\n  }\r\n  if(!name) issues.push('缺少 cookie 名');\r\n  if(attrs.sameSite==='None' && !attrs.secure) issues.push('SameSite=None 必须配合 Secure，否则会被现代浏览器拒绝');\r\n  if(attrs.secure===true && attrs.maxAgeSec==null && attrs.expiresTs==null) warnings.push('会话 cookie：浏览器关闭后即失效（无 Expires/Max-Age）');\r\n  if(attrs.domain && attrs.domain.indexOf('.')<0) warnings.push('Domain 无内嵌点，多数浏览器会拒绝');\r\n  if(attrs.expiresTs!=null && attrs.expiresTs<=Date.now()) warnings.push('Expires 已过期');\r\n  return {name:name, value:value, attrs:attrs, issues:issues, warnings:warnings, valid:issues.length===0};\r\n}\r\nfunction buildSetCookie(o){\r\n  o=o||{};\r\n  var name=String(o.name||'').trim();\r\n  if(!name) return {error:'缺少 cookie 名'};\r\n  var value=String(o.value==null?'':o.value);\r\n  var parts=[name+'='+value];\r\n  var days=parseFloat(o.days);\r\n  if(!isNaN(days)&&days>0){\r\n    var ms=Date.now()+days*86400000;\r\n    parts.push('Expires='+new Date(ms).toUTCString());\r\n    parts.push('Max-Age='+Math.round(days*86400));\r\n  } else if(o.maxAgeSec!=null&&o.maxAgeSec!==''){\r\n    var ma=parseInt(o.maxAgeSec,10);\r\n    if(!isNaN(ma)) parts.push('Max-Age='+ma);\r\n  }\r\n  if(o.domain) parts.push('Domain='+String(o.domain).replace(/^\\./,''));\r\n  if(o.path) parts.push('Path='+o.path);\r\n  if(o.httpOnly) parts.push('HttpOnly');\r\n  if(o.secure) parts.push('Secure');\r\n  var ss=String(o.sameSite||'');\r\n  if(ss) parts.push('SameSite='+ss);\r\n  if(o.partitioned) parts.push('Partitioned');\r\n  var issues=[];\r\n  if(ss==='None'&&!o.secure) issues.push('SameSite=None 需配合 Secure');\r\n  return {header:parts.join('; '), issues:issues};\r\n}\r\nfunction domainMatch(host, domain){\r\n  host=String(host||'').toLowerCase();\r\n  domain=String(domain||'').toLowerCase().replace(/^\\./,'');\r\n  if(!host||!domain) return false;\r\n  if(host===domain) return true;\r\n  return host.lastIndexOf('.'+domain)===host.length-domain.length-1;\r\n}\r\nfunction pathMatch(reqPath, cookiePath){\r\n  reqPath=String(reqPath||'/');\r\n  cookiePath=String(cookiePath||'/');\r\n  if(cookiePath==='') cookiePath='/';\r\n  if(reqPath===cookiePath) return true;\r\n  if(reqPath.lastIndexOf(cookiePath,0)===0){\r\n    if(cookiePath.charAt(cookiePath.length-1)==='/') return true;\r\n    if(reqPath.charAt(cookiePath.length)==='/') return true;\r\n  }\r\n  return false;\r\n}\r\nfunction cookieReport(cookieStr, host, reqPath, isSecure){\r\n  var c=parseSetCookie(cookieStr);\r\n  var reasons=[];\r\n  var send=true;\r\n  if(!c.valid){ send=false; reasons.push('Set-Cookie 本身不合法：'+(c.issues[0]||'未知问题')); }\r\n  var a=c.attrs;\r\n  if(send && a.domain && !domainMatch(host, a.domain)){ send=false; reasons.push('Domain 不匹配：'+host+' 不在 '+a.domain+' 下'); }\r\n  if(send && a.path && !pathMatch(reqPath, a.path||'/')){ send=false; reasons.push('Path 不匹配：'+reqPath+' 不在 '+a.path+' 下'); }\r\n  if(send && a.secure && !isSecure){ send=false; reasons.push('Secure cookie 不会经明文 http:// 发送'); }\r\n  if(send && a.expiresTs!=null && a.expiresTs<=Date.now()){ send=false; reasons.push('Cookie 已过期'); }\r\n  if(send && a.maxAgeSec!=null && a.maxAgeSec<=0){ send=false; reasons.push('Max-Age<=0，浏览器将删除该 cookie'); }\r\n  if(send && a.sameSite==='None' && !a.secure){ send=false; reasons.push('SameSite=None 未配 Secure，会被拒绝'); }\r\n  if(send) reasons.push('满足全部匹配规则，该请求会携带此 cookie');\r\n  return {name:c.name, sendable:send, reasons:reasons, parsed:c};\r\n}\r\nvar EXPORTS={parseCookiePairs:parseCookiePairs, parseSetCookie:parseSetCookie, buildSetCookie:buildSetCookie, domainMatch:domainMatch, pathMatch:pathMatch, cookieReport:cookieReport};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CookieForgePure = EXPORTS; }\r\n\r\n"
+}

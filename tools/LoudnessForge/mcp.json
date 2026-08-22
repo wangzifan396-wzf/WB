@@ -1,0 +1,45 @@
+{
+  "id": "LoudnessForge",
+  "name": "loudness_forge",
+  "title": "响度分析",
+  "description": "分析音频峰值/RMS/积分响度（近似 EBU R128 分块门控），检测削波并给出归一化到目标 LUFS 的增益建议，离线。",
+  "entry": "dbToAmp",
+  "entries": {
+    "dbToAmp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "db"
+      ],
+      "fields": []
+    },
+    "ampToDb": {
+      "paramStyle": "single",
+      "paramNames": [
+        "a"
+      ],
+      "fields": []
+    },
+    "analyzeLoudness": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "db": {
+        "type": "string",
+        "description": "输入（db）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction dbToAmp(db){ return Math.pow(10, db/20); }\r\nfunction ampToDb(a){ return a>0? 20*Math.log10(a) : -Infinity; }\r\nfunction r1(x){\r\n  if(x===-Infinity) return -Infinity;\r\n  if(x==null||!isFinite(x)) return null;\r\n  return Math.round(x*100)/100;\r\n}\r\nfunction analyzeLoudness(samples, sr, opts){\r\n  opts=opts||{};\r\n  var n=samples? samples.length:0;\r\n  if(!n||!sr||sr<=0) return {error:'缺少采样数据'};\r\n  var peak=0, sum=0, dc=0;\r\n  for(var i=0;i<n;i++){\r\n    var s=samples[i], ab=Math.abs(s);\r\n    if(ab>peak)peak=ab;\r\n    sum+=s*s; dc+=s;\r\n  }\r\n  dc/=n;\r\n  var rms=Math.sqrt(sum/n);\r\n  var clipped=0;\r\n  for(var i2=0;i2<n;i2++){ if(Math.abs(samples[i2])>=0.99999) clipped++; }\r\n  var blockLen=Math.max(1, Math.floor(sr*0.4));\r\n  var hop=Math.max(1, Math.floor(sr*0.1));\r\n  var blocks=[];\r\n  for(var st=0; st+blockLen<=n; st+=hop){\r\n    var bs=0;\r\n    for(var j=st;j<st+blockLen;j++){ bs+=samples[j]*samples[j]; }\r\n    blocks.push({ms:bs/blockLen});\r\n  }\r\n  function loudOf(ms){ return -0.691+10*Math.log10(ms>0?ms:1e-12); }\r\n  blocks.forEach(function(b){ b.lufs=loudOf(b.ms); });\r\n  var kept=blocks.filter(function(b){ return b.lufs>-70; });\r\n  function integrate(list){\r\n    if(!list.length) return null;\r\n    var s=0;\r\n    list.forEach(function(b){ s+=b.ms; });\r\n    return loudOf(s/list.length);\r\n  }\r\n  var firstPass=integrate(kept);\r\n  var kept2=kept;\r\n  if(firstPass!=null){\r\n    var gate=firstPass-10;\r\n    kept2=kept.filter(function(b){ return b.lufs>gate; });\r\n  }\r\n  var integrated=integrate(kept2);\r\n  var target=(typeof opts.targetLufs==='number')?opts.targetLufs:-14;\r\n  var gain=(integrated==null)?null:Math.round((target-integrated)*100)/100;\r\n  var maxGain=(peak>0)?ampToDb(1/peak):null;\r\n  return {\r\n    peak:Math.round(peak*1e6)/1e6, peakDb:r1(ampToDb(peak)),\r\n    rms:Math.round(rms*1e6)/1e6, rmsDb:r1(ampToDb(rms)),\r\n    lufsApprox:r1(integrated), dcOffset:Math.round(dc*1e6)/1e6,\r\n    clipped:clipped, blocks:blocks.length, blocksKept:kept2.length,\r\n    targetLufs:target, suggestedGainDb:gain,\r\n    maxGainBeforeClipDb:r1(maxGain),\r\n    gainClipped:(gain!=null&&maxGain!=null&&gain>maxGain),\r\n    silent:integrated==null,\r\n    warning:clipped>0? ('检测到 '+clipped+' 个采样达到或超过满幅（0 dBFS），可能已削波'):null\r\n  };\r\n}\r\nvar EXPORTS={dbToAmp:dbToAmp, ampToDb:ampToDb, analyzeLoudness:analyzeLoudness};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LoudnessForgePure = EXPORTS; }\r\n\r\n"
+}
