@@ -1,0 +1,47 @@
+{
+  "id": "SpacedRepForge",
+  "name": "spaced_rep_forge",
+  "title": "间隔重复",
+  "description": "SM-2 简化间隔重复：按质量评分推进复习间隔与易度因子，预览 6 档结果，离线可用。",
+  "entry": "reviewCard",
+  "entries": {
+    "reviewCard": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "card",
+        "quality",
+        "todayISO"
+      ],
+      "fields": []
+    },
+    "nextDuePreview": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "card",
+        "todayISO"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "card": {
+        "type": "string",
+        "description": "第 1 个参数（card）"
+      },
+      "quality": {
+        "type": "string",
+        "description": "第 2 个参数（quality）"
+      },
+      "todayISO": {
+        "type": "string",
+        "description": "第 3 个参数（todayISO）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\n// 简化 SM-2：quality 0..5，返回 {intervalDays, repetitions, efactor, dueDate}\r\nfunction reviewCard(card, quality, todayISO){\r\n  var ef = card.efactor != null ? card.efactor : 2.5;\r\n  var rep = card.repetitions || 0;\r\n  var last = card.intervalDays || 0;\r\n  if(quality < 3){\r\n    rep = 0;\r\n    var interval = 1;\r\n  } else {\r\n    rep += 1;\r\n    if(rep === 1) interval = 1;\r\n    else if(rep === 2) interval = 6;\r\n    else interval = Math.round(last * ef);\r\n  }\r\n  ef = ef + (0.1 - (5-quality)*(0.08 + (5-quality)*0.02));\r\n  if(ef < 1.3) ef = 1.3;\r\n  var today = todayISO ? new Date(todayISO) : new Date();\r\n  var due = new Date(today.getTime() + interval*86400000);\r\n  return { intervalDays: interval, repetitions: rep, efactor: Math.round(ef*100)/100,\r\n           dueDate: due.toISOString().slice(0,10) };\r\n}\r\nfunction nextDuePreview(card, todayISO){\r\n  var out=[];\r\n  var c = { efactor: card.efactor, repetitions: card.repetitions, intervalDays: card.intervalDays };\r\n  for(var q=0;q<=5;q++){\r\n    var r = reviewCard(c, q, todayISO);\r\n    out.push({ quality:q, intervalDays:r.intervalDays, efactor:r.efactor });\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={reviewCard:reviewCard,nextDuePreview:nextDuePreview};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SpacedRepForgePure = EXPORTS; }\r\n\r\n"
+}

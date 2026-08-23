@@ -1,0 +1,48 @@
+{
+  "id": "PhaserForge",
+  "name": "phaser_forge",
+  "title": "相位器",
+  "description": "全通滤波器级联 + LFO 调制，生成扫频梳状陷波，可调速率/深度/级数/干湿/反馈。",
+  "entry": "phaserProcess",
+  "entries": {
+    "phaserProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr",
+        "opts"
+      ],
+      "fields": []
+    },
+    "phaserAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "sr": {
+        "type": "string",
+        "description": "第 2 个参数（sr）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 3 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction phaserProcess(samples, sr, opts){\r\n  opts = opts || {};\r\n  var rate = opts.rate || 0.5;        // LFO 频率 Hz\r\n  var depth = opts.depth != null ? opts.depth : 0.9;  // 调制深度 0..1\r\n  var stages = opts.stages || 6;      // 全通级数（偶数）\r\n  var mix = opts.mix != null ? opts.mix : 0.5;        // 干湿混合 0..1\r\n  var fb = opts.feedback != null ? opts.feedback : 0.3; // 反馈 0..0.95\r\n  var n = samples.length;\r\n  var out = new Array(n);\r\n  // 全通系数缓存（按各级中心频率）\r\n  if(stages % 2 !== 0) stages += 1;\r\n  var center = [];\r\n  for(var s=0;s<stages;s++){ center.push(200 * Math.pow(15, s/(stages-1||1))); }\r\n  var state = new Array(stages).fill(0);\r\n  var w = 2 * Math.PI * rate / sr;\r\n  var ph = 0;\r\n  for(var i=0;i<n;i++){\r\n    ph += w; if(ph > 2*Math.PI) ph -= 2*Math.PI;\r\n    var lfo = (Math.sin(ph) * 0.5 + 0.5); // 0..1\r\n    var x = samples[i];\r\n    var wet = x;\r\n    var fbSig = 0;\r\n    for(var s=0;s<stages;s++){\r\n      // 调制后的全通中心频率\r\n      var f = center[s] * (1 + depth * (lfo*2-1) * 2);\r\n      if(f < 20) f = 20; if(f > sr*0.45) f = sr*0.45;\r\n      var a = (Math.tan(Math.PI * f / sr) - 1) / (Math.tan(Math.PI * f / sr) + 1);\r\n      var y = a*(x - state[s]) + fbSig - a*(fbSig - state[s]);\r\n      state[s] = y;\r\n      fbSig = y;\r\n      x = y;\r\n    }\r\n    wet = fbSig;\r\n    out[i] = x*(1-mix) + wet*mix;\r\n  }\r\n  return out;\r\n}\r\nfunction phaserAnalyze(samples, sr, opts){\r\n  var out = phaserProcess(samples, sr, opts);\r\n  var peak=0, sum=0;\r\n  for(var i=0;i<out.length;i++){ var a=Math.abs(out[i]); if(a>peak)peak=a; sum+=out[i]*out[i]; }\r\n  return { length: out.length, peak: peak, rms: Math.sqrt(sum/out.length) };\r\n}\r\n\r\nvar EXPORTS={phaserProcess:phaserProcess,phaserAnalyze:phaserAnalyze};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PhaserForgePure = EXPORTS; }\r\n\r\n"
+}

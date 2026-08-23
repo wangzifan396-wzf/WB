@@ -1,0 +1,48 @@
+{
+  "id": "FlangerForge",
+  "name": "flanger_forge",
+  "title": "镶边器",
+  "description": "短延迟线 + LFO 调制延迟时间，产生喷气机般梳状扫频，可调速率/延迟/干湿/反馈。",
+  "entry": "flangerProcess",
+  "entries": {
+    "flangerProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr",
+        "opts"
+      ],
+      "fields": []
+    },
+    "flangerAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "sr",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "sr": {
+        "type": "string",
+        "description": "第 2 个参数（sr）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 3 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction flangerProcess(samples, sr, opts){\r\n  opts = opts || {};\r\n  var rate = opts.rate || 0.3;        // LFO Hz\r\n  var depthMs = opts.depthMs != null ? opts.depthMs : 5; // 最大延迟 ms\r\n  var mix = opts.mix != null ? opts.mix : 0.5;\r\n  var fb = opts.feedback != null ? opts.feedback : 0.4;\r\n  var n = samples.length;\r\n  var out = new Array(n);\r\n  var delayBuf = new Array(Math.ceil(sr*depthMs/1000)+2).fill(0);\r\n  var w = 2*Math.PI*rate/sr;\r\n  var ph = 0, wp = 0;\r\n  for(var i=0;i<n;i++){\r\n    ph += w; if(ph>2*Math.PI) ph-=2*Math.PI;\r\n    var frac = (Math.sin(ph)*0.5+0.5); // 0..1\r\n    var dSamples = frac * (sr*depthMs/1000);\r\n    var di = Math.floor(dSamples);\r\n    var df = dSamples - di;\r\n    var idx0 = wp - di, idx1 = wp - di - 1;\r\n    function rd(buf, k){ k = ((k % buf.length)+buf.length)%buf.length; return buf[k]; }\r\n    var delayed = rd(delayBuf, idx0)*(1-df) + rd(delayBuf, idx1)*df;\r\n    var x = samples[i];\r\n    var wet = x + fb*delayed;\r\n    delayBuf[wp] = wet;\r\n    wp = (wp+1)%delayBuf.length;\r\n    out[i] = x*(1-mix) + delayed*mix;\r\n  }\r\n  return out;\r\n}\r\nfunction flangerAnalyze(samples, sr, opts){\r\n  var out = flangerProcess(samples, sr, opts);\r\n  var peak=0,sum=0;\r\n  for(var i=0;i<out.length;i++){ var a=Math.abs(out[i]); if(a>peak)peak=a; sum+=out[i]*out[i]; }\r\n  return { length:out.length, peak:peak, rms:Math.sqrt(sum/out.length) };\r\n}\r\n\r\nvar EXPORTS={flangerProcess:flangerProcess,flangerAnalyze:flangerAnalyze};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.FlangerForgePure = EXPORTS; }\r\n\r\n"
+}

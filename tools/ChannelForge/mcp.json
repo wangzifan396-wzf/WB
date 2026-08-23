@@ -1,0 +1,70 @@
+{
+  "id": "ChannelForge",
+  "name": "channel_forge",
+  "title": "通道处理",
+  "description": "RGB 通道分离/合成/互换、转灰度（亮度/均值），处理像素数组，离线可用。",
+  "entry": "hexToRgb",
+  "entries": {
+    "hexToRgb": {
+      "paramStyle": "single",
+      "paramNames": [
+        "h"
+      ],
+      "fields": []
+    },
+    "rgbToHex": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "r",
+        "g",
+        "b"
+      ],
+      "fields": []
+    },
+    "splitChannels": {
+      "paramStyle": "single",
+      "paramNames": [
+        "pixels"
+      ],
+      "fields": []
+    },
+    "composeChannels": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "r",
+        "g",
+        "b"
+      ],
+      "fields": []
+    },
+    "swapChannels": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pixels",
+        "map"
+      ],
+      "fields": []
+    },
+    "toGray": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "pixels",
+        "mode"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "h": {
+        "type": "string",
+        "description": "输入（h）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction hexToRgb(h){\r\n  h=String(h||'').replace('#','');\r\n  if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];\r\n  var n=parseInt(h,16);\r\n  return [(n>>16)&255,(n>>8)&255,n&255];\r\n}\r\nfunction rgbToHex(r,g,b){\r\n  function c(x){ x=Math.max(0,Math.min(255,Math.round(x))); return ('0'+x.toString(16)).slice(-2); }\r\n  return '#'+c(r)+c(g)+c(b);\r\n}\r\n// pixels: array of [r,g,b]; returns per-channel grayscale arrays\r\nfunction splitChannels(pixels){\r\n  var r=[],g=[],b=[];\r\n  for(var i=0;i<pixels.length;i++){ r.push(pixels[i][0]); g.push(pixels[i][1]); b.push(pixels[i][2]); }\r\n  return {r:r,g:g,b:b};\r\n}\r\nfunction composeChannels(r,g,b){\r\n  var n=Math.min(r.length,g.length,b.length);\r\n  var out=new Array(n);\r\n  for(var i=0;i<n;i++){ out[i]=[r[i],g[i],b[i]]; }\r\n  return out;\r\n}\r\n// 通道互换：map = {r:'g', g:'b', b:'r'} 表示新R=旧G等\r\nfunction swapChannels(pixels, map){\r\n  map = map || {r:'b',g:'g',b:'r'};\r\n  return pixels.map(function(p){\r\n    var o={r:p[0],g:p[1],b:p[2]};\r\n    return [ o[map.r], o[map.g], o[map.b] ];\r\n  });\r\n}\r\nfunction toGray(pixels, mode){\r\n  mode=mode||'lum';\r\n  return pixels.map(function(p){\r\n    var v = mode==='avg' ? (p[0]+p[1]+p[2])/3 : 0.299*p[0]+0.587*p[1]+0.114*p[2];\r\n    return [v,v,v];\r\n  });\r\n}\r\n\r\nvar EXPORTS={hexToRgb:hexToRgb,rgbToHex:rgbToHex,splitChannels:splitChannels,composeChannels:composeChannels,swapChannels:swapChannels,toGray:toGray};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ChannelForgePure = EXPORTS; }\r\n\r\n"
+}

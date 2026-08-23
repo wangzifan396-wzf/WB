@@ -1,0 +1,42 @@
+{
+  "id": "BitcrushForge",
+  "name": "bitcrush_forge",
+  "title": "比特压缩",
+  "description": "降低采样位深 + 可选降采样，产生量化失真与步进感，可调位深(1-16)/降采样比。",
+  "entry": "bitcrushProcess",
+  "entries": {
+    "bitcrushProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    },
+    "bitcrushAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction bitcrushProcess(samples, opts){\r\n  opts = opts || {};\r\n  var bits = opts.bits != null ? opts.bits : 8;       // 1..16\r\n  var dsRatio = opts.downsample != null ? opts.downsample : 1; // >=1\r\n  if(bits<1) bits=1; if(bits>16) bits=16;\r\n  if(dsRatio<1) dsRatio=1;\r\n  var levels = Math.pow(2, bits);\r\n  var out = new Array(samples.length);\r\n  var hold = 0, holdIdx = 0;\r\n  for(var i=0;i<samples.length;i++){\r\n    var s = samples[i];\r\n    if(dsRatio>1){ if(i % dsRatio === 0) hold = s; s = hold; }\r\n    // 量化到 bits 位深\r\n    var q = Math.round((s+1)/2 * (levels-1)) / (levels-1) * 2 - 1;\r\n    if(q < -1) q = -1; if(q > 1) q = 1;\r\n    out[i] = q;\r\n  }\r\n  return out;\r\n}\r\nfunction bitcrushAnalyze(samples, opts){\r\n  var out = bitcrushProcess(samples, opts);\r\n  var peak=0,sum=0,distinct={};\r\n  for(var i=0;i<out.length;i++){ var a=Math.abs(out[i]); if(a>peak)peak=a; sum+=out[i]*out[i]; distinct[out[i].toFixed(6)]=1; }\r\n  return { length:out.length, peak:peak, rms:Math.sqrt(sum/out.length), distinctLevels:Object.keys(distinct).length };\r\n}\r\n\r\nvar EXPORTS={bitcrushProcess:bitcrushProcess,bitcrushAnalyze:bitcrushAnalyze};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BitcrushForgePure = EXPORTS; }\r\n\r\n"
+}

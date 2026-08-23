@@ -1,0 +1,54 @@
+{
+  "id": "ResampleForge",
+  "name": "resample_forge",
+  "title": "重采样",
+  "description": "线性/最近邻插值改变采样率，估算新长度、比率与幅度边界，离线可用。",
+  "entry": "resampleProcess",
+  "entries": {
+    "resampleProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "srIn",
+        "srOut",
+        "method"
+      ],
+      "fields": []
+    },
+    "resampleAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "srIn",
+        "srOut",
+        "method"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "srIn": {
+        "type": "string",
+        "description": "第 2 个参数（srIn）"
+      },
+      "srOut": {
+        "type": "string",
+        "description": "第 3 个参数（srOut）"
+      },
+      "method": {
+        "type": "string",
+        "description": "第 4 个参数（method）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction resampleProcess(samples, srIn, srOut, method){\r\n  method = method || 'linear';\r\n  var ratio = srOut / srIn;\r\n  var nOut = Math.max(1, Math.round(samples.length * ratio));\r\n  var out = new Array(nOut);\r\n  for(var i=0;i<nOut;i++){\r\n    var pos = i / ratio;\r\n    var i0 = Math.floor(pos);\r\n    if(method==='nearest'){ out[i] = samples[Math.min(i0, samples.length-1)]; }\r\n    else {\r\n      var i1 = Math.min(i0+1, samples.length-1);\r\n      var f = pos - i0;\r\n      if(i0 >= samples.length-1) f = 0;\r\n      out[i] = samples[i0]*(1-f) + samples[i1]*f;\r\n    }\r\n  }\r\n  return out;\r\n}\r\nfunction resampleAnalyze(samples, srIn, srOut, method){\r\n  var out = resampleProcess(samples, srIn, srOut, method);\r\n  var peak=0,sum=0;\r\n  for(var i=0;i<out.length;i++){ var a=Math.abs(out[i]); if(a>peak)peak=a; sum+=out[i]*out[i]; }\r\n  return { inLength:samples.length, outLength:out.length, ratio:srOut/srIn, peak:peak, rms:Math.sqrt(sum/out.length) };\r\n}\r\n\r\nvar EXPORTS={resampleProcess:resampleProcess,resampleAnalyze:resampleAnalyze};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ResampleForgePure = EXPORTS; }\r\n\r\n"
+}

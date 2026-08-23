@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1310-5E6AD2?style=flat-square" alt="1310 Tools">
+  <img src="https://img.shields.io/badge/tools-1316-5E6AD2?style=flat-square" alt="1316 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1310 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1316 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1310 个工具目录
+│   └── ...             # 共 1316 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1310 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1316 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -797,6 +797,12 @@ WB/
 | [StegoForge](https://wangzifan396-wzf.github.io/WB/tools/StegoForge/) | 图像工具 | LSB 图像隐写：把文本藏进 PNG 像素最低位或从中提取，带魔数头与容量计算，无损往返。 |
 | [LoudnessForge](https://wangzifan396-wzf.github.io/WB/tools/LoudnessForge/) | 音频工具 | 响度分析：峰值/RMS/积分响度（近似 EBU R128 分块门控），削波检测与归一化增益建议。 |
 | [SilenceForge](https://wangzifan396-wzf.github.io/WB/tools/SilenceForge/) | 音频工具 | 静音检测：按 dBFS 阈值找静音区间，输出有效内容分段与首尾裁剪建议（含保留边距）。 |
+| [PhaserForge](https://wangzifan396-wzf.github.io/WB/tools/PhaserForge/) | 音频工具 | 相位器效果器：全通滤波器级联 + LFO 调制生成扫频梳状陷波，可调速率/深度/级数/干湿/反馈。 |
+| [FlangerForge](https://wangzifan396-wzf.github.io/WB/tools/FlangerForge/) | 音频工具 | 镶边效果器：短延迟线 + LFO 调制延迟时间，产生喷气机般梳状扫频，可调速率/延迟/干湿/反馈。 |
+| [BitcrushForge](https://wangzifan396-wzf.github.io/WB/tools/BitcrushForge/) | 音频工具 | 比特压缩/lo-fi：降低采样位深 + 可选降采样，产生量化失真与步进感，可调位深(1-16)/降采样比。 |
+| [ResampleForge](https://wangzifan396-wzf.github.io/WB/tools/ResampleForge/) | 音频工具 | 重采样：线性/最近邻插值改变采样率，估算新长度、比率与幅度边界。 |
+| [ChannelForge](https://wangzifan396-wzf.github.io/WB/tools/ChannelForge/) | 图像工具 | RGB 通道处理：通道分离/合成/互换、转灰度（亮度/均值），处理像素数组。 |
+| [SpacedRepForge](https://wangzifan396-wzf.github.io/WB/tools/SpacedRepForge/) | 教育工具 | 间隔重复调度：SM-2 简化版，按质量评分推进复习间隔与易度因子，预览 6 档结果。 |
 
 ## 快速使用
 
@@ -809,7 +815,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前五门禁：`audit_render.js`（渲染/语法/截断）、`audit_matrix_v3.py`（运行时缺陷）、`audit_portal.js`（门户三数组/计数）、`audit_runtime.js`（jsdom 全量启动）、`audit_mcp.py`（MCP manifest 结构）必须全 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1310 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1316 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
