@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1322-5E6AD2?style=flat-square" alt="1322 Tools">
+  <img src="https://img.shields.io/badge/tools-1328-5E6AD2?style=flat-square" alt="1328 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1322 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1328 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1322 个工具目录
+│   └── ...             # 共 1328 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1322 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1328 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -802,6 +802,12 @@ WB/
 | [BitcrushForge](https://wangzifan396-wzf.github.io/WB/tools/BitcrushForge/) | 音频工具 | 比特压缩/lo-fi：降低采样位深 + 可选降采样，产生量化失真与步进感，可调位深(1-16)/降采样比。 |
 | [ResampleForge](https://wangzifan396-wzf.github.io/WB/tools/ResampleForge/) | 音频工具 | 重采样：线性/最近邻插值改变采样率，估算新长度、比率与幅度边界。 |
 | [ChannelForge](https://wangzifan396-wzf.github.io/WB/tools/ChannelForge/) | 图像工具 | RGB 通道处理：通道分离/合成/互换、转灰度（亮度/均值），处理像素数组。 |
+| [PerspectiveForge](https://wangzifan396-wzf.github.io/WB/tools/PerspectiveForge/) | 图像工具 | 4 角点钉住透视/梯形变换：完整 3x3 单应矩阵 DLT 求解 + 反向双线性采样，离线处理。 |
+| [WarpForge](https://wangzifan396-wzf.github.io/WB/tools/WarpForge/) | 图像工具 | 径向球面凸起/凹陷形变（bulge/pinch），强度 0 即恒等，可调中心与半径，离线处理。 |
+| [SkewForge](https://wangzifan396-wzf.github.io/WB/tools/SkewForge/) | 图像工具 | 水平/垂直剪切仿射变换，角度 0 即恒等，可调双轴切变角，离线处理。 |
+| [SwirlForge](https://wangzifan396-wzf.github.io/WB/tools/SwirlForge/) | 图像工具 | 中心衰减旋转漩涡形变，角度 0 即恒等，可调中心/半径/最大角，离线处理。 |
+| [LiquifyForge](https://wangzifan396-wzf.github.io/WB/tools/LiquifyForge/) | 图像工具 | 交互笔刷推挤位移（拖拽实时液化），笔刷半径/推力可调，离线处理。 |
+| [MirrorForge](https://wangzifan396-wzf.github.io/WB/tools/MirrorForge/) | 图像工具 | 水平/垂直/双向镜像反射，像素精确翻转，离线处理。 |
 | [SpacedRepForge](https://wangzifan396-wzf.github.io/WB/tools/SpacedRepForge/) | 教育工具 | 间隔重复调度：SM-2 简化版，按质量评分推进复习间隔与易度因子，预览 6 档结果。 |
 | [DistortionForge](https://wangzifan396-wzf.github.io/WB/tools/DistortionForge/) | 音频工具 | 失真/波形整形：硬削波 / 软削波(tanh) / 折叠(foldback)，可调驱动与干湿混合。 |
 | [CompressorForge](https://wangzifan396-wzf.github.io/WB/tools/CompressorForge/) | 音频工具 | 动态压缩：包络跟踪阈值/比率/启动释放/补偿增益，输出增益衰减量。 |
@@ -821,7 +827,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前五门禁：`audit_render.js`（渲染/语法/截断）、`audit_matrix_v3.py`（运行时缺陷）、`audit_portal.js`（门户三数组/计数）、`audit_runtime.js`（jsdom 全量启动）、`audit_mcp.py`（MCP manifest 结构）必须全 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1322 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1328 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 

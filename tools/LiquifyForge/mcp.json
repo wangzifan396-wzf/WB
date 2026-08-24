@@ -1,0 +1,44 @@
+{
+  "id": "LiquifyForge",
+  "name": "liquify_forge",
+  "title": "液化",
+  "description": "交互笔刷推挤位移（拖拽实时液化），笔刷半径/推力可调，离线处理。",
+  "entry": "liquifyProcess",
+  "entries": {
+    "liquifyProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction bsample(data,w,h,x,y){\r\n  if(x<0)x=0; else if(x>w-1)x=w-1;\r\n  if(y<0)y=0; else if(y>h-1)y=h-1;\r\n  var x0=Math.floor(x), y0=Math.floor(y);\r\n  var x1=x0+1, y1=y0+1;\r\n  if(x1>w-1)x1=w-1; if(y1>h-1)y1=h-1;\r\n  var fx=x-x0, fy=y-y0;\r\n  var i00=(y0*w+x0)*4, i10=(y0*w+x1)*4, i01=(y1*w+x0)*4, i11=(y1*w+x1)*4;\r\n  var o0=data[i00]+(data[i10]-data[i00])*fx;\r\n  var o1=data[i01]+(data[i11]-data[i01])*fx;\r\n  var r=o0+(o1-o0)*fy;\r\n  var g0=data[i00+1]+(data[i10+1]-data[i00+1])*fx;\r\n  var g1=data[i01+1]+(data[i11+1]-data[i01+1])*fx;\r\n  var g=g0+(g1-g0)*fy;\r\n  var b0=data[i00+2]+(data[i10+2]-data[i00+2])*fx;\r\n  var b1=data[i01+2]+(data[i11+2]-data[i01+2])*fx;\r\n  var b=b0+(b1-b0)*fy;\r\n  var a0=data[i00+3]+(data[i10+3]-data[i00+3])*fx;\r\n  var a1=data[i01+3]+(data[i11+3]-data[i01+3])*fx;\r\n  var a=a0+(a1-a0)*fy;\r\n  return [r,g,b,a];\r\n}\r\n\r\nfunction liquifyProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var strokes=opts.strokes||[], radius=opts.radius||20, falloff=opts.falloff!=null?opts.falloff:1;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  out.set(data);\r\n  var dispX=new Float32Array(w*h), dispY=new Float32Array(w*h);\r\n  for(var s=0;s<strokes.length;s++){\r\n    var st=strokes[s], dx=st.dx||0, dy=st.dy||0, px=st.x, py=st.y, rr=radius;\r\n    var x0=Math.max(0,Math.floor(px-rr)), x1=Math.min(w-1,Math.ceil(px+rr));\r\n    var y0=Math.max(0,Math.floor(py-rr)), y1=Math.min(h-1,Math.ceil(py+rr));\r\n    for(var y=y0;y<=y1;y++) for(var x=x0;x<=x1;x++){\r\n      var ex=x-px, ey=y-py, dd=Math.sqrt(ex*ex+ey*ey);\r\n      if(dd<=rr){ var wgt=(1-dd/rr)*falloff, idx=y*w+x; dispX[idx]+=dx*wgt; dispY[idx]+=dy*wgt; }\r\n    }\r\n  }\r\n  for(var y2=0;y2<h;y2++) for(var x2=0;x2<w;x2++){\r\n    var idx2=y2*w+x2, nx=x2+dispX[idx2], ny=y2+dispY[idx2];\r\n    var ss=bsample(data,w,h,nx,ny), i=(y2*w+x2)*4;\r\n    out[i]=ss[0];out[i+1]=ss[1];out[i+2]=ss[2];out[i+3]=ss[3];\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={liquifyProcess:liquifyProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LiquifyForgePure = EXPORTS; }\r\n\r\n"
+}

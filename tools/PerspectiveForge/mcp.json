@@ -1,0 +1,52 @@
+{
+  "id": "PerspectiveForge",
+  "name": "perspective_forge",
+  "title": "透视",
+  "description": "完整 3x3 单应矩阵（DLT 求解）+ 反向映射双线性采样，4 角点钉住任意透视/梯形变换，离线处理。",
+  "entry": "perspectiveProcess",
+  "entries": {
+    "perspectiveProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    },
+    "solveHomography": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "src",
+        "dst"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction bsample(data,w,h,x,y){\r\n  if(x<0)x=0; else if(x>w-1)x=w-1;\r\n  if(y<0)y=0; else if(y>h-1)y=h-1;\r\n  var x0=Math.floor(x), y0=Math.floor(y);\r\n  var x1=x0+1, y1=y0+1;\r\n  if(x1>w-1)x1=w-1; if(y1>h-1)y1=h-1;\r\n  var fx=x-x0, fy=y-y0;\r\n  var i00=(y0*w+x0)*4, i10=(y0*w+x1)*4, i01=(y1*w+x0)*4, i11=(y1*w+x1)*4;\r\n  var o0=data[i00]+(data[i10]-data[i00])*fx;\r\n  var o1=data[i01]+(data[i11]-data[i01])*fx;\r\n  var r=o0+(o1-o0)*fy;\r\n  var g0=data[i00+1]+(data[i10+1]-data[i00+1])*fx;\r\n  var g1=data[i01+1]+(data[i11+1]-data[i01+1])*fx;\r\n  var g=g0+(g1-g0)*fy;\r\n  var b0=data[i00+2]+(data[i10+2]-data[i00+2])*fx;\r\n  var b1=data[i01+2]+(data[i11+2]-data[i01+2])*fx;\r\n  var b=b0+(b1-b0)*fy;\r\n  var a0=data[i00+3]+(data[i10+3]-data[i00+3])*fx;\r\n  var a1=data[i01+3]+(data[i11+3]-data[i01+3])*fx;\r\n  var a=a0+(a1-a0)*fy;\r\n  return [r,g,b,a];\r\n}\r\n\r\nfunction gaussSolve(A,b){\r\n  var n=b.length, M=[];\r\n  for(var i=0;i<n;i++){ M.push(A[i].slice().concat([b[i]])); }\r\n  for(var c=0;c<n;c++){\r\n    var piv=c, mv=Math.abs(M[c][c]);\r\n    for(var r=c+1;r<n;r++){ var av=Math.abs(M[r][c]); if(av>mv){mv=av;piv=r;} }\r\n    if(piv!==c){ var t=M[c]; M[c]=M[piv]; M[piv]=t; }\r\n    var pv=M[c][c]; if(Math.abs(pv)<1e-12) pv=1e-12;\r\n    for(var j=c;j<=n;j++) M[c][j]/=pv;\r\n    for(var r2=0;r2<n;r2++){ if(r2===c) continue; var f=M[r2][c]; if(f!==0){ for(var j2=c;j2<=n;j2++) M[r2][j2]-=f*M[c][j2]; } }\r\n  }\r\n  var x=[]; for(var i2=0;i2<n;i2++) x.push(M[i2][n]); return x;\r\n}\r\nfunction solveHomography(src,dst){\r\n  var A=[], b=[];\r\n  for(var i=0;i<4;i++){\r\n    var u=src[i].u, v=src[i].v, x=dst[i].x, y=dst[i].y;\r\n    A.push([u,v,1,0,0,0,-u*x,-v*x]); b.push(x);\r\n    A.push([0,0,0,u,v,1,-u*y,-v*y]); b.push(y);\r\n  }\r\n  var h=gaussSolve(A,b);\r\n  return {a:h[0],b:h[1],c:h[2],d:h[3],e:h[4],f:h[5],g:h[6],h_:h[7]};\r\n}\r\nfunction perspectiveProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var corners=opts.corners;\r\n  var dst= corners || [ {x:0,y:0},{x:w-1,y:0},{x:w-1,y:h-1},{x:0,y:h-1} ];\r\n  var src=[{u:0,v:0},{u:1,v:0},{u:1,v:1},{u:0,v:1}];\r\n  var H=solveHomography(src,dst);\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var Aa=(H.a - x*H.g), Ba=(H.b - x*H.h_), Ca=(x - H.c);\r\n    var Ad=(H.d - y*H.g), Bd=(H.e - y*H.h_), Cd=(y - H.f);\r\n    var det=Aa*Bd - Ba*Ad;\r\n    var i=(y*w+x)*4;\r\n    if(Math.abs(det)<1e-12){ out[i+3]=0; continue; }\r\n    var u=(Ca*Bd - Ba*Cd)/det;\r\n    var v=(Aa*Cd - Ca*Ad)/det;\r\n    if(!isFinite(u)||!isFinite(v)||u<-0.01||u>1.01||v<-0.01||v>1.01){ out[i+3]=0; continue; }\r\n    var s=bsample(data,w,h,u*(w-1),v*(h-1));\r\n    out[i]=s[0];out[i+1]=s[1];out[i+2]=s[2];out[i+3]=255;\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={perspectiveProcess:perspectiveProcess,solveHomography:solveHomography};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PerspectiveForgePure = EXPORTS; }\r\n\r\n"
+}
