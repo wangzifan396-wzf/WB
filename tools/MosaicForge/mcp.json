@@ -1,0 +1,44 @@
+{
+  "id": "MosaicForge",
+  "name": "mosaic_forge",
+  "title": "马赛克",
+  "description": "分块均值降采样生成马赛克，块大小可调，块大小为 1 即恒等，离线处理。",
+  "entry": "mosaicProcess",
+  "entries": {
+    "mosaicProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction mosaicProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var b=opts.block!=null?opts.block:12;\r\n  if(b<1)b=1;\r\n  var bw=Math.max(1,Math.round(b));\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var by=0;by<h;by+=bw) for(var bx=0;bx<w;bx+=bw){\r\n    var x1=Math.min(w,bx+bw), y1=Math.min(h,by+bw);\r\n    var sr=0,sg=0,sb=0,sa=0,n=0;\r\n    for(var yy=by;yy<y1;yy++) for(var xx=bx;xx<x1;xx++){\r\n      var i=(yy*w+xx)*4; sr+=data[i];sg+=data[i+1];sb+=data[i+2];sa+=data[i+3];n++;\r\n    }\r\n    var ar=sr/n,ag=sg/n,ab=sb/n,aa=sa/n;\r\n    for(var yy2=by;yy2<y1;yy2++) for(var xx2=bx;xx2<x1;xx2++){\r\n      var j=(yy2*w+xx2)*4; out[j]=ar;out[j+1]=ag;out[j+2]=ab;out[j+3]=aa;\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={mosaicProcess:mosaicProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MosaicForgePure = EXPORTS; }\r\n\r\n"
+}

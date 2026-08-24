@@ -1,0 +1,44 @@
+{
+  "id": "VignetteForge",
+  "name": "vignette_forge",
+  "title": "暗角",
+  "description": "以图像中心为原点、按归一化距离线性压暗四周，营造暗角/聚光效果，强度/半径可调，强度 0 即恒等，离线处理。",
+  "entry": "vignetteProcess",
+  "entries": {
+    "vignetteProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction vignetteProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var str=opts.strength!=null?opts.strength:0.6;\r\n  var rad=opts.radius!=null?opts.radius:0.8;\r\n  if(str<0)str=0; else if(str>1)str=1;\r\n  if(rad<0.01)rad=0.01; else if(rad>1)rad=1;\r\n  var cx=(opts.centerX!=null?opts.centerX:0.5)*w;\r\n  var cy=(opts.centerY!=null?opts.centerY:0.5)*h;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var dx=(x-cx)/w, dy=(y-cy)/h;\r\n    var d=Math.sqrt(dx*dx+dy*dy);\r\n    var nd=d/rad;\r\n    var f=1-str*(nd>1?1:nd);\r\n    if(f<0)f=0;\r\n    var i=(y*w+x)*4;\r\n    out[i]=data[i]*f; out[i+1]=data[i+1]*f; out[i+2]=data[i+2]*f; out[i+3]=data[i+3];\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={vignetteProcess:vignetteProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.VignetteForgePure = EXPORTS; }\r\n\r\n"
+}
