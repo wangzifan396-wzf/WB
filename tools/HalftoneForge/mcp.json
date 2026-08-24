@@ -1,0 +1,44 @@
+{
+  "id": "HalftoneForge",
+  "name": "halftone_forge",
+  "title": "半调",
+  "description": "按单元平均亮度生成半径反比的黑白墨点，模拟印刷半调网点，间距可调，离线处理。",
+  "entry": "halftoneProcess",
+  "entries": {
+    "halftoneProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction halftoneProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var S=opts.spacing!=null?opts.spacing:8;\r\n  if(S<2)S=2;\r\n  var gw=Math.ceil(w/S), gh=Math.ceil(h/S);\r\n  var cellLum=new Float32Array(gw*gh);\r\n  for(var cy=0;cy<gh;cy++) for(var cx=0;cx<gw;cx++){\r\n    var x0=cx*S, y0=cy*S, x1=Math.min(w,x0+S), y1=Math.min(h,y0+S);\r\n    var sum=0, n=0;\r\n    for(var yy=y0;yy<y1;yy++) for(var xx=x0;xx<x1;xx++){\r\n      var i=(yy*w+xx)*4; sum+=0.299*data[i]+0.587*data[i+1]+0.114*data[i+2]; n++;\r\n    }\r\n    cellLum[cy*gw+cx]= n>0? sum/n : 255;\r\n  }\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var cx=Math.floor(x/S), cy=Math.floor(y/S);\r\n    if(cx>=gw)cx=gw-1; if(cy>=gh)cy=gh-1;\r\n    var lum=cellLum[cy*gw+cx];\r\n    var dotR=(S/2)*Math.sqrt(Math.max(0,1-lum/255));\r\n    var ccx=cx*S+S/2, ccy=cy*S+S/2;\r\n    var ddx=x-ccx, ddy=y-ccy, d=Math.sqrt(ddx*ddx+ddy*ddy);\r\n    var i=(y*w+x)*4;\r\n    if(d<=dotR){ out[i]=0;out[i+1]=0;out[i+2]=0;out[i+3]=255; }\r\n    else { out[i]=255;out[i+1]=255;out[i+2]=255;out[i+3]=255; }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={halftoneProcess:halftoneProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HalftoneForgePure = EXPORTS; }\r\n\r\n"
+}

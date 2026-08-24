@@ -1,0 +1,44 @@
+{
+  "id": "EmbossForge",
+  "name": "emboss_forge",
+  "title": "浮雕",
+  "description": "沿光向的 3x3 邻域加权卷积生成浮雕质感，灰阶归一避免溢出，光向/强度可调，离线处理。",
+  "entry": "embossProcess",
+  "entries": {
+    "embossProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction embossProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var az=opts.azimuth!=null?opts.azimuth:45;\r\n  var str=opts.strength!=null?opts.strength:1;\r\n  var lx=Math.cos(az*Math.PI/180), ly=Math.sin(az*Math.PI/180);\r\n  var maxAbs=0;\r\n  for(var oy=-1;oy<=1;oy++) for(var ox=-1;ox<=1;ox++){\r\n    if(ox===0&&oy===0) continue;\r\n    maxAbs+=Math.abs(ox*lx+oy*ly);\r\n  }\r\n  if(maxAbs<1e-9) maxAbs=1;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var sum=0;\r\n    for(var oy2=-1;oy2<=1;oy2++) for(var ox2=-1;ox2<=1;ox2++){\r\n      if(ox2===0&&oy2===0) continue;\r\n      var sx=x+ox2, sy=y+oy2;\r\n      if(sx<0)sx=0; else if(sx>w-1)sx=w-1;\r\n      if(sy<0)sy=0; else if(sy>h-1)sy=h-1;\r\n      var i2=(sy*w+sx)*4;\r\n      var g=0.299*data[i2]+0.587*data[i2+1]+0.114*data[i2+2];\r\n      sum+=(ox2*lx+oy2*ly)*g;\r\n    }\r\n    var v=128 + (sum/maxAbs)*127*str;\r\n    if(v<0)v=0; else if(v>255)v=255;\r\n    var i=(y*w+x)*4; out[i]=v;out[i+1]=v;out[i+2]=v;out[i+3]=data[i+3];\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={embossProcess:embossProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EmbossForgePure = EXPORTS; }\r\n\r\n"
+}

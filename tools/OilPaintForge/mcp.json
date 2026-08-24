@@ -1,0 +1,44 @@
+{
+  "id": "OilPaintForge",
+  "name": "oil_paint_forge",
+  "title": "油画",
+  "description": "邻域量化亮度桶取众数桶均值，模拟油画笔触与色块，半径/层级可调，半径 0 即恒等，离线处理。",
+  "entry": "oilPaintProcess",
+  "entries": {
+    "oilPaintProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction oilPaintProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var radius=opts.radius!=null?opts.radius:4;\r\n  var levels=opts.levels!=null?opts.levels:20;\r\n  if(radius<0)radius=0; if(levels<2)levels=2;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var sumR=new Float64Array(levels), sumG=new Float64Array(levels), sumB=new Float64Array(levels), cnts=new Int32Array(levels);\r\n    for(var ny=y-radius;ny<=y+radius;ny++) for(var nx=x-radius;nx<=x+radius;nx++){\r\n      var sx=nx, sy=ny;\r\n      if(sx<0)sx=0; else if(sx>w-1)sx=w-1;\r\n      if(sy<0)sy=0; else if(sy>h-1)sy=h-1;\r\n      var i2=(sy*w+sx)*4;\r\n      var g=(0.299*data[i2]+0.587*data[i2+1]+0.114*data[i2+2])/255*levels;\r\n      var bi=Math.floor(g); if(bi<0)bi=0; else if(bi>=levels)bi=levels-1;\r\n      sumR[bi]+=data[i2]; sumG[bi]+=data[i2+1]; sumB[bi]+=data[i2+2]; cnts[bi]++;\r\n    }\r\n    var best=-1, bc=0;\r\n    for(var b=0;b<levels;b++){ if(cnts[b]>bc){bc=cnts[b];best=b;} }\r\n    var i=(y*w+x)*4;\r\n    if(best>=0&&bc>0){ out[i]=sumR[best]/bc;out[i+1]=sumG[best]/bc;out[i+2]=sumB[best]/bc;out[i+3]=data[i+3]; }\r\n    else { out[i]=data[i];out[i+1]=data[i+1];out[i+2]=data[i+2];out[i+3]=data[i+3]; }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={oilPaintProcess:oilPaintProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.OilPaintForgePure = EXPORTS; }\r\n\r\n"
+}
