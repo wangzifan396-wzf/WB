@@ -1,0 +1,42 @@
+{
+  "id": "GranularForge",
+  "name": "granular_forge",
+  "title": "粒子",
+  "description": "汉宁窗粒子重组实现时间拉伸（改变时长保留音高），可调粒子大小/拉伸比/重叠，离线处理。",
+  "entry": "granularAnalyze",
+  "entries": {
+    "granularAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    },
+    "granularProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "opts": {
+        "type": "string",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction granularProcess(samples, opts){\r\n  opts = opts || {};\r\n  var grain = Math.max(1, opts.grain != null ? opts.grain : 512);\r\n  var stretch = opts.stretch != null ? opts.stretch : 1.5;   // >1 拉长\r\n  if(stretch <= 0) stretch = 1;\r\n  var overlap = Math.max(1, opts.overlap != null ? opts.overlap : 2);\r\n  var hopIn = grain;\r\n  var hopOut = Math.max(1, Math.round(grain * stretch));\r\n  var n = samples.length;\r\n  var out = new Array(Math.ceil(n*stretch) + grain).fill(0);\r\n  var norm = new Array(out.length).fill(0);\r\n  var pos = 0;\r\n  for(var gi=0; gi<n; gi+=hopIn){\r\n    var start = Math.round(pos);\r\n    for(var k=0; k<grain && gi+k<n; k++){\r\n      var oi = start + k; if(oi >= out.length) break;\r\n      var w = 0.5 - 0.5*Math.cos(2*Math.PI*k/grain);   // 汉宁窗\r\n      out[oi] += samples[gi+k]*w;\r\n      norm[oi] += w;\r\n    }\r\n    pos += hopOut;\r\n  }\r\n  for(var i=0;i<out.length;i++){ if(norm[i] > 0) out[i] /= norm[i]; }\r\n  return out;\r\n}\r\nfunction granularAnalyze(samples, opts){\r\n  var out = granularProcess(samples, opts);\r\n  var peak=0, sum=0;\r\n  for(var i=0;i<out.length;i++){ var a=Math.abs(out[i]); if(a>peak)peak=a; sum+=out[i]*out[i]; }\r\n  return { inLength: samples.length, outLength: out.length, stretch: opts.stretch != null ? opts.stretch : 1.5, peak: peak, rms: Math.sqrt(sum/out.length) };\r\n}\r\n\r\nvar EXPORTS={granularAnalyze:granularAnalyze,granularProcess:granularProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.GranularForgePure = EXPORTS; }\r\n\r\n"
+}

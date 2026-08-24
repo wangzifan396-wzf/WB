@@ -1,0 +1,42 @@
+{
+  "id": "SaturationForge",
+  "name": "saturation_forge",
+  "title": "饱和",
+  "description": "atan 软饱和产生偶次谐波（磁带/电子管质感），可调驱动/偏置/干湿，离线处理。",
+  "entry": "saturateAnalyze",
+  "entries": {
+    "saturateAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    },
+    "saturateProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "opts": {
+        "type": "string",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction saturateProcess(samples, opts){\r\n  opts = opts || {};\r\n  var drive = opts.drive != null ? opts.drive : 1.5;\r\n  var mix = opts.mix != null ? opts.mix : 1;\r\n  var bias = opts.bias != null ? opts.bias : 0;   // 偶次谐波偏置\r\n  var out = new Array(samples.length);\r\n  for(var i=0;i<samples.length;i++){\r\n    var x = samples[i] + bias;\r\n    var wet = Math.atan(x * drive) * (2/Math.PI);  // atan 软饱和，范围(-1,1)\r\n    out[i] = x*(1-mix) + wet*mix;\r\n  }\r\n  return out;\r\n}\r\nfunction saturateAnalyze(samples, opts){\r\n  var out = saturateProcess(samples, opts);\r\n  var peak=0, sum=0;\r\n  for(var i=0;i<out.length;i++){ var a=Math.abs(out[i]); if(a>peak)peak=a; sum+=out[i]*out[i]; }\r\n  return { length: out.length, peak: peak, rms: Math.sqrt(sum/out.length) };\r\n}\r\n\r\nvar EXPORTS={saturateAnalyze:saturateAnalyze,saturateProcess:saturateProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SaturationForgePure = EXPORTS; }\r\n\r\n"
+}

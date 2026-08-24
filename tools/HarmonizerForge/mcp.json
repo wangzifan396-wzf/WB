@@ -1,0 +1,48 @@
+{
+  "id": "HarmonizerForge",
+  "name": "harmonizer_forge",
+  "title": "和声",
+  "description": "按半音比实时移调生成平行声部（线性插值），可调移调量与干湿混合，离线处理。",
+  "entry": "harmonizeAnalyze",
+  "entries": {
+    "harmonizeAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "semitones",
+        "mix"
+      ],
+      "fields": []
+    },
+    "harmonizeProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "semitones",
+        "mix"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "semitones": {
+        "type": "string",
+        "description": "第 2 个参数（semitones）"
+      },
+      "mix": {
+        "type": "string",
+        "description": "第 3 个参数（mix）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction harmonizeProcess(samples, semitones, mix){\r\n  mix = mix != null ? mix : 0.5;\r\n  var r = Math.pow(2, semitones/12);\r\n  var n = samples.length;\r\n  var out = new Array(n);\r\n  for(var i=0;i<n;i++){\r\n    var pos = i * r;\r\n    var i0 = Math.floor(pos);\r\n    if(i0 < 0) i0 = 0;\r\n    if(i0 > n-1) i0 = n-1;\r\n    var i1 = i0 + 1; if(i1 > n-1) i1 = n-1;\r\n    var f = (i0 >= n-1) ? 0 : (pos - i0);\r\n    var shifted = samples[i0]*(1-f) + samples[i1]*f;\r\n    out[i] = samples[i]*(1-mix) + shifted*mix;\r\n  }\r\n  return out;\r\n}\r\nfunction harmonizeAnalyze(samples, semitones, mix){\r\n  var out = harmonizeProcess(samples, semitones, mix);\r\n  var peak=0, sum=0;\r\n  for(var i=0;i<out.length;i++){ var a=Math.abs(out[i]); if(a>peak)peak=a; sum+=out[i]*out[i]; }\r\n  return { length: out.length, ratio: Math.pow(2, semitones/12), peak: peak, rms: Math.sqrt(sum/out.length) };\r\n}\r\n\r\nvar EXPORTS={harmonizeAnalyze:harmonizeAnalyze,harmonizeProcess:harmonizeProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HarmonizerForgePure = EXPORTS; }\r\n\r\n"
+}

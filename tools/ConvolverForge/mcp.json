@@ -1,0 +1,51 @@
+{
+  "id": "ConvolverForge",
+  "name": "convolver_forge",
+  "title": "卷积",
+  "description": "指数衰减噪声 IR 生成 + 卷积 + 峰值归一化，模拟混响/脉冲响应，离线处理。",
+  "entry": "convolveAnalyze",
+  "entries": {
+    "convolveAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    },
+    "makeImpulse": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "decay",
+        "len",
+        "seed"
+      ],
+      "fields": []
+    },
+    "convolveProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "ir"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction makeImpulse(decay, len, seed){\r\n  decay = decay != null ? decay : 3;\r\n  len = len || 4000;\r\n  var s = (seed>>>0) || 1;\r\n  function rng(){ s = (s*1664525+1013904223)>>>0; return s/4294967296*2-1; }\r\n  var ir = new Array(len);\r\n  for(var i=0;i<len;i++){ ir[i] = rng() * Math.exp(-i/len*decay); }\r\n  return ir;\r\n}\r\nfunction convolveProcess(samples, ir){\r\n  var n = samples.length, m = ir.length;\r\n  var out = new Array(n + m - 1).fill(0);\r\n  for(var i=0;i<n;i++){\r\n    var x = samples[i];\r\n    for(var j=0;j<m;j++){ out[i+j] += x * ir[j]; }\r\n  }\r\n  var peak = 0;\r\n  for(var k=0;k<out.length;k++){ var a=Math.abs(out[k]); if(a>peak)peak=a; }\r\n  if(peak > 1){ for(var k=0;k<out.length;k++) out[k] /= peak; }\r\n  return out;\r\n}\r\nfunction convolveAnalyze(samples, opts){\r\n  opts = opts || {};\r\n  var ir = opts.ir || makeImpulse(opts.decay, opts.len, opts.seed);\r\n  var out = convolveProcess(samples, ir);\r\n  var peak=0, sum=0;\r\n  for(var i=0;i<out.length;i++){ var a=Math.abs(out[i]); if(a>peak)peak=a; sum+=out[i]*out[i]; }\r\n  return { inLength: samples.length, irLength: ir.length, outLength: out.length, peak: peak, rms: Math.sqrt(sum/out.length) };\r\n}\r\n\r\nvar EXPORTS={convolveAnalyze:convolveAnalyze,makeImpulse:makeImpulse,convolveProcess:convolveProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ConvolverForgePure = EXPORTS; }\r\n\r\n"
+}

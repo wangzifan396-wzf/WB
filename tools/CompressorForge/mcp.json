@@ -1,0 +1,42 @@
+{
+  "id": "CompressorForge",
+  "name": "compressor_forge",
+  "title": "压缩器",
+  "description": "包络跟踪动态压缩：阈值/比率/启动释放/补偿增益，输出峰值增益衰减量，离线处理。",
+  "entry": "compressAnalyze",
+  "entries": {
+    "compressAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    },
+    "compressProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "opts": {
+        "type": "string",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction compressProcess(samples, opts){\r\n  opts = opts || {};\r\n  var thr = opts.threshold != null ? opts.threshold : -20;   // dB\r\n  var ratio = opts.ratio != null ? opts.ratio : 4;\r\n  var makeup = opts.makeup != null ? opts.makeup : 0;        // dB\r\n  var attack = Math.max(1, opts.attack != null ? opts.attack : 5);\r\n  var release = Math.max(1, opts.release != null ? opts.release : 50);\r\n  var mu = Math.pow(10, makeup/20);\r\n  var env = 0;\r\n  var out = new Array(samples.length);\r\n  for(var i=0;i<samples.length;i++){\r\n    var lvl = Math.abs(samples[i]);\r\n    var coeff = lvl > env ? (1/attack) : (1/release);\r\n    env = env + coeff*(lvl - env);\r\n    var lvlDb = 20*Math.log10(env + 1e-9);\r\n    var gainDb = 0;\r\n    if(lvlDb > thr){ gainDb = (thr - lvlDb)*(1 - 1/ratio); }\r\n    out[i] = samples[i] * Math.pow(10, gainDb/20) * mu;\r\n  }\r\n  return out;\r\n}\r\nfunction compressAnalyze(samples, opts){\r\n  var out = compressProcess(samples, opts);\r\n  var peak=0, sum=0;\r\n  for(var i=0;i<out.length;i++){ var a=Math.abs(out[i]); if(a>peak)peak=a; sum+=out[i]*out[i]; }\r\n  var thr = opts.threshold != null ? opts.threshold : -20;\r\n  var ratio = opts.ratio != null ? opts.ratio : 4;\r\n  var maxRed = 0;\r\n  for(var i=0;i<samples.length;i++){\r\n    var lvlDb = 20*Math.log10(Math.abs(samples[i]) + 1e-9);\r\n    if(lvlDb > thr){ var red=(lvlDb-thr)*(1-1/ratio); if(red>maxRed) maxRed=red; }\r\n  }\r\n  return { length: out.length, peak: peak, rms: Math.sqrt(sum/out.length), maxReductionDb: Math.round(maxRed*100)/100 };\r\n}\r\n\r\nvar EXPORTS={compressAnalyze:compressAnalyze,compressProcess:compressProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CompressorForgePure = EXPORTS; }\r\n\r\n"
+}

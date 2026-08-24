@@ -1,0 +1,42 @@
+{
+  "id": "DistortionForge",
+  "name": "distortion_forge",
+  "title": "失真",
+  "description": "波形整形：硬削波 / 软削波(tanh) / 折叠(foldback)，可调驱动与干湿混合，离线处理。",
+  "entry": "distortAnalyze",
+  "entries": {
+    "distortAnalyze": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    },
+    "distortProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "samples",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "samples": {
+        "type": "string",
+        "description": "第 1 个参数（samples）"
+      },
+      "opts": {
+        "type": "string",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction distortProcess(samples, opts){\r\n  opts = opts || {};\r\n  var type = opts.type || 'soft';       // hard | soft | fold\r\n  var drive = opts.drive != null ? opts.drive : 2;\r\n  var mix = opts.mix != null ? opts.mix : 1;\r\n  var t = opts.threshold != null ? opts.threshold : 0.7;  // foldback 阈值\r\n  var out = new Array(samples.length);\r\n  for(var i=0;i<samples.length;i++){\r\n    var x = samples[i];\r\n    var g = x * drive;\r\n    var wet;\r\n    if(type === 'hard'){ wet = g > 1 ? 1 : (g < -1 ? -1 : g); }\r\n    else if(type === 'fold'){\r\n      wet = g;\r\n      while(Math.abs(wet) > t){ wet = (wet > 0) ? (2*t - wet) : (2*t + wet); }\r\n    } else { wet = Math.tanh(g); }   // soft\r\n    out[i] = x*(1-mix) + wet*mix;\r\n  }\r\n  return out;\r\n}\r\nfunction distortAnalyze(samples, opts){\r\n  var out = distortProcess(samples, opts);\r\n  var peak=0, sum=0, clipped=0;\r\n  for(var i=0;i<out.length;i++){\r\n    var a=Math.abs(out[i]);\r\n    if(a>peak) peak=a;\r\n    sum += out[i]*out[i];\r\n    if(a >= 0.999) clipped++;\r\n  }\r\n  return { length: out.length, peak: peak, rms: Math.sqrt(sum/out.length), clippedSamples: clipped };\r\n}\r\n\r\nvar EXPORTS={distortAnalyze:distortAnalyze,distortProcess:distortProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DistortionForgePure = EXPORTS; }\r\n\r\n"
+}
