@@ -1,0 +1,44 @@
+{
+  "id": "TiltShiftForge",
+  "name": "tilt_shift_forge",
+  "title": "移轴微缩",
+  "description": "上下渐变模糊、保留中心清晰带，模拟移轴微缩模型效果，模糊/清晰带/位置可调，模糊 0 即恒等，离线处理。",
+  "entry": "tiltShiftProcess",
+  "entries": {
+    "tiltShiftProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction boxBlur(data,w,h,radius){\r\n  var r=Math.max(0,Math.round(radius));\r\n  if(r===0) return data;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var sr=0,sg=0,sb=0,sa=0,n=0;\r\n    for(var yy=Math.max(0,y-r);yy<=Math.min(h-1,y+r);yy++) for(var xx=Math.max(0,x-r);xx<=Math.min(w-1,x+r);xx++){\r\n      var i=(yy*w+xx)*4; sr+=data[i]; sg+=data[i+1]; sb+=data[i+2]; sa+=data[i+3]; n++;\r\n    }\r\n    var p=(y*w+x)*4; out[p]=sr/n; out[p+1]=sg/n; out[p+2]=sb/n; out[p+3]=sa/n;\r\n  }\r\n  return out;\r\n}\r\nfunction tiltShiftProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var blur=opts.blur!=null?opts.blur:6;\r\n  var band=opts.band!=null?opts.band:0.25;\r\n  var pos=opts.position!=null?opts.position:0.5;\r\n  if(blur<0)blur=0; else if(blur>20)blur=20;\r\n  if(band<0.05)band=0.05; else if(band>0.6)band=0.6;\r\n  if(pos<0)pos=0; else if(pos>1)pos=1;\r\n  var soft=band*0.8+0.05;\r\n  var blurred=boxBlur(data,w,h,blur);\r\n  var out=new Uint8ClampedArray(data.length);\r\n  var fy=pos*h;\r\n  for(var y=0;y<h;y++){\r\n    var dist=Math.abs(y-fy)/h;\r\n    var k;\r\n    if(dist<=band) k=0;\r\n    else if(dist>=band+soft) k=1;\r\n    else k=(dist-band)/soft;\r\n    for(var x=0;x<w;x++){\r\n      var p=(y*w+x)*4;\r\n      out[p]=data[p]*(1-k)+blurred[p]*k;\r\n      out[p+1]=data[p+1]*(1-k)+blurred[p+1]*k;\r\n      out[p+2]=data[p+2]*(1-k)+blurred[p+2]*k;\r\n      out[p+3]=data[p+3];\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={tiltShiftProcess:tiltShiftProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TiltShiftForgePure = EXPORTS; }\r\n\r\n"
+}

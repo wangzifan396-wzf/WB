@@ -1,0 +1,44 @@
+{
+  "id": "CartoonForge",
+  "name": "cartoon_forge",
+  "title": "卡通化",
+  "description": "色彩量化降低色数、Sobel 提取边缘描黑，模拟卡通/插画效果，色阶与描边阈值可调，离线处理。",
+  "entry": "cartoonProcess",
+  "entries": {
+    "cartoonProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction cartoonProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var levels=opts.levels!=null?opts.levels:6;\r\n  var edge=opts.edge!=null?opts.edge:24;\r\n  if(levels<2)levels=2; else if(levels>16)levels=16;\r\n  if(edge<0)edge=0; else if(edge>128)edge=128;\r\n  var lum=new Float32Array(w*h);\r\n  for(var i=0,y=0;y<h;y++) for(var x=0;x<w;x++,i++){ var p=(y*w+x)*4; lum[y*w+x]=0.299*data[p]+0.587*data[p+1]+0.114*data[p+2]; }\r\n  function L(x,y){ if(x<0)x=0; else if(x>w-1)x=w-1; if(y<0)y=0; else if(y>h-1)y=h-1; return lum[y*w+x]; }\r\n  var out=new Uint8ClampedArray(data.length);\r\n  var step=255/(levels-1);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var p=(y*w+x)*4;\r\n    var r=Math.round(data[p]/step)*step;\r\n    var g=Math.round(data[p+1]/step)*step;\r\n    var b=Math.round(data[p+2]/step)*step;\r\n    var gx=L(x-1,y-1)+2*L(x-1,y)+L(x-1,y+1)-L(x+1,y-1)-2*L(x+1,y)-L(x+1,y+1);\r\n    var gy=L(x-1,y-1)+2*L(x,y-1)+L(x+1,y-1)-L(x-1,y+1)-2*L(x,y+1)-L(x+1,y+1);\r\n    if(Math.sqrt(gx*gx+gy*gy)>edge){ r=0; g=0; b=0; }\r\n    out[p]=r; out[p+1]=g; out[p+2]=b; out[p+3]=data[p+3];\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={cartoonProcess:cartoonProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.CartoonForgePure = EXPORTS; }\r\n\r\n"
+}

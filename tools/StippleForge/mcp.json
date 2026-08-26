@@ -1,0 +1,44 @@
+{
+  "id": "StippleForge",
+  "name": "stipple_forge",
+  "title": "点画",
+  "description": "按亮度加权在白底上分布黑点，暗部点密、亮部点疏，模拟点画/版画风格，点距与反相可调，离线处理。",
+  "entry": "stippleProcess",
+  "entries": {
+    "stippleProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction stippleProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var density=opts.density!=null?opts.density:6;\r\n  var invert=opts.invert?1:0;\r\n  if(density<2)density=2; else if(density>20)density=20;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var i=0;i<out.length;i+=4){ out[i]=255; out[i+1]=255; out[i+2]=255; out[i+3]=255; }\r\n  function lum(x,y){ var p=(y*w+x)*4; return 0.299*data[p]+0.587*data[p+1]+0.114*data[p+2]; }\r\n  for(var cy=0;cy<h;cy+=density) for(var cx=0;cx<w;cx+=density){\r\n    var c=Math.min(density, w-cx), r=Math.min(density, h-cy);\r\n    var sum=0,n=0;\r\n    for(var yy=cy;yy<cy+r;yy++) for(var xx=cx;xx<cx+c;xx++){ sum+=lum(xx,yy); n++; }\r\n    var dark=invert? sum/n : 255-sum/n;\r\n    if(dark<20) continue;\r\n    var rad=dark/255*(density*0.6);\r\n    var ccx=cx+c/2, ccy=cy+r/2;\r\n    var x0=Math.max(0,Math.floor(ccx-rad)), x1=Math.min(w-1,Math.ceil(ccx+rad));\r\n    var y0=Math.max(0,Math.floor(ccy-rad)), y1=Math.min(h-1,Math.ceil(ccy+rad));\r\n    for(var py=y0;py<=y1;py++) for(var px=x0;px<=x1;px++){\r\n      var ddx=px-ccx, ddy=py-ccy;\r\n      if(ddx*ddx+ddy*ddy<=rad*rad){ var pp=(py*w+px)*4; out[pp]=0; out[pp+1]=0; out[pp+2]=0; }\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={stippleProcess:stippleProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.StippleForgePure = EXPORTS; }\r\n\r\n"
+}
