@@ -1,0 +1,29 @@
+{
+  "id": "AsnForge",
+  "name": "asn_forge",
+  "title": "AS 号解析",
+  "description": "解析 AS 号（AS12345 / 纯数字），识别 16-bit/32-bit 与保留/私有段，离线。",
+  "entry": "parseAsn",
+  "entries": {
+    "parseAsn": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseAsn(s){\r\n  s=(s||'').trim();\r\n  if(!s) return {valid:false,error:'空输入'};\r\n  var m=s.match(/^(?:AS ?)?(\\d+)$/i);\r\n  if(!m) return {valid:false,error:'无法解析为 AS 号（应为 AS\\\\d+ 或纯数字）'};\r\n  var num=parseInt(m[1],10);\r\n  if(num>4294967295) return {valid:false,error:'超出 32 位 AS 范围'};\r\n  var kind = num<=65535 ? '16-bit' : '32-bit';\r\n  var reserved=false, note='';\r\n  if(num===0){ reserved=true; note='AS0 保留（不分配给任何网络）'; }\r\n  else if(num>=64496 && num<=64511){ reserved=true; note='文档/示例保留段'; }\r\n  else if(num>=64512 && num<=65534){ reserved=true; note='私有 AS 段（64512-65534）'; }\r\n  else if(num===65535){ reserved=true; note='AS65535 保留'; }\r\n  else if(num>=4200000000 && num<=4294967295){ reserved=true; note='私有 32-bit AS 段'; }\r\n  return {valid:true, raw:s, num:num, asdot:'AS'+num, kind:kind, reserved:reserved, note:note};\r\n}\r\n\r\nvar EXPORTS={parseAsn:parseAsn};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.AsnForgePure = EXPORTS; }\r\n\r\n"
+}

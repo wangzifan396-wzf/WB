@@ -1,0 +1,29 @@
+{
+  "id": "ProxyForge",
+  "name": "proxy_forge",
+  "title": "代理解析",
+  "description": "解析 http/https/socks4/socks5 代理 URL，提取 scheme、主机、端口、认证，离线校验端口合法性。",
+  "entry": "parseProxy",
+  "entries": {
+    "parseProxy": {
+      "paramStyle": "single",
+      "paramNames": [
+        "url"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "输入（url）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseProxy(url){\r\n  url=(url||'').trim();\r\n  if(!url) return {valid:false, error:'空输入'};\r\n  var m=url.match(/^([a-zA-Z0-9]+):\\/\\/(.*)$/);\r\n  if(!m) return {valid:false, error:'缺少 scheme://（支持 http/https/socks4/socks5）'};\r\n  var scheme=m[1].toLowerCase(), rest=m[2];\r\n  var defs={http:8080,https:443,socks4:1080,socks5:1080,socks5h:1080};\r\n  if(!(scheme in defs)) return {valid:false, error:'不支持的 scheme: '+scheme};\r\n  var auth='', hostport=rest;\r\n  var at=rest.lastIndexOf('@');\r\n  if(at>=0){ auth=rest.slice(0,at); hostport=rest.slice(at+1); }\r\n  var user='', pass='';\r\n  if(auth){ var c=auth.indexOf(':'); if(c>=0){ user=auth.slice(0,c); pass=auth.slice(c+1); } else user=auth; }\r\n  var portStr='', host=hostport;\r\n  var colon=hostport.lastIndexOf(':');\r\n  if(colon>=0){ host=hostport.slice(0,colon); portStr=hostport.slice(colon+1); }\r\n  if(!host) return {valid:false, error:'缺少主机'};\r\n  var port=defs[scheme];\r\n  if(portStr!==''){ port=parseInt(portStr,10); if(isNaN(port)||port<0||port>65535) return {valid:false, error:'端口非法: '+portStr}; }\r\n  return {valid:true, scheme:scheme, host:host, port:port, username:user, password:pass, auth:!!user};\r\n}\r\n\r\nvar EXPORTS={parseProxy:parseProxy};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ProxyForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,34 @@
+{
+  "id": "DnsRecordForge",
+  "name": "dns_record_forge",
+  "title": "DNS 校验",
+  "description": "校验 A/AAAA/CNAME/MX/NS/TXT/SRV/SOA 记录值格式合法性并给出错误明细，离线。",
+  "entry": "validateDns",
+  "entries": {
+    "validateDns": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "type",
+        "value"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "description": "第 1 个参数（type）"
+      },
+      "value": {
+        "type": "string",
+        "description": "第 2 个参数（value）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction validateDns(type, value){\r\n  type=(type||'').trim().toUpperCase();\r\n  value=(value||'').trim();\r\n  if(!type) return {valid:false,error:'缺少记录类型'};\r\n  if(!value) return {valid:false,error:'缺少记录值'};\r\n  function ipv4(s){ var m=s.match(/^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$/); if(!m) return false; for(var i=1;i<=4;i++){ var n=+m[i]; if(n<0||n>255) return false; } return true; }\r\n  function ipv6(s){ return /^[0-9a-fA-F:]+$/.test(s) && s.indexOf('::')>=0 || /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(s); }\r\n  function host(s){ return /^[A-Za-z0-9.\\-]+$/.test(s) && s.indexOf('..')<0 && !s.endsWith('.') && !s.startsWith('.'); }\r\n  var errs=[];\r\n  if(type==='A'){ if(!ipv4(value)) errs.push('A 记录须为合法 IPv4'); }\r\n  else if(type==='AAAA'){ if(!ipv6(value)) errs.push('AAAA 记录须为合法 IPv6'); }\r\n  else if(type==='CNAME'){ if(!host(value)) errs.push('CNAME 须为主机名'); }\r\n  else if(type==='NS'){ if(!host(value)) errs.push('NS 须为权威主机名'); }\r\n  else if(type==='MX'){ var mm=value.match(/^(\\d+)\\s+(.+)$/); if(!mm) errs.push('MX 格式：优先级 主机'); else if(+mm[1]<0||+mm[1]>65535) errs.push('MX 优先级越界'); else if(!host(mm[2])) errs.push('MX 主机名非法'); }\r\n  else if(type==='TXT'){ if(!(value[0]==='\"'&&value[value.length-1]==='\"') && !/^[ -~]+$/.test(value)) errs.push('TXT 应为可打印字符串'); }\r\n  else if(type==='SRV'){ var sm=value.match(/^(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(.+)$/); if(!sm) errs.push('SRV 格式：优先级 权重 端口 目标'); else if(!host(sm[4])) errs.push('SRV 目标非法'); }\r\n  else if(type==='SOA'){ if(value.split(/\\s+/).length<7) errs.push('SOA 需 7 字段'); }\r\n  else errs.push('未知记录类型: '+type);\r\n  return {valid:errs.length===0, type:type, value:value, errors:errs};\r\n}\r\n\r\nvar EXPORTS={validateDns:validateDns};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DnsRecordForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1340-5E6AD2?style=flat-square" alt="1340 Tools">
+  <img src="https://img.shields.io/badge/tools-1346-5E6AD2?style=flat-square" alt="1346 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1340 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1346 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1340 个工具目录
+│   └── ...             # 共 1346 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1340 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1346 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -317,6 +317,12 @@ WB/
 | [PaceForge](https://wangzifan396-wzf.github.io/WB/tools/PaceForge/) ⭐ | 实用计算 | 跑步配速计算：配速 / 用时 / 速度三向互算、公里分段表、Riegel 公式预测 5K 到全马，离线可用。 |
 | [KeycodeForge](https://wangzifan396-wzf.github.io/WB/tools/KeycodeForge/) ⭐ | 开发辅助 | 键盘事件查看器：实时捕获 key / code / keyCode、组合键与 macOS 记法、按码反查，离线可用。 |
 | [RobotsForge](https://wangzifan396-wzf.github.io/WB/tools/RobotsForge/) ⭐ | 网络 | robots.txt 生成与抓取测试：按 UA 选组、最长匹配判定、通配符与 $ 锚点、语法体检，离线可用。 |
+| [ProxyForge](https://wangzifan396-wzf.github.io/WB/tools/ProxyForge/) | 网络 | 代理 URL 解析：提取 scheme/host/port/认证（http/https/socks4/socks5），离线校验端口合法性。 |
+| [FtpForge](https://wangzifan396-wzf.github.io/WB/tools/FtpForge/) | 网络 | FTP URL 解析：提取 scheme/host/port/认证/路径/查询（ftp/ftps/sftp），离线可用。 |
+| [EmailForge](https://wangzifan396-wzf.github.io/WB/tools/EmailForge/) | 网络 | 邮箱地址校验：拆分局部/域名/TLD、捕获连续点与非法字符等常见格式错误，离线可用。 |
+| [AsnForge](https://wangzifan396-wzf.github.io/WB/tools/AsnForge/) | 网络 | AS 号解析：AS12345 / 纯数字，识别 16-bit/32-bit 与保留/私有段，离线可用。 |
+| [PortScanForge](https://wangzifan396-wzf.github.io/WB/tools/PortScanForge/) | 网络 | 端口范围解析：展开去重并标出知名端口；纯解析/速查，不发起真实扫描。 |
+| [DnsRecordForge](https://wangzifan396-wzf.github.io/WB/tools/DnsRecordForge/) | 网络 | DNS 记录校验：A/AAAA/CNAME/MX/NS/TXT/SRV/SOA 格式合法性检查并给出错误明细，离线可用。 |
 | [ChefForge](https://wangzifan396-wzf.github.io/WB/tools/ChefForge/) ⭐ | 编码加密 | 链式编解码流水线：Base64/Hex/URL/ROT13/XOR 组合配方、逐步中间结果，离线可用。 |
 | [AttentionForge](https://wangzifan396-wzf.github.io/WB/tools/AttentionForge/) ⭐ | AI 工具 | Transformer 注意力可视化：QK 缩放点积、softmax 权重热力矩阵、因果掩码，离线可用。 |
 | [DbmlForge](https://wangzifan396-wzf.github.io/WB/tools/DbmlForge/) ⭐ | 开发辅助 | DBML 转 SQL DDL：双方言生成、外键推导、Mermaid ER 导出与 schema 体检，离线可用。 |
@@ -839,7 +845,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前五门禁：`audit_render.js`（渲染/语法/截断）、`audit_matrix_v3.py`（运行时缺陷）、`audit_portal.js`（门户三数组/计数）、`audit_runtime.js`（jsdom 全量启动）、`audit_mcp.py`（MCP manifest 结构）必须全 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1340 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1346 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 

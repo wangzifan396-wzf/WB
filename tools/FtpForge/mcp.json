@@ -1,0 +1,29 @@
+{
+  "id": "FtpForge",
+  "name": "ftp_forge",
+  "title": "FTP 解析",
+  "description": "解析 ftp/ftps/sftp URL，提取 scheme、主机、端口、认证、路径与查询，离线解析。",
+  "entry": "parseFtp",
+  "entries": {
+    "parseFtp": {
+      "paramStyle": "single",
+      "paramNames": [
+        "url"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "输入（url）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseFtp(url){\r\n  url=(url||'').trim();\r\n  if(!url) return {valid:false,error:'空输入'};\r\n  var m=url.match(/^([a-zA-Z]+):\\/\\/(.*)$/);\r\n  if(!m) return {valid:false,error:'缺少 scheme://（支持 ftp/ftps/sftp）'};\r\n  var scheme=m[1].toLowerCase(), rest=m[2];\r\n  var defs={ftp:21,ftps:990,sftp:22};\r\n  if(!(scheme in defs)) return {valid:false,error:'不支持的 scheme: '+scheme};\r\n  var auth='', path=rest;\r\n  var at=rest.indexOf('@');\r\n  if(at>=0){ auth=rest.slice(0,at); path=rest.slice(at+1); }\r\n  var user='', pass='';\r\n  if(auth){ var c=auth.indexOf(':'); if(c>=0){ user=auth.slice(0,c); pass=auth.slice(c+1);} else user=auth; }\r\n  var q='', hp=path;\r\n  var qi=path.indexOf('?');\r\n  if(qi>=0){ hp=path.slice(0,qi); q=path.slice(qi+1); }\r\n  var slash=hp.indexOf('/');\r\n  var hostport= slash>=0 ? hp.slice(0,slash) : hp;\r\n  var fpath= slash>=0 ? hp.slice(slash) : '/';\r\n  var port=defs[scheme], host=hostport;\r\n  var colon=hostport.lastIndexOf(':');\r\n  if(colon>=0 && hostport[colon+1]!=='/'){\r\n    var p=parseInt(hostport.slice(colon+1),10);\r\n    if(!isNaN(p)&&p>=0&&p<=65535){ host=hostport.slice(0,colon); port=p; }\r\n  }\r\n  return {valid:true, scheme:scheme, host:host, port:port, user:user, password:pass, path:fpath, query:q};\r\n}\r\n\r\nvar EXPORTS={parseFtp:parseFtp};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.FtpForgePure = EXPORTS; }\r\n\r\n"
+}

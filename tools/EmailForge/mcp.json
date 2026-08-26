@@ -1,0 +1,29 @@
+{
+  "id": "EmailForge",
+  "name": "email_forge",
+  "title": "邮箱校验",
+  "description": "按 RFC 风格规则校验并解析邮箱地址：拆分局部/域名/TLD，捕获常见格式错误，离线。",
+  "entry": "parseEmail",
+  "entries": {
+    "parseEmail": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseEmail(s){\r\n  s=(s||'').trim();\r\n  if(!s) return {valid:false,local:'',domain:'',tld:'',errors:['空输入']};\r\n  var errors=[];\r\n  var at=s.indexOf('@');\r\n  if(at<1){ errors.push('缺少 @ 或 @ 前为空'); return {valid:false,local:'',domain:'',tld:'',errors:errors}; }\r\n  if(at!==s.lastIndexOf('@')) errors.push('存在多个 @');\r\n  var local=s.slice(0,at), domain=s.slice(at+1);\r\n  if(!domain){ errors.push('@ 后域名为空'); }\r\n  if(local.length>64) errors.push('局部超长(>64)');\r\n  if(!/^[A-Za-z0-9._%+\\-]+$/.test(local)) errors.push('局部含非法字符');\r\n  if(domain){\r\n    if(domain.startsWith('.')) errors.push('域名以 . 开头');\r\n    if(domain.endsWith('.')) errors.push('域名以 . 结尾');\r\n    if(domain.indexOf('..')>=0) errors.push('域名含连续点');\r\n    var labels=domain.split('.');\r\n    var tld=labels[labels.length-1];\r\n    if(!/^[A-Za-z]{2,}$/.test(tld)) errors.push('TLD 非法(应 ≥2 字母)');\r\n    for(var i=0;i<labels.length;i++){\r\n      var L=labels[i];\r\n      if(!/^[A-Za-z0-9\\-]+$/.test(L)) errors.push('域名标签非法: '+L);\r\n      if(L.startsWith('-')||L.endsWith('-')) errors.push('域名标签以 - 开头/结尾: '+L);\r\n    }\r\n  }\r\n  return {valid:errors.length===0, local:local, domain:domain, tld:domain?domain.split('.').pop():'', errors:errors};\r\n}\r\n\r\nvar EXPORTS={parseEmail:parseEmail};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EmailForgePure = EXPORTS; }\r\n\r\n"
+}

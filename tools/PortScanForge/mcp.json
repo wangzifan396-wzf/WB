@@ -1,0 +1,29 @@
+{
+  "id": "PortScanForge",
+  "name": "port_scan_forge",
+  "title": "端口解析",
+  "description": "解析端口范围表达式（如 80,443,8000-8100），展开去重并标出知名端口；纯解析/速查，不发起真实扫描。",
+  "entry": "expandPorts",
+  "entries": {
+    "expandPorts": {
+      "paramStyle": "single",
+      "paramNames": [
+        "spec"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "type": "string",
+        "description": "输入（spec）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar WELLKNOWN={20:'FTP 数据',21:'FTP 控制',22:'SSH',23:'Telnet',25:'SMTP',53:'DNS',80:'HTTP',110:'POP3',143:'IMAP',443:'HTTPS',445:'SMB',3306:'MySQL',3389:'RDP',5432:'PostgreSQL',6379:'Redis',8080:'HTTP 代理',8443:'HTTPS 备用',9000:'常见开发端口'};\r\nfunction expandPorts(spec){\r\n  spec=(spec||'').trim();\r\n  if(!spec) return {valid:false,error:'空输入',ports:[],count:0};\r\n  var ports=[], invalid=[];\r\n  var parts=spec.split(',');\r\n  for(var k=0;k<parts.length;k++){\r\n    var p=parts[k].trim(); if(!p) continue;\r\n    var rng=p.split('-');\r\n    if(rng.length===2){\r\n      var a=parseInt(rng[0],10), b=parseInt(rng[1],10);\r\n      if(isNaN(a)||isNaN(b)||a<0||b>65535||a>b){ invalid.push(p); continue; }\r\n      for(var i=a;i<=b;i++) ports.push(i);\r\n    } else {\r\n      var v=parseInt(p,10);\r\n      if(isNaN(v)||v<0||v>65535){ invalid.push(p); continue; }\r\n      ports.push(v);\r\n    }\r\n  }\r\n  var seen={}, uniq=[];\r\n  for(var j=0;j<ports.length;j++){ if(!seen[ports[j]]){ seen[ports[j]]=1; uniq.push(ports[j]); } }\r\n  uniq.sort(function(x,y){return x-y;});\r\n  if(uniq.length>100000) return {valid:false,error:'端口数过多(>100000)',ports:[],count:0};\r\n  var named=[];\r\n  for(var n=0;n<uniq.length;n++){ if(uniq[n] in WELLKNOWN) named.push({port:uniq[n],service:WELLKNOWN[uniq[n]]}); }\r\n  return {valid: invalid.length===0 && uniq.length>0, ports:uniq, count:uniq.length, invalid:invalid, named:named};\r\n}\r\n\r\nvar EXPORTS={expandPorts:expandPorts};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PortScanForgePure = EXPORTS; }\r\n\r\n"
+}
