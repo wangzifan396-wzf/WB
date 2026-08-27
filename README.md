@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1384-5E6AD2?style=flat-square" alt="1384 Tools">
+  <img src="https://img.shields.io/badge/tools-1392-5E6AD2?style=flat-square" alt="1392 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1384 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1392 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1384 个工具目录
+│   └── ...             # 共 1392 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1384 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1392 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -864,6 +864,14 @@ WB/
 | [EmailValidateForge](https://wangzifan396-wzf.github.io/WB/tools/EmailValidateForge/) | 网络工具 | 邮箱校验：本地正则检查用户名/@/域名/TLD，返回是否合法及原因，离线处理。 |
 | [FakeUserForge](https://wangzifan396-wzf.github.io/WB/tools/FakeUserForge/) | 实用计算 | 假用户生成：按种子生成姓名/邮箱/手机/城市的随机测试数据，可复现，离线处理。 |
 | [OutlineForge](https://wangzifan396-wzf.github.io/WB/tools/OutlineForge/) | 效率工具 | 大纲生成：将多段文本或 Markdown 标题转为条目化大纲，保留 # 标题，离线处理。 |
+| [CoverLetterForge](https://wangzifan396-wzf.github.io/WB/tools/CoverLetterForge/) | 文本处理 | 求职信生成：按姓名/岗位/公司/亮点模板填充，产出可复制求职信草稿，离线处理。 |
+| [BrainstormForge](https://wangzifan396-wzf.github.io/WB/tools/BrainstormForge/) | 效率工具 | 构思发散：以主题结合多视角/动作模板生成多视角头脑风暴清单，可调条数，离线处理。 |
+| [RadixForge](https://wangzifan396-wzf.github.io/WB/tools/RadixForge/) | 实用计算 | 进制转换：在 2–36 进制间任意互转，支持 HEX/十进制输入，离线处理。 |
+| [IdenticonForge](https://wangzifan396-wzf.github.io/WB/tools/IdenticonForge/) | 设计工具 | 像素头像：以种子文本哈希生成 5×5 对称彩色像素头像并导出 PNG，离线绘制。 |
+| [ProverbForge](https://wangzifan396-wzf.github.io/WB/tools/ProverbForge/) | 教育工具 | 谚语解说：按种子从谚语库随机抽一句并附分类与释义，可指定类别，离线处理。 |
+| [WordLadderForge](https://wangzifan396-wzf.github.io/WB/tools/WordLadderForge/) | 游戏 | 词语接龙：BFS 求解两等长词每次改一字母的最短接龙路径，内置词表，离线处理。 |
+| [HexToRgbForge](https://wangzifan396-wzf.github.io/WB/tools/HexToRgbForge/) | 设计工具 | 颜色解析：解析 HEX/RGB 为 RGB 与 HSL 并预览色块，支持 3/6/8 位 HEX，离线处理。 |
+| [DomainForge](https://wangzifan396-wzf.github.io/WB/tools/DomainForge/) | 实用计算 | 域名校验：本地正则检查标签/连字符/TLD 合法性，返回 TLD 与标签数，离线处理。 |
 | [SpacedRepForge](https://wangzifan396-wzf.github.io/WB/tools/SpacedRepForge/) | 教育工具 | 间隔重复调度：SM-2 简化版，按质量评分推进复习间隔与易度因子，预览 6 档结果。 |
 | [DistortionForge](https://wangzifan396-wzf.github.io/WB/tools/DistortionForge/) | 音频工具 | 失真/波形整形：硬削波 / 软削波(tanh) / 折叠(foldback)，可调驱动与干湿混合。 |
 | [CompressorForge](https://wangzifan396-wzf.github.io/WB/tools/CompressorForge/) | 音频工具 | 动态压缩：包络跟踪阈值/比率/启动释放/补偿增益，输出增益衰减量。 |
@@ -883,7 +891,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前五门禁：`audit_render.js`（渲染/语法/截断）、`audit_matrix_v3.py`（运行时缺陷）、`audit_portal.js`（门户三数组/计数）、`audit_runtime.js`（jsdom 全量启动）、`audit_mcp.py`（MCP manifest 结构）必须全 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1384 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1392 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
