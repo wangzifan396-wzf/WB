@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1370-5E6AD2?style=flat-square" alt="1370 Tools">
+  <img src="https://img.shields.io/badge/tools-1376-5E6AD2?style=flat-square" alt="1376 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1370 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1376 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1370 个工具目录
+│   └── ...             # 共 1376 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1370 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1376 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -850,6 +850,12 @@ WB/
 | [HologramForge](https://wangzifan396-wzf.github.io/WB/tools/HologramForge/) | 图像工具 | 全息：RGB 色散分离 + 水平缝隙线 + 青/品红染色，模拟全息投影质感，色散/缝隙可调，离线处理。 |
 | [VHSForge](https://wangzifan396-wzf.github.io/WB/tools/VHSForge/) | 图像工具 | VHS 磁带：磁迹抖动 + RGB 色散 + 噪点 + 降饱和，模拟 VHS 磁带录制质感，色散/噪点/降饱和可调，离线处理。 |
 | [PointillismForge](https://wangzifan396-wzf.github.io/WB/tools/PointillismForge/) | 图像工具 | 点彩：彩色圆点跟随图像颜色、白底排布，模拟点彩/修拉画法，点距可调，离线处理。 |
+| [AnaglyphForge](https://wangzifan396-wzf.github.io/WB/tools/AnaglyphForge/) | 图像工具 | 红蓝立体：左右眼通道按视差偏移合成红/青立体图，戴红蓝眼镜可见 3D 效果，视差可调，离线处理。 |
+| [DatamoshForge](https://wangzifan396-wzf.github.io/WB/tools/DatamoshForge/) | 图像工具 | 数据损坏：分带水平错位 + 向下涂抹拖影，模拟数据损坏/视频 datamosh 故障艺术，分带/错位/涂抹可调，离线处理。 |
+| [FilmNoirForge](https://wangzifan396-wzf.github.io/WB/tools/FilmNoirForge/) | 图像工具 | 黑色电影：去色 + 对比强化 + 胶片颗粒 + 暗角，模拟黑色电影/悬疑质感，对比/颗粒/暗角可调，离线处理。 |
+| [LomoForge](https://wangzifan396-wzf.github.io/WB/tools/LomoForge/) | 图像工具 | Lomo 相机：提饱和 + 对比强化 + 暗角 + 暖调，模拟 Lomo 相机的高饱和复古质感，饱和/对比/暗角可调，离线处理。 |
+| [CelShadingForge](https://wangzifan396-wzf.github.io/WB/tools/CelShadingForge/) | 图像工具 | 赛璐珞：亮度分带扁平化 + 轻描边，模拟赛璐珞/动画上色的块状明暗，色阶可调，离线处理。 |
+| [XRayForge](https://wangzifan396-wzf.github.io/WB/tools/XRayForge/) | 图像工具 | X 光：反相 + 高对比 + 蓝调 + 边缘骨光，模拟 X 光透视质感，对比/骨光可调，离线处理。 |
 | [SpacedRepForge](https://wangzifan396-wzf.github.io/WB/tools/SpacedRepForge/) | 教育工具 | 间隔重复调度：SM-2 简化版，按质量评分推进复习间隔与易度因子，预览 6 档结果。 |
 | [DistortionForge](https://wangzifan396-wzf.github.io/WB/tools/DistortionForge/) | 音频工具 | 失真/波形整形：硬削波 / 软削波(tanh) / 折叠(foldback)，可调驱动与干湿混合。 |
 | [CompressorForge](https://wangzifan396-wzf.github.io/WB/tools/CompressorForge/) | 音频工具 | 动态压缩：包络跟踪阈值/比率/启动释放/补偿增益，输出增益衰减量。 |
@@ -869,7 +875,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前五门禁：`audit_render.js`（渲染/语法/截断）、`audit_matrix_v3.py`（运行时缺陷）、`audit_portal.js`（门户三数组/计数）、`audit_runtime.js`（jsdom 全量启动）、`audit_mcp.py`（MCP manifest 结构）必须全 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1370 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1376 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 

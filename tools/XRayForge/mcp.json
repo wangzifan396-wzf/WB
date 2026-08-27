@@ -1,0 +1,44 @@
+{
+  "id": "XRayForge",
+  "name": "x_ray_forge",
+  "title": "X 光",
+  "description": "反相 + 高对比 + 蓝调 + 边缘骨光，模拟 X 光透视质感，对比/骨光可调，离线处理。",
+  "entry": "xrayProcess",
+  "entries": {
+    "xrayProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction wcHash(x,y){ var n=((x*374761393+y*668265263)>>>0); n=((n^(n>>>13))*1274126177)>>>0; n=n^(n>>>16); return (n>>>0)/4294967296; }\r\nfunction clampi(v){ return v<0?0:(v>255?255:v); }\r\n\r\nfunction xrayProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var contrast=opts.contrast!=null?opts.contrast:1.6;\r\n  var glow=opts.glow!=null?opts.glow:0.5;\r\n  if(contrast<0.5)contrast=0.5; else if(contrast>3)contrast=3;\r\n  if(glow<0)glow=0; else if(glow>1)glow=1;\r\n  var L=new Float32Array(w*h);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){ var p=(y*w+x)*4; L[y*w+x]=0.299*data[p]+0.587*data[p+1]+0.114*data[p+2]; }\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var p=(y*w+x)*4;\r\n    var inv=255-L[y*w+x];\r\n    var c=(inv-128)*contrast+128;\r\n    // edge glow (sobel-lite) from luminance -> bone highlight\r\n    var xl=x>0?L[y*w+x-1]:L[y*w+x], xr=x<w-1?L[y*w+x+1]:L[y*w+x];\r\n    var yu=y>0?L[(y-1)*w+x]:L[y*w+x], yd=y<h-1?L[(y+1)*w+x]:L[y*w+x];\r\n    var edge=Math.abs(xr-xl)+Math.abs(yd-yu);\r\n    var g=c+edge*glow*2.2;\r\n    // blue tint x-ray look\r\n    out[p]=clampi(g*0.80); out[p+1]=clampi(g*0.95); out[p+2]=clampi(g*1.18); out[p+3]=data[p+3];\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={xrayProcess:xrayProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.XRayForgePure = EXPORTS; }\r\n\r\n"
+}

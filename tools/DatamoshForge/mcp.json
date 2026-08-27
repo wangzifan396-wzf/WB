@@ -1,0 +1,44 @@
+{
+  "id": "DatamoshForge",
+  "name": "datamosh_forge",
+  "title": "数据损坏",
+  "description": "分带水平错位 + 向下涂抹拖影，模拟数据损坏/视频 datamosh 故障艺术，分带/错位/涂抹可调，离线处理。",
+  "entry": "datamoshProcess",
+  "entries": {
+    "datamoshProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction wcHash(x,y){ var n=((x*374761393+y*668265263)>>>0); n=((n^(n>>>13))*1274126177)>>>0; n=n^(n>>>16); return (n>>>0)/4294967296; }\r\nfunction clampi(v){ return v<0?0:(v>255?255:v); }\r\n\r\nfunction datamoshProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var band=opts.band!=null?opts.band:16;\r\n  var ab=opts.ab!=null?opts.ab:8;\r\n  var smear=opts.smear!=null?opts.smear:0.5;\r\n  if(band<4)band=4; else if(band>48)band=48;\r\n  if(ab<0)ab=0; else if(ab>24)ab=24;\r\n  if(smear<0)smear=0; else if(smear>1)smear=1;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  var prev=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++){\r\n    var bidx=Math.floor(y/band);\r\n    var shift=Math.round((wcHash(bidx,7)*2-1)*ab);\r\n    for(var x=0;x<w;x++){\r\n      var sx=Math.max(0,Math.min(w-1,x+shift));\r\n      var p=(y*w+x)*4, sp=(y*w+sx)*4;\r\n      for(var c=0;c<3;c++) out[p+c]=data[sp+c];\r\n      out[p+3]=data[p+3];\r\n      // downward smear: blend with previous row (already-shifted) for the \"melted\" look\r\n      if(y>0){\r\n        var pp=((y-1)*w+x)*4;\r\n        for(var c=0;c<3;c++) out[p+c]=clampi(out[p+c]*(1-smear)+prev[pp+c]*smear);\r\n      }\r\n    }\r\n    prev.set(out.subarray(y*w*4,(y+1)*w*4), y*w*4);\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={datamoshProcess:datamoshProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DatamoshForgePure = EXPORTS; }\r\n\r\n"
+}
