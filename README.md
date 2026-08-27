@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1358-5E6AD2?style=flat-square" alt="1358 Tools">
+  <img src="https://img.shields.io/badge/tools-1364-5E6AD2?style=flat-square" alt="1364 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1358 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1364 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1358 个工具目录
+│   └── ...             # 共 1364 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1358 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1364 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -838,6 +838,12 @@ WB/
 | [NeonForge](https://wangzifan396-wzf.github.io/WB/tools/NeonForge/) | 图像工具 | 霓虹：暗底提取边缘并以霓虹色辉光描线，模拟赛博霓虹灯效，阈值/辉光/色相可调，离线处理。 |
 | [QuiltForge](https://wangzifan396-wzf.github.io/WB/tools/QuiltForge/) | 图像工具 | 拼布：网格取平均色块 + 缝线 + 棋盘微调亮度，模拟拼布/被子质感，格子大小可调，离线处理。 |
 | [WatercolorForge](https://wangzifan396-wzf.github.io/WB/tools/WatercolorForge/) | 图像工具 | 水彩：边缘柔化 + 降饱和 + 颗粒/纸纹，模拟水彩晕染的清透质感，柔化/饱和/纸纹可调，离线处理。 |
+| [StampForge](https://wangzifan396-wzf.github.io/WB/tools/StampForge/) | 图像工具 | 印章：暗部转油墨、做旧噪声使墨迹斑驳断裂，模拟橡皮图章盖印，阈值/做旧可调，离线处理。 |
+| [PastelForge](https://wangzifan396-wzf.github.io/WB/tools/PastelForge/) | 图像工具 | 粉彩：柔化边缘 + 提亮 + 微降饱和 + 颗粒，模拟粉彩/蜡笔的柔和哑光质感，柔化/提亮/饱和/颗粒可调，离线处理。 |
+| [PixelSortForge](https://wangzifan396-wzf.github.io/WB/tools/PixelSortForge/) | 图像工具 | 像素排序：对亮度高于阈值的连续段按亮度排序，生成拖尾故障艺术，阈值高即不改变，阈值/方向/最大段可调，离线处理。 |
+| [ChalkForge](https://wangzifan396-wzf.github.io/WB/tools/ChalkForge/) | 图像工具 | 粉笔画：暗绿板底提取边缘描白粉笔线，加粉末噪声模拟黑板粉笔画，阈值可调，离线处理。 |
+| [OrigamiForge](https://wangzifan396-wzf.github.io/WB/tools/OrigamiForge/) | 图像工具 | 折纸：网格双三角折面 + 折痕高光，模拟折叠纸的明暗折面，格子大小可调，离线处理。 |
+| [StainedGlassForge](https://wangzifan396-wzf.github.io/WB/tools/StainedGlassForge/) | 图像工具 | 彩色玻璃：网格提纯高饱和色块、粗铅条分隔，模拟彩色玻璃镶嵌，格子/铅条粗细可调，离线处理。 |
 | [SpacedRepForge](https://wangzifan396-wzf.github.io/WB/tools/SpacedRepForge/) | 教育工具 | 间隔重复调度：SM-2 简化版，按质量评分推进复习间隔与易度因子，预览 6 档结果。 |
 | [DistortionForge](https://wangzifan396-wzf.github.io/WB/tools/DistortionForge/) | 音频工具 | 失真/波形整形：硬削波 / 软削波(tanh) / 折叠(foldback)，可调驱动与干湿混合。 |
 | [CompressorForge](https://wangzifan396-wzf.github.io/WB/tools/CompressorForge/) | 音频工具 | 动态压缩：包络跟踪阈值/比率/启动释放/补偿增益，输出增益衰减量。 |
@@ -857,7 +863,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前五门禁：`audit_render.js`（渲染/语法/截断）、`audit_matrix_v3.py`（运行时缺陷）、`audit_portal.js`（门户三数组/计数）、`audit_runtime.js`（jsdom 全量启动）、`audit_mcp.py`（MCP manifest 结构）必须全 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1358 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1364 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 

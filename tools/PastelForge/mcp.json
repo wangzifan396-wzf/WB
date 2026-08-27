@@ -1,0 +1,44 @@
+{
+  "id": "PastelForge",
+  "name": "pastel_forge",
+  "title": "粉彩",
+  "description": "柔化边缘 + 提亮 + 微降饱和 + 颗粒，模拟粉彩/蜡笔的柔和哑光质感，柔化/提亮/饱和/颗粒可调，离线处理。",
+  "entry": "pastelProcess",
+  "entries": {
+    "pastelProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction boxBlur(data,w,h,radius){\r\n  var r=Math.max(0,Math.round(radius));\r\n  if(r===0) return data;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var sr=0,sg=0,sb=0,sa=0,n=0;\r\n    for(var yy=Math.max(0,y-r);yy<=Math.min(h-1,y+r);yy++) for(var xx=Math.max(0,x-r);xx<=Math.min(w-1,x+r);xx++){\r\n      var i=(yy*w+xx)*4; sr+=data[i]; sg+=data[i+1]; sb+=data[i+2]; sa+=data[i+3]; n++;\r\n    }\r\n    var p=(y*w+x)*4; out[p]=sr/n; out[p+1]=sg/n; out[p+2]=sb/n; out[p+3]=sa/n;\r\n  }\r\n  return out;\r\n}\r\nfunction wcHash(x,y){ var n=((x*374761393+y*668265263)>>>0); n=((n^(n>>>13))*1274126177)>>>0; n=n^(n>>>16); return (n>>>0)/4294967296; }\r\n\r\nfunction pastelProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var soft=opts.soft!=null?opts.soft:4;\r\n  var bright=opts.bright!=null?opts.bright:0.12;\r\n  var sat=opts.sat!=null?opts.sat:0.85;\r\n  var grain=opts.grain!=null?opts.grain:0.08;\r\n  if(soft<0)soft=0; else if(soft>14)soft=14;\r\n  if(bright<-0.3)bright=-0.3; else if(bright>0.5)bright=0.5;\r\n  if(sat<0)sat=0; else if(sat>1)sat=1;\r\n  if(grain<0)grain=0; else if(grain>0.3)grain=0.3;\r\n  var base=(soft===0)?data:boxBlur(data,w,h,soft);\r\n  var out=new Uint8ClampedArray(data.length);\r\n  var lift=bright*255;\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var p=(y*w+x)*4;\r\n    var r=base[p], g=base[p+1], b=base[p+2];\r\n    var L=0.299*r+0.587*g+0.114*b;\r\n    r=L+(r-L)*sat; g=L+(g-L)*sat; b=L+(b-L)*sat;\r\n    r=r+lift; g=g+lift; b=b+lift;\r\n    var gp=(wcHash(x,y)-0.5)*grain*30;\r\n    out[p]=r+gp; out[p+1]=g+gp; out[p+2]=b+gp; out[p+3]=data[p+3];\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={pastelProcess:pastelProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PastelForgePure = EXPORTS; }\r\n\r\n"
+}

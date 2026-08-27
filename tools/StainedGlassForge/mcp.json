@@ -1,0 +1,44 @@
+{
+  "id": "StainedGlassForge",
+  "name": "stained_glass_forge",
+  "title": "彩色玻璃",
+  "description": "网格提纯高饱和色块、粗铅条分隔，模拟彩色玻璃镶嵌，格子/铅条粗细可调，离线处理。",
+  "entry": "stainedProcess",
+  "entries": {
+    "stainedProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rgb2hsv(r,g,b){ r/=255;g/=255;b/=255; var mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn,v=mx,s=mx===0?0:d/mx,h; if(d===0)h=0; else if(mx===r)h=((g-b)/d)%6; else if(mx===g)h=(b-r)/d+2; else h=(r-g)/d+4; h/=6; if(h<0)h+=1; return [h,s,v]; }\r\nfunction hsv2rgb(h,s,v){ var r,g,b; var i=Math.floor(h*6),f=h*6-i; var p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s); switch(i%6){case 0:r=v;g=t;b=p;break;case 1:r=q;g=v;b=p;break;case 2:r=p;g=v;b=t;break;case 3:r=p;g=q;b=v;break;case 4:r=t;g=p;b=v;break;default:r=v;g=p;b=q;} return [r*255,g*255,b*255]; }\r\nfunction stainedProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var cell=opts.cell!=null?opts.cell:20;\r\n  if(cell<6)cell=6; else if(cell>48)cell=48;\r\n  var lead=opts.lead!=null?opts.lead:3;\r\n  if(lead<1)lead=1; else if(lead>8)lead=8;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var gy=0;gy<h;gy+=cell) for(var gx=0;gx<w;gx+=cell){\r\n    var cw=Math.min(cell,w-gx), ch=Math.min(cell,h-gy);\r\n    var sr=0,sg=0,sb=0,n=0;\r\n    for(var yy=gy;yy<gy+ch;yy++) for(var xx=gx;xx<gx+cw;xx++){ var p=(yy*w+xx)*4; sr+=data[p]; sg+=data[p+1]; sb+=data[p+2]; n++; }\r\n    var hsv=rgb2hsv(sr/n,sg/n,sb/n);\r\n    var vivid=hsv2rgb(hsv[0], Math.max(0.85,hsv[1]), Math.min(1,Math.max(0.5,hsv[2])));\r\n    for(var py=gy;py<gy+ch;py++) for(var px=gx;px<gx+cw;px++){\r\n      var pp=(py*w+px)*4;\r\n      var onLead=(px-gx)<lead||(py-gy)<lead||(gx+cw-px)<=lead||(gy+ch-py)<=lead;\r\n      if(onLead){ out[pp]=10; out[pp+1]=10; out[pp+2]=14; }\r\n      else { out[pp]=vivid[0]; out[pp+1]=vivid[1]; out[pp+2]=vivid[2]; }\r\n      out[pp+3]=255;\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={stainedProcess:stainedProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.StainedGlassForgePure = EXPORTS; }\r\n\r\n"
+}

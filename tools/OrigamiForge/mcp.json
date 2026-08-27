@@ -1,0 +1,44 @@
+{
+  "id": "OrigamiForge",
+  "name": "origami_forge",
+  "title": "折纸",
+  "description": "网格双三角折面 + 折痕高光，模拟折叠纸的明暗折面，格子大小可调，离线处理。",
+  "entry": "origamiProcess",
+  "entries": {
+    "origamiProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction origamiProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var cell=opts.cell!=null?opts.cell:18;\r\n  if(cell<6)cell=6; else if(cell>48)cell=48;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var gy=0;gy<h;gy+=cell) for(var gx=0;gx<w;gx+=cell){\r\n    var cw=Math.min(cell,w-gx), ch=Math.min(cell,h-gy);\r\n    var sr=0,sg=0,sb=0,n=0;\r\n    for(var yy=gy;yy<gy+ch;yy++) for(var xx=gx;xx<gx+cw;xx++){ var p=(yy*w+xx)*4; sr+=data[p]; sg+=data[p+1]; sb+=data[p+2]; n++; }\r\n    var r=Math.round(sr/n), g=Math.round(sg/n), b=Math.round(sb/n);\r\n    for(var py=gy;py<gy+ch;py++) for(var px=gx;px<gx+cw;px++){\r\n      var pp=(py*w+px)*4;\r\n      var onDiag=(px-gx)===(py-gy); // main diagonal crease\r\n      var onBorder=(px===gx||py===gy||px===gx+cw-1||py===gy+ch-1);\r\n      var below=(py-gy)>(px-gx); // triangle B\r\n      var mul = below?0.9:1.1;\r\n      if(onDiag) mul=1.28; else if(onBorder) mul=0.6;\r\n      out[pp]=r*mul; out[pp+1]=g*mul; out[pp+2]=b*mul; out[pp+3]=255;\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={origamiProcess:origamiProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.OrigamiForgePure = EXPORTS; }\r\n\r\n"
+}

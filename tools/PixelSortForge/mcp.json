@@ -1,0 +1,44 @@
+{
+  "id": "PixelSortForge",
+  "name": "pixel_sort_forge",
+  "title": "像素排序",
+  "description": "对亮度高于阈值的连续段按亮度排序，生成拖尾故障艺术；阈值高即不改变，阈值/方向/最大段可调，离线处理。",
+  "entry": "pixelSortProcess",
+  "entries": {
+    "pixelSortProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction lumAt(data,w,h,x,y){ var p=(y*w+x)*4; return 0.299*data[p]+0.587*data[p+1]+0.114*data[p+2]; }\r\nfunction pixelSortProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var thr=opts.thr!=null?opts.thr:40;\r\n  var mode=opts.mode!=null?opts.mode:0;     // 0 horizontal, 1 vertical\r\n  var maxLen=opts.maxLen!=null?opts.maxLen:60;\r\n  if(thr<0)thr=0; else if(thr>300)thr=300;\r\n  if(maxLen<4)maxLen=4; else if(maxLen>200)maxLen=200;\r\n  var out=new Uint8ClampedArray(data);\r\n  function lumaOf(idx){ var p=idx*4; return 0.299*data[p]+0.587*data[p+1]+0.114*data[p+2]; }\r\n  if(mode===1){\r\n    for(var x=0;x<w;x++){\r\n      var run=[];\r\n      for(var y=0;y<=h;y++){\r\n        var inRun = (y<h) && (lumAt(data,w,h,x,y)>=thr);\r\n        if(inRun){ run.push(y); }\r\n        else { if(run.length>1 && run.length<=maxLen){ sortRun(out,w,h,x,run,true); } run=[]; }\r\n      }\r\n    }\r\n  } else {\r\n    for(var y=0;y<h;y++){\r\n      var run2=[];\r\n      for(var x2=0;x2<=w;x2++){\r\n        var inRun2 = (x2<w) && (lumAt(data,w,h,x2,y)>=thr);\r\n        if(inRun2){ run2.push(x2); }\r\n        else { if(run2.length>1 && run2.length<=maxLen){ sortRun(out,w,h,y,run2,false); } run2=[]; }\r\n      }\r\n    }\r\n  }\r\n  return out;\r\n}\r\nfunction sortRun(out,w,h,fix,run,isVert){\r\n  // fix = constant coordinate, run = varying coordinate. pixel index = fix*w + run[i] (both modes)\r\n  var cols=[];\r\n  for(var i=0;i<run.length;i++){ var idx=fix*w+run[i]; var p=idx*4; cols.push([out[p],out[p+1],out[p+2],out[p+3]]); }\r\n  cols.sort(function(a,b){var la=0.299*a[0]+0.587*a[1]+0.114*a[2];var lb=0.299*b[0]+0.587*b[1]+0.114*b[2];return la-lb;});\r\n  for(var i3=0;i3<run.length;i3++){ var idx3=fix*w+run[i3]; var p3=idx3*4; out[p3]=cols[i3][0]; out[p3+1]=cols[i3][1]; out[p3+2]=cols[i3][2]; out[p3+3]=cols[i3][3]; }\r\n}\r\n\r\nvar EXPORTS={pixelSortProcess:pixelSortProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PixelSortForgePure = EXPORTS; }\r\n\r\n"
+}
