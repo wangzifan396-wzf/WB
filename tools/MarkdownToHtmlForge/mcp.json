@@ -1,0 +1,29 @@
+{
+  "id": "MarkdownToHtmlForge",
+  "name": "markdown_to_html_forge",
+  "title": "Markdown 转 HTML",
+  "description": "Markdown 转 HTML：轻量转换标题/粗斜体/代码/链接/列表为 HTML，离线处理。",
+  "entry": "mdToHtml",
+  "entries": {
+    "mdToHtml": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "src": {
+        "type": "string",
+        "description": "输入（src）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\r\nfunction mdInline(s){ s=escHtml(s); s=s.replace(/`([^`]+)`/g,'<code>$1</code>'); s=s.replace(/\\*\\*([^*]+)\\*\\*/g,'<strong>$1</strong>'); s=s.replace(/\\*([^*]+)\\*/g,'<em>$1</em>'); s=s.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g,'<a href=\"$2\">$1</a>'); return s; }\r\nfunction mdToHtml(src){\r\n  var lines=String(src||'').replace(/\\r/g,' ').split('\\n'); var html=[], i=0, inList=false;\r\n  function closeList(){ if(inList){ html.push('</ul>'); inList=false; } }\r\n  for(i=0;i<lines.length;i++){ var L=lines[i]; var m;\r\n    if((m=/^(#{1,6})\\s+(.*)$/.exec(L))){ closeList(); var lv=m[1].length; html.push('<h'+lv+'>'+mdInline(m[2])+'</h'+lv+'>'); }\r\n    else if(/^\\s*[-*]\\s+/.test(L)){ if(!inList){ html.push('<ul>'); inList=true; } html.push('<li>'+mdInline(L.replace(/^\\s*[-*]\\s+/,''))+'</li>'); }\r\n    else if(L.trim()===''){ closeList(); }\r\n    else { closeList(); html.push('<p>'+mdInline(L)+'</p>'); }\r\n  }\r\n  closeList(); return html.join('\\n');\r\n}\r\n\r\nvar EXPORTS={mdToHtml:mdToHtml};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.MarkdownToHtmlForgePure = EXPORTS; }\r\n\r\n"
+}
