@@ -1,0 +1,44 @@
+{
+  "id": "QuiltForge",
+  "name": "quilt_forge",
+  "title": "拼布",
+  "description": "网格取平均色块 + 缝线 + 棋盘微调亮度，模拟拼布/被子质感，格子大小可调，离线处理。",
+  "entry": "quiltProcess",
+  "entries": {
+    "quiltProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction quiltProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var cell=opts.cell!=null?opts.cell:16;\r\n  if(cell<4)cell=4; else if(cell>40)cell=40;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var gy=0;gy<h;gy+=cell) for(var gx=0;gx<w;gx+=cell){\r\n    var cw=Math.min(cell,w-gx), ch=Math.min(cell,h-gy);\r\n    var sr=0,sg=0,sb=0,n=0;\r\n    for(var yy=gy;yy<gy+ch;yy++) for(var xx=gx;xx<gx+cw;xx++){ var p=(yy*w+xx)*4; sr+=data[p]; sg+=data[p+1]; sb+=data[p+2]; n++; }\r\n    var r=Math.round(sr/n), g=Math.round(sg/n), b=Math.round(sb/n);\r\n    var tint=((gx/cell+gy/cell)%2===0)?1.08:0.9;\r\n    for(var py=gy;py<gy+ch;py++) for(var px=gx;px<gx+cw;px++){\r\n      var pp=(py*w+px)*4;\r\n      var onSeam=(px===gx||py===gy||px===gx+cw-1||py===gy+ch-1);\r\n      if(onSeam){ out[pp]=r*0.55; out[pp+1]=g*0.55; out[pp+2]=b*0.55; }\r\n      else { out[pp]=r*tint; out[pp+1]=g*tint; out[pp+2]=b*tint; }\r\n      out[pp+3]=255;\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={quiltProcess:quiltProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.QuiltForgePure = EXPORTS; }\r\n\r\n"
+}

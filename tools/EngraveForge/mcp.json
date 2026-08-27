@@ -1,0 +1,44 @@
+{
+  "id": "EngraveForge",
+  "name": "engrave_forge",
+  "title": "雕刻",
+  "description": "按亮度生成疏密排线、暗部叠加交叉排线，模拟版画/雕刻墨线，密度与角度可调，离线处理。",
+  "entry": "engraveProcess",
+  "entries": {
+    "engraveProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction engraveProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var density=opts.density!=null?opts.density:6;\r\n  var angleDeg=opts.angle!=null?opts.angle:45;\r\n  if(density<2)density=2; else if(density>20)density=20;\r\n  if(angleDeg<0)angleDeg=0; else if(angleDeg>90)angleDeg=90;\r\n  var a=angleDeg*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a);\r\n  var a2=(angleDeg+90)*Math.PI/180, ca2=Math.cos(a2), sa2=Math.sin(a2);\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var p=(y*w+x)*4;\r\n    var L=0.299*data[p]+0.587*data[p+1]+0.114*data[p+2];\r\n    var d=1-L/255;\r\n    var period=Math.max(2, density + d*d*14);\r\n    var ph=(((x*ca+y*sa)%period)+period)%period;\r\n    var ink=(ph<1.0)?1:0;\r\n    if(d>0.7){ var period2=Math.max(2, density+d*d*10); var ph2=(((x*ca2+y*sa2)%period2)+period2)%period2; if(ph2<1.0) ink=1; }\r\n    var v=ink?0:248;\r\n    out[p]=v; out[p+1]=v; out[p+2]=v; out[p+3]=data[p+3];\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={engraveProcess:engraveProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.EngraveForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "LegoForge",
+  "name": "lego_forge",
+  "title": "乐高",
+  "description": "网格圆角砖块 + 顶部凸点高光，模拟乐高马赛克像素画，砖块大小可调，离线处理。",
+  "entry": "legoProcess",
+  "entries": {
+    "legoProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction legoProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var cell=opts.cell!=null?opts.cell:14;\r\n  if(cell<6)cell=6; else if(cell>40)cell=40;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var i=0;i<out.length;i+=4){ out[i]=18; out[i+1]=18; out[i+2]=22; out[i+3]=255; }\r\n  for(var gy=0;gy<h;gy+=cell) for(var gx=0;gx<w;gx+=cell){\r\n    var cw=Math.min(cell,w-gx), ch=Math.min(cell,h-gy);\r\n    var sr=0,sg=0,sb=0,n=0;\r\n    for(var yy=gy;yy<gy+ch;yy++) for(var xx=gx;xx<gx+cw;xx++){ var p=(yy*w+xx)*4; sr+=data[p]; sg+=data[p+1]; sb+=data[p+2]; n++; }\r\n    var r=Math.round(sr/n), g=Math.round(sg/n), b=Math.round(sb/n);\r\n    for(var py=gy;py<gy+ch;py++) for(var px=gx;px<gx+cw;px++){\r\n      var pp=(py*w+px)*4;\r\n      out[pp]=r; out[pp+1]=g; out[pp+2]=b;\r\n      // brick edge bevel\r\n      if(px===gx||py===gy){ out[pp]=r*1.25+30; out[pp+1]=g*1.25+30; out[pp+2]=b*1.25+30; }\r\n      if(px===gx+cw-1||py===gy+ch-1){ out[pp]=r*0.6; out[pp+1]=g*0.6; out[pp+2]=b*0.6; }\r\n      // stud\r\n      var cx=gx+cw/2, cy=gy+ch/2, rad=cw*0.26;\r\n      var dx=px-cx, dy=py-cy;\r\n      if(dx*dx+dy*dy<=rad*rad){ out[pp]=Math.min(255,r*1.35+45); out[pp+1]=Math.min(255,g*1.35+45); out[pp+2]=Math.min(255,b*1.35+45); }\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={legoProcess:legoProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LegoForgePure = EXPORTS; }\r\n\r\n"
+}

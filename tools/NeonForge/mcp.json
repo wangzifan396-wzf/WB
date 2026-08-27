@@ -1,0 +1,44 @@
+{
+  "id": "NeonForge",
+  "name": "neon_forge",
+  "title": "霓虹",
+  "description": "暗底提取边缘并以霓虹色辉光描线，模拟赛博霓虹灯效，阈值/辉光/色相可调，离线处理。",
+  "entry": "neonProcess",
+  "entries": {
+    "neonProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction boxBlurF(src,w,h,radius){\r\n  var r=Math.max(0,Math.round(radius));\r\n  if(r===0){ var c=new Float32Array(src.length); for(var i=0;i<src.length;i++)c[i]=src[i]; return c; }\r\n  var out=new Float32Array(src.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var s=0,n=0;\r\n    for(var yy=Math.max(0,y-r);yy<=Math.min(h-1,y+r);yy++) for(var xx=Math.max(0,x-r);xx<=Math.min(w-1,x+r);xx++){ s+=src[yy*w+xx]; n++; }\r\n    out[y*w+x]=s/n;\r\n  }\r\n  return out;\r\n}\r\nfunction hueRGB(hh){ var c=1,x=(1-Math.abs((hh/60)%2-1)), m=0,r,g,b; if(hh<60){r=c;g=x;}else if(hh<120){r=x;g=c;}else if(hh<180){g=c;b=x;}else if(hh<240){g=x;b=c;}else if(hh<300){r=x;b=c;}else{r=c;b=x;} return [r+m,g+m,b+m]; }\r\nfunction neonProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var thr=opts.thr!=null?opts.thr:40;\r\n  var glow=opts.glow!=null?opts.glow:6;\r\n  var hue=opts.hue!=null?opts.hue:180;\r\n  if(thr<0)thr=0; else if(thr>150)thr=150;\r\n  if(glow<0)glow=0; else if(glow>20)glow=20;\r\n  if(hue<0)hue=0; else if(hue>360)hue=360;\r\n  var lum=new Float32Array(w*h);\r\n  for(var i=0,y=0;y<h;y++) for(var x=0;x<w;x++,i++){ var p=(y*w+x)*4; lum[i]=0.299*data[p]+0.587*data[p+1]+0.114*data[p+2]; }\r\n  function L(x,y){ if(x<0)x=0; else if(x>w-1)x=w-1; if(y<0)y=0; else if(y>h-1)y=h-1; return lum[y*w+x]; }\r\n  var edge=new Float32Array(w*h);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var gx=L(x-1,y-1)+2*L(x-1,y)+L(x-1,y+1)-L(x+1,y-1)-2*L(x+1,y)-L(x+1,y+1);\r\n    var gy=L(x-1,y-1)+2*L(x,y-1)+L(x+1,y-1)-L(x-1,y+1)-2*L(x,y+1)-L(x+1,y+1);\r\n    edge[y*w+x]=Math.sqrt(gx*gx+gy*gy);\r\n  }\r\n  var mask=new Float32Array(w*h);\r\n  for(var i2=0;i2<w*h;i2++){ mask[i2]= edge[i2]>thr ? Math.min(1,(edge[i2]-thr)/60) : 0; }\r\n  var glowm=boxBlurF(mask,w,h,glow);\r\n  var col=hueRGB(hue);\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var i3=0,y=0;y<h;y++) for(var x=0;x<w;x++,i3++){\r\n    var p=(y*w+x)*4;\r\n    var g=glowm[i3];\r\n    var core=mask[i3];\r\n    var inten=Math.min(1, g*0.8+core);\r\n    out[p]=8+col[0]*inten*255;\r\n    out[p+1]=10+col[1]*inten*255;\r\n    out[p+2]=18+col[2]*inten*255;\r\n    out[p+3]=data[p+3];\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={neonProcess:neonProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.NeonForgePure = EXPORTS; }\r\n\r\n"
+}
