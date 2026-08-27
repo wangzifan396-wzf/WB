@@ -1,0 +1,44 @@
+{
+  "id": "HologramForge",
+  "name": "hologram_forge",
+  "title": "全息",
+  "description": "RGB 色散分离 + 水平缝隙线 + 青/品红染色，模拟全息投影质感，色散/缝隙可调，离线处理。",
+  "entry": "hologramProcess",
+  "entries": {
+    "hologramProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction hologramProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var ab=opts.ab!=null?opts.ab:3;\r\n  var slit=opts.slit!=null?opts.slit:3;\r\n  if(ab<0)ab=0; else if(ab>8)ab=8;\r\n  if(slit<2)slit=2; else if(slit>8)slit=8;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++){\r\n    var slitMul=(y%slit===slit-1)?0.55:1;\r\n    for(var x=0;x<w;x++){\r\n      var p=(y*w+x)*4;\r\n      var xr=Math.max(0,Math.min(w-1,x-ab)), xb=Math.max(0,Math.min(w-1,x+ab));\r\n      var r=data[(y*w+xr)*4], g=data[p+1], b=data[(y*w+xb)*4+2];\r\n      // cyan/magenta hologram tint\r\n      out[p]=r*0.85*slitMul; out[p+1]=g*1.05*slitMul; out[p+2]=b*1.2*slitMul; out[p+3]=data[p+3];\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={hologramProcess:hologramProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HologramForgePure = EXPORTS; }\r\n\r\n"
+}

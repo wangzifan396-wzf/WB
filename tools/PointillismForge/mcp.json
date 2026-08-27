@@ -1,0 +1,44 @@
+{
+  "id": "PointillismForge",
+  "name": "pointillism_forge",
+  "title": "点彩",
+  "description": "彩色圆点跟随图像颜色、白底排布，模拟点彩/修拉画法，点距可调，离线处理。",
+  "entry": "pointillismProcess",
+  "entries": {
+    "pointillismProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pointillismProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var cell=opts.cell!=null?opts.cell:10;\r\n  if(cell<4)cell=4; else if(cell>28)cell=28;\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var i=0;i<out.length;i+=4){ out[i]=255; out[i+1]=255; out[i+2]=255; out[i+3]=255; }\r\n  for(var gy=0;gy<h;gy+=cell) for(var gx=0;gx<w;gx+=cell){\r\n    var cw=Math.min(cell,w-gx), ch=Math.min(cell,h-gy);\r\n    var sr=0,sg=0,sb=0,n=0;\r\n    for(var yy=gy;yy<gy+ch;yy++) for(var xx=gx;xx<gx+cw;xx++){ var p=(yy*w+xx)*4; sr+=data[p]; sg+=data[p+1]; sb+=data[p+2]; n++; }\r\n    var r=Math.round(sr/n), g=Math.round(sg/n), b=Math.round(sb/n);\r\n    var cx=gx+cw/2, cy=gy+ch/2, rad=cw*0.46;\r\n    var x0=Math.max(0,Math.floor(cx-rad)), x1=Math.min(w-1,Math.ceil(cx+rad));\r\n    var y0=Math.max(0,Math.floor(cy-rad)), y1=Math.min(h-1,Math.ceil(cy+rad));\r\n    for(var py=y0;py<=y1;py++) for(var px=x0;px<=x1;px++){\r\n      var ddx=px-cx, ddy=py-cy;\r\n      if(ddx*ddx+ddy*ddy<=rad*rad){ var pp=(py*w+px)*4; out[pp]=r; out[pp+1]=g; out[pp+2]=b; }\r\n    }\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={pointillismProcess:pointillismProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.PointillismForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "ThermalForge",
+  "name": "thermal_forge",
+  "title": "热成像",
+  "description": "按亮度映射铁虹（ironbow）热成像调色板，暗部深蓝、亮部黄白，模拟热成像，色阶可调，离线处理。",
+  "entry": "thermalProcess",
+  "entries": {
+    "thermalProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "data",
+        "w",
+        "h",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "string",
+        "description": "第 1 个参数（data）"
+      },
+      "w": {
+        "type": "string",
+        "description": "第 2 个参数（w）"
+      },
+      "h": {
+        "type": "string",
+        "description": "第 3 个参数（h）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 4 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction thermalProcess(data,w,h,opts){\r\n  opts=opts||{};\r\n  var levels=opts.levels!=null?opts.levels:16;\r\n  if(levels<4)levels=4; else if(levels>32)levels=32;\r\n  // ironbow-ish stops: lum 0..1 -> rgb\r\n  var stops=[[0,0,0,4],[0.18,12,4,52],[0.36,60,8,110],[0.55,150,22,96],[0.72,224,64,40],[0.86,250,150,24],[1,255,255,210]];\r\n  function lut(L){ var t=L<0?0:L>1?1:L; for(var i=1;i<stops.length;i++){ if(t<=stops[i][0]){ var a=stops[i-1],b=stops[i]; var f=(t-a[0])/(b[0]-a[0]); return [a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f, a[3]+(b[3]-a[3])*f]; } } var l=stops[stops.length-1]; return [l[1],l[2],l[3]]; }\r\n  var out=new Uint8ClampedArray(data.length);\r\n  for(var y=0;y<h;y++) for(var x=0;x<w;x++){\r\n    var p=(y*w+x)*4;\r\n    var L=(0.299*data[p]+0.587*data[p+1]+0.114*data[p+2])/255;\r\n    var c=lut(L);\r\n    out[p]=c[0]; out[p+1]=c[1]; out[p+2]=c[2]; out[p+3]=data[p+3];\r\n  }\r\n  return out;\r\n}\r\n\r\nvar EXPORTS={thermalProcess:thermalProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ThermalForgePure = EXPORTS; }\r\n\r\n"
+}
