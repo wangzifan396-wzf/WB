@@ -1,0 +1,37 @@
+{
+  "id": "WordWrapForge",
+  "name": "word_wrap_forge",
+  "title": "智能折行",
+  "description": "智能折行：按显示宽度折行，CJK 计 2 宽、西文按词断行，离线处理。",
+  "entry": "dispWidth",
+  "entries": {
+    "dispWidth": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "wordWrap": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction dispWidth(s){ var w=0; for(var i=0;i<s.length;i++){ w += (s.charCodeAt(i)>0x2E80)?2:1; } return w; }\r\nfunction wordWrap(text, opts){\r\n  opts=opts||{}; var width=opts.width!=null?opts.width:80; if(width<1)width=1;\r\n  var out=[]; var lines=String(text||'').split(/\\r?\\n/);\r\n  for(var i=0;i<lines.length;i++){\r\n    var L=lines[i]; if(!L){ out.push(''); continue; }\r\n    var toks=L.match(/[一-龥]|[^\\s一-龥]+|\\s+/g)||[];\r\n    var cur='', curW=0;\r\n    for(var j=0;j<toks.length;j++){\r\n      var t=toks[j], tw=dispWidth(t);\r\n      if(/^\\s+$/.test(t)){\r\n        if(cur==='') continue;\r\n        if(curW+tw>width){ out.push(cur); cur=''; curW=0; }\r\n        else { cur+=t; curW+=tw; }\r\n        continue;\r\n      }\r\n      if(curW+tw>width){ if(cur!=='') out.push(cur); cur=t; curW=tw; }\r\n      else { cur+=t; curW+=tw; }\r\n    }\r\n    if(cur!=='') out.push(cur);\r\n  }\r\n  return out.join('\\n');\r\n}\r\n\r\nvar EXPORTS={dispWidth:dispWidth,wordWrap:wordWrap};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.WordWrapForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "JsonFixForge",
+  "name": "json_fix_forge",
+  "title": "JSON 修复",
+  "description": "JSON 修复：容错清洗注释/尾逗号/单引号/未引号键/NaN，并校验格式化输出，离线处理。",
+  "entry": "fixJson",
+  "entries": {
+    "fixJson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "src"
+      ],
+      "fields": []
+    },
+    "tryParseJson": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "src": {
+        "type": "string",
+        "description": "输入（src）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction fixJson(src){\r\n  var s=String(src||''), out='', i=0, inStr=false;\r\n  while(i<s.length){\r\n    var c=s[i];\r\n    if(c==='\\\\'){ out+=s[i]+(s[i+1]||''); i+=2; continue; }\r\n    if(c==='\"'){ inStr=!inStr; out+=c; i++; continue; }\r\n    if(c===\"'\" && !inStr){\r\n      var j=i+1, buf='';\r\n      while(j<s.length){\r\n        var d=s[j];\r\n        if(d==='\\\\'){ buf+=d+(s[j+1]||''); j+=2; continue; }\r\n        if(d===\"'\"){ break; }\r\n        buf+=d; j++;\r\n      }\r\n      out+='\"'+buf.replace(/\"/g,'\\\\\"')+'\"'; i=j+1; continue;\r\n    }\r\n    if(inStr){ out+=c; i++; continue; }\r\n    if(c==='/' && s[i+1]==='/'){ while(i<s.length && s[i]!=='\\n') i++; continue; }\r\n    if(c==='/' && s[i+1]==='*'){ i+=2; while(i<s.length && !(s[i]==='*'&&s[i+1]==='/')) i++; i+=2; continue; }\r\n    out+=c; i++;\r\n  }\r\n  out=out.replace(/,(\\s*[}\\]])/g,'$1');\r\n  out=out.replace(/([{,]\\s*)([A-Za-z_$][A-Za-z0-9_$]*)\\s*:/g,'$1\"$2\":');\r\n  out=out.replace(/\\b(NaN|Infinity|-Infinity|undefined)\\b/g,'null');\r\n  return out;\r\n}\r\nfunction tryParseJson(s){ try { var v=JSON.parse(s); return {ok:true, value:JSON.stringify(v,null,2)}; } catch(e){ return {ok:false, error:String(e && e.message || e)}; } }\r\n\r\nvar EXPORTS={fixJson:fixJson,tryParseJson:tryParseJson};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.JsonFixForgePure = EXPORTS; }\r\n\r\n"
+}
