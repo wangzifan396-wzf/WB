@@ -1,0 +1,43 @@
+{
+  "id": "UriForge",
+  "name": "uri_forge",
+  "title": "URI 解析",
+  "description": "URI 解析：拆解 scheme/host/path/query/fragment 与查询参数，并提供编解码，离线处理。",
+  "entry": "parseUri",
+  "entries": {
+    "parseUri": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "encodeUri": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    },
+    "decodeUri": {
+      "paramStyle": "single",
+      "paramNames": [
+        "s"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "s": {
+        "type": "string",
+        "description": "输入（s）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseUri(s){\r\n  var u=String(s||'');\r\n  var m=/^([a-zA-Z][a-zA-Z0-9+.\\-]*):\\/\\/([^\\/?#]*)([^?#]*)(\\?[^#]*)?(#.*)?$/.exec(u);\r\n  if(!m) return {ok:false, reason:'not an absolute URI'};\r\n  var qs=(m[4]||'').replace(/^\\?/,'');\r\n  var params={};\r\n  if(qs){ var parts=qs.split('&');\r\n    for(var i=0;i<parts.length;i++){ if(!parts[i]) continue;\r\n      var kv=parts[i].split('=');\r\n      var k=decodeURIComponent(kv[0]||'');\r\n      var v=decodeURIComponent((kv[1]||'').replace(/\\+/g,' '));\r\n      params[k]=v;\r\n    } }\r\n  return {ok:true, scheme:m[1], host:m[2], path:m[3]||'/', query:qs, fragment:(m[5]||'').replace(/^#/,''), params:params};\r\n}\r\nfunction encodeUri(s){ return encodeURIComponent(String(s||'')); }\r\nfunction decodeUri(s){ try { return decodeURIComponent(String(s||'').replace(/\\+/g,' ')); } catch(e){ return ''; } }\r\n\r\nvar EXPORTS={parseUri:parseUri,encodeUri:encodeUri,decodeUri:decodeUri};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.UriForgePure = EXPORTS; }\r\n\r\n"
+}
