@@ -1,0 +1,36 @@
+{
+  "id": "ChecklistForge",
+  "name": "checklist_forge",
+  "title": "检查清单",
+  "description": "检查清单：按「分组: 条目、条目」生成分组勾选清单模板，离线处理。",
+  "entry": "checklist",
+  "entries": {
+    "checklist": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opts"
+      ],
+      "fields": [
+        "title",
+        "groups"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "description": "参数 title"
+      },
+      "groups": {
+        "type": "string",
+        "description": "参数 groups"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction checklist(opts){\r\n  opts=opts||{};\r\n  var title=(opts.title||'检查清单').trim()||'检查清单';\r\n  var groups=String(opts.groups||'').split(/\\n/).map(function(s){return s.trim();}).filter(Boolean);\r\n  if(!groups.length) groups=['准备','执行','收尾'];\r\n  var L=['# '+title,''];\r\n  for(var g=0;g<groups.length;g++){\r\n    var parts=groups[g].split(/\\s*[:：]\\s*/);\r\n    var gname=(parts[0]||'').trim() || ('步骤 '+(g+1));\r\n    var raw=parts.length>1 ? parts.slice(1).join(' ') : '';\r\n    var gitems=raw.split(/[、,，;；]/).map(function(x){return x.trim();}).filter(Boolean);\r\n    L.push('## '+gname);\r\n    if(gitems.length){ for(var i=0;i<gitems.length;i++) L.push('- [ ] '+gitems[i]); }\r\n    else { L.push('- [ ] ____'); }\r\n    L.push('');\r\n  }\r\n  return L.join('\\n').replace(/\\n+$/,'');\r\n}\r\n\r\nvar EXPORTS={checklist:checklist};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ChecklistForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,39 @@
+{
+  "id": "TimeboxForge",
+  "name": "timebox_forge",
+  "title": "时间盒",
+  "description": "时间盒：按权重把总时长摊分到各任务，支持最小档保底与结果取整，离线处理。",
+  "entry": "timebox",
+  "entries": {
+    "timebox": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "tasks",
+        "total",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "tasks": {
+        "type": "array",
+        "description": "第 1 个参数（tasks）"
+      },
+      "total": {
+        "type": "number",
+        "description": "第 2 个参数（total）（数值）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 3 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction timebox(tasks, total, opts){\r\n  opts=opts||{};\r\n  var lines=(typeof tasks==='string' ? tasks.split(/\\n/) : (tasks||[]))\r\n    .map(function(s){ return String(s).trim(); }).filter(Boolean);\r\n  if(!lines.length) return {ok:false, reason:'请输入至少一个任务'};\r\n  total=Number(total);\r\n  if(!isFinite(total) || !(total>0)) return {ok:false, reason:'总时长需 > 0'};\r\n  var names=[], weights=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var p=lines[i].split(/\\s*[:：]\\s*/);\r\n    var w=p.length>1 ? Number(p[p.length-1]) : 1;\r\n    if(!isFinite(w) || w<0) w=1;\r\n    names.push(p.length>1 ? p.slice(0,-1).join(' ').trim() : lines[i]);\r\n    weights.push(w);\r\n  }\r\n  var tw=0;\r\n  for(var j=0;j<weights.length;j++) tw+=weights[j];\r\n  if(!(tw>0)){ for(var q=0;q<weights.length;q++) weights[q]=1; tw=weights.length; }\r\n  var minSlot=opts.minSlot!=null?Number(opts.minSlot):0;\r\n  if(!isFinite(minSlot) || minSlot<0) minSlot=0;\r\n  var out=[], allocated=0;\r\n  for(var k=0;k<names.length;k++){\r\n    var v=total*weights[k]/tw;\r\n    if(minSlot>0 && v<minSlot) v=minSlot;\r\n    if(opts.round) v=Math.round(v);\r\n    out.push({task:names[k], weight:weights[k], minutes:v});\r\n    allocated+=v;\r\n  }\r\n  return {ok:true, items:out, total:total, allocated:allocated, unit:opts.unit||'min', count:out.length};\r\n}\r\n\r\nvar EXPORTS={timebox:timebox};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TimeboxForgePure = EXPORTS; }\r\n\r\n"
+}
