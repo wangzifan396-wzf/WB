@@ -1,0 +1,34 @@
+{
+  "id": "ListForge",
+  "name": "list_forge",
+  "title": "列表处理",
+  "description": "列表处理：自定义分隔符拆分，可去空/去重/排序/加引号并以新分隔符重拼，离线处理。",
+  "entry": "listProcess",
+  "entries": {
+    "listProcess": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "text",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "第 1 个参数（text）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction listProcess(text, opts){\r\n  opts=opts||{}; var sep=opts.sep!=null?opts.sep:',';\r\n  var items=String(text||'').split(sep);\r\n  if(opts.trim!==false){ items=items.map(function(s){ return s.replace(/^\\s+|\\s+$/g,''); }); }\r\n  if(opts.dropEmpty){ items=items.filter(function(s){ return s.length>0; }); }\r\n  if(opts.unique){ var seen={}, u=[]; for(var i=0;i<items.length;i++){ if(seen[items[i]]) continue; seen[items[i]]=1; u.push(items[i]); } items=u; }\r\n  if(opts.sort){ items.sort(opts.sort==='desc' ? function(a,b){ return a<b?1:(a>b?-1:0); } : function(a,b){ return a<b?-1:(a>b?1:0); }); }\r\n  if(opts.quote){ items=items.map(function(s){ return '\"'+s+'\"'; }); }\r\n  var out=opts.outSep!=null?opts.outSep:'\\n';\r\n  return {ok:true, items:items, count:items.length, text:items.join(out)};\r\n}\r\n\r\nvar EXPORTS={listProcess:listProcess};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.ListForgePure = EXPORTS; }\r\n\r\n"
+}

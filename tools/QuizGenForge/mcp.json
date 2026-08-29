@@ -1,0 +1,34 @@
+{
+  "id": "QuizGenForge",
+  "name": "quiz_gen_forge",
+  "title": "测验生成",
+  "description": "测验生成：从「问题: 答案」条目生成填空题或选择题，干扰项取自其他答案，种子可复现，离线处理。",
+  "entry": "quizGen",
+  "entries": {
+    "quizGen": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "items",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "string",
+        "description": "第 1 个参数（items）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nfunction quizGen(items, opts){\r\n  opts=opts||{}; var seed=opts.seed!=null?opts.seed:1; var r=rngFactory(seed);\r\n  var lines = (items && items.length!=null && typeof items!=='string') ? items.slice() : String(items||'').split(/\\n/);\r\n  var pairs=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var s=String(lines[i]).trim(); if(!s) continue;\r\n    var p=s.split(/\\s*[:：]\\s*/);\r\n    var q=(p[0]||'').trim(), a=p.slice(1).join(' ').trim();\r\n    if(q && a) pairs.push({q:q, a:a});\r\n  }\r\n  if(!pairs.length) return {ok:false, reason:'未识别到「问题: 答案」格式的条目'};\r\n  var out=[];\r\n  var LETTERS=['A','B','C','D','E','F'];\r\n  for(var j=0;j<pairs.length;j++){\r\n    if(opts.mode==='choice'){\r\n      var pool=[];\r\n      for(var k=0;k<pairs.length;k++){ if(k!==j) pool.push(pairs[k].a); }\r\n      var used={}; used[pairs[j].a]=1; var distract=[];\r\n      var guard=0;\r\n      while(distract.length<3 && pool.length && guard<200){\r\n        guard++;\r\n        var cand=pool[Math.floor(r()*pool.length)];\r\n        if(!cand || used[cand]) continue;\r\n        used[cand]=1; distract.push(cand);\r\n      }\r\n      var arr=distract.concat([pairs[j].a]);\r\n      for(var s2=arr.length-1;s2>0;s2--){ var kk=Math.floor(r()*(s2+1)); var tt=arr[s2]; arr[s2]=arr[kk]; arr[kk]=tt; }\r\n      var ls=['Q'+(j+1)+'. '+pairs[j].q];\r\n      for(var m2=0;m2<arr.length;m2++) ls.push('   '+LETTERS[m2]+') '+arr[m2]);\r\n      ls.push('   答案：'+LETTERS[arr.indexOf(pairs[j].a)]);\r\n      out.push(ls.join('\\n'));\r\n    } else {\r\n      out.push('Q'+(j+1)+'. '+pairs[j].q+'\\n   答案：'+pairs[j].a);\r\n    }\r\n  }\r\n  return {ok:true, text:out.join('\\n\\n'), count:pairs.length};\r\n}\r\n\r\nvar EXPORTS={quizGen:quizGen};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.QuizGenForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0A0B">
+<title>PaddingBoxForge · 盒模型</title>
+<meta property="og:title" content="盒模型">
+<meta property="og:description" content="盒模型：按宽高/内边距/边框/外边距计算内容区与总占用尺寸，支持 content-box 与 border-box，带可视化，离线处理。">
+<meta property="og:image" content="./og.png">
+<meta name="description" content="盒模型：按宽高/内边距/边框/外边距计算内容区与总占用尺寸，支持 content-box 与 border-box，带可视化，离线处理。 · 单文件 · 零依赖 · 本地优先">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --bg:#0A0A0B; --card:#141417; --surface:#1A1B1E; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --fg:#FFFFFF; --muted:#A1A1AA; --dim:#71717A;
+  --accent:#5E6AD2; --ok:#10B981; --warn:#F5A623; --info:#22D3EE; --bad:#EF4444;
+  /* Ardot 令牌：大圆角阶梯 + 扩散有色阴影 + 内层 hairline */
+  --r-lg:20px; --r-md:14px; --r-sm:10px; --r-xs:8px;
+  --hair:inset 0 1px 0 rgba(255,255,255,.05);
+  --lift:0 1px 2px rgba(0,0,0,.4), 0 12px 32px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.02);
+  --glow:0 10px 40px -20px rgba(94,106,210,.55);
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+     background:var(--bg);color:var(--fg);display:flex;justify-content:center;padding:32px 16px;min-height:100vh;
+     -webkit-font-smoothing:antialiased}
+.app{width:100%;max-width:820px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px;
+     box-shadow:var(--hair),var(--lift),var(--glow)}
+h1{font-size:19px;margin:0 0 4px;letter-spacing:-.02em;font-weight:650}
+.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:13px;margin:14px 0 6px}
+textarea,input[type=text],select{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+     color:var(--fg);padding:10px 12px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25);transition:border-color .16s ease,box-shadow .16s ease}
+textarea{resize:vertical}
+textarea:hover,input:hover,select:hover{border-color:var(--line2)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--accent);
+     box-shadow:inset 0 1px 2px rgba(0,0,0,.25),0 0 0 3px rgba(94,106,210,.18)}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;font-size:14px;
+       letter-spacing:-.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 6px 18px -10px rgba(94,106,210,.85);
+       transition:filter .16s ease,transform .08s ease,box-shadow .16s ease}
+button:hover{filter:brightness(1.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px -12px rgba(94,106,210,.95)}
+button:active{transform:translateY(1px) scale(.988)}
+button:disabled{opacity:.45;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);box-shadow:none}
+button.ghost:hover{border-color:var(--line2);color:var(--fg);filter:none;background:rgba(255,255,255,.03);box-shadow:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding:5px 0;font-size:14px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.out{margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;
+     box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+     font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;min-height:40px}
+.err{color:var(--warn);font-size:13px;margin-top:8px;min-height:18px}
+.sec{font-size:14px;color:var(--muted);font-weight:600;margin:18px 0 8px;letter-spacing:-.01em}
+.hint{color:var(--dim);font-size:12px;margin-top:6px}
+/* 分段控件 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-top:6px;box-shadow:var(--hair)}
+.seg button{background:transparent;border:0;color:var(--muted);padding:8px 14px;cursor:pointer;font-size:13px;border-radius:0;
+            box-shadow:none;transition:background .15s ease,color .15s ease}
+.seg button:hover{background:rgba(255,255,255,.04);color:var(--fg);filter:none;box-shadow:none}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.active{background:var(--accent);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.seg button:active{transform:none}
+/* Bento 瓦片（非对称网格，避 3 等宽卡） */
+.bento{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.bento.span2 .tile{grid-column:1/-1}
+.bento.c3{grid-template-columns:2fr 1fr}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;
+      box-shadow:var(--hair),0 1px 2px rgba(0,0,0,.3);transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.tile:hover{border-color:var(--line2);transform:translateY(-1px);box-shadow:var(--hair),0 8px 24px -14px rgba(0,0,0,.9)}
+.tile h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;letter-spacing:-.01em}
+.tile .big{font:20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg);word-break:break-all}
+.tile .sub2{color:var(--dim);font-size:12px;margin-top:4px}
+/* 状态色 */
+.state.ok{color:var(--ok)} .state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+/* 徽章 */
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.badge{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.badge.flag{color:#fff;background:var(--accent);border-color:transparent}
+.badge.tag{color:var(--muted);background:transparent}
+footer{margin-top:20px;color:var(--dim);font-size:12px}
+a{color:var(--info);text-decoration:none}
+.hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#langBtn{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 13px;font-size:12px;cursor:pointer;flex:0 0 auto;box-shadow:none}
+#langBtn:hover{border-color:var(--line2);color:var(--fg);background:rgba(255,255,255,.03);box-shadow:none;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+#nanoToast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);background:var(--surface);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px 16px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:9999;max-width:80vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+#nanoToast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#nanoToast.bad{border-color:rgba(239,68,68,.55)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.bento{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hd">
+    <div>
+      <h1>盒模型</h1>
+      <p class="sub" data-i18n="sub">设计 · 盒模型</p>
+    </div>
+    <button id="langBtn" type="button" aria-label="Switch language">EN</button>
+  </div>
+
+<h3>盒模型 · 尺寸可视化</h3>
+<div class="row">
+  <label>宽 <input id="w" type="number" value="200" min="1" style="width:74px"></label>
+  <label>高 <input id="h" type="number" value="100" min="1" style="width:74px"></label>
+  <label>内边距 <input id="p" type="number" value="16" min="0" style="width:70px"></label>
+  <label>边框 <input id="b" type="number" value="1" min="0" style="width:64px"></label>
+  <label>外边距 <input id="m" type="number" value="0" min="0" style="width:70px"></label>
+  <label>盒模型 <select id="bs"><option value="content-box">content-box</option><option value="border-box">border-box</option></select></label>
+  <button id="run">计算</button>
+  <button id="copy">复制</button>
+</div>
+<div id="pv" style="padding:10px;border:1px dashed currentColor;border-radius:12px">
+  <div id="margin" style="background:rgba(244,114,182,.18);border-radius:10px;padding:8px">
+    <div id="border" style="border:1px solid rgba(94,106,210,.55);border-radius:8px;background:rgba(94,106,210,.14)">
+      <div id="padding" style="border-radius:6px">
+        <div id="content" style="background:currentColor;opacity:.8;color:#fff;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px">content</div>
+      </div>
+    </div>
+  </div>
+</div>
+<pre id="out" class="out" aria-live="polite">调整参数后点击「计算」，离线处理。</pre>
+
+  <div class="badges">
+    <span class="badge" data-i18n="b1">零依赖</span>
+    <span class="badge" data-i18n="b2">离线可用</span>
+    <span class="badge" data-i18n="b3">数据不出本机</span>
+    <span class="badge flag" data-i18n="b4">旗舰</span>
+  </div>
+  <footer>由 nano-tools 脚手架生成 · <a href="https://github.com/wangzifan396-wzf" target="_blank" rel="noopener">GitHub</a> · <a href="https://wangzifan396-wzf.github.io/WB/" target="_blank" rel="noopener" style="color:inherit">浏览全部工具 &rarr;</a></footer>
+</div>
+<script>
+
+function boxModel(opts){
+  opts=opts||{};
+  var w=opts.width!=null?opts.width:200, h=opts.height!=null?opts.height:100;
+  var pt=opts.padTop!=null?opts.padTop:16, pr=opts.padRight!=null?opts.padRight:16,
+      pb=opts.padBottom!=null?opts.padBottom:16, pl=opts.padLeft!=null?opts.padLeft:16;
+  var bt=opts.borderTop!=null?opts.borderTop:1;
+  var mt=opts.marginTop!=null?opts.marginTop:0, mr=opts.marginRight!=null?opts.marginRight:0,
+      mb=opts.marginBottom!=null?opts.marginBottom:0, ml=opts.marginLeft!=null?opts.marginLeft:0;
+  var bb = opts.boxSizing==='border-box';
+  var contentW = bb ? (w - pl - pr - bt*2) : w;
+  var contentH = bb ? (h - pt - pb - bt*2) : h;
+  var totalW = bb ? (w + ml + mr) : (w + pl + pr + bt*2 + ml + mr);
+  var totalH = bb ? (h + mt + mb) : (h + pt + pb + bt*2 + mt + mb);
+  return {ok:true, contentW:contentW, contentH:contentH, totalW:totalW, totalH:totalH};
+}
+
+var EXPORTS={boxModel:boxModel};
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }
+if (typeof window !== 'undefined') { window.PaddingBoxForgePure = EXPORTS; }
+
+</script>
+<script>
+
+var $=function(id){return document.getElementById(id);};
+var A=window.PaddingBoxForgePure;
+function apply(){
+  var p=+(+$('p').value), b=+(+$('b').value), m=+(+$('m').value);
+  var r=A.boxModel({width:+(+$('w').value), height:+(+$('h').value),
+    padTop:p, padRight:p, padBottom:p, padLeft:p, borderTop:b,
+    marginTop:m, marginRight:m, marginBottom:m, marginLeft:m, boxSizing:$('bs').value});
+  $('margin').style.padding=m+'px';
+  $('border').style.borderWidth=b+'px';
+  $('padding').style.padding=p+'px';
+  var cw=Math.max(0,r.contentW), ch=Math.max(0,r.contentH);
+  $('content').style.width=cw+'px';
+  $('content').style.height=ch+'px';
+  $('content').textContent=cw+' × '+ch;
+  $('out').textContent='内容区：'+r.contentW+' × '+r.contentH+'\n总占用：'+r.totalW+' × '+r.totalH+'\n（盒模型：'+$('bs').value+'）';
+}
+$('run').addEventListener('click', apply);
+var cp=$('copy'); if(cp){ cp.addEventListener('click', function(){ var o=$('out'); if(o&&navigator.clipboard) navigator.clipboard.writeText(o.textContent).then(function(){ if(window.nanoToast) nanoToast('已复制'); }); }); }
+apply();
+
+</script>
+<div id="nanoToast" role="status" aria-live="polite"></div>
+<script>
+/* ---- 状态条：复制/错误统一反馈 ---- */
+(function(){var el=document.getElementById('nanoToast');if(!el)return;var t;
+function show(m,bad){el.textContent=m;el.className='on'+(bad?' bad':'');clearTimeout(t);t=setTimeout(function(){el.className='';},1700);}
+window.nanoToast=show;
+try{var nc=navigator.clipboard;if(nc&&nc.writeText){var ow=nc.writeText.bind(nc);
+nc.writeText=function(s){return ow(s).then(function(r){show(window.nanoT?window.nanoT('copied'):'已复制');return r;},function(e){show(window.nanoT?window.nanoT('copyfail'):'复制失败',1);throw e;});};}}catch(e){}
+})();
+/* ---- i18n 运行时 ---- */
+var I18N = {"en": {"b1": "Zero deps", "b2": "Offline", "b3": "Local only", "b4": "Flagship", "copied": "Copied", "copyfail": "Copy failed"}, "zh": {"b1": "零依赖", "b2": "离线可用", "b3": "数据不出本机", "b4": "旗舰", "copied": "已复制", "copyfail": "复制失败", "sub": "设计 · 盒模型", "title": "PaddingBoxForge · 盒模型"}};
+(function(){
+  function cur(){try{return localStorage.getItem('nano-lang')==='en'?'en':'zh';}catch(e){return 'zh';}}
+  function dict(){return I18N[cur()]||I18N.zh;}
+  function apply(){
+    var l=cur(), d=dict();
+    document.documentElement.lang = (l==='en'?'en':'zh-CN');
+    var ns=document.querySelectorAll('[data-i18n]');
+    for(var i=0;i<ns.length;i++){var k=ns[i].getAttribute('data-i18n');if(d[k]!=null)ns[i].textContent=d[k];}
+    var ps=document.querySelectorAll('[data-i18n-ph]');
+    for(var j=0;j<ps.length;j++){var k2=ps[j].getAttribute('data-i18n-ph');if(d[k2]!=null)ps[j].setAttribute('placeholder',d[k2]);}
+    var b=document.getElementById('langBtn'); if(b) b.textContent=(l==='en'?'中文':'EN');
+    if(d.title) document.title=d.title;
+  }
+  window.nanoT=function(k){var d=dict();return d[k]!=null?d[k]:k;};
+  window.nanoApplyI18n=apply;
+  var b=document.getElementById('langBtn');
+  if(b) b.addEventListener('click', function(){
+    try{localStorage.setItem('nano-lang', cur()==='en'?'zh':'en');}catch(e){}
+    apply(); if(window.nanoRerender) window.nanoRerender();
+  });
+  apply();
+})();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+</body>
+</html>

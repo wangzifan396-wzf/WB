@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/github/forks/wangzifan396-wzf/WB?style=flat-square" alt="Forks">
   <img src="https://img.shields.io/github/issues/wangzifan396-wzf/WB?style=flat-square" alt="Issues">
   <img src="https://img.shields.io/github/last-commit/wangzifan396-wzf/WB?style=flat-square" alt="Last Commit">
-  <img src="https://img.shields.io/badge/tools-1440-5E6AD2?style=flat-square" alt="1440 Tools">
+  <img src="https://img.shields.io/badge/tools-1448-5E6AD2?style=flat-square" alt="1448 Tools">
   <img src="https://img.shields.io/badge/dependencies-zero-2EA043?style=flat-square" alt="Zero Dep">
   <img src="https://img.shields.io/github/license/wangzifan396-wzf/WB?style=flat-square" alt="License">
 </p>
@@ -16,7 +16,7 @@
 
 # nano-tools · 单文件工具集
 
-**1440 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
+**1448 款单文件、零依赖、本地优先的开发者工具**，全部收在这一个仓库里（覆盖 22 个分类）。
 每个工具就是一个 `index.html`——无需安装、无需构建、无需联网，下载即用，数据永远留在你的浏览器里。
 
 ## 为什么是 nano-tools
@@ -36,13 +36,13 @@ WB/
 │   │   ├── index.html  # 工具本体，单文件、可直接双击打开
 │   │   ├── README.md
 │   │   ├── og.svg  favicon.svg  manifest.webmanifest  sw.js
-│   └── ...             # 共 1440 个工具目录
+│   └── ...             # 共 1448 个工具目录
 └── sw.js  manifest.webmanifest  .nojekyll
 ```
 
 每个工具的在线地址：`https://wangzifan396-wzf.github.io/WB/tools/<ToolName>/`
 
-## 🧰 工具矩阵（精选展示 · 全库 1440 款 · ⭐ = 旗舰）
+## 🧰 工具矩阵（精选展示 · 全库 1448 款 · ⭐ = 旗舰）
 
 | 工具 | 分类 | 简介 |
 | --- | --- | --- |
@@ -920,6 +920,14 @@ WB/
 | [SmartGoalForge](https://wangzifan396-wzf.github.io/WB/tools/SmartGoalForge/) | 效率工具 | SMART 目标：生成具体/可衡量/可实现/相关/有时限五要素拆解模板与里程碑占位，离线处理。 |
 | [OkrForge](https://wangzifan396-wzf.github.io/WB/tools/OkrForge/) | 效率工具 | OKR 模板：按 Objective 与 Key Results 生成含关键举措、风险依赖的结构化模板，离线处理。 |
 | [CheatSheetForge](https://wangzifan396-wzf.github.io/WB/tools/CheatSheetForge/) | 教育工具 | 速查表：将「概念: 说明」条目转为 Markdown 表格，便于整理语法/公式备忘，离线处理。 |
+| [ListForge](https://wangzifan396-wzf.github.io/WB/tools/ListForge/) | 文本处理 | 列表处理：自定义分隔符拆分，可去空/去重/排序/加引号并以新分隔符重拼，离线处理。 |
+| [MergeForge](https://wangzifan396-wzf.github.io/WB/tools/MergeForge/) | 文本处理 | 双列合并：两列文本按行拼接（zip），长度不等自动补空，连接符可自定义，离线处理。 |
+| [PercentChangeForge](https://wangzifan396-wzf.github.io/WB/tools/PercentChangeForge/) | 实用计算 | 百分比变化：计算涨跌变化量与变化率（增长/下降/持平），并支持部分占整体比例，离线处理。 |
+| [SpeedForge](https://wangzifan396-wzf.github.io/WB/tools/SpeedForge/) | 实用计算 | 速度计算：距离/时间/速度三项知二求一，自动识别求解项并校验取值，离线处理。 |
+| [LayoutForge](https://wangzifan396-wzf.github.io/WB/tools/LayoutForge/) | 设计工具 | 布局生成：5 种常见版式（居中/侧边栏/圣杯/网格/堆叠）CSS 生成 + 实时预览，间距可调，离线处理。 |
+| [PaddingBoxForge](https://wangzifan396-wzf.github.io/WB/tools/PaddingBoxForge/) | 设计工具 | 盒模型：按宽高/内边距/边框/外边距计算内容区与总占用尺寸，支持 content-box 与 border-box，带可视化，离线处理。 |
+| [QuizGenForge](https://wangzifan396-wzf.github.io/WB/tools/QuizGenForge/) | 教育工具 | 测验生成：从「问题: 答案」条目生成填空题或选择题，干扰项取自其他答案，种子可复现，离线处理。 |
+| [DecisionForge](https://wangzifan396-wzf.github.io/WB/tools/DecisionForge/) | 效率工具 | 决策矩阵：按方案 × 准则生成加权评分表，含权重清单与结论区，离线处理。 |
 | [SpacedRepForge](https://wangzifan396-wzf.github.io/WB/tools/SpacedRepForge/) | 教育工具 | 间隔重复调度：SM-2 简化版，按质量评分推进复习间隔与易度因子，预览 6 档结果。 |
 | [DistortionForge](https://wangzifan396-wzf.github.io/WB/tools/DistortionForge/) | 音频工具 | 失真/波形整形：硬削波 / 软削波(tanh) / 折叠(foldback)，可调驱动与干湿混合。 |
 | [CompressorForge](https://wangzifan396-wzf.github.io/WB/tools/CompressorForge/) | 音频工具 | 动态压缩：包络跟踪阈值/比率/启动释放/补偿增益，输出增益衰减量。 |
@@ -939,7 +947,7 @@ WB/
 
 - 每个工具都带 `_test.js`（纯函数断言）+ `smoke.js`（jsdom 冒烟）。
 - 发布前五门禁：`audit_render.js`（渲染/语法/截断）、`audit_matrix_v3.py`（运行时缺陷）、`audit_portal.js`（门户三数组/计数）、`audit_runtime.js`（jsdom 全量启动）、`audit_mcp.py`（MCP manifest 结构）必须全 0 缺陷。
-- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1440 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
+- 工具总数与分类实时取自门户 `index.html` 的 `TOOLS` 数组（当前 1448 款 / 22 类）；本矩阵为精选展示，随新批次手工补充。
 
 ## 聚合工作台
 
