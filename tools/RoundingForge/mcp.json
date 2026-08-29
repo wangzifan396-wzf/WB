@@ -1,0 +1,34 @@
+{
+  "id": "RoundingForge",
+  "name": "rounding_forge",
+  "title": "舍入模式",
+  "description": "舍入模式：四舍五入（远离零）/银行家舍入/向下/向上/截断，可指定小数位，离线处理。",
+  "entry": "roundTo",
+  "entries": {
+    "roundTo": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "v": {
+        "type": "number",
+        "description": "第 1 个参数（v）（数值）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction roundTo(v, opts){\r\n  opts=opts||{}; var digits=opts.digits!=null?opts.digits:2; var mode=opts.mode||'half-up';\r\n  v=Number(v); if(!isFinite(v)) return {ok:false, reason:'not a number'};\r\n  var f=Math.pow(10,digits);\r\n  var x=Number((v*f).toPrecision(15));\r\n  var r;\r\n  if(mode==='floor') r=Math.floor(x);\r\n  else if(mode==='ceil') r=Math.ceil(x);\r\n  else if(mode==='trunc') r=(x<0)?Math.ceil(x):Math.floor(x);\r\n  else if(mode==='half-even'){\r\n    var fl=Math.floor(x), d=x-fl;\r\n    if(d>0.5) r=fl+1; else if(d<0.5) r=fl; else r=(fl%2===0)?fl:fl+1;\r\n  } else {\r\n    r = (x<0) ? -Math.round(-x) : Math.round(x);\r\n  }\r\n  return {ok:true, value:r/f, mode:mode, digits:digits};\r\n}\r\n\r\nvar EXPORTS={roundTo:roundTo};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.RoundingForgePure = EXPORTS; }\r\n\r\n"
+}

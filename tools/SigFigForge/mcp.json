@@ -1,0 +1,34 @@
+{
+  "id": "SigFigForge",
+  "name": "sig_fig_forge",
+  "title": "有效数字",
+  "description": "有效数字：按位数保留有效数字，指数结果自动展开为普通小数，离线处理。",
+  "entry": "toSignificantFigures",
+  "entries": {
+    "toSignificantFigures": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "v",
+        "n"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "v": {
+        "type": "number",
+        "description": "第 1 个参数（v）（数值）"
+      },
+      "n": {
+        "type": "number",
+        "description": "第 2 个参数（n）（数值）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction toSignificantFigures(v, n){\r\n  v=Number(v); if(!isFinite(v)) return {ok:false, reason:'not a finite number'};\r\n  n=Number(n); if(!(n>=1) || n>15) return {ok:false, reason:'digits must be 1-15'};\r\n  if(v===0) return {ok:true, value:'0'};\r\n  var p=v.toPrecision(n);\r\n  var em=/^([+-]?)(\\d)(?:\\.(\\d*))?[eE]([+-]?\\d+)$/.exec(p);\r\n  if(em){\r\n    var sign=em[1]==='-'?'-':'', digits=em[2]+(em[3]||''), exp=parseInt(em[4],10), plain;\r\n    if(exp>=0){\r\n      if(digits.length>exp+1) plain=digits.slice(0,exp+1)+'.'+digits.slice(exp+1);\r\n      else { plain=digits; for(var k=digits.length;k<=exp;k++) plain+='0'; }\r\n    } else {\r\n      plain='0.'; for(var j=-1;j>exp;j--) plain+='0'; plain+=digits;\r\n    }\r\n    p=sign+plain;\r\n  }\r\n  if(p.indexOf('.')>=0) p=p.replace(/0+$/,'').replace(/\\.$/,'');\r\n  return {ok:true, value:p};\r\n}\r\n\r\nvar EXPORTS={toSignificantFigures:toSignificantFigures};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.SigFigForgePure = EXPORTS; }\r\n\r\n"
+}

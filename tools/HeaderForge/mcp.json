@@ -1,0 +1,41 @@
+{
+  "id": "HeaderForge",
+  "name": "header_forge",
+  "title": "HTTP 头",
+  "description": "HTTP 头：解析为列表、归一化重建，或输出常用头模板，离线处理。",
+  "entry": "buildHeaders",
+  "entries": {
+    "commonHeaders": {
+      "paramStyle": "none",
+      "paramNames": [],
+      "fields": []
+    },
+    "parseHeaders": {
+      "paramStyle": "single",
+      "paramNames": [
+        "raw"
+      ],
+      "fields": []
+    },
+    "buildHeaders": {
+      "paramStyle": "single",
+      "paramNames": [
+        "list"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "list": {
+        "type": "array",
+        "description": "输入（list）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nvar COMMON_HEADERS=[\r\n {name:'Content-Type', value:'application/json; charset=utf-8'},\r\n {name:'Cache-Control', value:'no-store'},\r\n {name:'Authorization', value:'Bearer <token>'},\r\n {name:'Accept', value:'application/json'},\r\n {name:'User-Agent', value:'Mozilla/5.0'},\r\n {name:'X-Request-Id', value:'<uuid>'},\r\n {name:'Access-Control-Allow-Origin', value:'*'},\r\n {name:'Content-Security-Policy', value:\"default-src 'self'\"}\r\n];\r\nfunction commonHeaders(){ return COMMON_HEADERS.slice(); }\r\nfunction parseHeaders(raw){\r\n  var lines=String(raw||'').split(/\\r?\\n/); var out=[];\r\n  for(var i=0;i<lines.length;i++){\r\n    var L=lines[i]; if(!L.replace(/\\s/g,'')) continue;\r\n    var idx=L.indexOf(':'); if(idx<0) continue;\r\n    out.push({name:L.slice(0,idx).replace(/^\\s+|\\s+$/g,''), value:L.slice(idx+1).replace(/^\\s+|\\s+$/g,'')});\r\n  }\r\n  return out;\r\n}\r\nfunction buildHeaders(list){\r\n  var out=[];\r\n  for(var i=0;i<(list||[]).length;i++){ var h=list[i]; if(!h||!h.name) continue; out.push(h.name+': '+h.value); }\r\n  return out.join('\\n');\r\n}\r\n\r\nvar EXPORTS={commonHeaders:commonHeaders,parseHeaders:parseHeaders,buildHeaders:buildHeaders};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.HeaderForgePure = EXPORTS; }\r\n\r\n"
+}
