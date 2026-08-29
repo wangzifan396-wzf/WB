@@ -1,0 +1,36 @@
+{
+  "id": "BalanceForge",
+  "name": "balance_forge",
+  "title": "化学方程式配平",
+  "description": "化学方程式配平：解析化学式（含括号）→ 构建元素矩阵 → 高斯消元求零空间 → 最简整数比，离线处理。",
+  "entry": "parseFormula",
+  "entries": {
+    "parseFormula": {
+      "paramStyle": "single",
+      "paramNames": [
+        "f"
+      ],
+      "fields": []
+    },
+    "balanceEquation": {
+      "paramStyle": "single",
+      "paramNames": [
+        "eq"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "f": {
+        "type": "string",
+        "description": "输入（f）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction parseFormula(f){\r\n  var stack=[{}], i=0;\r\n  while(i<f.length){\r\n    var c=f.charAt(i);\r\n    if(c==='('){ stack.push({}); i++; continue; }\r\n    if(c===')'){\r\n      i++;\r\n      var num=''; while(i<f.length && /\\d/.test(f.charAt(i))){ num+=f.charAt(i); i++; }\r\n      var mult=num?parseInt(num,10):1;\r\n      var grp=stack.pop(); var top=stack[stack.length-1];\r\n      for(var e in grp){ top[e]=(top[e]||0)+grp[e]*mult; }\r\n      continue;\r\n    }\r\n    var m=/^([A-Z][a-z]?)(\\d*)/.exec(f.slice(i));\r\n    if(m && m[1]){\r\n      var el=m[1], cnt=m[2]?parseInt(m[2],10):1;\r\n      var t2=stack[stack.length-1];\r\n      t2[el]=(t2[el]||0)+cnt;\r\n      i+=m[0].length;\r\n      continue;\r\n    }\r\n    i++;\r\n  }\r\n  var res=stack[0];\r\n  for(var k=1;k<stack.length;k++){ var s=stack[k]; for(var e2 in s){ res[e2]=(res[e2]||0)+s[e2]; } }\r\n  return res;\r\n}\r\nfunction gcdInt(a,b){ a=Math.abs(Math.round(a)); b=Math.abs(Math.round(b)); while(b){ var t=b; b=a%b; a=t; } return a||1; }\r\nfunction gcdList(arr){ var g=Math.abs(Math.round(arr[0])); for(var i=1;i<arr.length;i++) g=gcdInt(g,arr[i]); return g||1; }\r\nfunction denomOf(v){ v=Math.abs(v); if(Math.abs(v-Math.round(v))<1e-9) return 1;\r\n  for(var d=2; d<=1000; d++){ var p=v*d; if(Math.abs(p-Math.round(p))<1e-9) return d; } return 1; }\r\nfunction lcmList(arr){ var l=1; for(var i=0;i<arr.length;i++) l=l*arr[i]/gcdInt(l,arr[i]); return l; }\r\nfunction balanceEquation(eq){\r\n  var sides=String(eq||'').split(/=>|->|→|=/);\r\n  if(sides.length!==2) return {ok:false, reason:'方程式需包含两侧（用 = 或 -> 分隔）'};\r\n  var left=sides[0].split('+').map(function(x){return x.replace(/\\s/g,'');}).filter(Boolean);\r\n  var right=sides[1].split('+').map(function(x){return x.replace(/\\s/g,'');}).filter(Boolean);\r\n  if(!left.length || !right.length) return {ok:false, reason:'某一侧为空'};\r\n  var species=left.concat(right), n=species.length;\r\n  var counts=species.map(function(sp){ return parseFormula(sp); });\r\n  var order=[], seen={};\r\n  counts.forEach(function(c){ for(var e in c){ if(!seen[e]){ seen[e]=1; order.push(e); } } });\r\n  var m=order.length;\r\n  if(m===0) return {ok:false, reason:'未识别到元素'};\r\n  var M=[];\r\n  for(var i=0;i<m;i++){\r\n    var row=[];\r\n    for(var j=0;j<n;j++){ var v=counts[j][order[i]]||0; row.push(j<left.length? v : -v); }\r\n    M.push(row);\r\n  }\r\n  var A=[];\r\n  for(var i2=0;i2<m;i2++) A.push(M[i2].slice(0,n-1).concat([-M[i2][n-1]]));\r\n  var piv=0, where=[];\r\n  for(var col=0; col<n-1 && piv<m; col++){\r\n    var sel=-1;\r\n    for(var r=piv;r<m;r++){ if(Math.abs(A[r][col])>1e-9){ sel=r; break; } }\r\n    if(sel<0) continue;\r\n    var tmp=A[sel]; A[sel]=A[piv]; A[piv]=tmp;\r\n    var pv=A[piv][col];\r\n    for(var c2=col;c2<n;c2++) A[piv][c2]/=pv;\r\n    for(var r2=0;r2<m;r2++){\r\n      if(r2===piv) continue;\r\n      var fct=A[r2][col];\r\n      if(Math.abs(fct)<1e-12) continue;\r\n      for(var c3=col;c3<n;c3++) A[r2][c3]-=fct*A[piv][c3];\r\n    }\r\n    where.push(col);\r\n    piv++;\r\n  }\r\n  for(var r3=piv;r3<m;r3++){\r\n    var allZero=true;\r\n    for(var c4=0;c4<n-1;c4++){ if(Math.abs(A[r3][c4])>1e-9){ allZero=false; break; } }\r\n    if(allZero && Math.abs(A[r3][n-1])>1e-9) return {ok:false, reason:'无法配平（元素不守恒）'};\r\n  }\r\n  var sol=[]; for(var q=0;q<n-1;q++) sol.push(0);\r\n  for(var i3=0;i3<where.length;i3++) sol[where[i3]]=A[i3][n-1];\r\n  sol.push(1);\r\n  var dens=[]; for(var i4=0;i4<sol.length;i4++) dens.push(denomOf(sol[i4]));\r\n  var L2=lcmList(dens);\r\n  var ints=[]; for(var i5=0;i5<sol.length;i5++) ints.push(Math.round(sol[i5]*L2));\r\n  var mn=Math.min.apply(null,ints);\r\n  if(mn<0){ for(var i6=0;i6<ints.length;i6++) ints[i6]=-ints[i6]; }\r\n  for(var i7=0;i7<ints.length;i7++){ if(ints[i7]<=0) return {ok:false, reason:'无法求得正整数解'}; }\r\n  var g=gcdList(ints);\r\n  if(g>1){ for(var i8=0;i8<ints.length;i8++) ints[i8]=ints[i8]/g; }\r\n  function fmt(list, off){\r\n    var parts=[];\r\n    for(var i=0;i<list.length;i++){\r\n      var c=ints[off+i];\r\n      parts.push((c===1?'':c)+list[i]);\r\n    }\r\n    return parts.join(' + ');\r\n  }\r\n  return {ok:true, balanced:fmt(left,0)+' = '+fmt(right,left.length), coefficients:ints};\r\n}\r\n\r\nvar EXPORTS={parseFormula:parseFormula,balanceEquation:balanceEquation};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BalanceForgePure = EXPORTS; }\r\n\r\n"
+}

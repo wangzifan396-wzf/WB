@@ -1,0 +1,45 @@
+{
+  "id": "DateAddForge",
+  "name": "date_add_forge",
+  "title": "日期加减",
+  "description": "日期加减：按天/周/月/年偏移日期，月末自动夹取（如 1/31 + 1 月 = 2/28），离线处理。",
+  "entry": "dateAdd",
+  "entries": {
+    "dateAdd": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "dateStr",
+        "opts"
+      ],
+      "fields": []
+    },
+    "fmtDate": {
+      "paramStyle": "object",
+      "paramNames": [
+        "d"
+      ],
+      "fields": [
+        "getFullYear",
+        "getMonth",
+        "getDate"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "dateStr": {
+        "type": "string",
+        "description": "第 1 个参数（dateStr）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction pad2(x){ return (x<10?'0':'')+x; }\r\nfunction fmtDate(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }\r\nfunction dateAdd(dateStr, opts){\r\n  opts=opts||{}; var n=Number(opts.n)||0; var unit=opts.unit||'day';\r\n  var d = dateStr ? new Date(dateStr) : new Date();\r\n  if(isNaN(d.getTime())) return {ok:false, reason:'invalid date'};\r\n  var out=new Date(d.getTime());\r\n  if(unit==='day') out.setDate(out.getDate()+n);\r\n  else if(unit==='week') out.setDate(out.getDate()+n*7);\r\n  else if(unit==='month'){\r\n    var day=out.getDate();\r\n    out.setDate(1);\r\n    out.setMonth(out.getMonth()+n);\r\n    var last=new Date(out.getFullYear(), out.getMonth()+1, 0).getDate();\r\n    out.setDate(Math.min(day,last));\r\n  }\r\n  else if(unit==='year') out.setFullYear(out.getFullYear()+n);\r\n  else return {ok:false, reason:'unknown unit'};\r\n  return {ok:true, value:fmtDate(out)};\r\n}\r\n\r\nvar EXPORTS={dateAdd:dateAdd,fmtDate:fmtDate};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.DateAddForgePure = EXPORTS; }\r\n\r\n"
+}
