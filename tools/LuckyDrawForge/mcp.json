@@ -1,0 +1,34 @@
+{
+  "id": "LuckyDrawForge",
+  "name": "lucky_draw_forge",
+  "title": "抽奖",
+  "description": "抽奖：从候选名单中不重复抽取指定人数，输出中奖与剩余名单，种子可复现，离线处理。",
+  "entry": "luckyDraw",
+  "entries": {
+    "luckyDraw": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "names",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "names": {
+        "type": "array",
+        "description": "第 1 个参数（names）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nfunction luckyDraw(names, opts){\r\n  opts=opts||{}; var seed=opts.seed!=null?opts.seed:1; var r=rngFactory(seed);\r\n  var list=(typeof names==='string' ? names.split(/[\\n,，;；]+/) : (names||[]))\r\n    .map(function(s){ return String(s).trim(); }).filter(Boolean);\r\n  var n=opts.pick!=null?opts.pick:1;\r\n  if(n<1) n=1;\r\n  if(n>list.length) n=list.length;\r\n  var arr=list.slice(); var picked=[];\r\n  for(var i=0;i<n;i++){\r\n    if(!arr.length) break;\r\n    var idx=Math.floor(r()*arr.length);\r\n    picked.push(arr[idx]);\r\n    arr.splice(idx,1);\r\n  }\r\n  return {ok:true, winners:picked, drawn:picked.length, remaining:arr};\r\n}\r\n\r\nvar EXPORTS={luckyDraw:luckyDraw};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.LuckyDrawForgePure = EXPORTS; }\r\n\r\n"
+}

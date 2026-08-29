@@ -1,0 +1,34 @@
+{
+  "id": "TeamForge",
+  "name": "team_forge",
+  "title": "随机分队",
+  "description": "随机分队：洗牌后轮流分配到各队，人数尽量均衡，种子可复现，离线处理。",
+  "entry": "splitTeams",
+  "entries": {
+    "splitTeams": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "names",
+        "opts"
+      ],
+      "fields": []
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "names": {
+        "type": "array",
+        "description": "第 1 个参数（names）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 2 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction rngFactory(seed){ var s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }\r\n\r\nfunction splitTeams(names, opts){\r\n  opts=opts||{}; var seed=opts.seed!=null?opts.seed:1; var r=rngFactory(seed);\r\n  var list=(typeof names==='string' ? names.split(/[\\n,，;；\\s]+/) : (names||[]))\r\n    .map(function(s){ return String(s).trim(); }).filter(Boolean);\r\n  var cnt=opts.teams!=null?opts.teams:2;\r\n  if(cnt<1) cnt=1;\r\n  if(list.length && cnt>list.length) cnt=list.length;\r\n  var arr=list.slice();\r\n  for(var i=arr.length-1;i>0;i--){ var j=Math.floor(r()*(i+1)); var t=arr[i]; arr[i]=arr[j]; arr[j]=t; }\r\n  var teams=[];\r\n  for(var k=0;k<cnt;k++) teams.push([]);\r\n  for(var m=0;m<arr.length;m++) teams[m%cnt].push(arr[m]);\r\n  return {ok:true, teams:teams, count:cnt, total:list.length};\r\n}\r\n\r\nvar EXPORTS={splitTeams:splitTeams};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.TeamForgePure = EXPORTS; }\r\n\r\n"
+}

@@ -1,0 +1,46 @@
+{
+  "id": "BatteryForge",
+  "name": "battery_forge",
+  "title": "续航估算",
+  "description": "续航估算：按电池容量、工作电流与效率估算可用时长（小时/天），并给出 Wh 能量，离线处理。",
+  "entry": "batteryLife",
+  "entries": {
+    "batteryLife": {
+      "paramStyle": "object",
+      "paramNames": [
+        "opts"
+      ],
+      "fields": [
+        "capacity",
+        "voltage",
+        "draw",
+        "efficiency"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "capacity": {
+        "type": "string",
+        "description": "参数 capacity"
+      },
+      "voltage": {
+        "type": "string",
+        "description": "参数 voltage"
+      },
+      "draw": {
+        "type": "string",
+        "description": "参数 draw"
+      },
+      "efficiency": {
+        "type": "string",
+        "description": "参数 efficiency"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction batteryLife(opts){\r\n  opts=opts||{};\r\n  var cap=Number(opts.capacity);\r\n  var volt=opts.voltage!=null?Number(opts.voltage):3.7;\r\n  var draw=Number(opts.draw);\r\n  if(!isFinite(cap) || !(cap>0)) return {ok:false, reason:'电池容量无效（需 > 0）'};\r\n  if(!isFinite(draw) || !(draw>0)) return {ok:false, reason:'工作电流无效（需 > 0）'};\r\n  if(!isFinite(volt) || !(volt>0)) return {ok:false, reason:'电压无效（需 > 0）'};\r\n  var eff=opts.efficiency!=null?Number(opts.efficiency):0.85;\r\n  if(!isFinite(eff) || !(eff>0)) eff=0.85;\r\n  if(eff>1) eff=1;\r\n  var hours=(cap*eff)/draw;\r\n  return {ok:true, hours:hours, wh:cap*volt/1000, days:hours/24};\r\n}\r\n\r\nvar EXPORTS={batteryLife:batteryLife};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.BatteryForgePure = EXPORTS; }\r\n\r\n"
+}
