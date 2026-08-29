@@ -1,0 +1,50 @@
+{
+  "id": "WorkdayForge",
+  "name": "workday_forge",
+  "title": "工作日计算",
+  "description": "工作日计算：统计区间内工作日数（排除周末），可指定节假日，起止自动排序，离线处理。",
+  "entry": "workdays",
+  "entries": {
+    "workdays": {
+      "paramStyle": "positional",
+      "paramNames": [
+        "start",
+        "end",
+        "opts"
+      ],
+      "fields": []
+    },
+    "fmtDay": {
+      "paramStyle": "object",
+      "paramNames": [
+        "d"
+      ],
+      "fields": [
+        "getFullYear",
+        "getMonth",
+        "getDate"
+      ]
+    }
+  },
+  "domFree": true,
+  "schemaSource": "auto",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "start": {
+        "type": "string",
+        "description": "第 1 个参数（start）"
+      },
+      "end": {
+        "type": "string",
+        "description": "第 2 个参数（end）"
+      },
+      "opts": {
+        "type": "object",
+        "description": "第 3 个参数（opts）"
+      }
+    },
+    "additionalProperties": false
+  },
+  "core": "\r\n\r\nfunction fmtDay(d){ function p(x){ return (x<10?'0':'')+x; } return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }\r\nfunction workdays(start, end, opts){\r\n  opts=opts||{};\r\n  var s=start? new Date(start) : new Date();\r\n  var e=end? new Date(end) : new Date();\r\n  if(isNaN(s.getTime()) || isNaN(e.getTime())) return {ok:false, reason:'invalid date'};\r\n  if(s.getTime()>e.getTime()){ var tmp=s; s=e; e=tmp; }\r\n  var hol={}; var hs=opts.holidays||[];\r\n  if(typeof hs==='string') hs=hs.split(/[\\s,，;；\\n]+/);\r\n  for(var i=0;i<hs.length;i++){ var k=String(hs[i]).trim(); if(k) hol[k]=1; }\r\n  var d=new Date(s.getFullYear(), s.getMonth(), s.getDate());\r\n  var out=[];\r\n  while(d.getTime()<=e.getTime()){\r\n    var wd=d.getDay();\r\n    if(wd!==0 && wd!==6){ var key=fmtDay(d); if(!hol[key]) out.push(key); }\r\n    d.setDate(d.getDate()+1);\r\n  }\r\n  var lim=opts.preview!=null?opts.preview:10;\r\n  return {ok:true, days:out.length, dates:out.slice(0,lim)};\r\n}\r\n\r\nvar EXPORTS={workdays:workdays,fmtDay:fmtDay};\r\n\r\nif (typeof module !== 'undefined' && module.exports) { module.exports = EXPORTS; }\r\nif (typeof window !== 'undefined') { window.WorkdayForgePure = EXPORTS; }\r\n\r\n"
+}
